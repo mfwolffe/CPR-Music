@@ -6,7 +6,7 @@ import Button from 'react-bootstrap/Button';
 import {
   FaMicrophone, FaStop, FaCloudUploadAlt,
   FaSpinner, FaTimesCircle, FaCheck, FaPlay, FaPause,
-  FaVolumeOff, FaVolumeMute, FaVolumeDown, FaVolumeUp
+  FaVolumeOff, FaVolumeMute, FaVolumeDown, FaVolumeUp, FaRegTrashAlt
 } from 'react-icons/fa';
 import { useDispatch, useSelector } from 'react-redux';
 import ListGroup from 'react-bootstrap/ListGroup';
@@ -173,6 +173,12 @@ export default function Recorder({ submit, accompaniment }) {
     submit({ audio: formData, submissionId });
   };
 
+  function deleteTake(index) {
+    let newInfo = blobInfo.slice();
+    newInfo.splice(index, 1);
+    setBlobInfo(newInfo);
+  }
+
   // check for recording permissions
   useEffect(() => {
     if (
@@ -257,11 +263,17 @@ export default function Recorder({ submit, accompaniment }) {
                     controls
                   /> */}
                   <AudioViewer src={take.url} />
-                  <Button
-                    onClick={() => submitRecording(i, `recording-take-${i}`)}
-                  >
-                    <FaCloudUploadAlt />
-                  </Button>
+                  <div>
+                    <Button
+                      onClick={() => submitRecording(i, `recording-take-${i}`)}
+                    >
+                      <FaCloudUploadAlt />
+                    </Button>
+                    <Button
+                      onClick={() => deleteTake(i)}>
+                      <FaRegTrashAlt />
+                    </Button>
+                  </div>
                   <div className="minWidth">
                     <StatusIndicator statusId={`recording-take-${i}`} />
                   </div>
