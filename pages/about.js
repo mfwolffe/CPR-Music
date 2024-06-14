@@ -182,6 +182,8 @@ function About() {
           <a target="_blank" rel="noopener noreferrer" href="https://laurenyz.github.io/portfolio/">Lauren Yu</a> (Web
           Developer)
         </li>
+
+        <li><a target="_blank" rel="noopener noreferrer" href="https://github.com/JoshuaAHairston">Joshua Hairston</a> (Undergraduate Student, James Madison University)</li>
       </ul>
     </Layout>
   );
