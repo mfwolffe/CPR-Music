@@ -17,13 +17,21 @@ import { useRouter } from 'next/router';
 import { UploadStatusEnum } from '../types';
 import StatusIndicator from './statusIndicator';
 import WaveSurfer from 'wavesurfer.js';
+import styles from '../styles/recorder.module.css';
 
 function AudioViewer({ src }) {
   const containerW = useRef(null);
   const waveSurf = useRef(null);
   const volume = useRef(null);
-  const [playing, setPlay] = useState(<FaPlay />);
-  const [volumeIndex, changeVolume] = useState(<FaVolumeUp />);
+  const play = <FaPlay style={{ paddingLeft: '2px' }} />;
+  const pause = <FaPause />;
+  const vMute = <FaVolumeMute />;
+  const vOff = <FaVolumeOff />;
+  const vDown = <FaVolumeDown />;
+  const vUp = <FaVolumeUp />;
+  const [playing, setPlay] = useState(play);
+  const [volumeIndex, changeVolume] = useState(vUp);
+
   useEffect(() => {
     if (containerW.current && !waveSurf.current) {
       waveSurf.current = WaveSurfer.create({
@@ -53,33 +61,35 @@ function AudioViewer({ src }) {
 
   function handleVolumeChange() {
     waveSurf.current.setVolume(volume.current.value);
+    let volumeNum = volume.current.value * 100;
+    volume.current.style.setProperty('--volumePercent', volumeNum + '%');
     if (volume.current.value == 0) {
-      changeVolume(<FaVolumeMute />);
+      changeVolume(vMute);
     }
     else if (volume.current.value < .25) {
-      changeVolume(<FaVolumeOff />);
+      changeVolume(vOff);
     }
     else if (volume.current.value < .5) {
-      changeVolume(<FaVolumeDown />);
+      changeVolume(vDown);
     }
     else if (volume.current.value < .75) {
-      changeVolume(<FaVolumeUp />);
+      changeVolume(vUp);
     }
   }
 
   function playPause() {
     if (waveSurf.current.isPlaying()) {
-      setPlay(<FaPlay />);
+      setPlay(play);
       waveSurf.current.pause();
     }
     else {
-      setPlay(<FaPause />);
+      setPlay(pause);
       waveSurf.current.play();
     }
   };
   if (waveSurf.current) {
     waveSurf.current.on('finish', () => {
-      setPlay(<FaPlay />);
+      setPlay(play);
     });
   }
 
@@ -89,12 +99,22 @@ function AudioViewer({ src }) {
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'center',
-      alignItems: 'center'
+      alignItems: 'center',
+      margin: '0 1rem 0 1rem'
     }}>
       <div className="wavesurfercontain" ref={containerW} style={{ width: '100%' }}></div>
-      <div>
-        <Button onClick={playPause}>{playing}</Button>
-        <input ref={volume} type="range" min="0" max="1" step="0.01" defaultValue="1"></input>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <Button style={{
+          marginRight: '1rem',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          width: '40px',
+          height: '40px',
+          borderRadius: '50%',
+          padding: '0'
+        }} onClick={playPause}>{playing}</Button>
+        <input className={styles.slider} style={{ marginRight: '1rem' }} ref={volume} type="range" min="0" max="1" step="0.01" defaultValue="1"></input>
         {volumeIndex}
       </div>
     </div>
