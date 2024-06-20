@@ -25,10 +25,10 @@ function AudioViewer({ src }) {
   const volume = useRef(null);
   const play = <FaPlay style={{ paddingLeft: '2px' }} />;
   const pause = <FaPause />;
-  const vMute = <FaVolumeMute />;
-  const vOff = <FaVolumeOff />;
-  const vDown = <FaVolumeDown />;
-  const vUp = <FaVolumeUp />;
+  const vMute = <FaVolumeMute style={{ cursor: 'pointer', color: 'red' }} onClick={toggleVolume} />;
+  const vOff = <FaVolumeOff style={{ cursor: 'pointer' }} onClick={toggleVolume} />;
+  const vDown = <FaVolumeDown style={{ cursor: 'pointer' }} onClick={toggleVolume} />;
+  const vUp = <FaVolumeUp style={{ cursor: 'pointer' }} onClick={toggleVolume} />;
   const [playing, setPlay] = useState(play);
   const [volumeIndex, changeVolume] = useState(vUp);
 
@@ -74,6 +74,23 @@ function AudioViewer({ src }) {
     }
     else if (volume.current.value < .75) {
       changeVolume(vUp);
+    }
+  }
+
+  function toggleVolume() {
+    if (volume.current) {
+      if (volume.current.value != 0) {
+        volume.current.value = 0;
+        waveSurf.current.setVolume(volume.current.value);
+        volume.current.style.setProperty('--volumePercent', 0 + '%');
+        changeVolume(vMute);
+      }
+      else {
+        volume.current.value = 1;
+        waveSurf.current.setVolume(volume.current.value);
+        volume.current.style.setProperty('--volumePercent', 100 + '%');
+        changeVolume(vUp);
+      }
     }
   }
 
