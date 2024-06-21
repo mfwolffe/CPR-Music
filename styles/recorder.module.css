@@ -31,3 +31,10 @@
     top: 50%;
     transform: translateY(-50%);
 }
+
+
+@media screen and (max-width: 600px) {
+    .slider{
+        width: 100px;
+    }
+}
