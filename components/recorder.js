@@ -38,11 +38,12 @@ function AudioViewer({ src }) {
         container: containerW.current,
         waveColor: 'blue',
         progressColor: 'purple',
-        barWidth: '3',
-        barRadius: '3',
-        cursorWidth: '1',
-        height: '200',
-        barGap: '3',
+        barWidth: 3,
+        barHeight: 0.5,
+        barRadius: 3,
+        cursorWidth: 3,
+        height: 200,
+        barGap: 3,
         dragToSeek: true
         // plugins:[
         //   WaveSurferRegions.create({maxLength: 60}),
@@ -119,7 +120,7 @@ function AudioViewer({ src }) {
       alignItems: 'center',
       margin: '0 1rem 0 1rem'
     }}>
-      <div className="wavesurfercontain" ref={containerW} style={{ width: '100%' }}></div>
+      <div className={styles.waveContainer} ref={containerW} style={{ width: '100%' }}></div>
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <Button style={{
           marginRight: '1rem',
