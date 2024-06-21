@@ -55,7 +55,7 @@ function AudioViewer({ src }) {
       }
       if (volume.current && waveSurf.current) {
         waveSurf.current.setVolume(volume.current.value);
-        volume.current.addEventListener('input', handleVolumeChange)
+        volume.current.addEventListener('input', handleVolumeChange);
       }
     }
   }, []);
