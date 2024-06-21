@@ -25,3 +25,9 @@
     background-color: black;
     cursor: pointer;
 }
+
+.waveContainer ::part(cursor){
+    height: 150px;
+    top: 50%;
+    transform: translateY(-50%);
+}
