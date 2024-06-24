@@ -170,6 +170,9 @@ function About() {
           </a>{' '}
           (Lecturer in Computer Science, James Madison University)
         </li>
+        <li>
+          Khadijat Oluwasanmi (Undergraduate Student, James Madison University)
+        </li>
         <li>Isaiah Ortiz (Undergraduate Student, James Madison University)</li>
         <li>Nathan Self (Consulting Musician and Web Developer)</li>
         <li>
