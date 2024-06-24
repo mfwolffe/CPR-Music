@@ -25,10 +25,10 @@ function AudioViewer({ src }) {
   const volume = useRef(null);
   const play = <FaPlay style={{ paddingLeft: '2px' }} />;
   const pause = <FaPause />;
-  const vMute = <FaVolumeMute style={{ cursor: 'pointer', color: 'red' }} onClick={toggleVolume} />;
-  const vOff = <FaVolumeOff style={{ cursor: 'pointer' }} onClick={toggleVolume} />;
-  const vDown = <FaVolumeDown style={{ cursor: 'pointer' }} onClick={toggleVolume} />;
-  const vUp = <FaVolumeUp style={{ cursor: 'pointer' }} onClick={toggleVolume} />;
+  const vMute = <FaVolumeMute style={{ width: '1.05em', height: '1.05em', cursor: 'pointer', color: 'red', paddingLeft: '2px' }} onClick={toggleVolume} />;
+  const vOff = <FaVolumeOff style={{ cursor: 'pointer', paddingRight: '9px' }} onClick={toggleVolume} />;
+  const vDown = <FaVolumeDown style={{ cursor: 'pointer', paddingRight: '3px' }} onClick={toggleVolume} />;
+  const vUp = <FaVolumeUp style={{ width: '1.23em', height: '1.23em', cursor: 'pointer', paddingLeft: '3px' }} onClick={toggleVolume} />;
   const [playing, setPlay] = useState(play);
   const [volumeIndex, changeVolume] = useState(vUp);
 
@@ -132,7 +132,7 @@ function AudioViewer({ src }) {
           borderRadius: '50%',
           padding: '0'
         }} onClick={playPause}>{playing}</Button>
-        <input className={styles.slider} style={{ marginRight: '1rem' }} ref={volume} type="range" min="0" max="1" step="0.01" defaultValue="1"></input>
+        <input className={styles.slider} style={{ marginRight: '1.5rem' }} ref={volume} type="range" min="0" max="1" step="0.01" defaultValue="1"></input>
         {volumeIndex}
       </div>
     </div>
