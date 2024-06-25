@@ -114,6 +114,7 @@ function About() {
           Abdullah Mohammed Ali (Undergraduate Student, James Madison
           University)
         </li>
+        <li>Jerome Donfack (Undergraduate Student, James Madison University)</li>
         <li>
           <a target="_blank" rel="noopener noreferrer" href="https://portfolium.com/AlexDumo" >Alex Dumouchelle</a>{' '}
           (Undergraduate Student, James Madison University)
