@@ -1,13 +1,25 @@
 import * as React from 'react';
-import Button from 'react-bootstrap/Button';
 import { Card } from 'react-bootstrap';
+import Button from 'react-bootstrap/Button';
 import Layout from '../../components/layout';
 import { useWavesurfer } from '@wavesurfer/react';
-// import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import Timeline from 'wavesurfer.js/dist/plugins/timeline.esm.js';
+import TimelinePlugin from 'wavesurfer.js/dist/plugins/timeline.esm.js';
 
-// import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions';
-// import TimelinePlugin from 'wavesurfer.js/dist/plugins/timeline';
-// import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
+/* SEEME @mfwolffe while the following approaches do allow for loading
+ *                 of local media within media elements, it causes
+ *                 an absurd number of problems, and basically
+ *                 precludes use of plugins
+ */
+// const [audio, setAudio] = useState(null);
+// useEffect(() => {
+//   setAudio(new Audio('/audio/UNCSO-forza-snip.mp3'));
+// }, []);
+//
+// OR:
+// const audio = new Audio('/audio/UNCSO-forza-snip.mp3');
+//
+// then set 'media' prop in useWavesurfer hook to variable 'audio
 
 const { useMemo, useState, useCallback, useRef, useEffect } = React;
 
@@ -16,49 +28,91 @@ const formatTime = (seconds) =>
     .map((v) => `0${Math.floor(v)}`.slice(-2))
     .join(':');
 
-export default function BasicDaw() {
+const audioUrls = [
+  '/audio/uncso-bruckner4-1.mp3',
+  '/audio/uncso-bruckner4-2.mp3',
+  '/audio/uncso-bruckner4-3.mp3',
+  '/audio/uncso-bruckner4-4.mp3',
+  '/audio/uncso-bruckner4-5.mp3',
+  '/audio/uncso-bruckner4-6.mp3',
+  '/audio/uncso-bruckner4-7.mp3',
+  '/audio/UNCSO-forza-snip.mp3',
+];
+
+// TODO: @mfwolffe would be nice if timeline properties
+//                 were responsive to properties of the
+//                 media being played, e.g., if user selects
+//                 a track that is particularly long, then
+//                 it doesn't really make sense to have the
+//                 timeline have 10 second ticks
+// TODO: @mfwolffe container for timeline specifically, i.e.,
+//                 timeline not *inside* of waveform container
+//                 but closer to the ProTools look, etc. Can simulate
+//                 with styling but I'm not sure I like it.
+const options = {
+  // insertPosition: 'afterend', // the default presumably
+  // insertPosition: 'afterbegin',  // breaks timeline (just hides?)
+  // insertPosition: 'beforeend',   // also "breaks"  the timeline - css?
+  height: 22, // also affects typeface for numeric labels; default is 20 supposedly - imo too small
+  insertPosition: 'beforebegin', // top of waveform container, within it
+
+  primaryLabelSpacing: 5, // TODO: @mfwolffe see how the two LabelSpacing props play together
+  primaryLabelSpacing: 1, // ^ see that todo lol
+  secondaryLabelInterval: 5,
+  // secondaryLabelSpacing: 1,    // TODO @mfwolffe figure these out
+  // secondaryLabelOpacity: 0.25,
+  // style: 'color: #e6dfdc',
+  style: 'color: #e6dfdc; background-color: #2D2C29',
+};
+
+const BasicDaw = () => {
   const containerRef = useRef(null);
-  const [audio, setAudio] = useState(null);
+  const [urlIndex, setUrlIndex] = useState(0);
+  const timeline = useMemo(() => [Timeline.create(options)], []);
 
-  useEffect(() => {
-    setAudio(new Audio('/audio/UNCSO-forza-snip.mp3'));
-  }, []);
-
-  // const regions = RegionsPlugin.create();
-
-  // const aPlugin = [
-  //   {
-  //     plugin: RegionsPlugin,
-  //     key: 'regions',
-  //     options: { dragSelection: true },
-  //   },
-  // ];
+  // TODO @mfwolffe allow users to modify style to their liking?
+  //                allow users to save "profiles" that they make?
+  //                premade profiles user can select from?
+  //
+  //      If so, Things to consider:
+  //                colors of course (wave, prog, cursor)
+  //                background (bg images? css 'designs'?)
+  //                show/hide scrollbar
+  //                zoom level
+  //                overall style - e.g., ProTools style or 'bar' style?
+  //                scaling factor (height)
 
   const { wavesurfer, isPlaying, currentTime } = useWavesurfer({
     container: containerRef,
-    height: 164,
+    height: 200, // container, not waveform
     waveColor: '#7BAFD4', // carolina blue
     progressColor: '#450084', // jmu poiple
     cursorColor: '#CBB677', // jmu gold
     cursorWidth: 3,
-    minPxPerSec: 2, // SEEME @mfwolffe - rudimentary zoom?!?!?!
-    // plugins: useMemo(() => [Timeline.create()], []),
-    media: audio,
-    // plugins: [regions],
-    // plugins: aPlugin,
+    url: audioUrls[urlIndex], // SEEME @mfwolffe in testing so far, use urls instead of media prop. disastrous
+    dragToSeek: true, // as it sounds - drag cursor with mouse hold instead of single click
+    // normalize: true,   // TODO @ mfwolffe look into this prop. Feels like more than just vert-stretch
+    plugins: timeline,
+    autoplay: false, // why would you ever want this true?
+    autoScroll: true,
+    barHeight: 0.75, // doesn't have to be in 'bar mode'
+    minPxPerSec: 1, // rudimentary "zoom"
+    // mediaControls: true, // actually not bad with respect to placement on the ref; pretty ugly though...
+    backend: 'WebAudio', // if 'WebAudio', it is incompatible with `mediaControls: true`
+    hideScrollbar: false, // even if false, scrollbar only appears for overflow
+    // interact: false, // disallows scrubbing with mouse, click to jump, etc., but audio still playable
+    // peaks: , // SEEME @mfwolffe this may be useful when implementing Web Audio tools? - it's precomputed audio data
+    // renderFunction: , // SEEME @mfwolffe also check out once tinkering with Web Audio starts
+    // splitChannels: , // SEEME @mfwolffe figure out proper syntax and usage for spliting of channels
   });
+
+  const onUrlChange = useCallback(() => {
+    setUrlIndex((index) => (index + 1) % audioUrls.length);
+  }, []);
 
   const onPlayPause = useCallback(() => {
     wavesurfer && wavesurfer.playPause();
   }, [wavesurfer]);
-
-  /* ++++++++++++++++++++ VANILLA JS VERSION ; MAY NEED IF REACT PLUGINS DO NOT PAN OUT +++++++++++++++++++ */
-  // const wavesurfer = WaveSurfer.create({
-  //   container: document.body,
-  //   waveColor: 'rgb(200, 0, 200)',
-  //   progressColor: 'rgb(100, 0, 100)',
-  //   media: audio, // <- this is the important part
-  // });
 
   return (
     <Layout>
@@ -84,21 +138,22 @@ export default function BasicDaw() {
             className="w-95 ml-auto mr-auto"
           />
           <p>
-            Playing a snippet of the UNC Symphony Orchestra doing the overture
-            of Verdi's <em>La forza del destino</em>, featuring yours truly
+            Current audio: {audioUrls[urlIndex]}, performed by the UNC Symphony
+            Orchestra, featuring yours truly (I'm the lowest sounding brass
+            'voice').
           </p>
           <p>Current time: {formatTime(currentTime)}</p>
           <div style={{ margin: '1em 0', display: 'flex', gap: '1em' }}>
-            <Button
-              variant="secondary"
-              onClick={onPlayPause}
-              style={{ minWidth: '5em' }}
-            >
+            <button onClick={onUrlChange}>Change audio</button>
+
+            <button onClick={onPlayPause} style={{ minWidth: '5em' }}>
               {isPlaying ? 'Pause' : 'Play'}
-            </Button>
+            </button>
           </div>
         </Card.Body>
       </Card>
     </Layout>
   );
-}
+};
+
+export default BasicDaw;
