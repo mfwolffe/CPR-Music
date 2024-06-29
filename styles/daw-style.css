@@ -59,3 +59,11 @@
   border-right-width: 4px !important;
   border-right-color: #fff000 !important;
 }
+
+.w-90 {
+  width: 90% !important;
+}
+
+.w-95 {
+  width: 95% !important;
+}
