@@ -1,0 +1,61 @@
+#waveform ::part(wrapper) {
+  --box-size: 10px;
+  background-image: linear-gradient(
+      transparent calc(var(--box-size) - 1px),
+      /* rgb(74, 112, 107) var(--box-size), */ rgb(202, 128, 198)
+        var(--box-size),
+      transparent var(--box-size)
+    ),
+    linear-gradient(
+      90deg,
+      transparent calc(var(--box-size) - 1px),
+      /* rgb(74, 112, 107) var(--box-size), */ rgb(228, 145, 224)
+        var(--box-size),
+      transparent var(--box-size)
+    );
+  background-size: 100% var(--box-size), var(--box-size) 100%;
+}
+
+#waveform {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 8px;
+  background-color: rgba(129, 121, 104, 0.712);
+  /* TODO @mfwolffe - have direction match container card? */
+  filter: drop-shadow(0 0 24px #333);
+}
+
+#daw-card {
+  margin-top: 2rem;
+  filter: drop-shadow(16px 16px 20px #333);
+  /* box-shadow: 0 0 4px 4px #333; */
+}
+
+#waveform ::part(cursor) {
+  height: 94%;
+  top: 3%;
+}
+
+#waveform ::part(region) {
+  background-color: rgba(0, 0, 100, 0.25) !important;
+}
+
+#waveform ::part(region-green) {
+  background-color: rgba(0, 100, 0, 0.25) !important;
+  font-size: 12px;
+  text-shadow: 0 0 2px #fff;
+}
+
+#waveform ::part(marker) {
+  background-color: rgba(0, 0, 100, 0.25) !important;
+  border: 1px solid #fff;
+  padding: 1px;
+  text-indent: 10px;
+  font-family: fantasy;
+  text-decoration: underline;
+}
+
+#waveform ::part(region-handle-right) {
+  border-right-width: 4px !important;
+  border-right-color: #fff000 !important;
+}
