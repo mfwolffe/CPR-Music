@@ -59,9 +59,9 @@ const options = {
   height: 22, // also affects typeface for numeric labels; default is 20 supposedly - imo too small
   insertPosition: 'beforebegin', // top of waveform container, within it
 
-  primaryLabelSpacing: 5, // TODO: @mfwolffe see how the two LabelSpacing props play together
-  primaryLabelSpacing: 1, // ^ see that todo lol
-  secondaryLabelInterval: 5,
+  // primaryLabelSpacing: 5, // TODO: @mfwolffe see how the two LabelSpacing props play together
+  // primaryLabelSpacing: 1, // ^ see that todo lol
+  // secondaryLabelInterval: 5,
   // secondaryLabelSpacing: 1,    // TODO @mfwolffe figure these out
   // secondaryLabelOpacity: 0.25,
   // style: 'color: #e6dfdc',
@@ -150,7 +150,7 @@ const BasicDaw = () => {
               </p>
               <p>Current time: {formatTime(currentTime)}</p>
             </div>
-            <Card className="bg-dawcontrol text-white control-card">
+            <Card className="bg-dawcontrol text-white control-card mt-2">
               {/* SEEME @mfwolffe allow teacher to select plugins they want and populate from that selection? */}
               <Card.Body>
                 <Card.Title className="text-center">DAW Options</Card.Title>
