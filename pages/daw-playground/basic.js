@@ -16,6 +16,8 @@ import Envelope from 'wavesurfer.js/dist/plugins/envelope.esm.js';
  *     => FIXED (I think - commit 4eb8199 has changes)
  * 3. Switches should dynamically register (and `destroy()` ?) plugins
  *
+ * 4. WebAudio API integration
+ *
  */
 
 /* SEEME @mfwolffe while the following approaches do allow for loading
@@ -67,7 +69,6 @@ const timelineOptions = {
   // insertPosition: 'beforeend',   // also "breaks"  the timeline - css?
   height: 22, // also affects typeface for numeric labels; default is 20 supposedly - imo too small
   insertPosition: 'beforebegin', // top of waveform container, within it
-
   // primaryLabelSpacing: 5, // TODO: @mfwolffe see how the two LabelSpacing props play together
   // primaryLabelSpacing: 1, // ^ see that todo lol
   // secondaryLabelInterval: 5,
@@ -83,15 +84,9 @@ const envelopeOptions = {
   dragLine: true,
   dragPointSize: 20,
   lineColor: 'rgba(219, 13, 13, 0.9)',
-  // lineColor: 'rgba(219, 86, 33, 0.9)',
-
   dragPointStroke: 'rgba(0, 0, 0, 0.5)',
   dragPointFill: 'rgba(0, 255, 255, 0.8)',
-
-  points: [
-    { time: 0, volume: 0.05 },
-    { time: 5, volume: 0.6 },
-  ],
+  points: [],
 };
 
 const hoverOptions = {
@@ -107,7 +102,7 @@ const BasicDaw = () => {
   const containerRef = useRef(null);
   const [urlIndex, setUrlIndex] = useState(0);
   const timeline = useMemo(() => [Timeline.create(timelineOptions)], []);
-  const envelope = useMemo(() => [Envelope.create(envelopeOptions)], []);
+  const envelope = useMemo(() => [Envelope.create(envelopeOptions)], []); // SEEME I'm not sure memoization is the right way to go
   // const hover = useMemo(() => [Hover.create(hoverOptions)], []);
 
   // SEEME @mfwolffe this approach in tandem w/ the poorly-named
@@ -179,10 +174,26 @@ const BasicDaw = () => {
     surfer.registerPlugin(plg);
   }
 
-  isReady && addPlugWrapper(wavesurfer, hover);
+  // isReady && addPlugWrapper(wavesurfer, hover);
+
+  // SEEME @mfwolffe and playing check seems to resolve issue of recomputing (there was no noticeable effect though)
+  //                 and I'm not sure if there will be side effects to adding the additional condition
+  if (isReady && !isPlaying) {
+    // initEnvelopePoints(wavesurfer, envelope);
+    const duration = wavesurfer.getDuration();
+    const halfPoint = duration / 2;
+
+    // SEEME @mfwolffe - figure out what useMemo does, ie, if
+    //                   memoized results are put into this array
+    envelope[0].addPoint({ time: 0.0, volume: 0.5 });
+    envelope[0].addPoint({ time: halfPoint, volume: 0.8 });
+    envelope[0].addPoint({ time: duration, volume: 0.5 });
+
+    addPlugWrapper(wavesurfer, hover);
+  }
 
   // envelope.on('points-change', (points) => {
-  //   console.log('Envelope points changed', points);
+  //   console.log('points updated', points);
   // });
 
   return (
