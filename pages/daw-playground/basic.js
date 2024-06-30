@@ -71,7 +71,7 @@ const timelineOptions = {
   // secondaryLabelSpacing: 1,    // TODO @mfwolffe figure these out
   // secondaryLabelOpacity: 0.25,
   // style: 'color: #e6dfdc',
-  style: 'color: #e6dfdc; background-color: #2D2C29',
+  style: 'color: #e6dfdc; background-color: var(--daw-timeline-bg)',
 };
 
 const envelopeOptions = {
@@ -105,8 +105,10 @@ const BasicDaw = () => {
   const [urlIndex, setUrlIndex] = useState(0);
   const timeline = useMemo(() => [Timeline.create(timelineOptions)], []);
   const envelope = useMemo(() => [Envelope.create(envelopeOptions)], []);
-  const hover = useMemo(() => [Hover.create(hoverOptions)], []);
+  // const hover = useMemo(() => [Hover.create(hoverOptions)], []);
+
   // const envelope = Envelope.create(envelopeOptions);
+  const hover = Hover.create(hoverOptions);
 
   // const pluginsTest = [timeline, hover];
   // const envelope = useMemo(() => [EnvelopePlugin.create(envelopeOptions)], []); // SEEME @mfwolffe basically this import is bogus
@@ -162,12 +164,13 @@ const BasicDaw = () => {
   //                  do nada)
   // SEEME @mfwolffe  probably not a fix, but after converting
   //                  to .wav ... maybe?? maybe try those files???
-  function doShit(surfer) {
+  function doShit(surfer, plg) {
     console.log('MATT. the daw. is.... prêt');
     console.log(surfer.getDuration());
+    surfer.registerPlugin(plg);
   }
 
-  isReady && doShit(wavesurfer);
+  isReady && doShit(wavesurfer, hover);
 
   // SEEME @mfwolffe basically try this within that
   //                 functiuon in the short circuit
