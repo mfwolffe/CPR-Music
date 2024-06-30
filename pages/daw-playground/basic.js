@@ -7,6 +7,7 @@ import { useWavesurfer } from '@wavesurfer/react';
 import Envelope from 'wavesurfer.js/dist/plugins/envelope.esm.js';
 import Timeline from 'wavesurfer.js/dist/plugins/timeline.esm.js';
 import TimelinePlugin from 'wavesurfer.js/dist/plugins/timeline.esm.js';
+// import { Canvas } from 'konva/lib/Canvas';
 
 /* SEEME @mfwolffe while the following approaches do allow for loading
  *                 of local media within media elements, it causes
@@ -149,19 +150,35 @@ const BasicDaw = () => {
               </p>
               <p>Current time: {formatTime(currentTime)}</p>
             </div>
-            <Card>
+            <Card className="bg-dawcontrol text-white control-card">
               {/* SEEME @mfwolffe allow teacher to select plugins they want and populate from that selection? */}
               <Card.Body>
                 <Card.Title className="text-center">DAW Options</Card.Title>
-                <Form className="pl-4 pr-4">
-                  <Form.Check type="switch" id="envelope" label="Envelope" />
-                  <Form.Check type="switch" id="minimap" label="Minimap" />
-                  <Form.Check type="switch" id="record" label="Record" />
-                  <Form.Check
-                    type="switch"
-                    id="spectrogram"
-                    label="Spectrogram"
-                  />
+                <Form className="pl-1 pr-1">
+                  <div className="d-flex gap-3">
+                    <div className="pl-2">
+                      <Form.Check type="switch" id="record" label="Record" />
+                      <Form.Check type="switch" id="minimap" label="Minimap" />
+                      <Form.Check
+                        type="switch"
+                        id="envelope"
+                        label="Envelope"
+                      />
+                    </div>
+                    <div className="pr-2">
+                      <Form.Check type="switch" id="select" label="Regions" />
+                      <Form.Check
+                        type="switch"
+                        id="spectrogram"
+                        label="Spectrogram"
+                      />
+                      <Form.Check
+                        type="switch"
+                        id="cursor-hover"
+                        label="Cursor Hover"
+                      />
+                    </div>
+                  </div>
                 </Form>
               </Card.Body>
             </Card>
