@@ -13,6 +13,9 @@ import Envelope from 'wavesurfer.js/dist/plugins/envelope.esm.js';
  * 2. Basically using more than one plugin at the moment breaks everything
  *    which is unfortunate because some of these plugins are very useful given
  *    our goals. I'll take a look in the AM b/c it is 4:30AM ...
+ *     => FIXED (I think - commit 4eb8199 has changes)
+ * 3. Switches should dynamically register (and `destroy()` ?) plugins
+ *
  */
 
 /* SEEME @mfwolffe while the following approaches do allow for loading
@@ -92,12 +95,12 @@ const envelopeOptions = {
 };
 
 const hoverOptions = {
+  // labelBackground: 'blue',  // SEEME @mfwolffe having a bg on scrub may be helpful
+  lineWidth: 2,
+  labelSize: 12,
+  labelColor: '#fff',
   formatTimeCallback: formatTime,
-  // labelBackground:
-  labelColor: 'yellow',
-  labelSize: 3,
-  lineColor: 'var(--jmu-gold)',
-  lineWidth: 3,
+  lineColor: 'var(--daw-timeline-bg)',
 };
 
 const BasicDaw = () => {
@@ -107,11 +110,17 @@ const BasicDaw = () => {
   const envelope = useMemo(() => [Envelope.create(envelopeOptions)], []);
   // const hover = useMemo(() => [Hover.create(hoverOptions)], []);
 
+  // SEEME @mfwolffe this approach in tandem w/ the poorly-named
+  //                 doShit() function seem to resolve the problem
+  //                 of >= 2 plugins breaking everything
+  // TODO  @mfwolffe But what about the lack of memoization? Determine
+  //                 if that'll brick or break later/what exactly we lose
+  //                 in foregoing. Which plugin should get the hook though,
+  //                 knowing that, i.e., which has the biggest perf hit from
+  //                 not memoizing?
+  //
   // const envelope = Envelope.create(envelopeOptions);
   const hover = Hover.create(hoverOptions);
-
-  // const pluginsTest = [timeline, hover];
-  // const envelope = useMemo(() => [EnvelopePlugin.create(envelopeOptions)], []); // SEEME @mfwolffe basically this import is bogus
 
   // TODO @mfwolffe allow users to modify style to their liking?
   //                allow users to save "profiles" that they make?
@@ -164,36 +173,13 @@ const BasicDaw = () => {
   //                  do nada)
   // SEEME @mfwolffe  probably not a fix, but after converting
   //                  to .wav ... maybe?? maybe try those files???
-  function doShit(surfer, plg) {
-    console.log('MATT. the daw. is.... prêt');
+  function addPlugWrapper(surfer, plg) {
+    console.log('The daw is prêt');
     console.log(surfer.getDuration());
     surfer.registerPlugin(plg);
   }
 
-  isReady && doShit(wavesurfer, hover);
-
-  // SEEME @mfwolffe basically try this within that
-  //                 functiuon in the short circuit
-  // const envelope = wavesurfer.registerPlugin(
-  //   EnvelopePlugin.create({
-  //     volume: 0.8,
-  //     lineWidth: 3.5,
-  //     dragLine: true,
-  //     dragPointSize: 20,
-  //     lineColor: 'rgba(219, 13, 13, 0.9)',
-  //     // lineColor: 'rgba(219, 86, 33, 0.9)',
-
-  //     dragPointStroke: 'rgba(0, 0, 0, 0.5)',
-  //     dragPointFill: 'rgba(0, 255, 255, 0.8)',
-
-  //     points: [
-  //       { time: 0.0, volume: 0.2 },
-  //       { time: 3, volume: 0.9 },
-  //       { time: 4, volume: 0.1 },
-  //       { time: 5, volume: 0.7 },
-  //     ],
-  //   })
-  // );
+  isReady && addPlugWrapper(wavesurfer, hover);
 
   // envelope.on('points-change', (points) => {
   //   console.log('Envelope points changed', points);

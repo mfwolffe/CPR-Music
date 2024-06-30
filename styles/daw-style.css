@@ -6,6 +6,7 @@
   --daw-timeline-bg: #2d2c29;
   --daw-grey: rgba(129, 121, 104, 0.712);
   --daw-control: rgba(107, 107, 107, 0.8);
+  /* --daw-scrubber: rgb(209, 46, 147); */
 }
 
 #waveform ::part(wrapper) {
