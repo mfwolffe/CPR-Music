@@ -4,10 +4,16 @@ import { Card } from 'react-bootstrap';
 import Button from 'react-bootstrap/Button';
 import Layout from '../../components/layout';
 import { useWavesurfer } from '@wavesurfer/react';
-import Envelope from 'wavesurfer.js/dist/plugins/envelope.esm.js';
+import Hover from 'wavesurfer.js/dist/plugins/hover.esm.js';
 import Timeline from 'wavesurfer.js/dist/plugins/timeline.esm.js';
-import TimelinePlugin from 'wavesurfer.js/dist/plugins/timeline.esm.js';
-// import { Canvas } from 'konva/lib/Canvas';
+import Envelope from 'wavesurfer.js/dist/plugins/envelope.esm.js';
+
+/* BIGTODO @mfwolffe
+ * 1. on daw page refresh, you get a reference error for 'document'
+ * 2. Basically using more than one plugin at the moment breaks everything
+ *    which is unfortunate because some of these plugins are very useful given
+ *    our goals. I'll take a look in the AM b/c it is 4:30AM ...
+ */
 
 /* SEEME @mfwolffe while the following approaches do allow for loading
  *                 of local media within media elements, it causes
@@ -52,7 +58,7 @@ const audioUrls = [
 //                 timeline not *inside* of waveform container
 //                 but closer to the ProTools look, etc. Can simulate
 //                 with styling but I'm not sure I like it.
-const options = {
+const timelineOptions = {
   // insertPosition: 'afterend', // the default presumably
   // insertPosition: 'afterbegin',  // breaks timeline (just hides?)
   // insertPosition: 'beforeend',   // also "breaks"  the timeline - css?
@@ -68,10 +74,42 @@ const options = {
   style: 'color: #e6dfdc; background-color: #2D2C29',
 };
 
+const envelopeOptions = {
+  volume: 0.8,
+  lineWidth: 3.5,
+  dragLine: true,
+  dragPointSize: 20,
+  lineColor: 'rgba(219, 13, 13, 0.9)',
+  // lineColor: 'rgba(219, 86, 33, 0.9)',
+
+  dragPointStroke: 'rgba(0, 0, 0, 0.5)',
+  dragPointFill: 'rgba(0, 255, 255, 0.8)',
+
+  points: [
+    { time: 0, volume: 0.05 },
+    { time: 5, volume: 0.6 },
+  ],
+};
+
+const hoverOptions = {
+  formatTimeCallback: formatTime,
+  // labelBackground:
+  labelColor: 'yellow',
+  labelSize: 3,
+  lineColor: 'var(--jmu-gold)',
+  lineWidth: 3,
+};
+
 const BasicDaw = () => {
   const containerRef = useRef(null);
   const [urlIndex, setUrlIndex] = useState(0);
-  const timeline = useMemo(() => [Timeline.create(options)], []);
+  const timeline = useMemo(() => [Timeline.create(timelineOptions)], []);
+  const envelope = useMemo(() => [Envelope.create(envelopeOptions)], []);
+  const hover = useMemo(() => [Hover.create(hoverOptions)], []);
+  // const envelope = Envelope.create(envelopeOptions);
+
+  // const pluginsTest = [timeline, hover];
+  // const envelope = useMemo(() => [EnvelopePlugin.create(envelopeOptions)], []); // SEEME @mfwolffe basically this import is bogus
 
   // TODO @mfwolffe allow users to modify style to their liking?
   //                allow users to save "profiles" that they make?
@@ -84,24 +122,24 @@ const BasicDaw = () => {
   //                zoom level
   //                overall style - e.g., ProTools style or 'bar' style?
   //                scaling factor (height)
-
-  const { wavesurfer, isPlaying, currentTime } = useWavesurfer({
+  let { wavesurfer, isReady, isPlaying, currentTime } = useWavesurfer({
     container: containerRef,
-    height: 200, // container, not waveform
-    waveColor: '#7BAFD4', // carolina blue
+    height: 212, // container, not waveform
+    waveColor: '#4B9CD3', // carolina blue
     progressColor: '#450084', // jmu poiple
     cursorColor: '#CBB677', // jmu gold
     cursorWidth: 3,
     url: audioUrls[urlIndex], // SEEME @mfwolffe in testing so far, use urls instead of media prop. disastrous
     dragToSeek: true, // as it sounds - drag cursor with mouse hold instead of single click
     // normalize: true,   // TODO @ mfwolffe look into this prop. Feels like more than just vert-stretch
-    plugins: timeline,
+    // plugins: timeline,
+    plugins: envelope,
     autoplay: false, // why would you ever want this true?
     autoScroll: true,
-    barHeight: 0.75, // doesn't have to be in 'bar mode'
+    barHeight: 0.78, // doesn't have to be in 'bar mode'
     minPxPerSec: 1, // rudimentary "zoom"
     // mediaControls: true, // actually not bad with respect to placement on the ref; pretty ugly though...
-    backend: 'WebAudio', // if 'WebAudio', it is incompatible with `mediaControls: true`
+    // backend: 'WebAudio', // if 'WebAudio', it is incompatible with `mediaControls: true`
     hideScrollbar: false, // even if false, scrollbar only appears for overflow
     // interact: false, // disallows scrubbing with mouse, click to jump, etc., but audio still playable
     // peaks: , // SEEME @mfwolffe this may be useful when implementing Web Audio tools? - it's precomputed audio data
@@ -116,6 +154,47 @@ const BasicDaw = () => {
   const onPlayPause = useCallback(() => {
     wavesurfer && wavesurfer.playPause();
   }, [wavesurfer]);
+
+  // TODO @mfwolffe   envelope in this implementation
+  //                  renders but appears to have some
+  //                  kind of bad interaction (crackly
+  //                  playback and envelope appears to
+  //                  do nada)
+  // SEEME @mfwolffe  probably not a fix, but after converting
+  //                  to .wav ... maybe?? maybe try those files???
+  function doShit(surfer) {
+    console.log('MATT. the daw. is.... prêt');
+    console.log(surfer.getDuration());
+  }
+
+  isReady && doShit(wavesurfer);
+
+  // SEEME @mfwolffe basically try this within that
+  //                 functiuon in the short circuit
+  // const envelope = wavesurfer.registerPlugin(
+  //   EnvelopePlugin.create({
+  //     volume: 0.8,
+  //     lineWidth: 3.5,
+  //     dragLine: true,
+  //     dragPointSize: 20,
+  //     lineColor: 'rgba(219, 13, 13, 0.9)',
+  //     // lineColor: 'rgba(219, 86, 33, 0.9)',
+
+  //     dragPointStroke: 'rgba(0, 0, 0, 0.5)',
+  //     dragPointFill: 'rgba(0, 255, 255, 0.8)',
+
+  //     points: [
+  //       { time: 0.0, volume: 0.2 },
+  //       { time: 3, volume: 0.9 },
+  //       { time: 4, volume: 0.1 },
+  //       { time: 5, volume: 0.7 },
+  //     ],
+  //   })
+  // );
+
+  // envelope.on('points-change', (points) => {
+  //   console.log('Envelope points changed', points);
+  // });
 
   return (
     <Layout>
@@ -141,7 +220,7 @@ const BasicDaw = () => {
             className="w-95 ml-auto mr-auto"
           />
 
-          <div class="d-flex justify-content-between">
+          <div className="d-flex justify-content-between">
             <div>
               <p>
                 Current audio: {audioUrls[urlIndex]}, performed by the UNC
@@ -157,6 +236,7 @@ const BasicDaw = () => {
                 <Form className="pl-1 pr-1">
                   <div className="d-flex gap-3">
                     <div className="pl-2">
+                      {/* TODO @mfwolffe have switch bg color be carolina blue to match daw wf */}
                       <Form.Check type="switch" id="record" label="Record" />
                       <Form.Check type="switch" id="minimap" label="Minimap" />
                       <Form.Check
