@@ -1,10 +1,11 @@
 :root {
-  --daw-grey: rgba(129, 121, 104, 0.712);
-  --daw-control: rgba(107, 107, 107, 0.8);
+  --jmu-gold: #cbb677;
+  --jmu-purple: #450084;
   --carolina-blue: #7bafd4;
   --caroline-a11y: #4b9cd3;
-  --jmu-purple: #450084;
-  --jmu-gold: #cbb677;
+  --daw-timeline-bg: #2d2c29;
+  --daw-grey: rgba(129, 121, 104, 0.712);
+  --daw-control: rgba(107, 107, 107, 0.8);
 }
 
 #waveform ::part(wrapper) {
