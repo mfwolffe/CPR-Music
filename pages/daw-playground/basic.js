@@ -1,8 +1,10 @@
 import * as React from 'react';
+import Form from 'react-bootstrap/Form';
 import { Card } from 'react-bootstrap';
 import Button from 'react-bootstrap/Button';
 import Layout from '../../components/layout';
 import { useWavesurfer } from '@wavesurfer/react';
+import Envelope from 'wavesurfer.js/dist/plugins/envelope.esm.js';
 import Timeline from 'wavesurfer.js/dist/plugins/timeline.esm.js';
 import TimelinePlugin from 'wavesurfer.js/dist/plugins/timeline.esm.js';
 
@@ -137,12 +139,34 @@ const BasicDaw = () => {
             id="waveform"
             className="w-95 ml-auto mr-auto"
           />
-          <p>
-            Current audio: {audioUrls[urlIndex]}, performed by the UNC Symphony
-            Orchestra, featuring yours truly (I'm the lowest sounding brass
-            'voice').
-          </p>
-          <p>Current time: {formatTime(currentTime)}</p>
+
+          <div class="d-flex justify-content-between">
+            <div>
+              <p>
+                Current audio: {audioUrls[urlIndex]}, performed by the UNC
+                Symphony Orchestra, featuring yours truly (I'm the lowest
+                sounding brass 'voice').
+              </p>
+              <p>Current time: {formatTime(currentTime)}</p>
+            </div>
+            <Card>
+              {/* SEEME @mfwolffe allow teacher to select plugins they want and populate from that selection? */}
+              <Card.Body>
+                <Card.Title className="text-center">DAW Options</Card.Title>
+                <Form className="pl-4 pr-4">
+                  <Form.Check type="switch" id="envelope" label="Envelope" />
+                  <Form.Check type="switch" id="minimap" label="Minimap" />
+                  <Form.Check type="switch" id="record" label="Record" />
+                  <Form.Check
+                    type="switch"
+                    id="spectrogram"
+                    label="Spectrogram"
+                  />
+                </Form>
+              </Card.Body>
+            </Card>
+          </div>
+
           <div style={{ margin: '1em 0', display: 'flex', gap: '1em' }}>
             <button onClick={onUrlChange}>Change audio</button>
 
