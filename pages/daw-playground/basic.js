@@ -9,6 +9,22 @@ import Hover from 'wavesurfer.js/dist/plugins/hover.esm.js';
 import Timeline from 'wavesurfer.js/dist/plugins/timeline.esm.js';
 import Envelope from 'wavesurfer.js/dist/plugins/envelope.esm.js';
 
+// import { FaClockRotateLeft } from 'react-icons/fa6';
+// import { FaArrowRotateRight } from 'react-icons/fa6';
+
+// import { FaRegCircleStop } from 'react-icons/fa6';
+import { FaRegCirclePlay } from 'react-icons/fa6';
+import { FaRegCircleLeft } from 'react-icons/fa6';
+import { FaRegCircleRight } from 'react-icons/fa6';
+import { FaRegCirclePause } from 'react-icons/fa6';
+
+// import { FaPlay } from 'react-icons/fa6';
+// import { FaPause } from 'react-icons/fa6';
+// import { FaVolumeOff } from 'react-icons/fa6';
+// import { FaVolumeLow } from 'react-icons/fa6';
+// import { FaVolumeHigh } from 'react-icons/fa6';
+// import { FaVolumeXmark } from 'react-icons/fa6';
+
 /* BIGTODO @mfwolffe
  * 1. on daw page refresh, you get a reference error for 'document'
  * 2. Basically using more than one plugin at the moment breaks everything
@@ -18,7 +34,7 @@ import Envelope from 'wavesurfer.js/dist/plugins/envelope.esm.js';
  * 3. Switches should dynamically register (and `destroy()` ?) plugins
  *
  * 4. WebAudio API integration
- * 5. Saving of envelope so that when you switch back to track xyz the points persist
+ * 5. useMemo() for persisting envelope points?
  *
  */
 
@@ -79,7 +95,7 @@ const timelineOptions = {
   // insertPosition: 'afterend', // the default presumably
   // insertPosition: 'afterbegin',  // breaks timeline (just hides?)
   // insertPosition: 'beforeend',   // also "breaks"  the timeline - css?
-  height: 22, // also affects typeface for numeric labels; default is 20 supposedly - imo too small
+  height: 24, // also affects typeface for numeric labels; default is 20 supposedly - imo too small
   insertPosition: 'beforebegin', // top of waveform container, within it
   // primaryLabelSpacing: 5, // TODO: @mfwolffe see how the two LabelSpacing props play together
   // primaryLabelSpacing: 1, // ^ see that todo lol
@@ -118,6 +134,8 @@ const zoomOptions = {
 
 const BasicDaw = () => {
   const containerRef = useRef(null);
+  // SEEME a pure CSS approach will be taken if duotone icons are annoying to try to include
+  const [progBtnHvr, setHvr] = useState(false);
   // const [envPoints, setEnvPoints] = useState;
   const [urlIndex, setUrlIndex] = useState(0);
   // SEEME I'm not sure memoization is the right way to go
@@ -129,6 +147,21 @@ const BasicDaw = () => {
     [urlIndex]
   );
   // const timeline = useMemo(() => [Timeline.create(timelineOptions)], []);
+
+  // TODO @mfwolffe tooltips
+  // TODO @mfwolffe ask dr. stewart about import of duotone for fun hover effect
+  // const playButton = (
+  //   <FaRegCirclePlay
+  //     fontSize="1rem"
+  //     onMouseEnter={() => setHvr(true)}
+  //     onMouseLeave={() => setHvr(false)}
+  //     style={{ color: progBtnHvr ? 'aqua' : 'white' }}
+  //   />
+  // );
+  const skipNext = <FaRegCircleRight fontSize="1rem" />;
+  const skipPrev = <FaRegCircleLeft fontSize="1rem" />;
+  const playButton = <FaRegCirclePlay fontSize="1rem" />;
+  const pauseButton = <FaRegCirclePause fontSize="1rem" className="hoho" />;
 
   // SEEME @mfwolffe this approach in tandem w/ the poorly-named
   //                 doShit() function seem to resolve the problem
@@ -191,6 +224,21 @@ const BasicDaw = () => {
     wavesurfer && wavesurfer.playPause();
   }, [wavesurfer]);
 
+  const onSkipTrackFwd = useCallback(() => {
+    setUrlIndex((index) => (index + 1) % audioUrls.length);
+  }, []);
+
+  const onSkipTrackBkwd = useCallback(() => {
+    const len = audioUrls.length;
+    // console.log('triggered');
+    // const newIndex = ((urlIndex % len) + len) % len;
+    // console.log(((urlIndex % len) + len) % len);
+
+    // TODO @mfwolffe for some reason modulo w/ neg not working in
+    //                the useCallback but fine if using ternary as below
+    setUrlIndex((index) => (index == 0 ? len - 1 : index - 1));
+  }, []);
+
   // TODO @mfwolffe   envelope in this implementation
   //                  renders but appears to have some
   //                  kind of bad interaction (crackly
@@ -215,6 +263,7 @@ const BasicDaw = () => {
 
     // SEEME @mfwolffe - figure out what useMemo does, ie, if
     //                   memoized results are put into this array
+    // TODO @mfwolffe    fix me
     const pointArray = [
       {
         time: 0.0,
@@ -267,21 +316,31 @@ const BasicDaw = () => {
           <div
             ref={containerRef}
             id="waveform"
-            className="w-95 ml-auto mr-auto"
+            className="w-95 ml-auto mr-auto mb-0"
           />
 
-          <div className="d-flex w-95">
-            <Button></Button>
+          <div className="d-flex w-95 ml-auto mr-auto prog-bar align-items-center flex-row gap-025">
+            <Button onClick={onSkipTrackBkwd} className="prog-button pl-2">
+              {skipPrev}
+            </Button>
+            <Button onClick={onPlayPause} className="prog-button">
+              {isPlaying ? pauseButton : playButton}
+            </Button>
+            <Button onClick={onSkipTrackFwd} className="prog-button">
+              {skipNext}
+            </Button>
+            <span className="pl-1 text-white">{formatTime(currentTime)}</span>
           </div>
 
           <div className="d-flex justify-content-between">
             <div>
               <p>
-                Current audio: {audioUrls[urlIndex]}, performed by the UNC
-                Symphony Orchestra, featuring yours truly (I'm the lowest
-                sounding brass 'voice').
+                Current audio: {audioUrls[urlIndex]}
+                <br />
+                Performed by the UNC Symphony Orchestra, featuring yours truly
+                (I'm the lowest sounding brass 'voice').
               </p>
-              <p>Current time: {formatTime(currentTime)}</p>
+              {/* <p>Current time: {formatTime(currentTime)}</p> */}
             </div>
             <Card className="bg-dawcontrol text-white control-card mt-2">
               {/* SEEME @mfwolffe allow teacher to select plugins they want and populate from that selection? */}
@@ -320,16 +379,11 @@ const BasicDaw = () => {
 
           <div style={{ margin: '1em 0', display: 'flex', gap: '1em' }}>
             {/* <button onClick={onUrlChange}>Change audio</button> */}
-
-            <button onClick={onPlayPause} style={{ minWidth: '5em' }}>
-              {isPlaying ? 'Pause' : 'Play'}
-            </button>
-
             <Form>
               <div className="d-flex gap-3">
                 <Form.Select aria-label="track-select" onChange={onUrlChange}>
                   <option default value="">
-                    Select Track
+                    Select Track (or try arrows in the DAW)
                   </option>
                   {songList()}
                 </Form.Select>

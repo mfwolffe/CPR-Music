@@ -93,7 +93,7 @@
 #waveform {
   margin-top: 1rem;
   margin-bottom: 1rem;
-  border-radius: 8px;
+  /* border-radius: 8px; */
   background-color: var(--daw-grey);
   /* TODO @mfwolffe - have direction match container card? */
   filter: drop-shadow(0 0 24px #333);
@@ -106,8 +106,8 @@
 }
 
 #waveform ::part(cursor) {
-  height: 94%;
-  top: 3%;
+  height: 100%;
+  /* top: 3%; */
 }
 
 #waveform ::part(region) {
@@ -151,6 +151,18 @@
   gap: 3rem !important;
 }
 
+.gap-1 {
+  gap: 1rem !important;
+}
+
+.gap-05 {
+  gap: 0.5rem !important;
+}
+
+.gap-025 {
+  gap: 0.25rem !important;
+}
+
 .bg-dawgrey {
   background-color: var(--daw-grey);
 }
@@ -161,4 +173,27 @@
 
 .control-card {
   filter: drop-shadow(0 0 8px #333);
+}
+
+.prog-button {
+  display: flex !important;
+  align-self: center !important;
+  flex-direction: row !important;
+  justify-content: center !important;
+  background-color: transparent !important;
+  border: none;
+  padding-left: 0;
+  padding-right: 0;
+  /* margin: 0 0 0 0 !important; */
+  /* padding: 0 0 0 0.5rem !important; */
+  /* height: fit-content !important; */
+}
+
+.prog-button:hover {
+  color: aqua;
+}
+
+.prog-bar {
+  background-color: var(--daw-timeline-bg) !important;
+  max-height: 24px !important;
 }
