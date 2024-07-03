@@ -1,9 +1,10 @@
 import * as React from 'react';
-import Form from 'react-bootstrap/Form';
 import { Card } from 'react-bootstrap';
+import Form from 'react-bootstrap/Form';
 import Button from 'react-bootstrap/Button';
 import Layout from '../../components/layout';
 import { useWavesurfer } from '@wavesurfer/react';
+import Zoom from 'wavesurfer.js/dist/plugins/zoom.esm.js';
 import Hover from 'wavesurfer.js/dist/plugins/hover.esm.js';
 import Timeline from 'wavesurfer.js/dist/plugins/timeline.esm.js';
 import Envelope from 'wavesurfer.js/dist/plugins/envelope.esm.js';
@@ -17,6 +18,7 @@ import Envelope from 'wavesurfer.js/dist/plugins/envelope.esm.js';
  * 3. Switches should dynamically register (and `destroy()` ?) plugins
  *
  * 4. WebAudio API integration
+ * 5. Saving of envelope so that when you switch back to track xyz the points persist
  *
  */
 
@@ -52,6 +54,16 @@ const audioUrls = [
   '/audio/uncso-bruckner4-7.mp3',
   '/audio/uncso-verdi-forza.mp3',
 ];
+
+const songList = () => {
+  const selectOptions = [];
+
+  audioUrls.forEach((url, i) => {
+    selectOptions.push(<option value={i}>{url}</option>);
+  });
+
+  return selectOptions;
+};
 
 // TODO: @mfwolffe would be nice if timeline properties
 //                 were responsive to properties of the
@@ -98,12 +110,25 @@ const hoverOptions = {
   lineColor: 'var(--daw-timeline-bg)',
 };
 
+const zoomOptions = {
+  deltaThreshold: 5, // set to zero for fluid scroll - high cpu cost though // TODO @mfwolffe make it optional?
+  maxZoom: 150,
+  scale: 0.125, // amount to zoom per scroll wheel turn
+};
+
 const BasicDaw = () => {
   const containerRef = useRef(null);
+  // const [envPoints, setEnvPoints] = useState;
   const [urlIndex, setUrlIndex] = useState(0);
-  const timeline = useMemo(() => [Timeline.create(timelineOptions)], []);
-  const envelope = useMemo(() => [Envelope.create(envelopeOptions)], []); // SEEME I'm not sure memoization is the right way to go
+  // SEEME I'm not sure memoization is the right way to go
+  // SEEME ^^ I think Envelope needs useMemo or some other hook
+  //          otherwise infinite render
   // const hover = useMemo(() => [Hover.create(hoverOptions)], []);
+  const envelope = useMemo(
+    () => [Envelope.create(envelopeOptions)],
+    [urlIndex]
+  );
+  // const timeline = useMemo(() => [Timeline.create(timelineOptions)], []);
 
   // SEEME @mfwolffe this approach in tandem w/ the poorly-named
   //                 doShit() function seem to resolve the problem
@@ -115,7 +140,10 @@ const BasicDaw = () => {
   //                 not memoizing?
   //
   // const envelope = Envelope.create(envelopeOptions);
+  const zoom = Zoom.create(zoomOptions);
   const hover = Hover.create(hoverOptions);
+  const timeline = Timeline.create(timelineOptions);
+  // const envelope = Envelope.create(envelopeOptions);
 
   // TODO @mfwolffe allow users to modify style to their liking?
   //                allow users to save "profiles" that they make?
@@ -153,8 +181,10 @@ const BasicDaw = () => {
     // splitChannels: , // SEEME @mfwolffe figure out proper syntax and usage for spliting of channels
   });
 
-  const onUrlChange = useCallback(() => {
-    setUrlIndex((index) => (index + 1) % audioUrls.length);
+  const onUrlChange = useCallback((e) => {
+    console.log('target (select) val: ', e.target.value);
+    setUrlIndex(e.target.value);
+    console.log('length: ', envelope.length);
   }, []);
 
   const onPlayPause = useCallback(() => {
@@ -185,16 +215,36 @@ const BasicDaw = () => {
 
     // SEEME @mfwolffe - figure out what useMemo does, ie, if
     //                   memoized results are put into this array
-    envelope[0].addPoint({ time: 0.0, volume: 0.5 });
-    envelope[0].addPoint({ time: halfPoint, volume: 0.8 });
-    envelope[0].addPoint({ time: duration, volume: 0.5 });
+    const pointArray = [
+      {
+        time: 0.0,
+        volume: 0.5,
+      },
+      {
+        time: halfPoint,
+        volume: 0.8,
+      },
+      {
+        time: duration,
+        volume: 0.5,
+      },
+    ];
 
+    envelope[0].setPoints(pointArray);
+
+    // envelope[0].setPoints(pointArray);
+
+    addPlugWrapper(wavesurfer, zoom);
     addPlugWrapper(wavesurfer, hover);
+    addPlugWrapper(wavesurfer, timeline);
+    // addPlugWrapper(wavesurfer, envelope);
   }
 
   // envelope.on('points-change', (points) => {
   //   console.log('points updated', points);
   // });
+
+  console.log('last check', envelope.length);
 
   return (
     <Layout>
@@ -219,6 +269,10 @@ const BasicDaw = () => {
             id="waveform"
             className="w-95 ml-auto mr-auto"
           />
+
+          <div className="d-flex w-95">
+            <Button></Button>
+          </div>
 
           <div className="d-flex justify-content-between">
             <div>
@@ -265,11 +319,22 @@ const BasicDaw = () => {
           </div>
 
           <div style={{ margin: '1em 0', display: 'flex', gap: '1em' }}>
-            <button onClick={onUrlChange}>Change audio</button>
+            {/* <button onClick={onUrlChange}>Change audio</button> */}
 
             <button onClick={onPlayPause} style={{ minWidth: '5em' }}>
               {isPlaying ? 'Pause' : 'Play'}
             </button>
+
+            <Form>
+              <div className="d-flex gap-3">
+                <Form.Select aria-label="track-select" onChange={onUrlChange}>
+                  <option default value="">
+                    Select Track
+                  </option>
+                  {songList()}
+                </Form.Select>
+              </div>
+            </Form>
           </div>
         </Card.Body>
       </Card>

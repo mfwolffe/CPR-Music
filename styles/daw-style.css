@@ -9,19 +9,82 @@
   /* --daw-scrubber: rgb(209, 46, 147); */
 }
 
+/* #waveform ::part(wrapper) {
+  background-color: #e5e5f7;
+  opacity: 0.8;
+  background-image: linear-gradient(#444cf7 2px, transparent 2px),
+    linear-gradient(90deg, #444cf7 2px, transparent 2px),
+    linear-gradient(#444cf7 1px, transparent 1px),
+    linear-gradient(90deg, #444cf7 1px, #e5e5f7 1px);
+  background-size: 50px 50px, 50px 50px, 10px 10px, 10px 10px;
+  background-position: -2px -2px, -2px -2px, -1px -1px, -1px -1px;
+
+  background-color: #e5e5f7;
+  opacity: 0.8;
+  background-image: linear-gradient(#444cf7 1px, transparent 1px),
+    linear-gradient(to right, #444cf7 1px, #e5e5f7 1px);
+  background-size: 20px 20px;
+
+  background-color: #e5e5f7;
+  opacity: 0.8;
+  background-size: 10px 10px;
+  background-image: repeating-linear-gradient(
+    45deg,
+    #444cf7 0,
+    #444cf7 1px,
+    #e5e5f7 0,
+    #e5e5f7 50%
+  );
+} */
+
 #waveform ::part(wrapper) {
+  /* background-color: #e5e5f7;
+  opacity: 0.8;
+  background-image: linear-gradient(#444cf7 2px, transparent 2px),
+    linear-gradient(90deg, #444cf7 2px, transparent 2px),
+    linear-gradient(#444cf7 1px, transparent 1px),
+    linear-gradient(90deg, #444cf7 1px, #e5e5f7 1px);
+  background-size: 50px 50px, 50px 50px, 10px 10px, 10px 10px;
+  background-position: -2px -2px, -2px -2px, -1px -1px, -1px -1px;
+
+  background-color: #e5e5f7;
+  opacity: 0.8;
+  background-image: linear-gradient(#444cf7 1px, transparent 1px),
+    linear-gradient(to right, #444cf7 1px, #e5e5f7 1px);
+  background-size: 20px 20px;
+
+  background-color: #e5e5f7;
+  opacity: 0.8;
+  background-size: 10px 10px;
+  background-image: repeating-linear-gradient(
+    45deg,
+    #444cf7 0,
+    #444cf7 1px,
+    #e5e5f7 0,
+    #e5e5f7 50%
+  ); */
+
+  /* background-color: #e5e5f7;
+  opacity: 0.8;
+  background-size: 20px 20px;
+  background-image: repeating-linear-gradient(
+    to right,
+    #444cf7,
+    #444cf7 1px,
+    #e5e5f7 1px,
+    #e5e5f7
+  ); */
+
   --box-size: 10px;
   background-image: linear-gradient(
       transparent calc(var(--box-size) - 1px),
-      /* rgb(74, 112, 107) var(--box-size), */ rgb(202, 128, 198)
-        var(--box-size),
+      rgb(202, 128, 198) var(--box-size),
       transparent var(--box-size)
     ),
     linear-gradient(
       90deg,
       transparent calc(var(--box-size) - 1px),
-      /* rgb(74, 112, 107) var(--box-size), */ rgb(228, 145, 224)
-        var(--box-size),
+      rgb(228, 145, 224) var(--box-size),
       transparent var(--box-size)
     );
   background-size: 100% var(--box-size), var(--box-size) 100%;
