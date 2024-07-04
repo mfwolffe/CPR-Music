@@ -6,17 +6,20 @@ import Layout from '../../components/layout';
 import { useWavesurfer } from '@wavesurfer/react';
 import Zoom from 'wavesurfer.js/dist/plugins/zoom.esm.js';
 import Hover from 'wavesurfer.js/dist/plugins/hover.esm.js';
+import Minimap from 'wavesurfer.js/dist/plugins/minimap.esm.js';
 import Timeline from 'wavesurfer.js/dist/plugins/timeline.esm.js';
 import Envelope from 'wavesurfer.js/dist/plugins/envelope.esm.js';
 
-// import { FaClockRotateLeft } from 'react-icons/fa6';
-// import { FaArrowRotateRight } from 'react-icons/fa6';
-
-// import { FaRegCircleStop } from 'react-icons/fa6';
+// SEEME @mfwolffe add a stop button?
+// TODO  @mfwolffe indicate track loading (worse for long tracks, ie forza, even when local)
+import { FaSpinner } from 'react-icons/fa';
+import { FaRegCircleStop } from 'react-icons/fa6';
 import { FaRegCirclePlay } from 'react-icons/fa6';
 import { FaRegCircleLeft } from 'react-icons/fa6';
 import { FaRegCircleRight } from 'react-icons/fa6';
 import { FaRegCirclePause } from 'react-icons/fa6';
+import { FaArrowRotateLeft } from 'react-icons/fa6';
+import { FaArrowRotateRight } from 'react-icons/fa6';
 
 // import { FaPlay } from 'react-icons/fa6';
 // import { FaPause } from 'react-icons/fa6';
@@ -132,12 +135,20 @@ const zoomOptions = {
   scale: 0.125, // amount to zoom per scroll wheel turn
 };
 
+const minimapOptions = {
+  height: 35,
+  dragToSeek: true,
+  // overlayColor: 'var(--jmu-purple)', // SEEME @mfwolffe lol do not use overlay color... lag abound
+  overlayPosition: 'insertAfter',
+};
+
 const BasicDaw = () => {
   const containerRef = useRef(null);
+  const [urlIndex, setUrlIndex] = useState(0);
   // SEEME a pure CSS approach will be taken if duotone icons are annoying to try to include
   const [progBtnHvr, setHvr] = useState(false);
-  // const [envPoints, setEnvPoints] = useState;
-  const [urlIndex, setUrlIndex] = useState(0);
+  const [mapPresent, setPresent] = useState(false);
+
   // SEEME I'm not sure memoization is the right way to go
   // SEEME ^^ I think Envelope needs useMemo or some other hook
   //          otherwise infinite render
@@ -146,6 +157,10 @@ const BasicDaw = () => {
     () => [Envelope.create(envelopeOptions)],
     [urlIndex]
   );
+
+  // const minimap = useMemo(() => [Minimap.create(minimapOptions)], []);
+  // const initialPlugList = [envelope, minimap];
+
   // const timeline = useMemo(() => [Timeline.create(timelineOptions)], []);
 
   // TODO @mfwolffe tooltips
@@ -163,6 +178,9 @@ const BasicDaw = () => {
   const playButton = <FaRegCirclePlay fontSize="1rem" />;
   const pauseButton = <FaRegCirclePause fontSize="1rem" className="hoho" />;
 
+  const backTenButton = <FaArrowRotateLeft fontSize="1rem" />;
+  const skipTenButton = <FaArrowRotateRight fontSize="1rem" />;
+
   // SEEME @mfwolffe this approach in tandem w/ the poorly-named
   //                 doShit() function seem to resolve the problem
   //                 of >= 2 plugins breaking everything
@@ -175,6 +193,7 @@ const BasicDaw = () => {
   // const envelope = Envelope.create(envelopeOptions);
   const zoom = Zoom.create(zoomOptions);
   const hover = Hover.create(hoverOptions);
+  const minimap = Minimap.create(minimapOptions);
   const timeline = Timeline.create(timelineOptions);
   // const envelope = Envelope.create(envelopeOptions);
 
@@ -199,7 +218,7 @@ const BasicDaw = () => {
     url: audioUrls[urlIndex], // SEEME @mfwolffe in testing so far, use urls instead of media prop. disastrous
     dragToSeek: true, // as it sounds - drag cursor with mouse hold instead of single click
     // normalize: true,   // TODO @ mfwolffe look into this prop. Feels like more than just vert-stretch
-    // plugins: timeline,
+    // plugins: initialPlugList,
     plugins: envelope,
     autoplay: false, // why would you ever want this true?
     autoScroll: true,
@@ -230,14 +249,20 @@ const BasicDaw = () => {
 
   const onSkipTrackBkwd = useCallback(() => {
     const len = audioUrls.length;
-    // console.log('triggered');
     // const newIndex = ((urlIndex % len) + len) % len;
-    // console.log(((urlIndex % len) + len) % len);
 
-    // TODO @mfwolffe for some reason modulo w/ neg not working in
+    // TODO @mfwolffe for some reason modulo w/ neg (above) not working in
     //                the useCallback but fine if using ternary as below
-    setUrlIndex((index) => (index == 0 ? len - 1 : index - 1));
+    setUrlIndex((index) => (index == 0 ? len : index) - 1);
   }, []);
+
+  const onSkipTenFwd = useCallback(() => {
+    wavesurfer.skip(10);
+  });
+
+  const onSkipTenBkwd = useCallback(() => {
+    wavesurfer.skip(-10);
+  });
 
   // TODO @mfwolffe   envelope in this implementation
   //                  renders but appears to have some
@@ -263,7 +288,7 @@ const BasicDaw = () => {
 
     // SEEME @mfwolffe - figure out what useMemo does, ie, if
     //                   memoized results are put into this array
-    // TODO @mfwolffe    fix me
+    // TODO @mfwolffe    fix me (ie, the envelope memo stuff)
     const pointArray = [
       {
         time: 0.0,
@@ -279,21 +304,22 @@ const BasicDaw = () => {
       },
     ];
 
-    envelope[0].setPoints(pointArray);
-
     // envelope[0].setPoints(pointArray);
 
     addPlugWrapper(wavesurfer, zoom);
     addPlugWrapper(wavesurfer, hover);
     addPlugWrapper(wavesurfer, timeline);
+
+    if (!mapPresent) {
+      addPlugWrapper(wavesurfer, minimap);
+      setPresent(true);
+    }
     // addPlugWrapper(wavesurfer, envelope);
   }
 
   // envelope.on('points-change', (points) => {
   //   console.log('points updated', points);
   // });
-
-  console.log('last check', envelope.length);
 
   return (
     <Layout>
@@ -319,17 +345,25 @@ const BasicDaw = () => {
             className="w-95 ml-auto mr-auto mb-0"
           />
 
-          <div className="d-flex w-95 ml-auto mr-auto prog-bar align-items-center flex-row gap-025">
+          <div className="d-flex w-95 ml-auto mr-auto prog-bar align-items-center flex-row gap-0375">
             <Button onClick={onSkipTrackBkwd} className="prog-button pl-2">
               {skipPrev}
+            </Button>
+            <Button onClick={onSkipTenBkwd} className="prog-button">
+              {backTenButton}
             </Button>
             <Button onClick={onPlayPause} className="prog-button">
               {isPlaying ? pauseButton : playButton}
             </Button>
+            <Button onClick={onSkipTenFwd} className="prog-button">
+              {skipTenButton}
+            </Button>
             <Button onClick={onSkipTrackFwd} className="prog-button">
               {skipNext}
             </Button>
-            <span className="pl-1 text-white">{formatTime(currentTime)}</span>
+            <span className="pl-1 pt-0 pb-0 text-white">
+              {formatTime(currentTime)}
+            </span>
           </div>
 
           <div className="d-flex justify-content-between">
