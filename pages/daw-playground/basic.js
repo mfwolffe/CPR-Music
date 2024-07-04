@@ -95,14 +95,13 @@ const songList = () => {
 //                 but closer to the ProTools look, etc. Can simulate
 //                 with styling but I'm not sure I like it.
 const timelineOptions = {
-  // insertPosition: 'afterend', // the default presumably
-  // insertPosition: 'afterbegin',  // breaks timeline (just hides?)
-  // insertPosition: 'beforeend',   // also "breaks"  the timeline - css?
   height: 24, // also affects typeface for numeric labels; default is 20 supposedly - imo too small
   insertPosition: 'beforebegin', // top of waveform container, within it
+  // timeInterval: 0.2,
+  primaryLabelInterval: 5,
   // primaryLabelSpacing: 5, // TODO: @mfwolffe see how the two LabelSpacing props play together
   // primaryLabelSpacing: 1, // ^ see that todo lol
-  // secondaryLabelInterval: 5,
+  // secondaryLabelInterval: 1,
   // secondaryLabelSpacing: 1,    // TODO @mfwolffe figure these out
   // secondaryLabelOpacity: 0.25,
   // style: 'color: #e6dfdc',
@@ -361,7 +360,10 @@ const BasicDaw = () => {
             <Button onClick={onSkipTrackFwd} className="prog-button">
               {skipNext}
             </Button>
-            <span className="pl-1 pt-0 pb-0 text-white">
+            <span
+              className="pl-1 pt-0 pb-0"
+              style={{ color: isPlaying ? 'aqua' : 'white' }}
+            >
               {formatTime(currentTime)}
             </span>
           </div>
