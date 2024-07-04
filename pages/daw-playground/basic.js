@@ -21,6 +21,7 @@ import { FaRegCirclePause } from 'react-icons/fa6';
 import { FaArrowRotateLeft } from 'react-icons/fa6';
 import { FaArrowRotateRight } from 'react-icons/fa6';
 
+// SEEME @mfwolffe alternate icons
 // import { FaPlay } from 'react-icons/fa6';
 // import { FaPause } from 'react-icons/fa6';
 // import { FaVolumeOff } from 'react-icons/fa6';
@@ -29,15 +30,10 @@ import { FaArrowRotateRight } from 'react-icons/fa6';
 // import { FaVolumeXmark } from 'react-icons/fa6';
 
 /* BIGTODO @mfwolffe
- * 1. on daw page refresh, you get a reference error for 'document'
- * 2. Basically using more than one plugin at the moment breaks everything
- *    which is unfortunate because some of these plugins are very useful given
- *    our goals. I'll take a look in the AM b/c it is 4:30AM ...
- *     => FIXED (I think - commit 4eb8199 has changes)
- * 3. Switches should dynamically register (and `destroy()` ?) plugins
- *
- * 4. WebAudio API integration
- * 5. useMemo() for persisting envelope points?
+ *  1. on daw page refresh, you get a reference error for 'document'
+ *  2. Switches should dynamically register (and `destroy()` ?) plugins
+ *  4. WebAudio API integration
+ *  5. useMemo() for persisting envelope points? ... i.e., how?
  *
  */
 
@@ -90,10 +86,7 @@ const songList = () => {
 //                 a track that is particularly long, then
 //                 it doesn't really make sense to have the
 //                 timeline have 10 second ticks
-// TODO: @mfwolffe container for timeline specifically, i.e.,
-//                 timeline not *inside* of waveform container
-//                 but closer to the ProTools look, etc. Can simulate
-//                 with styling but I'm not sure I like it.
+//                 OR: just forbid tracks longer than X minutes???
 const timelineOptions = {
   height: 24, // also affects typeface for numeric labels; default is 20 supposedly - imo too small
   insertPosition: 'beforebegin', // top of waveform container, within it
@@ -119,6 +112,8 @@ const envelopeOptions = {
   points: [],
 };
 
+// TODO: @mfwolffe move timeline to diff container.
+//                 hover clashes heavily
 const hoverOptions = {
   // labelBackground: 'blue',  // SEEME @mfwolffe having a bg on scrub may be helpful
   lineWidth: 2,
@@ -144,26 +139,8 @@ const minimapOptions = {
 const BasicDaw = () => {
   const containerRef = useRef(null);
   const [urlIndex, setUrlIndex] = useState(0);
-  // SEEME a pure CSS approach will be taken if duotone icons are annoying to try to include
-  const [progBtnHvr, setHvr] = useState(false);
-  const [mapPresent, setPresent] = useState(false);
-
-  // SEEME I'm not sure memoization is the right way to go
-  // SEEME ^^ I think Envelope needs useMemo or some other hook
-  //          otherwise infinite render
-  // const hover = useMemo(() => [Hover.create(hoverOptions)], []);
-  const envelope = useMemo(
-    () => [Envelope.create(envelopeOptions)],
-    [urlIndex]
-  );
-
-  // const minimap = useMemo(() => [Minimap.create(minimapOptions)], []);
-  // const initialPlugList = [envelope, minimap];
-
-  // const timeline = useMemo(() => [Timeline.create(timelineOptions)], []);
-
-  // TODO @mfwolffe tooltips
-  // TODO @mfwolffe ask dr. stewart about import of duotone for fun hover effect
+  // TODO  @mfwolffe ask dr. stewart about import of duotone for fun hover effect
+  // SEEME @mfwolffe a pure CSS approach will be taken if duotone icons are annoying to try to include
   // const playButton = (
   //   <FaRegCirclePlay
   //     fontSize="1rem"
@@ -172,24 +149,33 @@ const BasicDaw = () => {
   //     style={{ color: progBtnHvr ? 'aqua' : 'white' }}
   //   />
   // );
-  const skipNext = <FaRegCircleRight fontSize="1rem" />;
+  const [progBtnHvr, setHvr] = useState(false);
+  const [mapPresent, setPresent] = useState(false);
+
+  // SEEME I'm not sure memoization is the right way to go
+  // SEEME ^^ I think Envelope *needs* useMemo or some other hook
+  //          otherwise infinite render
+  const envelope = useMemo(
+    () => [Envelope.create(envelopeOptions)],
+    [urlIndex]
+  );
+
+  // const minimap = useMemo(() => [Minimap.create(minimapOptions)], []);
+  // const initialPlugList = [envelope, minimap];
+
+  // TODO @mfwolffe tooltips on button hover?
   const skipPrev = <FaRegCircleLeft fontSize="1rem" />;
+  const skipNext = <FaRegCircleRight fontSize="1rem" />;
   const playButton = <FaRegCirclePlay fontSize="1rem" />;
-  const pauseButton = <FaRegCirclePause fontSize="1rem" className="hoho" />;
+  const pauseButton = <FaRegCirclePause fontSize="1rem" />;
 
   const backTenButton = <FaArrowRotateLeft fontSize="1rem" />;
   const skipTenButton = <FaArrowRotateRight fontSize="1rem" />;
 
-  // SEEME @mfwolffe this approach in tandem w/ the poorly-named
-  //                 doShit() function seem to resolve the problem
-  //                 of >= 2 plugins breaking everything
-  // TODO  @mfwolffe But what about the lack of memoization? Determine
-  //                 if that'll brick or break later/what exactly we lose
-  //                 in foregoing. Which plugin should get the hook though,
-  //                 knowing that, i.e., which has the biggest perf hit from
+  // TODO  @mfwolffe Can multiple plugin datas be memoized?
+  //                 If only one, which plugin should get the hook?
+  //                 That is, which plugin has the biggest perf hit from
   //                 not memoizing?
-  //
-  // const envelope = Envelope.create(envelopeOptions);
   const zoom = Zoom.create(zoomOptions);
   const hover = Hover.create(hoverOptions);
   const minimap = Minimap.create(minimapOptions);
@@ -276,12 +262,11 @@ const BasicDaw = () => {
     surfer.registerPlugin(plg);
   }
 
-  // isReady && addPlugWrapper(wavesurfer, hover);
-
-  // SEEME @mfwolffe and playing check seems to resolve issue of recomputing (there was no noticeable effect though)
-  //                 and I'm not sure if there will be side effects to adding the additional condition
+  // SEEME @mfwolffe isPlaying additional check seems to resolve issue of
+  //                 recomputing (there was no noticeable effect though)
+  //                 and I'm not sure if there will be side effects to
+  //                 adding the additional condition
   if (isReady && !isPlaying) {
-    // initEnvelopePoints(wavesurfer, envelope);
     const duration = wavesurfer.getDuration();
     const halfPoint = duration / 2;
 
@@ -379,7 +364,6 @@ const BasicDaw = () => {
               {/* <p>Current time: {formatTime(currentTime)}</p> */}
             </div>
             <Card className="bg-dawcontrol text-white control-card mt-2">
-              {/* SEEME @mfwolffe allow teacher to select plugins they want and populate from that selection? */}
               <Card.Body>
                 <Card.Title className="text-center">DAW Options</Card.Title>
                 <Form className="pl-1 pr-1">
