@@ -201,3 +201,8 @@
   background-color: var(--daw-timeline-bg) !important;
   max-height: 24px !important;
 }
+
+.mmap-container {
+  background-color: var(--daw-grey);
+  /* max-height: 24px !important; */
+}

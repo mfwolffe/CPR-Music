@@ -70,6 +70,17 @@ const audioUrls = [
   '/audio/uncso-verdi-forza.mp3',
 ];
 
+const MinimapContainer = function (hide) {
+  const hidden = hide;
+  return (
+    <div
+      className="w-95 ml-auto mr-auto mmap-container"
+      id="mmap"
+      hidden={hidden}
+    ></div>
+  );
+};
+
 const songList = () => {
   const selectOptions = [];
 
@@ -89,15 +100,16 @@ const songList = () => {
 //                 OR: just forbid tracks longer than X minutes???
 const timelineOptions = {
   height: 24, // also affects typeface for numeric labels; default is 20 supposedly - imo too small
-  insertPosition: 'beforebegin', // top of waveform container, within it
   // timeInterval: 0.2,
   primaryLabelInterval: 5,
   // primaryLabelSpacing: 5, // TODO: @mfwolffe see how the two LabelSpacing props play together
   // primaryLabelSpacing: 1, // ^ see that todo lol
-  // secondaryLabelInterval: 1,
-  // secondaryLabelSpacing: 1,    // TODO @mfwolffe figure these out
-  // secondaryLabelOpacity: 0.25,
   // style: 'color: #e6dfdc',
+  // secondaryLabelSpacing: 1, // TODO @mfwolffe figure these out
+  // secondaryLabelInterval: 1,
+  insertPosition: 'beforebegin', // top of waveform container, within it
+  // secondaryLabelOpacity: 0.8,
+  // container: '#timelineContainer',
   style: 'color: #e6dfdc; background-color: var(--daw-timeline-bg)',
 };
 
@@ -132,12 +144,16 @@ const zoomOptions = {
 const minimapOptions = {
   height: 35,
   dragToSeek: true,
+  container: '#mmap',
+  waveColor: '#b7c3b4',
+  cursorColor: '#fff',
+  progressColor: '#92ce84',
   // overlayColor: 'var(--jmu-purple)', // SEEME @mfwolffe lol do not use overlay color... lag abound
-  overlayPosition: 'insertAfter',
+  // overlayPosition: 'insertAfter',
 };
 
 const BasicDaw = () => {
-  const containerRef = useRef(null);
+  const dawRef = useRef(null);
   const [urlIndex, setUrlIndex] = useState(0);
   // TODO  @mfwolffe ask dr. stewart about import of duotone for fun hover effect
   // SEEME @mfwolffe a pure CSS approach will be taken if duotone icons are annoying to try to include
@@ -150,18 +166,17 @@ const BasicDaw = () => {
   //   />
   // );
   const [progBtnHvr, setHvr] = useState(false);
-  const [mapPresent, setPresent] = useState(false);
+  const [mapPresent, setMapPrsnt] = useState(false);
+  const [hvrPresent, setHvrPrsnt] = useState(false);
+  const [rgnPresent, setRgnPrsnt] = useState(false);
+  const [crsPresent, setCrsPrsnt] = useState(false);
+  const [spctPresent, setSpctPrsnt] = useState(false);
+  const [tmlnPresent, setTmlnPrsnt] = useState(false);
 
   // SEEME I'm not sure memoization is the right way to go
   // SEEME ^^ I think Envelope *needs* useMemo or some other hook
   //          otherwise infinite render
-  const envelope = useMemo(
-    () => [Envelope.create(envelopeOptions)],
-    [urlIndex]
-  );
-
-  // const minimap = useMemo(() => [Minimap.create(minimapOptions)], []);
-  // const initialPlugList = [envelope, minimap];
+  const envelope = useMemo(() => [Envelope.create(envelopeOptions)], []);
 
   // TODO @mfwolffe tooltips on button hover?
   const skipPrev = <FaRegCircleLeft fontSize="1rem" />;
@@ -182,19 +197,8 @@ const BasicDaw = () => {
   const timeline = Timeline.create(timelineOptions);
   // const envelope = Envelope.create(envelopeOptions);
 
-  // TODO @mfwolffe allow users to modify style to their liking?
-  //                allow users to save "profiles" that they make?
-  //                premade profiles user can select from?
-  //
-  //      If so, Things to consider:
-  //                colors of course (wave, prog, cursor)
-  //                background (bg images? css 'designs'?)
-  //                show/hide scrollbar
-  //                zoom level
-  //                overall style - e.g., ProTools style or 'bar' style?
-  //                scaling factor (height)
-  let { wavesurfer, isReady, isPlaying, currentTime } = useWavesurfer({
-    container: containerRef,
+  const wavesurferOptions = {
+    container: dawRef,
     height: 212, // container, not waveform
     waveColor: '#4B9CD3', // carolina blue
     progressColor: '#450084', // jmu poiple
@@ -216,6 +220,28 @@ const BasicDaw = () => {
     // peaks: , // SEEME @mfwolffe this may be useful when implementing Web Audio tools? - it's precomputed audio data
     // renderFunction: , // SEEME @mfwolffe also check out once tinkering with Web Audio starts
     // splitChannels: , // SEEME @mfwolffe figure out proper syntax and usage for spliting of channels
+  };
+
+  // TODO @mfwolffe allow users to modify style to their liking?
+  //                allow users to save "profiles" that they make?
+  //                premade profiles user can select from?
+  //
+  //      If so, Things to consider:
+  //                colors of course (wave, prog, cursor)
+  //                background (bg images? css 'designs'?)
+  //                show/hide scrollbar
+  //                zoom level
+  //                overall style - e.g., ProTools style or 'bar' style?
+  //                scaling factor (height)
+  let { wavesurfer, isReady, isPlaying, currentTime } =
+    useWavesurfer(wavesurferOptions);
+
+  wavesurfer?.once('ready', () => {
+    console.log('prêt');
+    wavesurfer?.registerPlugin(minimap);
+    wavesurfer?.registerPlugin(zoom);
+    wavesurfer?.registerPlugin(hover);
+    wavesurfer?.registerPlugin(timeline);
   });
 
   const onUrlChange = useCallback((e) => {
@@ -229,6 +255,7 @@ const BasicDaw = () => {
   }, [wavesurfer]);
 
   const onSkipTrackFwd = useCallback(() => {
+    console.log('skipping');
     setUrlIndex((index) => (index + 1) % audioUrls.length);
   }, []);
 
@@ -249,6 +276,23 @@ const BasicDaw = () => {
     wavesurfer.skip(-10);
   });
 
+  // TODO @mfwolffe finish me
+  const handleRec = useCallback((e) => {
+    console.log(e.target.checked);
+  });
+
+  const handleMinimap = useCallback((e) => {
+    console.log(e.target.checked);
+    console.log('map present: ', mapPresent);
+    if (e.target.checked && !mapPresent) {
+      console.log('creating minimap');
+      setMapPrsnt(true);
+    } else if (!e.target.checked && mapPresent) {
+      console.log('destroying minimap');
+      setMapPrsnt(false);
+    }
+  });
+
   // TODO @mfwolffe   envelope in this implementation
   //                  renders but appears to have some
   //                  kind of bad interaction (crackly
@@ -266,40 +310,31 @@ const BasicDaw = () => {
   //                 recomputing (there was no noticeable effect though)
   //                 and I'm not sure if there will be side effects to
   //                 adding the additional condition
-  if (isReady && !isPlaying) {
-    const duration = wavesurfer.getDuration();
-    const halfPoint = duration / 2;
+  //
+  // if (isReady && !isPlaying) {
+  // const duration = wavesurfer.getDuration();
+  // const halfPoint = duration / 2;
 
-    // SEEME @mfwolffe - figure out what useMemo does, ie, if
-    //                   memoized results are put into this array
-    // TODO @mfwolffe    fix me (ie, the envelope memo stuff)
-    const pointArray = [
-      {
-        time: 0.0,
-        volume: 0.5,
-      },
-      {
-        time: halfPoint,
-        volume: 0.8,
-      },
-      {
-        time: duration,
-        volume: 0.5,
-      },
-    ];
+  // SEEME @mfwolffe - figure out what useMemo does, ie, if
+  //                   memoized results are put into this array
+  // TODO @mfwolffe    fix me (ie, the envelope memo stuff)
+  // const pointArray = [
+  //   {
+  //     time: 0.0,
+  //     volume: 0.5,
+  //   },
+  //   {
+  //     time: halfPoint,
+  //     volume: 0.8,
+  //   },
+  //   {
+  //     time: duration,
+  //     volume: 0.5,
+  //   },
+  // ];
 
-    // envelope[0].setPoints(pointArray);
-
-    addPlugWrapper(wavesurfer, zoom);
-    addPlugWrapper(wavesurfer, hover);
-    addPlugWrapper(wavesurfer, timeline);
-
-    if (!mapPresent) {
-      addPlugWrapper(wavesurfer, minimap);
-      setPresent(true);
-    }
-    // addPlugWrapper(wavesurfer, envelope);
-  }
+  // envelope[0].setPoints(pointArray);
+  // }
 
   // envelope.on('points-change', (points) => {
   //   console.log('points updated', points);
@@ -324,10 +359,13 @@ const BasicDaw = () => {
             🤷
           </Card.Subtitle>
           <div
-            ref={containerRef}
+            ref={dawRef}
             id="waveform"
             className="w-95 ml-auto mr-auto mb-0"
           />
+
+          {console.log(mapPresent)}
+          {mapPresent ? MinimapContainer(false) : MinimapContainer(true)}
 
           <div className="d-flex w-95 ml-auto mr-auto prog-bar align-items-center flex-row gap-0375">
             <Button onClick={onSkipTrackBkwd} className="prog-button pl-2">
@@ -370,8 +408,18 @@ const BasicDaw = () => {
                   <div className="d-flex gap-3">
                     <div className="pl-2">
                       {/* TODO @mfwolffe have switch bg color be carolina blue to match daw wf */}
-                      <Form.Check type="switch" id="record" label="Record" />
-                      <Form.Check type="switch" id="minimap" label="Minimap" />
+                      <Form.Check
+                        type="switch"
+                        id="record"
+                        label="Record"
+                        onChange={handleRec}
+                      />
+                      <Form.Check
+                        type="switch"
+                        id="minimap"
+                        label="Minimap"
+                        onChange={handleMinimap}
+                      />
                       <Form.Check
                         type="switch"
                         id="envelope"
