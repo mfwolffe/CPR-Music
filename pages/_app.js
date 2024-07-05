@@ -1,4 +1,5 @@
 'use client';
+
 import { SessionProvider } from 'next-auth/react';
 // Importing the Bootstrap CSS
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -15,11 +16,14 @@ export function App({ Component, pageProps: { session, ...pageProps } }) {
         refetchOnWindowFocus: false,
       },
     },
-  })
+  });
   return (
     <QueryClientProvider client={queryClient}>
       <SessionProvider session={session}>
-        <Component {...pageProps} />
+        {
+          // eslint-disable-next-line react/jsx-props-no-spreading
+          <Component {...pageProps} />
+        }
       </SessionProvider>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
