@@ -4,9 +4,19 @@ import MicRecorder from 'mic-recorder-to-mp3';
 import { useEffect, useRef, useState } from 'react';
 import Button from 'react-bootstrap/Button';
 import {
-  FaMicrophone, FaStop, FaCloudUploadAlt,
-  FaSpinner, FaTimesCircle, FaCheck, FaPlay, FaPause,
-  FaVolumeOff, FaVolumeMute, FaVolumeDown, FaVolumeUp, FaRegTrashAlt
+  FaMicrophone,
+  FaStop,
+  FaCloudUploadAlt,
+  FaSpinner,
+  FaTimesCircle,
+  FaCheck,
+  FaPlay,
+  FaPause,
+  FaVolumeOff,
+  FaVolumeMute,
+  FaVolumeDown,
+  FaVolumeUp,
+  FaRegTrashAlt,
 } from 'react-icons/fa';
 import { useDispatch, useSelector } from 'react-redux';
 import ListGroup from 'react-bootstrap/ListGroup';
@@ -14,9 +24,9 @@ import ListGroupItem from 'react-bootstrap/ListGroupItem';
 import Col from 'react-bootstrap/Col';
 import Row from 'react-bootstrap/Row';
 import { useRouter } from 'next/router';
+import WaveSurfer from 'wavesurfer.js';
 import { UploadStatusEnum } from '../types';
 import StatusIndicator from './statusIndicator';
-import WaveSurfer from 'wavesurfer.js';
 import styles from '../styles/recorder.module.css';
 
 function AudioViewer({ src }) {
@@ -25,10 +35,41 @@ function AudioViewer({ src }) {
   const volume = useRef(null);
   const play = <FaPlay style={{ paddingLeft: '2px' }} />;
   const pause = <FaPause />;
-  const vMute = <FaVolumeMute style={{ width: '1.05em', height: '1.05em', cursor: 'pointer', color: 'red', paddingLeft: '2px' }} onClick={toggleVolume} />;
-  const vOff = <FaVolumeOff style={{ cursor: 'pointer', paddingRight: '9px' }} onClick={toggleVolume} />;
-  const vDown = <FaVolumeDown style={{ cursor: 'pointer', paddingRight: '3px' }} onClick={toggleVolume} />;
-  const vUp = <FaVolumeUp style={{ width: '1.23em', height: '1.23em', cursor: 'pointer', paddingLeft: '3px' }} onClick={toggleVolume} />;
+  const vMute = (
+    <FaVolumeMute
+      style={{
+        width: '1.05em',
+        height: '1.05em',
+        cursor: 'pointer',
+        color: 'red',
+        paddingLeft: '2px',
+      }}
+      onClick={toggleVolume}
+    />
+  );
+  const vOff = (
+    <FaVolumeOff
+      style={{ cursor: 'pointer', paddingRight: '9px' }}
+      onClick={toggleVolume}
+    />
+  );
+  const vDown = (
+    <FaVolumeDown
+      style={{ cursor: 'pointer', paddingRight: '3px' }}
+      onClick={toggleVolume}
+    />
+  );
+  const vUp = (
+    <FaVolumeUp
+      style={{
+        width: '1.23em',
+        height: '1.23em',
+        cursor: 'pointer',
+        paddingLeft: '3px',
+      }}
+      onClick={toggleVolume}
+    />
+  );
   const [playing, setPlay] = useState(play);
   const [volumeIndex, changeVolume] = useState(vUp);
 
@@ -44,7 +85,7 @@ function AudioViewer({ src }) {
         cursorWidth: 3,
         height: 200,
         barGap: 3,
-        dragToSeek: true
+        dragToSeek: true,
         // plugins:[
         //   WaveSurferRegions.create({maxLength: 60}),
         //   WaveSurferTimeLinePlugin.create({container: containerT.current})
@@ -62,34 +103,30 @@ function AudioViewer({ src }) {
 
   function handleVolumeChange() {
     waveSurf.current.setVolume(volume.current.value);
-    let volumeNum = volume.current.value * 100;
-    volume.current.style.setProperty('--volumePercent', volumeNum + '%');
-    if (volume.current.value == 0) {
+    const volumeNum = volume.current.value * 100;
+    volume.current.style.setProperty('--volumePercent', `${volumeNum}%`);
+    if (volume.current.value === 0) {
       changeVolume(vMute);
-    }
-    else if (volume.current.value < .25) {
+    } else if (volume.current.value < 0.25) {
       changeVolume(vOff);
-    }
-    else if (volume.current.value < .5) {
+    } else if (volume.current.value < 0.5) {
       changeVolume(vDown);
-    }
-    else if (volume.current.value < .75) {
+    } else if (volume.current.value < 0.75) {
       changeVolume(vUp);
     }
   }
 
   function toggleVolume() {
     if (volume.current) {
-      if (volume.current.value != 0) {
+      if (volume.current.value !== 0) {
         volume.current.value = 0;
         waveSurf.current.setVolume(volume.current.value);
-        volume.current.style.setProperty('--volumePercent', 0 + '%');
+        volume.current.style.setProperty('--volumePercent', `${0}%`);
         changeVolume(vMute);
-      }
-      else {
+      } else {
         volume.current.value = 1;
         waveSurf.current.setVolume(volume.current.value);
-        volume.current.style.setProperty('--volumePercent', 100 + '%');
+        volume.current.style.setProperty('--volumePercent', `${100}%`);
         changeVolume(vUp);
       }
     }
@@ -99,12 +136,11 @@ function AudioViewer({ src }) {
     if (waveSurf.current.isPlaying()) {
       setPlay(play);
       waveSurf.current.pause();
-    }
-    else {
+    } else {
       setPlay(pause);
       waveSurf.current.play();
     }
-  };
+  }
   if (waveSurf.current) {
     waveSurf.current.on('finish', () => {
       setPlay(play);
@@ -112,27 +148,53 @@ function AudioViewer({ src }) {
   }
 
   return (
-    <div style={{
-      width: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      margin: '0 1rem 0 1rem'
-    }}>
-      <div className={styles.waveContainer} ref={containerW} style={{ width: '100%' }}></div>
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-        <Button style={{
-          marginRight: '1rem',
+    <div
+      style={{
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        margin: '0 1rem 0 1rem',
+      }}
+    >
+      <div
+        className={styles.waveContainer}
+        ref={containerW}
+        style={{ width: '100%' }}
+      />
+      <div
+        style={{
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          width: '40px',
-          height: '40px',
-          borderRadius: '50%',
-          padding: '0'
-        }} onClick={playPause}>{playing}</Button>
-        <input className={styles.slider} style={{ marginRight: '1.5rem' }} ref={volume} type="range" min="0" max="1" step="0.01" defaultValue="1"></input>
+        }}
+      >
+        <Button
+          style={{
+            marginRight: '1rem',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            width: '40px',
+            height: '40px',
+            borderRadius: '50%',
+            padding: '0',
+          }}
+          onClick={playPause}
+        >
+          {playing}
+        </Button>
+        <input
+          className={styles.slider}
+          style={{ marginRight: '1.5rem' }}
+          ref={volume}
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          defaultValue="1"
+        />
         {volumeIndex}
       </div>
     </div>
@@ -205,14 +267,14 @@ export default function Recorder({ submit, accompaniment }) {
       'file',
       new File([blobInfo[i].data], 'student-recoding.mp3', {
         mimeType: 'audio/mpeg',
-      })
+      }),
     );
     // dispatch(submit({ audio: formData }));
     submit({ audio: formData, submissionId });
   };
 
   function deleteTake(index) {
-    let newInfo = blobInfo.slice();
+    const newInfo = blobInfo.slice();
     newInfo.splice(index, 1);
     setBlobInfo(newInfo);
   }
@@ -225,7 +287,9 @@ export default function Recorder({ submit, accompaniment }) {
       navigator.mediaDevices.getUserMedia
     ) {
       navigator.mediaDevices
-        .getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false } })
+        .getUserMedia({
+          audio: { echoCancellation: false, noiseSuppression: false },
+        })
         .then(() => {
           setIsBlocked(false);
         })
@@ -307,8 +371,7 @@ export default function Recorder({ submit, accompaniment }) {
                     >
                       <FaCloudUploadAlt />
                     </Button>
-                    <Button
-                      onClick={() => deleteTake(i)}>
+                    <Button onClick={() => deleteTake(i)}>
                       <FaRegTrashAlt />
                     </Button>
                   </div>

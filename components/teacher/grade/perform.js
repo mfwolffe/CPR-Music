@@ -78,9 +78,7 @@ export default function GradePerform({ submissions }) {
                             ?.category === 'Respond' && submission?.content ? (
                           <Row>
                             <Col>
-                              <p>
-                                {reflection}
-                              </p>
+                              <p>{reflection}</p>
                             </Col>
                             <Col xs={1}>
                               <dl>
@@ -101,7 +99,7 @@ export default function GradePerform({ submissions }) {
                           </Row>
                         ) : (
                           submission?.assignment?.activity?.activity_type?.category.includes(
-                            'Connect'
+                            'Connect',
                           ) && <p>{submission?.content}</p>
                         )}
                       </Card.Text>
