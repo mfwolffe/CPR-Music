@@ -67,7 +67,7 @@ export default function RTE({ submission, submitAction, autoFocus = false }) {
   });
   const grade = ({ sub, r, t, e, grader }) =>
     gradeMutation.mutate({
-      student_submission: sub,
+      studentSubmission: sub,
       rhythm: r,
       tone: t,
       expression: e,
