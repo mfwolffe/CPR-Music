@@ -2,7 +2,8 @@ import Col from 'react-bootstrap/Col';
 import Row from 'react-bootstrap/Row';
 import Card from 'react-bootstrap/Card';
 import { FaCalendarDay } from 'react-icons/fa';
-import dynamic from 'next/dynamic'
+import dynamic from 'next/dynamic';
+
 const FlatEditor = dynamic(() => import('../flatEditor'), {
   ssr: false,
 });
@@ -13,7 +14,7 @@ export default function RecentSubmission(assn) {
   } = assn;
   if (!submissions || submissions.length === 0) return '';
   const mostRecent = submissions?.reduce((recent, current) =>
-    new Date(recent.submitted) > new Date(current.submitted) ? recent : current
+    new Date(recent.submitted) > new Date(current.submitted) ? recent : current,
   );
   const { submitted, content, attachments } = mostRecent;
   const ctgy = activity_type_category ?? activity.activity_type.category;
@@ -29,12 +30,15 @@ export default function RecentSubmission(assn) {
       </Card.Body>
       {attachments?.length > 0 && (
         <Card.Body>
-          <audio controls src={attachments[0].file}>
-            <a href={attachments[0].file}>
-              download the recording (your browser doesn't support applying it
-              here directly)
-            </a>
-          </audio>
+          {
+            // eslint-disable-next-line jsx-a11y/media-has-caption
+            <audio controls src={attachments[0].file}>
+              <a href={attachments[0].file}>
+                download the recording (your browser doesn&apos;t support
+                applying it here directly)
+              </a>
+            </audio>
+          }
         </Card.Body>
       )}
       {content && content !== 'N/A for Perform submissions' && (
@@ -44,17 +48,22 @@ export default function RecentSubmission(assn) {
           ) : ctgy === 'Respond' ? (
             <Row>
               <Col md={9}>
-                  <textarea rows={5} readOnly className="respond-preview" value={JSON.parse(content).reflection} disabled>
-                </textarea>
+                <textarea
+                  rows={5}
+                  readOnly
+                  className="respond-preview"
+                  value={JSON.parse(content).reflection}
+                  disabled
+                />
               </Col>
               <Col>
-                <dl className='row'>
-                  <dt className='col-md-9'>Rhythm</dt>
-                  <dd className='col-md-3'>{JSON.parse(content).r}</dd>
-                  <dt className='col-md-9'>Tone</dt>
-                  <dd className='col-md-3'>{JSON.parse(content).t}</dd>
-                  <dt className='col-md-9'>Expression</dt>
-                  <dd className='col-md-3'>{JSON.parse(content).e}</dd>
+                <dl className="row">
+                  <dt className="col-md-9">Rhythm</dt>
+                  <dd className="col-md-3">{JSON.parse(content).r}</dd>
+                  <dt className="col-md-9">Tone</dt>
+                  <dd className="col-md-3">{JSON.parse(content).t}</dd>
+                  <dt className="col-md-9">Expression</dt>
+                  <dd className="col-md-3">{JSON.parse(content).e}</dd>
                 </dl>
               </Col>
             </Row>
