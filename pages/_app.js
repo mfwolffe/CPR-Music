@@ -6,7 +6,7 @@ import '../styles/bootstrap.min-musiccpr.css';
 import '../styles/global.css';
 import { ReactQueryDevtools } from 'react-query/devtools';
 import { QueryClient, QueryClientProvider } from 'react-query';
-import { wrapper } from '../store';
+import wrapper from '../store';
 
 export function App({ Component, pageProps: { session, ...pageProps } }) {
   const queryClient = new QueryClient({
