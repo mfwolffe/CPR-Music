@@ -25,6 +25,7 @@ export const Action = Object.freeze({
   UploadSucceeded: 'UploadSucceeded',
   UploadFailed: 'UploadFailed',
   UploadFinished: 'UploadFinished',
+  GotSongs: 'GotSongs',
 });
 
 export const ActivityState = Object.freeze({
