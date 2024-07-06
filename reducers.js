@@ -37,14 +37,14 @@ const assignedPiecesReducer = (
       // we have to make some changes here. the response is now already grouped.
       // the response will be an object with each key being a piece slug whose
       // value is an array of activities
-      const pieceSlugsKeys = Object.keys(payload.activities)
+      const pieceSlugsKeys = Object.keys(payload.activities);
       let pieces = pieceSlugsKeys.map((k) => {
         return {
           id: payload.activities[k][0].piece_id,
           slug: k,
           name: payload.activities[k][0].piece_name,
-        }
-      })
+        };
+      });
       // payload.activities.map(
       //   (assignment) => ({
       //     id: assignment.piece_id,
@@ -54,7 +54,7 @@ const assignedPiecesReducer = (
       pieces.sort((a, b) => (a.id < b.id ? -1 : 1)); // FIXME how should the pieces be sorted? this assumes by the piece's id, but perhaps it should be by the order property of the piece_plan if it's available?
 
       // what does this next step do??
-      // it looks like it says to only keep the first piece with a given id // thanks copilot for finishing my sentence 
+      // it looks like it says to only keep the first piece with a given id // thanks copilot for finishing my sentence
       pieces = pieces.filter((piece, i, arr) =>
         i === 0 ? true : piece.id !== arr[i - 1].id
       );
@@ -98,7 +98,7 @@ const initialActivities = {
 const activitiesReducer = (state = initialActivities, { type, payload }) => {
   switch (type) {
     case types.Action.GotActivities:
-      console.log('payload', payload)
+      console.log('payload', payload);
       return { loaded: true, items: payload.activities };
   }
   return state;
@@ -276,6 +276,17 @@ const submitStatusReducer = (
   return state;
 };
 
+// Matt stuff
+const initialSongs = { loaded: false, items: [] };
+
+const songsReducer = (state = initialSongs, { type, payload }) => {
+  switch (type) {
+    case types.Action.GotSongs:
+      return { loaded: true, items: payload };
+  }
+  return state;
+};
+
 // COMBINED REDUCERS
 const reducers = {
   assignments: assignmentsReducer,
@@ -289,6 +300,7 @@ const reducers = {
   selectedEnrollment: selectedEnrollmentReducer,
   selectedAssignment: selectedAssignmentReducer,
   submission: submitStatusReducer,
+  songs: songsReducer,
 };
 
 export default combineReducers(reducers);
