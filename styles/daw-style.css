@@ -75,7 +75,7 @@
     #e5e5f7
   ); */
 
-  --box-size: 10px;
+  /* --box-size: 10px;
   background-image: linear-gradient(
       transparent calc(var(--box-size) - 1px),
       rgb(202, 128, 198) var(--box-size),
@@ -87,7 +87,9 @@
       rgb(228, 145, 224) var(--box-size),
       transparent var(--box-size)
     );
-  background-size: 100% var(--box-size), var(--box-size) 100%;
+  background-size: 100% var(--box-size), var(--box-size) 100%; */
+
+  background-color: var(--daw-grey);
 }
 
 #waveform {
@@ -194,7 +196,7 @@
 }
 
 .prog-button:hover {
-  color: aqua;
+  color: aqua !important;
 }
 
 .prog-bar {
@@ -203,6 +205,23 @@
 }
 
 .mmap-container {
-  background-color: var(--daw-grey);
+  background-color: var(--daw-control);
   /* max-height: 24px !important; */
+  border-top: 2px solid #fff;
+}
+
+.toolbar {
+  background-color: var(--daw-timeline-bg) !important;
+  max-height: 24px !important;
+  border-bottom: 2px solid #fff;
+}
+
+.float-right {
+  float: right !important;
+}
+
+.spct-container {
+  /* background-color: var(--daw-control); */
+  border-top: 2px solid #fff;
+  /* height: fit-content !important; */
 }
