@@ -329,7 +329,7 @@ export default function BasicDaw() {
   const zoom = Zoom.create(zoomOptions);
   const minimap = Minimap.create(minimapOptions);
   const timeline = Timeline.create(timelineOptions);
-  const spectrogram = Spectrogram.create(spectrogramOptions);
+  // const spectrogram = Spectrogram.create(spectrogramOptions);
   // const envelope = Envelope.create(envelopeOptions);
 
   wavesurfer?.once('ready', () => {
@@ -342,7 +342,7 @@ export default function BasicDaw() {
     wavesurfer?.registerPlugin(hover);
     wavesurfer?.registerPlugin(minimap);
     wavesurfer?.registerPlugin(timeline);
-    wavesurfer?.registerPlugin(spectrogram);
+    // wavesurfer?.registerPlugin(spectrogram);
 
     const pointArray = [
       {
@@ -413,6 +413,7 @@ export default function BasicDaw() {
                   wavesurferOptions.container = '#waveform';
                   wavesurfer.setOptions(wavesurferOptions);
                   wavesurfer.load(audioUrls[urlIndex]);
+                  console.log('the env options: ', envelopeOptions);
                   setHvrPrsnt(false);
                 }
               }}
@@ -467,9 +468,10 @@ export default function BasicDaw() {
           />
 
           {mapPresent ? MinimapContainer(false) : MinimapContainer(true)}
-          {spctPresent
+
+          {/* {spctPresent
             ? SpectrogramContainer(false)
-            : SpectrogramContainer(true)}
+            : SpectrogramContainer(true)} */}
 
           <div className="d-flex w-95 ml-auto mr-auto prog-bar align-items-center flex-row gap-0375">
             <Button onClick={onSkipTrackBkwd} className="prog-button pl-2">
