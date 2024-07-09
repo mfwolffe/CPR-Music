@@ -314,7 +314,7 @@ export default function BasicDaw() {
 
   function handleSongChange(song) {
     console.log(song['audio_file']);
-    // wavesurfer.load(song['audio_file']); // FIXME @mfwolffe 'Network error when attempting to load resource....'
+    wavesurfer.load(song['audio_file']); // FIXME @mfwolffe 'Network error when attempting to load resource....'
   }
 
   const handleSpectrogram = useCallback((e) => {
@@ -366,6 +366,10 @@ export default function BasicDaw() {
   // envelope.on('points-change', (points) => {
   //   console.log('points updated', points);
   // });
+
+  const audio = new Audio(
+    'http://localhost:8000/media/sample_audio/uncso-bruckner4-4.mp3'
+  );
 
   return (
     <Layout>
@@ -570,6 +574,10 @@ export default function BasicDaw() {
           </div>
         </Card.Body>
       </Card>
+      <audio
+        controls
+        src="http://localhost:8000/media/sample_audio/uncso-bruckner4-4.mp3"
+      ></audio>
     </Layout>
   );
 }
