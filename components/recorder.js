@@ -1,7 +1,7 @@
 // with thanks to https://medium.com/front-end-weekly/recording-audio-in-mp3-using-reactjs-under-5-minutes-5e960defaf10
 
 import MicRecorder from 'mic-recorder-to-mp3';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import Button from 'react-bootstrap/Button';
 import {
   FaMicrophone,
@@ -33,9 +33,58 @@ function AudioViewer({ src }) {
   const containerW = useRef(null);
   const waveSurf = useRef(null);
   const volume = useRef(null);
+  let vMute;
+  let vOff;
+  let vDown;
+  let vUp;
   const play = <FaPlay style={{ paddingLeft: '2px' }} />;
   const pause = <FaPause />;
-  const vMute = (
+  const [playing, setPlay] = useState(play);
+  const [volumeIndex, changeVolume] = useState(null);
+
+  const toggleVolume = useCallback(() => {
+    if (volume.current) {
+      const volumeValue = parseFloat(volume.current.value);
+      if (volumeValue !== 0) {
+        volume.current.value = 0;
+        waveSurf.current.setVolume(volume.current.value);
+        volume.current.style.setProperty('--volumePercent', `${0}%`);
+        changeVolume(vMute);
+      } else {
+        volume.current.value = 1;
+        waveSurf.current.setVolume(volume.current.value);
+        volume.current.style.setProperty('--volumePercent', `${100}%`);
+        changeVolume(vUp);
+      }
+    }
+  }, []);
+
+  const playPause = useCallback(() => {
+    if (waveSurf.current.isPlaying()) {
+      setPlay(play);
+      waveSurf.current.pause();
+    } else {
+      setPlay(pause);
+      waveSurf.current.play();
+    }
+  }, []);
+
+  function handleVolumeChange() {
+    waveSurf.current.setVolume(volume.current.value);
+    const volumeNum = volume.current.value * 100;
+    volume.current.style.setProperty('--volumePercent', `${volumeNum}%`);
+    if (volume.current.value === 0) {
+      changeVolume(vMute);
+    } else if (volume.current.value < 0.25) {
+      changeVolume(vOff);
+    } else if (volume.current.value < 0.5) {
+      changeVolume(vDown);
+    } else if (volume.current.value < 0.75) {
+      changeVolume(vUp);
+    }
+  }
+
+  vMute = (
     <FaVolumeMute
       style={{
         width: '1.05em',
@@ -47,19 +96,19 @@ function AudioViewer({ src }) {
       onClick={toggleVolume}
     />
   );
-  const vOff = (
+  vOff = (
     <FaVolumeOff
       style={{ cursor: 'pointer', paddingRight: '9px' }}
       onClick={toggleVolume}
     />
   );
-  const vDown = (
+  vDown = (
     <FaVolumeDown
       style={{ cursor: 'pointer', paddingRight: '3px' }}
       onClick={toggleVolume}
     />
   );
-  const vUp = (
+  vUp = (
     <FaVolumeUp
       style={{
         width: '1.23em',
@@ -70,10 +119,9 @@ function AudioViewer({ src }) {
       onClick={toggleVolume}
     />
   );
-  const [playing, setPlay] = useState(play);
-  const [volumeIndex, changeVolume] = useState(vUp);
 
   useEffect(() => {
+    changeVolume(vUp);
     if (containerW.current && !waveSurf.current) {
       waveSurf.current = WaveSurfer.create({
         container: containerW.current,
@@ -101,46 +149,6 @@ function AudioViewer({ src }) {
     }
   }, []);
 
-  function handleVolumeChange() {
-    waveSurf.current.setVolume(volume.current.value);
-    const volumeNum = volume.current.value * 100;
-    volume.current.style.setProperty('--volumePercent', `${volumeNum}%`);
-    if (volume.current.value === 0) {
-      changeVolume(vMute);
-    } else if (volume.current.value < 0.25) {
-      changeVolume(vOff);
-    } else if (volume.current.value < 0.5) {
-      changeVolume(vDown);
-    } else if (volume.current.value < 0.75) {
-      changeVolume(vUp);
-    }
-  }
-
-  function toggleVolume() {
-    if (volume.current) {
-      if (volume.current.value !== 0) {
-        volume.current.value = 0;
-        waveSurf.current.setVolume(volume.current.value);
-        volume.current.style.setProperty('--volumePercent', `${0}%`);
-        changeVolume(vMute);
-      } else {
-        volume.current.value = 1;
-        waveSurf.current.setVolume(volume.current.value);
-        volume.current.style.setProperty('--volumePercent', `${100}%`);
-        changeVolume(vUp);
-      }
-    }
-  }
-
-  function playPause() {
-    if (waveSurf.current.isPlaying()) {
-      setPlay(play);
-      waveSurf.current.pause();
-    } else {
-      setPlay(pause);
-      waveSurf.current.play();
-    }
-  }
   if (waveSurf.current) {
     waveSurf.current.on('finish', () => {
       setPlay(play);
@@ -267,7 +275,7 @@ export default function Recorder({ submit, accompaniment }) {
       'file',
       new File([blobInfo[i].data], 'student-recoding.mp3', {
         mimeType: 'audio/mpeg',
-      }),
+      })
     );
     // dispatch(submit({ audio: formData }));
     submit({ audio: formData, submissionId });
