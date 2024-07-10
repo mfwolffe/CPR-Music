@@ -7,9 +7,11 @@ import Layout from '../../components/layout';
 import { useWavesurfer } from '@wavesurfer/react';
 import Zoom from 'wavesurfer.js/dist/plugins/zoom.esm.js';
 import Hover from 'wavesurfer.js/dist/plugins/hover.esm.js';
+import Record from 'wavesurfer.js/dist/plugins/record.esm.js';
 import Minimap from 'wavesurfer.js/dist/plugins/minimap.esm.js';
 import Timeline from 'wavesurfer.js/dist/plugins/timeline.esm.js';
 import Envelope from 'wavesurfer.js/dist/plugins/envelope.esm.js';
+import RecordPlugin from 'wavesurfer.js/dist/plugins/record.esm.js';
 import Spectrogram from 'wavesurfer.js/dist/plugins/spectrogram.esm.js';
 
 import { BsZoomIn } from 'react-icons/bs';
@@ -17,6 +19,7 @@ import { BsZoomOut } from 'react-icons/bs';
 import { PiWaveform } from 'react-icons/pi';
 import { TbZoomReset } from 'react-icons/tb';
 import { MdOutlineWaves } from 'react-icons/md';
+import { BsRecordCircle } from 'react-icons/bs';
 import { FaRegCircleStop } from 'react-icons/fa6';
 import { FaRegCirclePlay } from 'react-icons/fa6';
 import { FaRegCircleLeft } from 'react-icons/fa6';
@@ -207,6 +210,11 @@ const spectrogramOptions = {
   // TODO @mfwolffe window function option form
 };
 
+const recordOptions = {
+  renderRecordedAudio: true,
+  scrollingWaveform: true,
+};
+
 export default function BasicDaw() {
   const dawRef = useRef(null);
 
@@ -327,8 +335,10 @@ export default function BasicDaw() {
   //                 not memoizing?
   let hover = Hover.create(hiddenHoverOpts);
   const zoom = Zoom.create(zoomOptions);
+  // const record = Record.create(recordOptions);
   const minimap = Minimap.create(minimapOptions);
   const timeline = Timeline.create(timelineOptions);
+  const recorder = RecordPlugin.create(recordOptions);
   // const spectrogram = Spectrogram.create(spectrogramOptions);
   // const envelope = Envelope.create(envelopeOptions);
 
@@ -341,6 +351,7 @@ export default function BasicDaw() {
     wavesurfer?.registerPlugin(zoom);
     wavesurfer?.registerPlugin(hover);
     wavesurfer?.registerPlugin(minimap);
+    wavesurfer?.registerPlugin(recorder);
     wavesurfer?.registerPlugin(timeline);
     // wavesurfer?.registerPlugin(spectrogram);
 
@@ -367,9 +378,11 @@ export default function BasicDaw() {
   //   console.log('points updated', points);
   // });
 
-  const audio = new Audio(
-    'http://localhost:8000/media/sample_audio/uncso-bruckner4-4.mp3'
-  );
+  // TODO @mfwolffe wait for professor Self's input on cookie oddities
+  //
+  // const audio = new Audio(
+  //   'http://localhost:8000/media/sample_audio/uncso-bruckner4-4.mp3'
+  // );
 
   return (
     <Layout>
@@ -382,15 +395,15 @@ export default function BasicDaw() {
               (?)
             </a>
           </Card.Title>
-          <Card.Subtitle>
-            <em>
-              Is it symbolic that the waveform is carolina blue and the progress
-              bar is jmu purple? ...you tell me...
-            </em>{' '}
-            🤷
-          </Card.Subtitle>
           <div className="d-flex w-95 ml-auto mr-auto mt-2 toolbar align-items-center flex-row gap-0375">
             <Button className="prog-button pl-2">
+              {recorder.isRecording() ? (
+                <FaRegCircleStop fontSize="1rem" />
+              ) : (
+                <BsRecordCircle fontSize="1rem" />
+              )}
+            </Button>
+            <Button className="prog-button">
               <IoAnalyticsOutline fontSize="1rem" />
             </Button>
             <Button className="prog-button" onClick={newHandleMinimap}>
@@ -506,56 +519,12 @@ export default function BasicDaw() {
 
           <div className="d-flex justify-content-between">
             <div>
+              <p>Current audio: {audioUrls[urlIndex]}</p>
               <p>
-                Current audio: {audioUrls[urlIndex]}
-                <br />
                 Performed by the UNC Symphony Orchestra, featuring yours truly
                 (I'm the lowest sounding brass 'voice').
               </p>
-              {/* <p>Current time: {formatTime(currentTime)}</p> */}
             </div>
-            <Card className="bg-dawcontrol text-white control-card mt-2">
-              <Card.Body>
-                <Card.Title className="text-center">DAW Options</Card.Title>
-                <Form className="pl-1 pr-1">
-                  <div className="d-flex gap-3">
-                    <div className="pl-2">
-                      {/* TODO @mfwolffe have switch bg color be carolina blue to match daw wf */}
-                      <Form.Check
-                        type="switch"
-                        id="record"
-                        label="Record"
-                        onChange={handleRec}
-                      />
-                      <Form.Check
-                        type="switch"
-                        id="minimap"
-                        label="Minimap"
-                        onChange={handleMinimap}
-                      />
-                      <Form.Check
-                        type="switch"
-                        id="envelope"
-                        label="Envelope"
-                      />
-                    </div>
-                    <div className="pr-2">
-                      <Form.Check type="switch" id="select" label="Regions" />
-                      <Form.Check
-                        type="switch"
-                        id="spectrogram"
-                        label="Spectrogram"
-                      />
-                      <Form.Check
-                        type="switch"
-                        id="cursor-hover"
-                        label="Cursor Hover"
-                      />
-                    </div>
-                  </div>
-                </Form>
-              </Card.Body>
-            </Card>
           </div>
 
           <div style={{ width: 'fit-content' }}>
@@ -574,10 +543,10 @@ export default function BasicDaw() {
           </div>
         </Card.Body>
       </Card>
-      <audio
+      {/* <audio
         controls
         src="http://localhost:8000/media/sample_audio/uncso-bruckner4-4.mp3"
-      ></audio>
+      ></audio> */}
     </Layout>
   );
 }
