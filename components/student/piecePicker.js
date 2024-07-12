@@ -2,13 +2,16 @@ import { useRouter } from 'next/router';
 import { Form, Nav, Spinner } from 'react-bootstrap';
 import { useQuery } from 'react-query';
 import { getStudentAssignments } from '../../api';
+import { useCallback } from 'react';
 
 function PiecePicker() {
   const router = useRouter();
   const { slug, piece } = router.query;
-  function onPieceChange(ev) {
+
+  const onPieceChange = useCallback((ev) => {
     router.push(`/courses/${slug}/${ev.target.value}`);
-  }
+  }, []);
+
   const {
     isLoading,
     error: assignmentsError,
