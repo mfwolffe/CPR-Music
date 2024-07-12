@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from 'react-query';
 import { useDispatch } from 'react-redux';
 import dynamic from 'next/dynamic';
@@ -61,6 +61,16 @@ export default function CreativityActivity() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const currentAssignment =
+    assignments &&
+    Object.values(assignments)
+      .reduce((prev, current) => [...prev, ...current], [])
+      .filter(
+        (assn) =>
+          assn.piece_slug === piece &&
+          assn.activity_type_category === actCategory,
+      )?.[0];
+
   // only when melodyJson is updated, calculate the steps
   useEffect(() => {
     if (melodyJson && melodyJson.length > 0) {
@@ -116,15 +126,6 @@ export default function CreativityActivity() {
 
   const mutation = useMutation(mutateCreateSubmission({ slug }));
 
-  const currentAssignment =
-    assignments &&
-    Object.values(assignments)
-      .reduce((prev, current) => [...prev, ...current], [])
-      .filter(
-        (assn) =>
-          assn.piece_slug === piece &&
-          assn.activity_type_category === actCategory,
-      )?.[0];
   const currentTransposition = currentAssignment?.transposition;
   const flatIOScoreForTransposition =
     currentAssignment?.part?.transpositions?.filter(
@@ -146,9 +147,9 @@ export default function CreativityActivity() {
     scoreJSON = JSON.parse(flatIOScoreForTransposition);
   }
 
-  function onMerged(mergedData) {
+  const onMerged = useCallback((mergedData) => {
     totalScoreJSON.current = mergedData;
-  }
+  });
 
   function handleSubmit(i) {
     return (data) => {
