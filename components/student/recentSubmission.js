@@ -8,6 +8,8 @@ const FlatEditor = dynamic(() => import('../flatEditor'), {
   ssr: false,
 });
 
+const indrctdIf = (cond, t, f) => (cond ? t : f);
+
 export default function RecentSubmission(assn) {
   const {
     assn: {
