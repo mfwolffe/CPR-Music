@@ -8,16 +8,22 @@ const FlatEditor = dynamic(() => import('../flatEditor'), {
   ssr: false,
 });
 
+const indrctdIf = (cond, t, f) => (cond ? t : f);
+
 export default function RecentSubmission(assn) {
   const {
-    assn: { activity_type_category = null, submissions, activity = null },
+    assn: {
+      activity_type_category: activityTypeCategory = null,
+      submissions,
+      activity = null,
+    },
   } = assn;
   if (!submissions || submissions.length === 0) return '';
   const mostRecent = submissions?.reduce((recent, current) =>
     new Date(recent.submitted) > new Date(current.submitted) ? recent : current,
   );
   const { submitted, content, attachments } = mostRecent;
-  const ctgy = activity_type_category ?? activity.activity_type.category;
+  const ctgy = activityTypeCategory ?? activity.activity_type.category;
 
   return (
     <Card>
@@ -45,30 +51,32 @@ export default function RecentSubmission(assn) {
         <Card.Body>
           {ctgy === 'Create' ? (
             <FlatEditor scoreJSON={content} />
-          ) : ctgy === 'Respond' ? (
-            <Row>
-              <Col md={9}>
-                <textarea
-                  rows={5}
-                  readOnly
-                  className="respond-preview"
-                  value={JSON.parse(content).reflection}
-                  disabled
-                />
-              </Col>
-              <Col>
-                <dl className="row">
-                  <dt className="col-md-9">Rhythm</dt>
-                  <dd className="col-md-3">{JSON.parse(content).r}</dd>
-                  <dt className="col-md-9">Tone</dt>
-                  <dd className="col-md-3">{JSON.parse(content).t}</dd>
-                  <dt className="col-md-9">Expression</dt>
-                  <dd className="col-md-3">{JSON.parse(content).e}</dd>
-                </dl>
-              </Col>
-            </Row>
           ) : (
-            ''
+            indrctdIf(
+              ctgy === 'Respond',
+              <Row>
+                <Col md={9}>
+                  <textarea
+                    rows={5}
+                    readOnly
+                    className="respond-preview"
+                    value={JSON.parse(content).reflection}
+                    disabled
+                  />
+                </Col>
+                <Col>
+                  <dl className="row">
+                    <dt className="col-md-9">Rhythm</dt>
+                    <dd className="col-md-3">{JSON.parse(content).r}</dd>
+                    <dt className="col-md-9">Tone</dt>
+                    <dd className="col-md-3">{JSON.parse(content).t}</dd>
+                    <dt className="col-md-9">Expression</dt>
+                    <dd className="col-md-3">{JSON.parse(content).e}</dd>
+                  </dl>
+                </Col>
+              </Row>,
+              '',
+            )
           )}
         </Card.Body>
       )}
