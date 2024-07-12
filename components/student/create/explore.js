@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router';
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useMutation, useQuery } from 'react-query';
 import { useDispatch } from 'react-redux';
 import dynamic from 'next/dynamic';
@@ -56,9 +56,10 @@ export default function CreativityActivity() {
     useState(false);
 
   const selectedMeasure = useRef({});
-  function setSelectedMeasure(measure) {
+
+  const setSelectedMeasure = useCallback((measure) => {
     selectedMeasure.current = measure;
-  }
+  });
 
   const {
     isLoading: loaded,
@@ -103,22 +104,22 @@ export default function CreativityActivity() {
     scoreJSON = JSON.parse(flatIOScoreForTransposition);
   }
 
-  function handleTonicUpdate(data) {
+  const handleTonicUpdate = useCallback((data) => {
     tonicJson.current = data;
-  }
+  });
 
-  function handleSubdominantUpdate(data) {
+  const handleSubdominantUpdate = useCallback((data) => {
     subdominantJson.current = data;
-  }
+  });
 
-  function handleDominantUpdate(data) {
+  const handleDominantUpdate = useCallback((data) => {
     dominantJson.current = data;
-  }
+  });
 
-  function generateVariations() {
+  const generateVariations = useCallback(() => {
     if (startedVariationGeneration) return;
     setStartedVariationGeneration(true);
-  }
+  });
 
   return flatIOScoreForTransposition ? (
     <div className="cpr-create">
