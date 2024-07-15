@@ -47,6 +47,9 @@ function Navigation() {
             <Link href="/daw-playground/basic" passHref legacyBehavior>
               <Nav.Link>DAW</Nav.Link>
             </Link>
+            <Link href="/daw-playground/daw-recorder" passHref legacyBehavior>
+              <Nav.Link>DAWR</Nav.Link>
+            </Link>
             <Link href="/about" passHref legacyBehavior>
               <Nav.Link>About</Nav.Link>
             </Link>

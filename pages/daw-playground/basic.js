@@ -216,9 +216,12 @@ const recordOptions = {
 };
 
 export default function BasicDaw() {
+  const record = Record.create(recordOptions);
+
   const dawRef = useRef(null);
 
   const [zoomLevel, setZoomLevel] = useState(15);
+  const [isRecording, setRecord] = useState(false);
 
   const [urlIndex, setUrlIndex] = useState(0);
   const [progBtnHvr, setHvr] = useState(false); // SEEME @mfwolffe RE: duotone comment above
@@ -240,7 +243,7 @@ export default function BasicDaw() {
     progressColor: '#450084', // jmu poiple
     cursorColor: '#CBB677', // jmu gold
     cursorWidth: 3,
-    url: audioUrls[urlIndex], // SEEME @mfwolffe in testing so far, use urls instead of media prop. disastrous
+    // url: audioUrls[urlIndex], // SEEME @mfwolffe in testing so far, use urls instead of media prop. disastrous
     // media: audio,
     dragToSeek: true, // as it sounds - drag cursor with mouse hold instead of single click
     // normalize: true,   // TODO @ mfwolffe look into this prop. Feels like more than just vert-stretch
@@ -295,23 +298,7 @@ export default function BasicDaw() {
     wavesurfer.skip(-10);
   });
 
-  // TODO @mfwolffe finish me
-  const handleRec = useCallback((e) => {
-    console.log(e.target.checked);
-  });
-
   const handleMinimap = useCallback((e) => {
-    console.log(e.target.checked);
-    if (e.target.checked && !mapPresent) {
-      console.log('creating minimap');
-      setMapPrsnt(true);
-    } else if (!e.target.checked && mapPresent) {
-      console.log('destroying minimap');
-      setMapPrsnt(false);
-    }
-  });
-
-  const newHandleMinimap = useCallback((e) => {
     setMapPrsnt(!mapPresent);
   });
 
@@ -338,7 +325,6 @@ export default function BasicDaw() {
   // const record = Record.create(recordOptions);
   const minimap = Minimap.create(minimapOptions);
   const timeline = Timeline.create(timelineOptions);
-  const recorder = RecordPlugin.create(recordOptions);
   // const spectrogram = Spectrogram.create(spectrogramOptions);
   // const envelope = Envelope.create(envelopeOptions);
 
@@ -350,8 +336,8 @@ export default function BasicDaw() {
 
     wavesurfer?.registerPlugin(zoom);
     wavesurfer?.registerPlugin(hover);
+    wavesurfer?.registerPlugin(record);
     wavesurfer?.registerPlugin(minimap);
-    wavesurfer?.registerPlugin(recorder);
     wavesurfer?.registerPlugin(timeline);
     // wavesurfer?.registerPlugin(spectrogram);
 
@@ -371,12 +357,17 @@ export default function BasicDaw() {
     ];
   });
 
-  // envelope[0].setPoints(pointArray);
-  // }
+  const handleRecStart = useCallback(() => {
+    wavesurfer.empty();
+    record.startMic();
+    record.startRecording();
+    setRecord(true);
+  })
 
-  // envelope.on('points-change', (points) => {
-  //   console.log('points updated', points);
-  // });
+  const handleRecStop = useCallback(() => {
+    record.stopRecording();
+    setRecord(false);
+  })
 
   // TODO @mfwolffe wait for professor Self's input on cookie oddities
   //
@@ -397,16 +388,16 @@ export default function BasicDaw() {
           </Card.Title>
           <div className="d-flex w-95 ml-auto mr-auto mt-2 toolbar align-items-center flex-row gap-0375">
             <Button className="prog-button pl-2">
-              {recorder.isRecording() ? (
-                <FaRegCircleStop fontSize="1rem" />
+              {isRecording ? (
+                <FaRegCircleStop fontSize="1rem" onClick={handleRecStop} />
               ) : (
-                <BsRecordCircle fontSize="1rem" />
+                <BsRecordCircle fontSize="1rem" onClick={handleRecStart} />
               )}
             </Button>
             <Button className="prog-button">
               <IoAnalyticsOutline fontSize="1rem" />
             </Button>
-            <Button className="prog-button" onClick={newHandleMinimap}>
+            <Button className="prog-button" onClick={handleMinimap}>
               <PiWaveform
                 fontSize="1rem"
                 style={{ color: mapPresent ? 'aqua' : '#fff' }}
