@@ -1,9 +1,7 @@
 import * as React from 'react';
 import { Card } from 'react-bootstrap';
 import Form from 'react-bootstrap/Form';
-import SongSelector from './songSelect';
 import Button from 'react-bootstrap/Button';
-import Layout from '../../components/layout';
 import { useWavesurfer } from '@wavesurfer/react';
 import Zoom from 'wavesurfer.js/dist/plugins/zoom.esm.js';
 import Hover from 'wavesurfer.js/dist/plugins/hover.esm.js';
@@ -28,7 +26,9 @@ import { FaRegCirclePause } from 'react-icons/fa6';
 import { FaArrowRotateLeft } from 'react-icons/fa6';
 import { FaArrowRotateRight } from 'react-icons/fa6';
 import { IoAnalyticsOutline } from 'react-icons/io5';
-import { PiCursorTextDuotone } from 'react-icons/pi';
+
+import SongSelector from './songSelect';
+import Layout from '../../components/layout';
 
 const { useMemo, useState, useCallback, useRef, useEffect } = React;
 
