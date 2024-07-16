@@ -96,14 +96,12 @@ export default function DawRecorder() {
       return;
     }
 
-    const micID = RecordPlugin.getAvailableAudioDevices().then((devices) => {
-      return devices[0].deviceId
-    });
+    const micID = RecordPlugin.getAvailableAudioDevices().then((devices) => devices[0].deviceId);
     
     if (!record?.isRecording() && isRecord) {
-    record?.startRecording({ micID }).then(() => {
-      console.log("recording");
-    });
+      record?.startRecording({ micID }).then(() => {
+        console.log("recording");
+      });
     }
 
   }, [isRecord]);
@@ -127,10 +125,10 @@ export default function DawRecorder() {
           </Card.Title>
           <div className="d-flex w-95 ml-auto mr-auto mt-2 toolbar align-items-center flex-row gap-0375">
             <Button className="prog-button pl-2" onClick={handleRecordStart}>
-                <BsRecordCircle fontSize="1rem" />
+              <BsRecordCircle fontSize="1rem" />
             </Button>
             <Button className='prog-button' onClick={handleRecordStop}>
-                <FaRegCircleStop fontSize="1rem" />
+              <FaRegCircleStop fontSize="1rem" />
             </Button>
           </div>
 
