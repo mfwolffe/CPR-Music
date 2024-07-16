@@ -107,7 +107,7 @@ const MinimapContainer = function (hide) {
       className="w-95 ml-auto mr-auto mmap-container"
       id="mmap"
       hidden={hidden}
-    ></div>
+    />
   );
 };
 
@@ -118,7 +118,7 @@ const SpectrogramContainer = function (hide) {
       className="w-95 ml-auto mr-auto spct-container"
       id="smap"
       hidden={hidden}
-    ></div>
+    />
   );
 };
 
@@ -308,8 +308,8 @@ export default function BasicDaw() {
   });
 
   function handleSongChange(song) {
-    console.log(song['audio_file']);
-    wavesurfer.load(song['audio_file']); // FIXME @mfwolffe 'Network error when attempting to load resource....'
+    console.log(song.audio_file);
+    wavesurfer.load(song.audio_file); // FIXME @mfwolffe 'Network error when attempting to load resource....'
   }
 
   const handleSpectrogram = useCallback((e) => {
@@ -522,7 +522,7 @@ export default function BasicDaw() {
             {/* <button onClick={onUrlChange}>Change audio</button> */}
             <Form>
               <label>From backend (broken)</label>
-              {<SongSelector onChange={handleSongChange} />}
+              <SongSelector onChange={handleSongChange} />
               <label className="mt-2">From frontend (working)</label>
               <Form.Select aria-label="track-select" onChange={onUrlChange}>
                 <option default value="">
