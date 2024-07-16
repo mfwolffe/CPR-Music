@@ -1,14 +1,9 @@
 import * as React from 'react';
 import { Card } from 'react-bootstrap';
-import Form from 'react-bootstrap/Form';
-import SongSelector from './songSelect';
 import Button from 'react-bootstrap/Button';
 import Layout from '../../components/layout';
-import Record from 'wavesurfer.js/dist/plugins/record.esm.js';
+import { useWavesurfer } from '@wavesurfer/react';
 import RecordPlugin from 'wavesurfer.js/dist/plugins/record.esm.js';
-import WavesurferPlayer, { useWavesurfer } from '@wavesurfer/react';
-
-
 
 import { BsRecordCircle } from 'react-icons/bs';
 import { FaRegCircleStop } from 'react-icons/fa6';
@@ -17,24 +12,17 @@ import { FaRegCirclePause } from 'react-icons/fa6';
 import { FaArrowRotateLeft } from 'react-icons/fa6';
 import { FaArrowRotateRight } from 'react-icons/fa6';
 
-const { useMemo, useState, useCallback, useRef, useEffect } = React;
-
 const stopButton = <FaRegCircleStop fontSize="1rem" />;
 const playButton = <FaRegCirclePlay fontSize="1rem" />;
 const pauseButton = <FaRegCirclePause fontSize="1rem" />;
 const backTenButton = <FaArrowRotateLeft fontSize="1rem" />;
 const skipTenButton = <FaArrowRotateRight fontSize="1rem" />;
-
-const formatTime = (seconds) =>
-  [seconds / 60, seconds % 60]
-    .map((v) => `0${Math.floor(v)}`.slice(-2))
-    .join(':');
+const { useMemo, useState, useCallback, useRef, useEffect } = React;
 
 export default function DawRecorder() {
   const dawRef = useRef(null);
   const [isRecord, setIsRecord] = useState(false);
-  // const [audioURL, setAudioURL] = useState('/audio/uncso-bruckner4-1.mp3');
-  const [audioURL, setAudioURL] = useState('');
+  const [audioURL, setAudioURL] = useState(''); // SEEME @mfwolffe working w/out audio file loaded
 
   const { wavesurfer, isPlaying, currentTime, isRecording } = useWavesurfer({
     container: dawRef,
@@ -100,24 +88,34 @@ export default function DawRecorder() {
     wavesurfer.isPlaying() && wavesurfer.pause();
   });
 
-  function handleRecord() {
-    if (record.isRecording() || record.isPaused()) {
-      console.log('stopping record');
+  useEffect(() => {
+    if (!isRecord && (record?.isRecording() || record?.isPaused())) {
+      console.log("stopping record");
       record.stopRecording();
-      setIsRecord(false);
       console.log(wavesurfer.getActivePlugins());
-      return
+      return;
     }
 
     const micID = RecordPlugin.getAvailableAudioDevices().then((devices) => {
       return devices[0].deviceId
     });
-
-    record.startRecording({ micID }).then(() => {
-      setIsRecord(true);
+    
+    if (!record?.isRecording() && isRecord) {
+    record?.startRecording({ micID }).then(() => {
       console.log("recording");
     });
-  }
+    }
+
+  }, [isRecord]);
+
+
+  const handleRecordStart = useCallback(() => {
+    setIsRecord(true);
+  });
+
+  const handleRecordStop = useCallback(() => {
+    setIsRecord(false);
+  });
 
   return (
     <Layout>
@@ -128,18 +126,10 @@ export default function DawRecorder() {
             <strong>Ceci n'est pas une daw</strong>
           </Card.Title>
           <div className="d-flex w-95 ml-auto mr-auto mt-2 toolbar align-items-center flex-row gap-0375">
-            {/* <Button className="prog-button pl-2" onClick={handleRecord}>
-              { isRecord ? (
-                <FaRegCircleStop fontSize="1rem" />
-              ) : (
-                <BsRecordCircle fontSize="1rem" />
-              )}
-            </Button> */}
-
-            <Button className="prog-button pl-2" onClick={handleRecord}>
+            <Button className="prog-button pl-2" onClick={handleRecordStart}>
                 <BsRecordCircle fontSize="1rem" />
             </Button>
-            <Button className='prog-button' onClick={handleRecord}>
+            <Button className='prog-button' onClick={handleRecordStop}>
                 <FaRegCircleStop fontSize="1rem" />
             </Button>
           </div>
@@ -150,6 +140,9 @@ export default function DawRecorder() {
             className="w-95 ml-auto mr-auto mb-0 mt-0"
           />
 
+          {/* SEEME @mfwolffe this approach may be 
+            *                 fruitful for the editor version
+            */}
           {/* <div className='w-95 ml-auto mr-auto mb-0 mt-0 bg-dawgrey'>
             <WavesurferPlayer url="" waveColor="#4B9CD3" progressColor="#450084" onInit={onInit} height={186} />
           </div> */}
@@ -167,12 +160,16 @@ export default function DawRecorder() {
             <Button onClick={onSkipTenFwd} className="prog-button">
               {skipTenButton}
             </Button>
+
+            {/* TODO @mfwolffe - show live duration 
+              */}
             {/* <span
               className="pl-1 pt-0 pb-0"
               style={{ color: isPlaying ? 'aqua' : 'white' }}
             >
               {formatTime(currentTime)}
             </span> */}
+
           </div>
         </Card.Body>
       </Card>
