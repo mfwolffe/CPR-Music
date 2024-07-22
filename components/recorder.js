@@ -275,7 +275,7 @@ export default function Recorder({ submit, accompaniment }) {
       'file',
       new File([blobInfo[i].data], 'student-recoding.mp3', {
         mimeType: 'audio/mpeg',
-      })
+      }),
     );
     // dispatch(submit({ audio: formData }));
     submit({ audio: formData, submissionId });
