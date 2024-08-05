@@ -22,8 +22,6 @@ export default function GradePerform({ submissions }) {
     }
   };
 
-  const indrctdIf = (cond, t, f) => (cond ? t : f);
-
   return (
     <Row>
       <Col>
