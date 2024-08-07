@@ -22,8 +22,6 @@ export default function GradePerform({ submissions }) {
     }
   };
 
-  const indrctdIf = (cond, t, f) => (cond ? t : f);
-
   return (
     <Row>
       <Col>
@@ -69,17 +67,18 @@ export default function GradePerform({ submissions }) {
                         {submission.assignment.enrollment.user.name}
                       </Card.Title>
                       <Card.Text>
-                        {submission.attachments?.[0]?.file ? (
+                        {submission.attachments?.[0]?.file && (
                           // eslint-disable-next-line jsx-a11y/media-has-caption
                           <audio
                             controls
                             src={submission.attachments[0].file}
                             ref={audioRef}
                           />
-                        ) : (
-                          indrctdIf(
-                            submission?.assignment?.activity?.activity_type
-                              ?.category === 'Respond' && submission?.content,
+                        )}
+
+                        {submission?.assignment?.activity?.activity_type
+                          ?.category === 'Respond' &&
+                          submission?.content && (
                             <Row>
                               <Col>
                                 <p>{reflection}</p>
@@ -100,12 +99,12 @@ export default function GradePerform({ submissions }) {
                                   </dd>
                                 </dl>
                               </Col>
-                            </Row>,
-                            submission?.assignment?.activity?.activity_type?.category.includes(
-                              'Connect',
-                            ) && <p>{submission?.content}</p>,
-                          )
-                        )}
+                            </Row>
+                          )}
+
+                        {submission?.assignment?.activity?.activity_type?.category.includes(
+                          'Connect',
+                        ) && <p>{submission?.content}</p>}
                       </Card.Text>
                     </Card.Body>
                     <ListGroup className="list-group-flush">

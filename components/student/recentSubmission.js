@@ -8,8 +8,6 @@ const FlatEditor = dynamic(() => import('../flatEditor'), {
   ssr: false,
 });
 
-const indrctdIf = (cond, t, f) => (cond ? t : f);
-
 export default function RecentSubmission(assn) {
   const {
     assn: {
@@ -49,34 +47,30 @@ export default function RecentSubmission(assn) {
       )}
       {content && content !== 'N/A for Perform submissions' && (
         <Card.Body>
-          {ctgy === 'Create' ? (
-            <FlatEditor scoreJSON={content} />
-          ) : (
-            indrctdIf(
-              ctgy === 'Respond',
-              <Row>
-                <Col md={9}>
-                  <textarea
-                    rows={5}
-                    readOnly
-                    className="respond-preview"
-                    value={JSON.parse(content).reflection}
-                    disabled
-                  />
-                </Col>
-                <Col>
-                  <dl className="row">
-                    <dt className="col-md-9">Rhythm</dt>
-                    <dd className="col-md-3">{JSON.parse(content).r}</dd>
-                    <dt className="col-md-9">Tone</dt>
-                    <dd className="col-md-3">{JSON.parse(content).t}</dd>
-                    <dt className="col-md-9">Expression</dt>
-                    <dd className="col-md-3">{JSON.parse(content).e}</dd>
-                  </dl>
-                </Col>
-              </Row>,
-              '',
-            )
+          {ctgy === 'Create' && <FlatEditor scoreJSON={content} />}
+
+          {ctgy === 'Respond' && (
+            <Row>
+              <Col md={9}>
+                <textarea
+                  rows={5}
+                  readOnly
+                  className="respond-preview"
+                  value={JSON.parse(content).reflection}
+                  disabled
+                />
+              </Col>
+              <Col>
+                <dl className="row">
+                  <dt className="col-md-9">Rhythm</dt>
+                  <dd className="col-md-3">{JSON.parse(content).r}</dd>
+                  <dt className="col-md-9">Tone</dt>
+                  <dd className="col-md-3">{JSON.parse(content).t}</dd>
+                  <dt className="col-md-9">Expression</dt>
+                  <dd className="col-md-3">{JSON.parse(content).e}</dd>
+                </dl>
+              </Col>
+            </Row>
           )}
         </Card.Body>
       )}
