@@ -32,3 +32,6 @@ yarn-error.log*
 
 # vercel
 .vercel
+
+# audio files for @mfwolffe DAW testing
+/public/sample_audio
