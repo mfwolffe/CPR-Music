@@ -37,3 +37,6 @@ yarn-error.log*
 .env.sentry-build-plugin
 
 /public/sample_audio/
+
+# audio files for @mfwolffe DAW testing
+/public/sample_audio
