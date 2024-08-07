@@ -1,10 +1,12 @@
 :root {
   --jmu-gold: #cbb677;
   --jmu-purple: #450084;
+  --daw-progress: #92ce84;
   --carolina-blue: #7bafd4;
   --caroline-a11y: #4b9cd3;
   --daw-timeline-bg: #2d2c29;
-  --daw-grey: rgba(129, 121, 104, 0.712);
+  --daw-progress-mute: #92ceaa;
+  --daw-grey: rgba(99, 98, 97, 0.712);
   --daw-control: rgba(107, 107, 107, 0.8);
 }
 
@@ -16,7 +18,12 @@
   margin-top: 1rem;
   margin-bottom: 1rem;
   background-color: var(--daw-grey);
-  filter: drop-shadow(0 0 24px #333);
+  /* filter: drop-shadow(0 0 24px #333); */
+}
+
+#waveform-container {
+  border: 1px solid black;
+  border-radius: 4px;
 }
 
 #daw-card {
@@ -119,13 +126,13 @@
 
 .mmap-container {
   background-color: var(--daw-control);
-  border-top: 2px solid #fff;
+  border-top: 1px solid #fff;
 }
 
 .toolbar {
   background-color: var(--daw-timeline-bg) !important;
   max-height: 24px !important;
-  border-bottom: 2px solid #fff;
+  border-bottom: 1px solid #fff;
 }
 
 .float-right {

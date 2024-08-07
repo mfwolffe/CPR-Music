@@ -8,15 +8,19 @@ import { useQuery } from 'react-query';
 import LoginOut from './loginout';
 import { getEnrollments } from '../api';
 import CourseSelector from './courseSelector';
-import {NavActivityPicker} from './student/navActivityPicker';
+import { NavActivityPicker } from './student/navActivityPicker';
 import { PiecePicker } from './student/piecePicker';
 
 function Navigation() {
   const router = useRouter();
   const { slug, piece } = router.query;
-  const { isLoading, error, data: enrollments } = useQuery('enrollments', getEnrollments, {staleTime: 5 * 60 * 1000})
+  const {
+    isLoading,
+    error,
+    data: enrollments,
+  } = useQuery('enrollments', getEnrollments, { staleTime: 5 * 60 * 1000 });
   // const currentEnrollment = slug && enrollments && enrollments.filter((elem) => elem.course.slug === slug)[0]
-  
+
   return (
     <Navbar bg="primary" variant="dark" expand="sm">
       <Container fluid>
@@ -26,17 +30,22 @@ function Navigation() {
         <Navbar.Toggle aria-controls="basic-navbar-nav" />
         <Navbar.Collapse id="basic-navbar-nav">
           <Nav className="me-auto">
-            {enrollments ? <CourseSelector /> : 
+            {enrollments ? (
+              <CourseSelector />
+            ) : (
               <Nav.Item>
                 <Link href="/courses" passHref legacyBehavior>
                   <Nav.Link>Courses</Nav.Link>
                 </Link>
               </Nav.Item>
-            }
+            )}
             {slug && <PiecePicker />}
             {piece && <NavActivityPicker />}
           </Nav>
           <Nav>
+            <Link href="/daw/daw" passHref legacyBehavior>
+              <Nav.Link>DAW</Nav.Link>
+            </Link>
             <Link href="/about" passHref legacyBehavior>
               <Nav.Link>About</Nav.Link>
             </Link>
