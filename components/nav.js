@@ -51,6 +51,9 @@ function Navigation() {
             >
               <Nav.Link>Sandbox</Nav.Link>
             </Link>
+            <Link href="/daw/daw" passHref legacyBehavior>
+              <Nav.Link>DAW</Nav.Link>
+            </Link>
             <Link href="/about" passHref legacyBehavior>
               <Nav.Link>About</Nav.Link>
             </Link>
