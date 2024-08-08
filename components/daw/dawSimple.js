@@ -24,8 +24,8 @@ import SimpleDawControlsBottom from '../../components/daw/simpleControlsBottom';
 const { useMemo, useState, useCallback, useRef } = React;
 
 const EQCAP = 26;
-const EQWIDTH = 38;
-const RVBWIDTH = 18;
+const EQWIDTH = 28;
+const RVBWIDTH = 16;
 
 addEventListener('dataavailable', (event) => {
   console.log('event', event);
@@ -110,7 +110,7 @@ const EQSliders = (hide) => {
           <CardTitle className="pt-0 pb-0 mt-0 mb-0">Equalizer</CardTitle>
         </CardHeader>
         <CardBody className="bg-dawcontrol text-white pl-3 pr-3 pt-2 pb-2">
-          <div className="d-flex gap-2">
+          <div className="d-flex gap-2 mlr-a">
             <div>{sliders.slice(0, 5)}</div>
             <div>{sliders.slice(5, 10)}</div>
           </div>
@@ -360,8 +360,15 @@ export default function DawSimple() {
         <div className="d-flex w-100 gap-2p">
           <div
             id="waveform-container"
-            className="w-100"
-            style={{ width: eqPresent ? `${100 - 1.5 - EQWIDTH}%` : '100%' }}
+            // className="w-100"
+            style={{
+              width: `${
+                100 -
+                (rvbPresent || eqPresent ? 1.5 : 0) -
+                (eqPresent ? EQWIDTH : 0) -
+                (rvbPresent ? RVBWIDTH : 0)
+              }%`,
+            }}
           >
             <SimpleDawControlsTop
               waveSurfer={wavesurfer}
