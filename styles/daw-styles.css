@@ -171,6 +171,6 @@ input[type='range'][orient='vertical'] {
   direction: rtl;
   appearance: slider-vertical;
   width: 100%;
-  height: 8rem;
+  height: 7.5rem;
   vertical-align: bottom;
 }

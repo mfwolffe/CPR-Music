@@ -13,6 +13,7 @@ import {
   Button,
   Card,
   CardBody,
+  CardFooter,
   CardHeader,
   CardTitle,
   Form,
@@ -89,12 +90,12 @@ const EQSliders = (hide) => {
     const slider = (
       <>
         <div className="d-flex" key={`${frqVal} MHz`}>
-          <Form.Label style={{ width: '6rem' }}>{frqVal} MHz</Form.Label>
+          <Form.Label style={{ width: '40%' }}>{frqVal} MHz</Form.Label>
           <Form.Range
             min={-EQCAP}
             max={EQCAP}
             step={0.1}
-            style={{ width: '10rem' }}
+            style={{ width: '60%' }}
             onInput={(e) => (filter.gain.value = e.target.value)}
           ></Form.Range>
         </div>
@@ -109,7 +110,7 @@ const EQSliders = (hide) => {
         <CardHeader className="text-center text-white pt-1 pb-1 bg-daw-toolbars">
           <CardTitle className="pt-0 pb-0 mt-0 mb-0">Equalizer</CardTitle>
         </CardHeader>
-        <CardBody className="bg-dawcontrol text-white pl-3 pr-3 pt-2 pb-2">
+        <CardBody className="bg-dawcontrol text-white mlr-a pt-2 pb-2">
           <div className="d-flex gap-2 mlr-a">
             <div>{sliders.slice(0, 5)}</div>
             <div>{sliders.slice(5, 10)}</div>
@@ -135,7 +136,7 @@ const ReverbTool = (hide) => {
           <Form.Label className="d-block text-center mb-0">Output</Form.Label>
         </div>
       </div>
-      <p className="text-center mt-0">
+      <p className="text-center mt-0 mb-0">
         <strong>Gain</strong>
       </p>
     </div>
@@ -166,6 +167,11 @@ const ReverbTool = (hide) => {
           <div className="d-flex gap-2 mlr-a w-fc">
             {gain}
             {decayDelay}
+          </div>
+          <div className="d-flex justify-content-end">
+            <Button size="sm" className="mb-1 mr-1">
+              Apply
+            </Button>
           </div>
         </CardBody>
       </Card>
