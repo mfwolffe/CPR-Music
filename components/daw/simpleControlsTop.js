@@ -9,6 +9,7 @@ import { IoCutOutline } from 'react-icons/io5';
 import { MdOutlineWaves } from 'react-icons/md';
 import { RiEqualizerLine } from 'react-icons/ri';
 import { IoTrashOutline } from 'react-icons/io5';
+import { RiSoundModuleFill } from 'react-icons/ri';
 
 const SimpleDawControlsTop = ({
   waveSurfer,
@@ -16,6 +17,8 @@ const SimpleDawControlsTop = ({
   mapSetter,
   eqPresent,
   eqSetter,
+  rvbPresent,
+  rvbSetter,
   transcoder,
   cutRegion,
   destroyRegion,
@@ -23,8 +26,9 @@ const SimpleDawControlsTop = ({
 }) => {
   if (!waveSurfer) return '';
 
-  const [mapHvr, setMapHvr] = useState(false);
   const [eqHvr, setEqHvr] = useState(false);
+  const [mapHvr, setMapHvr] = useState(false);
+  const [rvbHvr, setRvbHvr] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(15);
 
   const handleMinimap = useCallback(() => {
@@ -33,6 +37,10 @@ const SimpleDawControlsTop = ({
 
   const toggleEQ = useCallback(() => {
     eqSetter(!eqPresent);
+  });
+
+  const toggleRvb = useCallback(() => {
+    rvbSetter(!rvbPresent);
   });
 
   const dawSpinner = <Spinner animation="grow" size="sm" />;
@@ -74,6 +82,19 @@ const SimpleDawControlsTop = ({
             <IoTrashOutline
               fontSize="1rem"
               onClick={() => destroyRegion(cutRegion)}
+            />
+          ) : (
+            dawSpinner
+          )}
+        </Button>
+
+        <Button className="prog-button" onClick={toggleRvb}>
+          {ffmpegLoaded ? (
+            <RiSoundModuleFill
+              fontSize="1rem"
+              onPointerEnter={() => setRvbHvr(true)}
+              onPointerLeave={() => setRvbHvr(false)}
+              style={{ color: rvbPresent || rvbHvr ? 'aqua' : 'white' }}
             />
           ) : (
             dawSpinner
