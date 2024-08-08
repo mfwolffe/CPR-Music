@@ -25,6 +25,7 @@ const { useMemo, useState, useCallback, useRef } = React;
 
 const EQCAP = 26;
 const EQWIDTH = 38;
+const RVBWIDTH = 18;
 
 addEventListener('dataavailable', (event) => {
   console.log('event', event);
@@ -119,6 +120,59 @@ const EQSliders = (hide) => {
   );
 };
 
+const ReverbTool = (hide) => {
+  const hidden = hide;
+
+  const gain = (
+    <div className="mb-0 pb-0">
+      <div className="d-flex gap-2">
+        <div className="d-block">
+          <input type="range" orient="vertical" className="mlr-auto"></input>
+          <Form.Label className="d-block text-center mb-0">Input</Form.Label>
+        </div>
+        <div className="d-block">
+          <input type="range" orient="vertical" className="mlr-auto"></input>
+          <Form.Label className="d-block text-center mb-0">Output</Form.Label>
+        </div>
+      </div>
+      <p className="text-center mt-0">
+        <strong>Gain</strong>
+      </p>
+    </div>
+  );
+
+  const decayDelay = (
+    <div className="mb-0 pb-0">
+      <div className="d-flex gap-2">
+        <div>
+          <input type="range" orient="vertical" className="mlr-auto"></input>
+          <Form.Label className="d-block text-center mb-0">Delay</Form.Label>
+        </div>
+        <div>
+          <input type="range" orient="vertical" className="mlr-a"></input>
+          <Form.Label className="d-block text-center mb-0">Decay</Form.Label>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <Card id="reverb" hidden={hidden} style={{ width: `${RVBWIDTH}%` }}>
+        <CardHeader className="text-center text-white pt-1 pb-1 bg-daw-toolbars">
+          <CardTitle className="pt-0 pb-0 mt-0 mb-0">Reverb</CardTitle>
+        </CardHeader>
+        <CardBody className="bg-dawcontrol text-white pl-0 pr-0 pt-2 pb-0">
+          <div className="d-flex gap-2 mlr-a w-fc">
+            {gain}
+            {decayDelay}
+          </div>
+        </CardBody>
+      </Card>
+    </>
+  );
+};
+
 export default function DawSimple() {
   let disableRegionCreate;
   let zoom, hover, minimap, timeline, regions;
@@ -135,6 +189,7 @@ export default function DawSimple() {
   const [isLoading, setIsLoading] = useState(false);
   const [eqPresent, setEqPresent] = useState(false);
   const [mapPresent, setMapPrsnt] = useState(false);
+  const [rvbPresent, setRvbPresent] = useState(false);
 
   const load = async () => {
     const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
@@ -318,6 +373,8 @@ export default function DawSimple() {
               transcoder={transcode}
               destroyRegion={destroyRegion}
               ffmpegLoaded={loaded}
+              rvbPresent={rvbPresent}
+              rvbSetter={setRvbPresent}
             />
             <div
               ref={dawRef}
@@ -328,6 +385,7 @@ export default function DawSimple() {
             <SimpleDawControlsBottom waveSurfer={wavesurfer} />
           </div>
           {EQSliders(!eqPresent)}
+          {ReverbTool(!rvbPresent)}
         </div>
       </CardBody>
     </Card>

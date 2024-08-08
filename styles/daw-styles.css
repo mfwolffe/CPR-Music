@@ -66,6 +66,10 @@
   width: 95% !important;
 }
 
+.w-fc {
+  width: fit-content !important;
+}
+
 .mlr-a {
   margin-left: auto !important;
   margin-right: auto !important;
@@ -160,4 +164,13 @@
 
 #equalizer {
   width: fit-content;
+}
+
+input[type='range'][orient='vertical'] {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  appearance: slider-vertical;
+  width: 100%;
+  height: 8rem;
+  vertical-align: bottom;
 }
