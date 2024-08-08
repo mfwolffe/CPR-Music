@@ -14,8 +14,8 @@ const SimpleDawControlsTop = ({
   mapSetter,
   eqPresent,
   eqSetter,
-  audioURL,
-  urlSetter,
+  transcoder,
+  cutRegion,
 }) => {
   if (!waveSurfer) return '';
 
@@ -53,7 +53,7 @@ const SimpleDawControlsTop = ({
         </Button>
 
         <Button className="prog-button">
-          <IoCutOutline fontSize="1rem" />
+          <IoCutOutline fontSize="1rem" onClick={() => transcoder(cutRegion)} />
         </Button>
 
         <Button

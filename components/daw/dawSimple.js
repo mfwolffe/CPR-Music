@@ -129,7 +129,9 @@ export default function DawSimple() {
   );
   const audioRef = useRef(audio);
   const ffmpegRef = useRef(new FFmpeg());
+
   const [loaded, setLoaded] = useState(false);
+  const [cutRegion, setCutRegion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [eqPresent, setEqPresent] = useState(false);
   const [mapPresent, setMapPrsnt] = useState(false);
@@ -154,12 +156,24 @@ export default function DawSimple() {
     console.log('loaded');
   };
 
-  const transcode = async () => {
+  const transcode = async (region) => {
+    const start = region.start;
     const ffmpeg = ffmpegRef.current;
+    const duration = region.end - start;
+
+    console.log('start, end', start);
     // const audioURL = '/sample_audio/uncso-bruckner4-1.mp3';
 
     await ffmpeg.writeFile('input.mp3', await fetchFile(audioURL));
-    await ffmpeg.exec(['-ss', '12', '-i', 'input.mp3', 'output.mp3']);
+    await ffmpeg.exec([
+      '-ss',
+      `${start}`,
+      '-i',
+      'input.mp3',
+      '-t',
+      `${duration}`,
+      'output.mp3',
+    ]);
 
     const data = await ffmpeg.readFile('output.mp3');
     if (audioRef.current) {
@@ -170,7 +184,6 @@ export default function DawSimple() {
 
     setAudioURL(audioRef.current.src);
     console.log('transcode done', audioRef.current.src);
-    // wavesurfer.loadBlob(audioRef.current.src);
     wavesurfer.load(audioRef.current.src);
   };
 
@@ -233,7 +246,10 @@ export default function DawSimple() {
       disableRegionCreate = regions?.enableDragSelection({
         color: 'rgba(155, 115, 215, 0.4)', // FIXME @mfwolffe color param has no effect
       });
-      regions?.on('region-created', () => disableRegionCreate());
+      regions?.on('region-created', (region) => {
+        disableRegionCreate();
+        setCutRegion(region);
+      });
       regions?.on('region-double-clicked', (region, e) => {
         region.remove();
         disableRegionCreate = regions.enableDragSelection();
@@ -263,6 +279,13 @@ export default function DawSimple() {
               mapSetter={setMapPrsnt}
               eqSetter={setEqPresent}
               eqPresent={eqPresent}
+              cutRegion={cutRegion}
+              // cutSetter={setCutRegion}
+              // audioURL={audioURL}
+              // audioSetter={setAudioURL}
+              // audioRef={audioRef}
+              // ffmpegRef={ffmpegRef}
+              transcoder={transcode}
             />
             <div
               ref={dawRef}
