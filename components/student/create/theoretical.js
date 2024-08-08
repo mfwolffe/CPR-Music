@@ -150,7 +150,7 @@ export default function CreativityActivity() {
 
   const onMerged = useCallback((mergedData) => {
     totalScoreJSON.current = mergedData;
-  }
+  }, []);
 
   function handleSubmit(i) {
     return (data) => {

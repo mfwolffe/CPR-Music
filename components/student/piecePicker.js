@@ -2,7 +2,6 @@ import { useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { Form, Nav, Spinner } from 'react-bootstrap';
 import { useQuery } from 'react-query';
-import { useCallback } from 'react';
 import { getStudentAssignments } from '../../api';
 
 function PiecePicker() {
