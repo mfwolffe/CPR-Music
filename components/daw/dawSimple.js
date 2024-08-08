@@ -6,6 +6,9 @@ import Minimap from 'wavesurfer.js/dist/plugins/minimap.esm.js';
 import Timeline from 'wavesurfer.js/dist/plugins/timeline.esm.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
 
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { fetchFile, toBlobURL } from '@ffmpeg/util';
+
 import {
   Button,
   Card,
@@ -116,43 +119,58 @@ const EQSliders = (hide) => {
   );
 };
 
-const trimAudio = function (offset) {
-  const source = audioContext.createBufferSource();
-  const dest = audioContext.createMediaStreamDestination();
-  const mediaRecorder = new MediaRecorder(dest.stream);
-
-  const request = new XMLHttpRequest();
-  request.open('GET', '/sample_audio/uncso-bruckner4-1.mp3', true);
-  request.responseType = 'arraybuffer';
-
-  request.onload = function () {
-    const audioData = request.response;
-    audioContext.decodeAudioData(
-      audioData,
-      function (buffer) {
-        source.buffer = buffer;
-        source.connect(dest);
-        mediaRecorder.start();
-        source.start(audioContext.currentTime, 3);
-        mediaRecorder.stop();
-        source.disconnect(dest);
-      },
-      function (e) {
-        console.log('Error during audio decode: ', e.err);
-      }
-    );
-  };
-  console.log('bout to send');
-  request.send();
-};
-
 export default function DawSimple() {
   let disableRegionCreate;
   let zoom, hover, minimap, timeline, regions;
 
   const dawRef = useRef(null);
+  const [audioURL, setAudioURL] = useState(
+    '/sample_audio/uncso-bruckner4-1.mp3'
+  );
+  const audioRef = useRef(audio);
+  const ffmpegRef = useRef(new FFmpeg());
+  const [loaded, setLoaded] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [eqPresent, setEqPresent] = useState(false);
   const [mapPresent, setMapPrsnt] = useState(false);
+
+  const load = async () => {
+    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+    const ffmpeg = ffmpegRef.current;
+
+    await ffmpeg.load({
+      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(
+        `${baseURL}/ffmpeg-core.wasm`,
+        'application/wasm'
+      ),
+      // workerURL: await toBlobURL(
+      //   `${baseURL}/ffmpeg-core.worker.js`,
+      //   'text/javascript'
+      // ),
+    });
+    setLoaded(true);
+    setIsLoading(false);
+    console.log('loaded');
+  };
+
+  const transcode = async () => {
+    const audioURL = '/sample_audio/uncso-bruckner4-1.mp3';
+    const ffmpeg = ffmpegRef.current;
+
+    await ffmpeg.writeFile('input.mp3', await fetchFile(audioURL));
+    await ffmpeg.exec(['-ss', '12', '-i', 'input.mp3', 'output.mp3']);
+    // const fileData = await ffmpeg.readFile('output.mp3');
+    const data = await ffmpeg.readFile('output.mp3');
+    if (audioRef.current) {
+      audioRef.current.src = URL.createObjectURL(
+        new Blob([data.buffer], { type: 'video/mp4' })
+      );
+    }
+
+    setAudioURL(audioRef.current.src);
+    console.log('transcode done', audioRef.current.src);
+  };
 
   const { wavesurfer, isPlaying, currentTime } = useWavesurfer({
     height: 196,
@@ -217,6 +235,8 @@ export default function DawSimple() {
       region.remove();
       disableRegionCreate = regions.enableDragSelection();
     });
+
+    load();
   });
 
   console.log('plugins:', wavesurfer?.getActivePlugins());
@@ -251,7 +271,12 @@ export default function DawSimple() {
           {EQSliders(!eqPresent)}
         </div>
       </CardBody>
-      <Button onClick={trimAudio}>trimmy</Button>
+      <Button
+        className="w-70"
+        onClick={loaded ? transcode : () => console.log('not ready')}
+      >
+        {loaded ? 'trimmy' : 'nonono'}
+      </Button>
     </Card>
   );
 }
