@@ -3,7 +3,10 @@ import { useWavesurfer } from '@wavesurfer/react';
 import Zoom from 'wavesurfer.js/dist/plugins/zoom.esm.js';
 import Hover from 'wavesurfer.js/dist/plugins/hover.esm.js';
 import Minimap from 'wavesurfer.js/dist/plugins/minimap.esm.js';
+import Regions from 'wavesurfer.js/dist/plugins/regions.esm.js';
 import Timeline from 'wavesurfer.js/dist/plugins/timeline.esm.js';
+import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
+
 import { Card, CardBody, CardHeader, CardTitle } from 'react-bootstrap';
 
 import SimpleDawControlsTop from '../../components/daw/simpleControlsTop';
@@ -29,8 +32,9 @@ const MinimapContainer = function (hide) {
 };
 
 export default function DawSimple() {
+  let disableRegionCreate;
   const dawRef = useRef(null);
-
+  let zoom, hover, minimap, timeline, regions;
   const [mapPresent, setMapPrsnt] = useState(false);
 
   const { wavesurfer, isPlaying, currentTime } = useWavesurfer({
@@ -47,8 +51,6 @@ export default function DawSimple() {
     progressColor: '#92ce84',
     plugins: useMemo(() => [], []),
   });
-
-  let zoom, hover, minimap, timeline;
 
   wavesurfer?.once('ready', () => {
     zoom = wavesurfer?.registerPlugin(
@@ -88,6 +90,17 @@ export default function DawSimple() {
         style: 'color: #e6dfdc; background-color: var(--daw-timeline-bg)',
       })
     );
+
+    // regions = wavesurfer?.registerPlugin(Regions.create());
+    regions = wavesurfer?.registerPlugin(RegionsPlugin.create());
+    disableRegionCreate = regions?.enableDragSelection({
+      color: 'rgba(155, 115, 215, 0.4)', // FIXME @mfwolffe color param has no effect
+    });
+    regions?.on('region-created', () => disableRegionCreate());
+    regions?.on('region-double-clicked', (region, e) => {
+      region.remove();
+      disableRegionCreate = regions.enableDragSelection();
+    });
   });
 
   console.log('plugins:', wavesurfer?.getActivePlugins());
