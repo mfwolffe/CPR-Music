@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from 'react-query';
@@ -149,7 +150,7 @@ export default function CreativityActivity() {
 
   const onMerged = useCallback((mergedData) => {
     totalScoreJSON.current = mergedData;
-  });
+  }, []);
 
   function handleSubmit(i) {
     return (data) => {
@@ -194,7 +195,7 @@ export default function CreativityActivity() {
           <Col md>
             {subScores &&
               subScores.map((subScore, idx) => (
-                <div key={idx}>
+                <div key={uuidv4()}>
                   <h2 id={`step-${idx + 1}`}>Step {idx + 1}</h2>
                   <ExploratoryCompose
                     referenceScoreJSON={subScore}

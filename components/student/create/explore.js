@@ -56,10 +56,9 @@ export default function CreativityActivity() {
     useState(false);
 
   const selectedMeasure = useRef({});
-
   const setSelectedMeasure = useCallback((measure) => {
     selectedMeasure.current = measure;
-  });
+  }, []);
 
   const {
     isLoading: loaded,
@@ -106,20 +105,20 @@ export default function CreativityActivity() {
 
   const handleTonicUpdate = useCallback((data) => {
     tonicJson.current = data;
-  });
+  }, []);
 
   const handleSubdominantUpdate = useCallback((data) => {
     subdominantJson.current = data;
-  });
+  }, []);
 
   const handleDominantUpdate = useCallback((data) => {
     dominantJson.current = data;
-  });
+  }, []);
 
-  const generateVariations = useCallback(() => {
+  const generateVariations = useCallback((data) => {
     if (startedVariationGeneration) return;
     setStartedVariationGeneration(true);
-  });
+  }, []);
 
   return flatIOScoreForTransposition ? (
     <div className="cpr-create">
