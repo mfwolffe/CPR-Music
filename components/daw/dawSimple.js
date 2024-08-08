@@ -13,7 +13,6 @@ import {
   Button,
   Card,
   CardBody,
-  CardFooter,
   CardHeader,
   CardTitle,
   Form,
@@ -27,10 +26,6 @@ const { useMemo, useState, useCallback, useRef } = React;
 const EQCAP = 26;
 const EQWIDTH = 28;
 const RVBWIDTH = 16;
-
-addEventListener('dataavailable', (event) => {
-  console.log('event', event);
-});
 
 const formatTime = (seconds) =>
   [seconds / 60, seconds % 60]
@@ -121,64 +116,6 @@ const EQSliders = (hide) => {
   );
 };
 
-const ReverbTool = (hide) => {
-  const hidden = hide;
-
-  const gain = (
-    <div className="mb-0 pb-0">
-      <div className="d-flex gap-2">
-        <div className="d-block">
-          <input type="range" orient="vertical" className="mlr-auto"></input>
-          <Form.Label className="d-block text-center mb-0">Input</Form.Label>
-        </div>
-        <div className="d-block">
-          <input type="range" orient="vertical" className="mlr-auto"></input>
-          <Form.Label className="d-block text-center mb-0">Output</Form.Label>
-        </div>
-      </div>
-      <p className="text-center mt-0 mb-0">
-        <strong>Gain</strong>
-      </p>
-    </div>
-  );
-
-  const decayDelay = (
-    <div className="mb-0 pb-0">
-      <div className="d-flex gap-2">
-        <div>
-          <input type="range" orient="vertical" className="mlr-auto"></input>
-          <Form.Label className="d-block text-center mb-0">Delay</Form.Label>
-        </div>
-        <div>
-          <input type="range" orient="vertical" className="mlr-a"></input>
-          <Form.Label className="d-block text-center mb-0">Decay</Form.Label>
-        </div>
-      </div>
-    </div>
-  );
-
-  return (
-    <>
-      <Card id="reverb" hidden={hidden} style={{ width: `${RVBWIDTH}%` }}>
-        <CardHeader className="text-center text-white pt-1 pb-1 bg-daw-toolbars">
-          <CardTitle className="pt-0 pb-0 mt-0 mb-0">Reverb</CardTitle>
-        </CardHeader>
-        <CardBody className="bg-dawcontrol text-white pl-0 pr-0 pt-2 pb-0">
-          <div className="d-flex gap-2 mlr-a w-fc">
-            {gain}
-            {decayDelay}
-          </div>
-          <div className="d-flex justify-content-end">
-            <Button size="sm" className="mb-1 mr-1">
-              Apply
-            </Button>
-          </div>
-        </CardBody>
-      </Card>
-    </>
-  );
-};
-
 export default function DawSimple() {
   let disableRegionCreate;
   let zoom, hover, minimap, timeline, regions;
@@ -190,12 +127,110 @@ export default function DawSimple() {
   const audioRef = useRef(audio);
   const ffmpegRef = useRef(new FFmpeg());
 
+  const [decay, setDecay] = useState(0);
+  const [delay, setDelay] = useState(0);
+  const [inGain, setInGain] = useState(0);
+  const [outGain, setOutGain] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [cutRegion, setCutRegion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [eqPresent, setEqPresent] = useState(false);
   const [mapPresent, setMapPrsnt] = useState(false);
   const [rvbPresent, setRvbPresent] = useState(false);
+
+  const ReverbTool = (hide) => {
+    const hidden = hide;
+
+    const gain = (
+      <div className="mb-0 pb-0">
+        <div className="d-flex gap-2">
+          <div className="d-block">
+            <input
+              min={0}
+              max={1}
+              type="range"
+              step={0.001}
+              defaultValue={0}
+              onInput={(e) => setInGain(e.target.value)}
+              orient="vertical"
+              className="mlr-auto"
+            ></input>
+            <Form.Label className="d-block text-center mb-0">Input</Form.Label>
+          </div>
+          <div className="d-block">
+            <input
+              min={0}
+              max={1}
+              type="range"
+              step={0.001}
+              defaultValue={0}
+              onInput={(e) => setOutGain(e.target.value)}
+              orient="vertical"
+              className="mlr-auto"
+            ></input>
+            <Form.Label className="d-block text-center mb-0">Output</Form.Label>
+          </div>
+        </div>
+        <p className="text-center mt-0 mb-0">
+          <strong>Gain</strong>
+        </p>
+      </div>
+    );
+
+    const decayDelay = (
+      <div className="mb-0 pb-0">
+        <div className="d-flex gap-2">
+          <div>
+            <input
+              min={0.1}
+              max={90000.0}
+              type="range"
+              step={0.1}
+              defaultValue={1000}
+              onInput={(e) => setDelay(e.target.value)}
+              orient="vertical"
+              className="mlr-auto"
+            ></input>
+            <Form.Label className="d-block text-center mb-0">Delay</Form.Label>
+          </div>
+          <div>
+            <input
+              min={0.01}
+              max={1}
+              type="range"
+              step={0.001}
+              defaultValue={0.01}
+              onInput={(e) => setDecay(e.target.value)}
+              orient="vertical"
+              className="mlr-a"
+            ></input>
+            <Form.Label className="d-block text-center mb-0">Decay</Form.Label>
+          </div>
+        </div>
+      </div>
+    );
+
+    return (
+      <>
+        <Card id="reverb" hidden={hidden} style={{ width: `${RVBWIDTH}%` }}>
+          <CardHeader className="text-center text-white pt-1 pb-1 bg-daw-toolbars">
+            <CardTitle className="pt-0 pb-0 mt-0 mb-0">Reverb</CardTitle>
+          </CardHeader>
+          <CardBody className="bg-dawcontrol text-white pl-0 pr-0 pt-2 pb-0">
+            <div className="d-flex gap-2 mlr-a w-fc">
+              {gain}
+              {decayDelay}
+            </div>
+            <div className="d-flex justify-content-end">
+              <Button size="sm" className="mb-1 mr-1" onClick={updateReverb}>
+                Apply
+              </Button>
+            </div>
+          </CardBody>
+        </Card>
+      </>
+    );
+  };
 
   const load = async () => {
     const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
@@ -280,6 +315,34 @@ export default function DawSimple() {
 
     setAudioURL(audioRef.current.src);
     console.log('deletion done', audioRef.current.src);
+    wavesurfer.load(audioRef.current.src);
+  };
+
+  const updateReverb = async () => {
+    console.log('values:');
+    console.log(inGain, outGain, delay, decay);
+    const ffmpeg = ffmpegRef.current;
+
+    await ffmpeg.writeFile('input.mp3', await fetchFile(audioURL));
+    await ffmpeg.exec([
+      '-i',
+      'input.mp3',
+      '-map',
+      '0',
+      '-af',
+      `aecho=${inGain}:${outGain}:${delay}:${decay}`,
+      'output.mp3',
+    ]);
+
+    const data = await ffmpeg.readFile('output.mp3');
+    if (audioRef.current) {
+      audioRef.current.src = URL.createObjectURL(
+        new Blob([data.buffer], { type: 'video/mp4' })
+      );
+    }
+
+    setAudioURL(audioRef.current.src);
+    console.log('reverb updated', audioRef.current.src);
     wavesurfer.load(audioRef.current.src);
   };
 
