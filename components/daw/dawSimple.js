@@ -3,16 +3,18 @@ import { useWavesurfer } from '@wavesurfer/react';
 import Zoom from 'wavesurfer.js/dist/plugins/zoom.esm.js';
 import Hover from 'wavesurfer.js/dist/plugins/hover.esm.js';
 import Minimap from 'wavesurfer.js/dist/plugins/minimap.esm.js';
-import Regions from 'wavesurfer.js/dist/plugins/regions.esm.js';
 import Timeline from 'wavesurfer.js/dist/plugins/timeline.esm.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
 
-import { Card, CardBody, CardHeader, CardTitle } from 'react-bootstrap';
+import { Card, CardBody, CardHeader, CardTitle, Form } from 'react-bootstrap';
 
 import SimpleDawControlsTop from '../../components/daw/simpleControlsTop';
 import SimpleDawControlsBottom from '../../components/daw/simpleControlsBottom';
 
 const { useMemo, useState, useCallback, useRef } = React;
+
+const EQCAP = 26;
+const EQWIDTH = 38;
 
 const formatTime = (seconds) =>
   [seconds / 60, seconds % 60]
@@ -31,15 +33,89 @@ const MinimapContainer = function (hide) {
   );
 };
 
+const audio = new Audio();
+audio.controls = false;
+audio.src = '/sample_audio/uncso-bruckner4-1.mp3';
+
+const audioContext = new AudioContext();
+const eqBands = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+
+const filters = eqBands.map((band) => {
+  const filter = audioContext.createBiquadFilter();
+  filter.type =
+    band <= 32 ? 'lowshelf' : band >= 16000 ? 'highshelf' : 'peaking';
+  filter.gain.value = 0;
+  filter.Q.value = 1; // resonance
+  filter.frequency.value = band; // cut-off frequency
+  return filter;
+});
+
+audio.addEventListener(
+  'canplay',
+  () => {
+    const mediaNode = audioContext.createMediaElementSource(audio);
+
+    const equalizer = filters.reduce((prev, curr) => {
+      prev.connect(curr);
+      return curr;
+    }, mediaNode);
+
+    equalizer.connect(audioContext.destination);
+  },
+  { once: true }
+);
+
+const EQSliders = (hide) => {
+  const hidden = hide;
+  const sliders = [];
+
+  filters.forEach((filter) => {
+    const frqVal = filter.frequency.value;
+    const slider = (
+      <>
+        <div className="d-flex" key={`${frqVal} MHz`}>
+          <Form.Label style={{ width: '6rem' }}>{frqVal} MHz</Form.Label>
+          <Form.Range
+            min={-EQCAP}
+            max={EQCAP}
+            step={0.1}
+            style={{ width: '10rem' }}
+            onInput={(e) => (filter.gain.value = e.target.value)}
+          ></Form.Range>
+        </div>
+      </>
+    );
+    sliders.push(slider);
+  });
+
+  return (
+    <>
+      <Card id="equalizer" hidden={hidden} style={{ width: `${EQWIDTH}%` }}>
+        <CardHeader className="text-center text-white pt-1 pb-1 bg-daw-toolbars">
+          <CardTitle className="pt-0 pb-0 mt-0 mb-0">Equalizer</CardTitle>
+        </CardHeader>
+        <CardBody className="bg-dawcontrol text-white pl-3 pr-3 pt-2 pb-2">
+          <div className="d-flex gap-2">
+            <div>{sliders.slice(0, 5)}</div>
+            <div>{sliders.slice(5, 10)}</div>
+          </div>
+        </CardBody>
+      </Card>
+    </>
+  );
+};
+
 export default function DawSimple() {
   let disableRegionCreate;
-  const dawRef = useRef(null);
   let zoom, hover, minimap, timeline, regions;
+
+  const dawRef = useRef(null);
+  const [eqPresent, setEqPresent] = useState(false);
   const [mapPresent, setMapPrsnt] = useState(false);
 
   const { wavesurfer, isPlaying, currentTime } = useWavesurfer({
     height: 196,
-    url: '/sample_audio/uncso-bruckner4-1.mp3',
+    media: audio,
     barHeight: 0.8,
     cursorWidth: 2,
     autoScroll: true,
@@ -91,7 +167,6 @@ export default function DawSimple() {
       })
     );
 
-    // regions = wavesurfer?.registerPlugin(Regions.create());
     regions = wavesurfer?.registerPlugin(RegionsPlugin.create());
     disableRegionCreate = regions?.enableDragSelection({
       color: 'rgba(155, 115, 215, 0.4)', // FIXME @mfwolffe color param has no effect
@@ -106,24 +181,33 @@ export default function DawSimple() {
   console.log('plugins:', wavesurfer?.getActivePlugins());
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Digital Audio Workstation</CardTitle>
+    <Card className="mt-2 mb-2">
+      <CardHeader className="pt-1 pb-1">
+        <CardTitle className="pt-0 pb-0 mt-0 mb-0">Audio Editor</CardTitle>
       </CardHeader>
       <CardBody>
-        <div id="waveform-container">
-          <SimpleDawControlsTop
-            waveSurfer={wavesurfer}
-            mapPresent={mapPresent}
-            mapSetter={setMapPrsnt}
-          />
+        <div className="d-flex w-100 gap-2p">
           <div
-            ref={dawRef}
-            id="waveform"
-            className="w-100 ml-auto mr-auto mb-0 mt-0"
-          />
-          {MinimapContainer(!mapPresent)}
-          <SimpleDawControlsBottom waveSurfer={wavesurfer} />
+            id="waveform-container"
+            className="w-100"
+            style={{ width: eqPresent ? `${100 - 1.5 - EQWIDTH}%` : '100%' }}
+          >
+            <SimpleDawControlsTop
+              waveSurfer={wavesurfer}
+              mapPresent={mapPresent}
+              mapSetter={setMapPrsnt}
+              eqSetter={setEqPresent}
+              eqPresent={eqPresent}
+            />
+            <div
+              ref={dawRef}
+              id="waveform"
+              className="ml-auto mr-auto mb-0 mt-0"
+            />
+            {MinimapContainer(!mapPresent)}
+            <SimpleDawControlsBottom waveSurfer={wavesurfer} />
+          </div>
+          {EQSliders(!eqPresent)}
         </div>
       </CardBody>
     </Card>

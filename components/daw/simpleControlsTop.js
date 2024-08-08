@@ -5,15 +5,27 @@ import { BsZoomIn } from 'react-icons/bs';
 import { BsZoomOut } from 'react-icons/bs';
 import { TbZoomReset } from 'react-icons/tb';
 import { MdOutlineWaves } from 'react-icons/md';
+import { RiEqualizerLine } from 'react-icons/ri';
 
-const SimpleDawControlsTop = ({ waveSurfer, mapPresent, mapSetter }) => {
+const SimpleDawControlsTop = ({
+  waveSurfer,
+  mapPresent,
+  mapSetter,
+  eqPresent,
+  eqSetter,
+}) => {
   if (!waveSurfer) return '';
 
-  const [hvr, setHvr] = useState(false);
+  const [mapHvr, setMapHvr] = useState(false);
+  const [eqHvr, setEqHvr] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(15);
 
   const handleMinimap = useCallback(() => {
     mapSetter(!mapPresent);
+  });
+
+  const toggleEQ = useCallback(() => {
+    eqSetter(!eqPresent);
   });
 
   return (
@@ -22,11 +34,21 @@ const SimpleDawControlsTop = ({ waveSurfer, mapPresent, mapSetter }) => {
         <Button className="prog-button" onClick={handleMinimap}>
           <MdOutlineWaves
             fontSize="1rem"
-            onPointerEnter={() => setHvr(true)}
-            onPointerLeave={() => setHvr(false)}
-            style={{ color: mapPresent || hvr ? 'aqua' : 'white' }}
+            onPointerEnter={() => setMapHvr(true)}
+            onPointerLeave={() => setMapHvr(false)}
+            style={{ color: mapPresent || mapHvr ? 'aqua' : 'white' }}
           />
         </Button>
+
+        <Button className="prog-button" onClick={toggleEQ}>
+          <RiEqualizerLine
+            fontSize="1rem"
+            onPointerEnter={() => setEqHvr(true)}
+            onPointerLeave={() => setEqHvr(false)}
+            style={{ color: eqPresent || eqHvr ? 'aqua' : 'white' }}
+          />
+        </Button>
+
         <Button
           className="prog-button"
           onClick={() => {
