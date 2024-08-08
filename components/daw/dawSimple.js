@@ -157,6 +157,11 @@ export default function DawSimple() {
   };
 
   const transcode = async (region) => {
+    if (!region) {
+      console.log('bad region');
+      return;
+    }
+
     const start = region.start;
     const ffmpeg = ffmpegRef.current;
     const duration = region.end - start;
@@ -188,6 +193,11 @@ export default function DawSimple() {
   };
 
   const destroyRegion = async (region) => {
+    if (!region) {
+      console.log('bad region');
+      return;
+    }
+
     const end = region.end;
     const start = region.start;
     const ffmpeg = ffmpegRef.current;
@@ -275,7 +285,7 @@ export default function DawSimple() {
         disableRegionCreate();
         setCutRegion(region);
       });
-      regions?.on('region-double-clicked', (region, e) => {
+      regions?.on('region-double-clicked', (region) => {
         region.remove();
         disableRegionCreate = regions.enableDragSelection();
       });
