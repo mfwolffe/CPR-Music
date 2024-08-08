@@ -6,7 +6,14 @@ import Minimap from 'wavesurfer.js/dist/plugins/minimap.esm.js';
 import Timeline from 'wavesurfer.js/dist/plugins/timeline.esm.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
 
-import { Card, CardBody, CardHeader, CardTitle, Form } from 'react-bootstrap';
+import {
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  CardTitle,
+  Form,
+} from 'react-bootstrap';
 
 import SimpleDawControlsTop from '../../components/daw/simpleControlsTop';
 import SimpleDawControlsBottom from '../../components/daw/simpleControlsBottom';
@@ -15,6 +22,10 @@ const { useMemo, useState, useCallback, useRef } = React;
 
 const EQCAP = 26;
 const EQWIDTH = 38;
+
+addEventListener('dataavailable', (event) => {
+  console.log('event', event);
+});
 
 const formatTime = (seconds) =>
   [seconds / 60, seconds % 60]
@@ -103,6 +114,36 @@ const EQSliders = (hide) => {
       </Card>
     </>
   );
+};
+
+const trimAudio = function (offset) {
+  const source = audioContext.createBufferSource();
+  const dest = audioContext.createMediaStreamDestination();
+  const mediaRecorder = new MediaRecorder(dest.stream);
+
+  const request = new XMLHttpRequest();
+  request.open('GET', '/sample_audio/uncso-bruckner4-1.mp3', true);
+  request.responseType = 'arraybuffer';
+
+  request.onload = function () {
+    const audioData = request.response;
+    audioContext.decodeAudioData(
+      audioData,
+      function (buffer) {
+        source.buffer = buffer;
+        source.connect(dest);
+        mediaRecorder.start();
+        source.start(audioContext.currentTime, 3);
+        mediaRecorder.stop();
+        source.disconnect(dest);
+      },
+      function (e) {
+        console.log('Error during audio decode: ', e.err);
+      }
+    );
+  };
+  console.log('bout to send');
+  request.send();
 };
 
 export default function DawSimple() {
@@ -210,6 +251,7 @@ export default function DawSimple() {
           {EQSliders(!eqPresent)}
         </div>
       </CardBody>
+      <Button onClick={trimAudio}>trimmy</Button>
     </Card>
   );
 }
