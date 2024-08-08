@@ -3,6 +3,7 @@ import Button from 'react-bootstrap/Button';
 
 import { BsZoomIn } from 'react-icons/bs';
 import { BsZoomOut } from 'react-icons/bs';
+import { IoCutOutline, IoCutSharp } from 'react-icons/io5';
 import { TbZoomReset } from 'react-icons/tb';
 import { MdOutlineWaves } from 'react-icons/md';
 import { RiEqualizerLine } from 'react-icons/ri';
@@ -13,6 +14,8 @@ const SimpleDawControlsTop = ({
   mapSetter,
   eqPresent,
   eqSetter,
+  audioURL,
+  urlSetter,
 }) => {
   if (!waveSurfer) return '';
 
@@ -47,6 +50,10 @@ const SimpleDawControlsTop = ({
             onPointerLeave={() => setEqHvr(false)}
             style={{ color: eqPresent || eqHvr ? 'aqua' : 'white' }}
           />
+        </Button>
+
+        <Button className="prog-button">
+          <IoCutOutline fontSize="1rem" />
         </Button>
 
         <Button

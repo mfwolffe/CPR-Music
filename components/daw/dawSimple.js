@@ -155,12 +155,12 @@ export default function DawSimple() {
   };
 
   const transcode = async () => {
-    const audioURL = '/sample_audio/uncso-bruckner4-1.mp3';
     const ffmpeg = ffmpegRef.current;
+    // const audioURL = '/sample_audio/uncso-bruckner4-1.mp3';
 
     await ffmpeg.writeFile('input.mp3', await fetchFile(audioURL));
     await ffmpeg.exec(['-ss', '12', '-i', 'input.mp3', 'output.mp3']);
-    // const fileData = await ffmpeg.readFile('output.mp3');
+
     const data = await ffmpeg.readFile('output.mp3');
     if (audioRef.current) {
       audioRef.current.src = URL.createObjectURL(
@@ -170,6 +170,8 @@ export default function DawSimple() {
 
     setAudioURL(audioRef.current.src);
     console.log('transcode done', audioRef.current.src);
+    // wavesurfer.loadBlob(audioRef.current.src);
+    wavesurfer.load(audioRef.current.src);
   };
 
   const { wavesurfer, isPlaying, currentTime } = useWavesurfer({
@@ -188,55 +190,57 @@ export default function DawSimple() {
   });
 
   wavesurfer?.once('ready', () => {
-    zoom = wavesurfer?.registerPlugin(
-      Zoom.create({
-        deltaThreshold: 5,
-        maxZoom: 150,
-        scale: 0.125,
-      })
-    );
+    if (wavesurfer.getActivePlugins().length === 0) {
+      zoom = wavesurfer?.registerPlugin(
+        Zoom.create({
+          deltaThreshold: 5,
+          maxZoom: 150,
+          scale: 0.125,
+        })
+      );
 
-    hover = wavesurfer?.registerPlugin(
-      Hover.create({
-        lineWidth: 2,
-        labelSize: 12,
-        labelColor: '#fff',
-        formatTimeCallback: formatTime,
-        lineColor: 'var(--jmu-gold)',
-      })
-    );
+      hover = wavesurfer?.registerPlugin(
+        Hover.create({
+          lineWidth: 2,
+          labelSize: 12,
+          labelColor: '#fff',
+          formatTimeCallback: formatTime,
+          lineColor: 'var(--jmu-gold)',
+        })
+      );
 
-    minimap = wavesurfer?.registerPlugin(
-      Minimap.create({
-        height: 35,
-        dragToSeek: true,
-        container: '#mmap',
-        waveColor: '#b999aa',
-        cursorColor: 'var(--jmu-gold)',
-        progressColor: '#92ceaa',
-        cursorWidth: 2,
-      })
-    );
+      minimap = wavesurfer?.registerPlugin(
+        Minimap.create({
+          height: 35,
+          dragToSeek: true,
+          container: '#mmap',
+          waveColor: '#b999aa',
+          cursorColor: 'var(--jmu-gold)',
+          progressColor: '#92ceaa',
+          cursorWidth: 2,
+        })
+      );
 
-    timeline = wavesurfer?.registerPlugin(
-      Timeline.create({
-        height: 24,
-        insertPosition: 'beforebegin',
-        style: 'color: #e6dfdc; background-color: var(--daw-timeline-bg)',
-      })
-    );
+      timeline = wavesurfer?.registerPlugin(
+        Timeline.create({
+          height: 24,
+          insertPosition: 'beforebegin',
+          style: 'color: #e6dfdc; background-color: var(--daw-timeline-bg)',
+        })
+      );
 
-    regions = wavesurfer?.registerPlugin(RegionsPlugin.create());
-    disableRegionCreate = regions?.enableDragSelection({
-      color: 'rgba(155, 115, 215, 0.4)', // FIXME @mfwolffe color param has no effect
-    });
-    regions?.on('region-created', () => disableRegionCreate());
-    regions?.on('region-double-clicked', (region, e) => {
-      region.remove();
-      disableRegionCreate = regions.enableDragSelection();
-    });
+      regions = wavesurfer?.registerPlugin(RegionsPlugin.create());
+      disableRegionCreate = regions?.enableDragSelection({
+        color: 'rgba(155, 115, 215, 0.4)', // FIXME @mfwolffe color param has no effect
+      });
+      regions?.on('region-created', () => disableRegionCreate());
+      regions?.on('region-double-clicked', (region, e) => {
+        region.remove();
+        disableRegionCreate = regions.enableDragSelection();
+      });
+    }
 
-    load();
+    if (!loaded) load();
   });
 
   console.log('plugins:', wavesurfer?.getActivePlugins());
