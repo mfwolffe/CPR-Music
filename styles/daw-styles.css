@@ -18,7 +18,6 @@
   margin-top: 1rem;
   margin-bottom: 1rem;
   background-color: var(--daw-grey);
-  /* filter: drop-shadow(0 0 24px #333); */
 }
 
 #waveform-container {
@@ -72,8 +71,16 @@
   margin-right: auto !important;
 }
 
+.gap-2p {
+  gap: 1.5% !important;
+}
+
 .gap-3 {
   gap: 3rem !important;
+}
+
+.gap-2 {
+  gap: 1.5rem !important;
 }
 
 .gap-1 {
@@ -93,11 +100,19 @@
 }
 
 .bg-dawgrey {
-  background-color: var(--daw-grey);
+  background-color: var(--daw-grey) !important;
 }
 
 .bg-dawcontrol {
-  background-color: var(--daw-control);
+  background-color: var(--daw-control) !important;
+}
+
+.bg-daw-toolbars {
+  background-color: var(--daw-timeline-bg) !important;
+}
+
+.bg-black {
+  background-color: black !important;
 }
 
 .control-card {
@@ -141,4 +156,8 @@
 
 .spct-container {
   border-top: 2px solid #fff;
+}
+
+#equalizer {
+  width: fit-content;
 }
