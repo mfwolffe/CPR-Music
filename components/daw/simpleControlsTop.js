@@ -1,12 +1,14 @@
 import { useState, useCallback } from 'react';
 import Button from 'react-bootstrap/Button';
+import { Spinner } from 'react-bootstrap';
 
 import { BsZoomIn } from 'react-icons/bs';
 import { BsZoomOut } from 'react-icons/bs';
-import { IoCutOutline, IoCutSharp } from 'react-icons/io5';
 import { TbZoomReset } from 'react-icons/tb';
+import { IoCutOutline } from 'react-icons/io5';
 import { MdOutlineWaves } from 'react-icons/md';
 import { RiEqualizerLine } from 'react-icons/ri';
+import { IoTrashOutline } from 'react-icons/io5';
 
 const SimpleDawControlsTop = ({
   waveSurfer,
@@ -16,6 +18,8 @@ const SimpleDawControlsTop = ({
   eqSetter,
   transcoder,
   cutRegion,
+  destroyRegion,
+  ffmpegLoaded,
 }) => {
   if (!waveSurfer) return '';
 
@@ -30,6 +34,8 @@ const SimpleDawControlsTop = ({
   const toggleEQ = useCallback(() => {
     eqSetter(!eqPresent);
   });
+
+  const dawSpinner = <Spinner animation="grow" size="sm" />;
 
   return (
     <>
@@ -53,7 +59,25 @@ const SimpleDawControlsTop = ({
         </Button>
 
         <Button className="prog-button">
-          <IoCutOutline fontSize="1rem" onClick={() => transcoder(cutRegion)} />
+          {ffmpegLoaded ? (
+            <IoCutOutline
+              fontSize="1rem"
+              onClick={() => transcoder(cutRegion)}
+            />
+          ) : (
+            dawSpinner
+          )}
+        </Button>
+
+        <Button className="prog-button">
+          {ffmpegLoaded ? (
+            <IoTrashOutline
+              fontSize="1rem"
+              onClick={() => destroyRegion(cutRegion)}
+            />
+          ) : (
+            dawSpinner
+          )}
         </Button>
 
         <Button

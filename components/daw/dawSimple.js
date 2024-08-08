@@ -187,6 +187,31 @@ export default function DawSimple() {
     wavesurfer.load(audioRef.current.src);
   };
 
+  const destroyRegion = async (region) => {
+    const end = region.end;
+    const start = region.start;
+    const ffmpeg = ffmpegRef.current;
+
+    await ffmpeg.writeFile('input.mp3', await fetchFile(audioURL));
+    await ffmpeg.exec([
+      '-i',
+      'input.mp3',
+      '-filter_complex',
+      `[0]atrim=duration=${start}[a];[0]atrim=start=${end}[b];[a][b]concat=n=2:v=0:a=1`,
+      'output.mp3',
+    ]);
+    const data = await ffmpeg.readFile('output.mp3');
+    if (audioRef.current) {
+      audioRef.current.src = URL.createObjectURL(
+        new Blob([data.buffer], { type: 'video/mp4' })
+      );
+    }
+
+    setAudioURL(audioRef.current.src);
+    console.log('deletion done', audioRef.current.src);
+    wavesurfer.load(audioRef.current.src);
+  };
+
   const { wavesurfer, isPlaying, currentTime } = useWavesurfer({
     height: 196,
     media: audio,
@@ -280,12 +305,9 @@ export default function DawSimple() {
               eqSetter={setEqPresent}
               eqPresent={eqPresent}
               cutRegion={cutRegion}
-              // cutSetter={setCutRegion}
-              // audioURL={audioURL}
-              // audioSetter={setAudioURL}
-              // audioRef={audioRef}
-              // ffmpegRef={ffmpegRef}
               transcoder={transcode}
+              destroyRegion={destroyRegion}
+              ffmpegLoaded={loaded}
             />
             <div
               ref={dawRef}
@@ -298,12 +320,6 @@ export default function DawSimple() {
           {EQSliders(!eqPresent)}
         </div>
       </CardBody>
-      <Button
-        className="w-70"
-        onClick={loaded ? transcode : () => console.log('not ready')}
-      >
-        {loaded ? 'trimmy' : 'nonono'}
-      </Button>
     </Card>
   );
 }
