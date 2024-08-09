@@ -18,10 +18,7 @@ const backTenButton = <FaArrowRotateLeft fontSize="1rem" />;
 const skipTenButton = <FaArrowRotateRight fontSize="1rem" />;
 const skipStartButton = <BsSkipBackwardCircle fontSize="1rem" />;
 
-const formatTime = (seconds) =>
-  [seconds / 60, seconds % 60]
-    .map((v) => `0${Math.floor(v)}`.slice(-2))
-    .join(':');
+import { formatTime } from '../../lib/dawUtils';
 
 const SimpleDawControlsBottom = ({
   waveSurfer,

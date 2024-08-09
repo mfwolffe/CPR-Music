@@ -18,20 +18,16 @@ import {
   Form,
 } from 'react-bootstrap';
 
+import { formatTime } from '../../lib/dawUtils';
+
 import SimpleDawControlsTop from '../../components/daw/simpleControlsTop';
 import SimpleDawControlsBottom from '../../components/daw/simpleControlsBottom';
 
 const { useMemo, useState, useCallback, useRef, useEffect } = React;
 
-const EQCAP = 26;
 const EQWIDTH = 28;
 const RVBWIDTH = 16;
 const CHRWIDTH = 24;
-
-const formatTime = (seconds) =>
-  [seconds / 60, seconds % 60]
-    .map((v) => `0${Math.floor(v)}`.slice(-2))
-    .join(':');
 
 const MinimapContainer = function (hide) {
   const hidden = hide;
@@ -42,6 +38,25 @@ const MinimapContainer = function (hide) {
       id="mmap"
       hidden={hidden}
     />
+  );
+};
+
+const WidgetSlider = (min, max, step, dfault, setter, label) => {
+  return (
+    <div>
+      <input
+        min={min}
+        max={max}
+        step={step}
+        type="range"
+        orient="vertical"
+        className="mlr-auto"
+        // defaultValue={dfault}
+        {...(dfault === null && { defaultValue: dfault })}
+        onInput={(e) => setter(e.target.value)}
+      ></input>
+      <Form.Label className="d-block text-center mb-0">{label}</Form.Label>
+    </div>
   );
 };
 
@@ -89,8 +104,8 @@ const EQSliders = (hide) => {
         <div className="d-flex" key={`${frqVal} MHz`}>
           <Form.Label style={{ width: '40%' }}>{frqVal} MHz</Form.Label>
           <Form.Range
-            min={-EQCAP}
-            max={EQCAP}
+            min={-26}
+            max={26}
             step={0.1}
             style={{ width: '60%' }}
             onInput={(e) => (filter.gain.value = e.target.value)}
@@ -123,9 +138,6 @@ export default function DawSimple() {
   let zoom, hover, minimap, timeline, regions;
 
   const dawRef = useRef(null);
-  const [audioURL, setAudioURL] = useState(
-    '/sample_audio/uncso-bruckner4-1.mp3'
-  );
   const audioRef = useRef(audio);
   const ffmpegRef = useRef(new FFmpeg());
 
@@ -151,78 +163,12 @@ export default function DawSimple() {
   const [editList, setEditList] = useState([
     '/sample_audio/uncso-bruckner4-1.mp3',
   ]);
+  const [audioURL, setAudioURL] = useState(
+    '/sample_audio/uncso-bruckner4-1.mp3'
+  );
 
   const ReverbTool = (hide) => {
     const hidden = hide;
-
-    const gain = (
-      <div className="mb-0 pb-0">
-        <div className="d-flex gap-2">
-          <div className="d-block">
-            <input
-              min={0}
-              max={1}
-              type="range"
-              step={0.001}
-              defaultValue={0}
-              onInput={(e) => setInGain(e.target.value)}
-              orient="vertical"
-              className="mlr-auto"
-            ></input>
-            <Form.Label className="d-block text-center mb-0">Input</Form.Label>
-          </div>
-          <div className="d-block">
-            <input
-              min={0}
-              max={1}
-              type="range"
-              step={0.001}
-              defaultValue={0}
-              onInput={(e) => setOutGain(e.target.value)}
-              orient="vertical"
-              className="mlr-auto"
-            ></input>
-            <Form.Label className="d-block text-center mb-0">Output</Form.Label>
-          </div>
-        </div>
-        <p className="text-center mt-0 mb-0">
-          <strong>Gain</strong>
-        </p>
-      </div>
-    );
-
-    const decayDelay = (
-      <div className="mb-0 pb-0">
-        <div className="d-flex gap-2">
-          <div>
-            <input
-              min={0.1}
-              max={90000.0}
-              type="range"
-              step={0.1}
-              defaultValue={1000}
-              onInput={(e) => setDelay(e.target.value)}
-              orient="vertical"
-              className="mlr-auto"
-            ></input>
-            <Form.Label className="d-block text-center mb-0">Delay</Form.Label>
-          </div>
-          <div>
-            <input
-              min={0.01}
-              max={1}
-              type="range"
-              step={0.001}
-              defaultValue={0.01}
-              onInput={(e) => setDecay(e.target.value)}
-              orient="vertical"
-              className="mlr-a"
-            ></input>
-            <Form.Label className="d-block text-center mb-0">Decay</Form.Label>
-          </div>
-        </div>
-      </div>
-    );
 
     return (
       <>
@@ -232,8 +178,21 @@ export default function DawSimple() {
           </CardHeader>
           <CardBody className="bg-dawcontrol text-white pl-0 pr-0 pt-2 pb-0">
             <div className="d-flex gap-2 mlr-a w-fc">
-              {gain}
-              {decayDelay}
+              <div className="mb-0 pb-0">
+                <div className="d-flex gap-2">
+                  {WidgetSlider(0, 1, 0.001, 0, setInGain, 'Input')}
+                  {WidgetSlider(0, 1, 0.001, 0, setOutGain, 'Output')}
+                </div>
+                <p className="text-center mt-0 mb-0">
+                  <strong>Gain</strong>
+                </p>
+              </div>
+              <div className="mb-0 pb-0">
+                <div className="d-flex gap-2">
+                  {WidgetSlider(0.1, 90000.0, 1, 1000, setDelay, 'Delay')}
+                  {WidgetSlider(0.1, 1, 0.001, 0.1, setDecay, 'Decay')}
+                </div>
+              </div>
             </div>
             <div className="d-flex justify-content-end">
               <Button size="sm" className="mb-1 mr-1" onClick={updateReverb}>
@@ -249,108 +208,6 @@ export default function DawSimple() {
   const chorusToggle = (hide) => {
     const hidden = hide;
 
-    const gain = (
-      <div className="mb-0 pb-0">
-        <div className="d-flex gap-2">
-          <div className="d-block">
-            <input
-              min={0}
-              max={1}
-              type="range"
-              step={0.001}
-              defaultValue={0}
-              onInput={(e) => setInGainChr(e.target.value)}
-              orient="vertical"
-              className="mlr-auto"
-            ></input>
-            <Form.Label className="d-block text-center mb-0">Input</Form.Label>
-          </div>
-          <div className="d-block">
-            <input
-              min={0}
-              max={1}
-              type="range"
-              step={0.001}
-              defaultValue={0}
-              onInput={(e) => setOutGainChr(e.target.value)}
-              orient="vertical"
-              className="mlr-auto"
-            ></input>
-            <Form.Label className="d-block text-center mb-0">Output</Form.Label>
-          </div>
-        </div>
-        <p className="text-center mt-0 mb-0">
-          <strong>Gain</strong>
-        </p>
-      </div>
-    );
-
-    const decayDelay = (
-      <div className="mb-0 pb-0">
-        <div className="d-flex gap-2">
-          <div>
-            <input
-              min={0}
-              max={70}
-              type="range"
-              step={0.1}
-              defaultValue={50}
-              onInput={(e) => setDelay(e.target.value)}
-              orient="vertical"
-              className="mlr-auto"
-            ></input>
-            <Form.Label className="d-block text-center mb-0">Delay</Form.Label>
-          </div>
-          <div>
-            <input
-              min={0.01}
-              max={1}
-              type="range"
-              step={0.001}
-              defaultValue={0.01}
-              onInput={(e) => setDecayChr(e.target.value)}
-              orient="vertical"
-              className="mlr-a"
-            ></input>
-            <Form.Label className="d-block text-center mb-0">Decay</Form.Label>
-          </div>
-        </div>
-      </div>
-    );
-
-    const speedDepth = (
-      <div className="mb-0 pb-0">
-        <div className="d-flex gap-2">
-          <div>
-            <input
-              min={0.1}
-              max={90000.0}
-              type="range"
-              step={0.1}
-              defaultValue={1000}
-              onInput={(e) => setSpeedChr(e.target.value)}
-              orient="vertical"
-              className="mlr-auto"
-            ></input>
-            <Form.Label className="d-block text-center mb-0">Speeds</Form.Label>
-          </div>
-          <div>
-            <input
-              min={0.01}
-              max={4}
-              type="range"
-              step={0.001}
-              defaultValue={1}
-              onInput={(e) => setDepthsChr(e.target.value)}
-              orient="vertical"
-              className="mlr-a"
-            ></input>
-            <Form.Label className="d-block text-center mb-0">Depths</Form.Label>
-          </div>
-        </div>
-      </div>
-    );
-
     return (
       <>
         <Card id="chorus" hidden={hidden} style={{ width: `${CHRWIDTH}%` }}>
@@ -359,9 +216,27 @@ export default function DawSimple() {
           </CardHeader>
           <CardBody className="bg-dawcontrol text-white pl-0 pr-0 pt-2 pb-0">
             <div className="d-flex gap-2 mlr-a w-fc">
-              {gain}
-              {decayDelay}
-              {speedDepth}
+              <div className="mb-0 pb-0">
+                <div className="d-flex gap-2">
+                  {WidgetSlider(0, 1, 0.001, 0, setInGainChr, 'Input')}
+                  {WidgetSlider(0, 1, 0.001, 0, setOutGainChr, 'Output')}
+                </div>
+                <p className="text-center mt-0 mb-0">
+                  <strong>Gain</strong>
+                </p>
+              </div>
+              <div className="mb-0 pb-0">
+                <div className="d-flex gap-2">
+                  {WidgetSlider(0, 70, 0.1, 0, setDelayChr, 'Delay')}
+                  {WidgetSlider(0.01, 1, 0.001, 0.01, setDecayChr, 'Decay')}
+                </div>
+              </div>
+              <div className="mb-0 pb-0">
+                <div className="d-flex gap-2">
+                  {WidgetSlider(0.1, 90000.0, 0.1, 1000, setSpeedChr, 'Speed')}
+                  {WidgetSlider(0.01, 4, 0.001, 1, setDepthsChr, 'Depth')}
+                </div>
+              </div>
             </div>
             <div className="d-flex justify-content-end">
               <Button size="sm" className="mb-1 mr-1" onClick={applyChorus}>
