@@ -3,9 +3,6 @@ import Button from 'react-bootstrap/Button';
 import { Spinner } from 'react-bootstrap';
 
 import { MdGroups } from 'react-icons/md';
-import { BsZoomIn } from 'react-icons/bs';
-import { BsZoomOut } from 'react-icons/bs';
-import { TbZoomReset } from 'react-icons/tb';
 import { IoCutOutline } from 'react-icons/io5';
 import { MdOutlineWaves } from 'react-icons/md';
 import { RiEqualizerLine } from 'react-icons/ri';
@@ -33,7 +30,6 @@ const SimpleDawControlsTop = ({
   const [mapHvr, setMapHvr] = useState(false);
   const [rvbHvr, setRvbHvr] = useState(false);
   const [chrHvr, setChrHvr] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(15);
 
   const handleMinimap = useCallback(() => {
     mapSetter(!mapPresent);
@@ -120,37 +116,6 @@ const SimpleDawControlsTop = ({
           ) : (
             dawSpinner
           )}
-        </Button>
-
-        <Button
-          className="prog-button"
-          onClick={() => {
-            setZoomLevel(zoomLevel + 25);
-            waveSurfer.zoom(zoomLevel);
-          }}
-        >
-          <BsZoomIn fontSize="1rem" />
-        </Button>
-
-        <Button
-          className="prog-button"
-          onClick={() => {
-            const zoom = zoomLevel - 25;
-            setZoomLevel(zoom < 0 ? 0 : zoom);
-            waveSurfer.zoom(zoomLevel);
-          }}
-        >
-          <BsZoomOut fontSize="1rem" />
-        </Button>
-
-        <Button className="prog-button">
-          <TbZoomReset
-            fontSize="1rem"
-            onClick={() => {
-              setZoomLevel(0);
-              waveSurfer.zoom(0);
-            }}
-          />
         </Button>
       </div>
     </>
