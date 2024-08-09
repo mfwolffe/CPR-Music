@@ -5,133 +5,29 @@ import Hover from 'wavesurfer.js/dist/plugins/hover.esm.js';
 import Minimap from 'wavesurfer.js/dist/plugins/minimap.esm.js';
 import Timeline from 'wavesurfer.js/dist/plugins/timeline.esm.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
+import { Card, CardBody, CardHeader, CardTitle, Form } from 'react-bootstrap';
 
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
+import { fetchFile } from '@ffmpeg/util';
 
-import {
-  Button,
-  Card,
-  CardBody,
-  CardHeader,
-  CardTitle,
-  Form,
-} from 'react-bootstrap';
-
-import { formatTime } from '../../lib/dawUtils';
-
+import EQSliders from './equalizer';
+import { MinimapContainer } from './common';
+import WidgetSlider from './widgetSliderVertical';
+import SliderWidgetVertical from './reverbWidget';
+import { formatTime, restoreState } from '../../lib/dawUtils';
 import SimpleDawControlsTop from '../../components/daw/simpleControlsTop';
 import SimpleDawControlsBottom from '../../components/daw/simpleControlsBottom';
+
+import { loadFfmpeg } from '../../lib/dawUtils';
+import { setupAudioContext } from '../../lib/dawUtils';
 
 const { useMemo, useState, useCallback, useRef, useEffect } = React;
 
 const EQWIDTH = 28;
 const RVBWIDTH = 16;
 const CHRWIDTH = 24;
-
-const MinimapContainer = function (hide) {
-  const hidden = hide;
-
-  return (
-    <div
-      className="w-100 ml-auto mr-auto mmap-container"
-      id="mmap"
-      hidden={hidden}
-    />
-  );
-};
-
-const WidgetSlider = (min, max, step, dfault, setter, label) => {
-  return (
-    <div>
-      <input
-        min={min}
-        max={max}
-        step={step}
-        type="range"
-        orient="vertical"
-        className="mlr-auto"
-        // defaultValue={dfault}
-        {...(dfault === null && { defaultValue: dfault })}
-        onInput={(e) => setter(e.target.value)}
-      ></input>
-      <Form.Label className="d-block text-center mb-0">{label}</Form.Label>
-    </div>
-  );
-};
-
-const audio = new Audio();
-audio.controls = false;
-audio.src = '/sample_audio/uncso-bruckner4-1.mp3';
-const origAudioURL = '/sample_audio/uncso-bruckner4-1.mp3';
-
-const audioContext = new AudioContext();
-const eqBands = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
-
-const filters = eqBands.map((band) => {
-  const filter = audioContext.createBiquadFilter();
-  filter.type =
-    band <= 32 ? 'lowshelf' : band >= 16000 ? 'highshelf' : 'peaking';
-  filter.gain.value = 0;
-  filter.Q.value = 1; // resonance
-  filter.frequency.value = band; // cut-off frequency
-  return filter;
-});
-
-audio.addEventListener(
-  'canplay',
-  () => {
-    const mediaNode = audioContext.createMediaElementSource(audio);
-
-    const equalizer = filters.reduce((prev, curr) => {
-      prev.connect(curr);
-      return curr;
-    }, mediaNode);
-
-    equalizer.connect(audioContext.destination);
-  },
-  { once: true }
-);
-
-const EQSliders = (hide) => {
-  const hidden = hide;
-  const sliders = [];
-
-  filters.forEach((filter) => {
-    const frqVal = filter.frequency.value;
-    const slider = (
-      <>
-        <div className="d-flex" key={`${frqVal} MHz`}>
-          <Form.Label style={{ width: '40%' }}>{frqVal} MHz</Form.Label>
-          <Form.Range
-            min={-26}
-            max={26}
-            step={0.1}
-            style={{ width: '60%' }}
-            onInput={(e) => (filter.gain.value = e.target.value)}
-          ></Form.Range>
-        </div>
-      </>
-    );
-    sliders.push(slider);
-  });
-
-  return (
-    <>
-      <Card id="equalizer" hidden={hidden} style={{ width: `${EQWIDTH}%` }}>
-        <CardHeader className="text-center text-white pt-1 pb-1 bg-daw-toolbars">
-          <CardTitle className="pt-0 pb-0 mt-0 mb-0">Equalizer</CardTitle>
-        </CardHeader>
-        <CardBody className="bg-dawcontrol text-white mlr-a pt-2 pb-2">
-          <div className="d-flex gap-2 mlr-a">
-            <div>{sliders.slice(0, 5)}</div>
-            <div>{sliders.slice(5, 10)}</div>
-          </div>
-        </CardBody>
-      </Card>
-    </>
-  );
-};
+const ORIGURL = '/sample_audio/uncso-bruckner4-1.mp3';
+const { audio, audioContext, filters } = setupAudioContext();
 
 export default function DawSimple() {
   let disableRegionCreate;
@@ -167,176 +63,23 @@ export default function DawSimple() {
     '/sample_audio/uncso-bruckner4-1.mp3'
   );
 
-  const ReverbTool = (hide) => {
-    const hidden = hide;
+  const chorusSliders = [
+    WidgetSlider(0, 1, 0.001, 0, setInGainChr, 'Input'),
+    WidgetSlider(0, 1, 0.001, 0, setOutGainChr, 'Output'),
+    WidgetSlider(0, 70, 0.1, 0, setDelayChr, 'Delay'),
+    WidgetSlider(0.01, 1, 0.001, 0.01, setDecayChr, 'Decay'),
+    WidgetSlider(0.1, 90000.0, 0.1, 1000, setSpeedChr, 'Speed'),
+    WidgetSlider(0.01, 4, 0.001, 1, setDepthsChr, 'Depth'),
+  ];
 
-    return (
-      <>
-        <Card id="reverb" hidden={hidden} style={{ width: `${RVBWIDTH}%` }}>
-          <CardHeader className="text-center text-white pt-1 pb-1 bg-daw-toolbars">
-            <CardTitle className="pt-0 pb-0 mt-0 mb-0">Reverb</CardTitle>
-          </CardHeader>
-          <CardBody className="bg-dawcontrol text-white pl-0 pr-0 pt-2 pb-0">
-            <div className="d-flex gap-2 mlr-a w-fc">
-              <div className="mb-0 pb-0">
-                <div className="d-flex gap-2">
-                  {WidgetSlider(0, 1, 0.001, 0, setInGain, 'Input')}
-                  {WidgetSlider(0, 1, 0.001, 0, setOutGain, 'Output')}
-                </div>
-                <p className="text-center mt-0 mb-0">
-                  <strong>Gain</strong>
-                </p>
-              </div>
-              <div className="mb-0 pb-0">
-                <div className="d-flex gap-2">
-                  {WidgetSlider(0.1, 90000.0, 1, 1000, setDelay, 'Delay')}
-                  {WidgetSlider(0.1, 1, 0.001, 0.1, setDecay, 'Decay')}
-                </div>
-              </div>
-            </div>
-            <div className="d-flex justify-content-end">
-              <Button size="sm" className="mb-1 mr-1" onClick={updateReverb}>
-                Apply
-              </Button>
-            </div>
-          </CardBody>
-        </Card>
-      </>
-    );
-  };
+  const reverbSliders = [
+    WidgetSlider(0, 1, 0.001, 0, setInGain, 'Input'),
+    WidgetSlider(0, 1, 0.001, 0, setOutGain, 'Output'),
+    WidgetSlider(0.1, 90000.0, 1, 1000, setDelay, 'Delay'),
+    WidgetSlider(0.1, 1, 0.001, 0.1, setDecay, 'Decay'),
+  ];
 
-  const chorusToggle = (hide) => {
-    const hidden = hide;
-
-    return (
-      <>
-        <Card id="chorus" hidden={hidden} style={{ width: `${CHRWIDTH}%` }}>
-          <CardHeader className="text-center text-white pt-1 pb-1 bg-daw-toolbars">
-            <CardTitle className="pt-0 pb-0 mt-0 mb-0">Chorus</CardTitle>
-          </CardHeader>
-          <CardBody className="bg-dawcontrol text-white pl-0 pr-0 pt-2 pb-0">
-            <div className="d-flex gap-2 mlr-a w-fc">
-              <div className="mb-0 pb-0">
-                <div className="d-flex gap-2">
-                  {WidgetSlider(0, 1, 0.001, 0, setInGainChr, 'Input')}
-                  {WidgetSlider(0, 1, 0.001, 0, setOutGainChr, 'Output')}
-                </div>
-                <p className="text-center mt-0 mb-0">
-                  <strong>Gain</strong>
-                </p>
-              </div>
-              <div className="mb-0 pb-0">
-                <div className="d-flex gap-2">
-                  {WidgetSlider(0, 70, 0.1, 0, setDelayChr, 'Delay')}
-                  {WidgetSlider(0.01, 1, 0.001, 0.01, setDecayChr, 'Decay')}
-                </div>
-              </div>
-              <div className="mb-0 pb-0">
-                <div className="d-flex gap-2">
-                  {WidgetSlider(0.1, 90000.0, 0.1, 1000, setSpeedChr, 'Speed')}
-                  {WidgetSlider(0.01, 4, 0.001, 1, setDepthsChr, 'Depth')}
-                </div>
-              </div>
-            </div>
-            <div className="d-flex justify-content-end">
-              <Button size="sm" className="mb-1 mr-1" onClick={applyChorus}>
-                Apply
-              </Button>
-            </div>
-          </CardBody>
-        </Card>
-      </>
-    );
-  };
-
-  const load = async () => {
-    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-    const ffmpeg = ffmpegRef.current;
-
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(
-        `${baseURL}/ffmpeg-core.wasm`,
-        'application/wasm'
-      ),
-      // workerURL: await toBlobURL(
-      //   `${baseURL}/ffmpeg-core.worker.js`,
-      //   'text/javascript'
-      // ),
-    });
-    setLoaded(true);
-    setIsLoading(false);
-    console.log('loaded');
-  };
-
-  const transcode = async (region) => {
-    if (!region) {
-      console.log('bad region');
-      return;
-    }
-
-    const start = region.start;
-    const ffmpeg = ffmpegRef.current;
-    const duration = region.end - start;
-
-    await ffmpeg.writeFile('input.mp3', await fetchFile(audioURL));
-    await ffmpeg.exec([
-      '-ss',
-      `${start}`,
-      '-i',
-      'input.mp3',
-      '-t',
-      `${duration}`,
-      'output.mp3',
-    ]);
-
-    const data = await ffmpeg.readFile('output.mp3');
-    if (audioRef.current) {
-      audioRef.current.src = URL.createObjectURL(
-        new Blob([data.buffer], { type: 'audio/mp3' })
-      );
-    }
-
-    setAudioURL(audioRef.current.src);
-    console.log('transcode done', audioRef.current.src);
-    wavesurfer.load(audioRef.current.src);
-    setEditList([...editList, audioRef.current.src]);
-    setEditListIndex(editListIndex + 1);
-  };
-
-  const destroyRegion = async (region) => {
-    if (!region) {
-      console.log('bad region');
-      return;
-    }
-
-    const end = region.end;
-    const start = region.start;
-    const ffmpeg = ffmpegRef.current;
-
-    await ffmpeg.writeFile('input.mp3', await fetchFile(audioURL));
-    await ffmpeg.exec([
-      '-i',
-      'input.mp3',
-      '-filter_complex',
-      `[0]atrim=duration=${start}[a];[0]atrim=start=${end}[b];[a][b]concat=n=2:v=0:a=1`,
-      'output.mp3',
-    ]);
-    const data = await ffmpeg.readFile('output.mp3');
-    if (audioRef.current) {
-      audioRef.current.src = URL.createObjectURL(
-        new Blob([data.buffer], { type: 'audio/mp3' })
-      );
-    }
-
-    setAudioURL(audioRef.current.src);
-    console.log('deletion done', audioRef.current.src);
-    wavesurfer.load(audioRef.current.src);
-    setEditList([...editList, audioRef.current.src]);
-    setEditListIndex(editListIndex + 1);
-  };
-
-  const updateReverb = async () => {
+  const applyReverb = async () => {
     console.log('values:');
     console.log(inGain, outGain, delay, decay);
     const ffmpeg = ffmpegRef.current;
@@ -464,13 +207,13 @@ export default function DawSimple() {
       });
     }
 
-    if (!loaded) load();
+    if (!loaded) loadFfmpeg(ffmpegRef, setLoaded, setIsLoading);
   });
 
   useEffect(() => {
     async function updatePlaybackSpeed() {
       const ffmpeg = ffmpegRef.current;
-      await ffmpeg.writeFile('input.mp3', await fetchFile(origAudioURL));
+      await ffmpeg.writeFile('input.mp3', await fetchFile(ORIGURL));
       await ffmpeg.exec([
         '-i',
         'input.mp3',
@@ -493,15 +236,6 @@ export default function DawSimple() {
 
     if (ffmpegRef.current.loaded) updatePlaybackSpeed();
   }, [playbackSpeed]);
-
-  const restoreState = (index) => {
-    if (index < 0 || index >= editList.length) return;
-
-    console.log('current list', editList);
-    console.log('restoring to index', index);
-    wavesurfer.load(editList[index]);
-    setEditListIndex(index);
-  };
 
   console.log('plugins:', wavesurfer?.getActivePlugins());
 
@@ -532,16 +266,22 @@ export default function DawSimple() {
               eqSetter={setEqPresent}
               eqPresent={eqPresent}
               cutRegion={cutRegion}
-              transcoder={transcode}
-              destroyRegion={destroyRegion}
+              // transcoder={transcoder}
+              // destroyRegion={destroyRegion}
+              ffmpegRef={ffmpegRef}
               ffmpegLoaded={loaded}
               rvbPresent={rvbPresent}
               rvbSetter={setRvbPresent}
               chrPresent={chrPresent}
               chrSetter={setChrPresent}
               editIndex={editListIndex}
+              indexSetter={setEditListIndex}
               editList={editList}
+              listSetter={setEditList}
               restoreState={restoreState}
+              urlSetter={setAudioURL}
+              audioRef={audioRef}
+              audioURL={audioURL}
             />
             <div
               ref={dawRef}
@@ -555,9 +295,25 @@ export default function DawSimple() {
               speedSetter={setPlaybackSpeed}
             />
           </div>
-          {EQSliders(!eqPresent)}
-          {ReverbTool(!rvbPresent)}
-          {chorusToggle(!chrPresent)}
+          {EQSliders(!eqPresent, filters, EQWIDTH)}
+          {/* {ReverbTool(!rvbPresent)} */}
+          <SliderWidgetVertical
+            hide={!rvbPresent}
+            width={RVBWIDTH}
+            sliders={reverbSliders}
+            handler={applyReverb}
+            title={'Reverb'}
+            hasButton={true}
+          />
+          {/* {chorusToggle(!chrPresent)} */}
+          <SliderWidgetVertical
+            hide={!chrPresent}
+            width={CHRWIDTH}
+            sliders={chorusSliders}
+            handler={applyChorus}
+            title={'Chorus'}
+            hasButton={true}
+          />
         </div>
       </CardBody>
     </Card>

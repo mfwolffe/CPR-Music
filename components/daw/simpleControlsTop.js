@@ -11,6 +11,10 @@ import { RiEqualizerLine } from 'react-icons/ri';
 import { IoTrashOutline } from 'react-icons/io5';
 import { RiSoundModuleFill } from 'react-icons/ri';
 
+import { transcoder, reverbEffects } from '../../lib/dawUtils';
+
+const dawSpinner = <Spinner animation="grow" size="sm" />;
+
 const SimpleDawControlsTop = ({
   waveSurfer,
   mapPresent,
@@ -19,15 +23,23 @@ const SimpleDawControlsTop = ({
   eqSetter,
   rvbPresent,
   rvbSetter,
-  transcoder,
+  // transcoder,
   cutRegion,
-  destroyRegion,
+  // destroyRegion,
   ffmpegLoaded,
   chrPresent,
   chrSetter,
   editIndex,
   editList,
+  listSetter,
+  indexSetter,
   restoreState,
+  urlSetter,
+  audioRef,
+  ffmpegRef,
+  audioURL,
+  chrParams,
+  rvbParams,
 }) => {
   if (!waveSurfer) return '';
 
@@ -51,10 +63,6 @@ const SimpleDawControlsTop = ({
   const toggleChorus = useCallback(() => {
     chrSetter(!chrPresent);
   });
-
-  const dawSpinner = <Spinner animation="grow" size="sm" />;
-
-  const length = editList.length;
 
   return (
     <>
@@ -88,10 +96,7 @@ const SimpleDawControlsTop = ({
               dawSpinner
             )}
           </Button>
-          <Button
-            className="prog-button"
-            onClick={() => toggleChorus(cutRegion)}
-          >
+          <Button className="prog-button" onClick={toggleChorus}>
             {ffmpegLoaded ? (
               <MdGroups
                 onPointerEnter={() => setChrHvr(true)}
@@ -107,7 +112,21 @@ const SimpleDawControlsTop = ({
             {ffmpegLoaded ? (
               <IoCutOutline
                 fontSize="1rem"
-                onClick={() => transcoder(cutRegion)}
+                onClick={() =>
+                  transcoder(
+                    cutRegion,
+                    ffmpegRef,
+                    urlSetter,
+                    waveSurfer,
+                    listSetter,
+                    editList,
+                    indexSetter,
+                    editIndex,
+                    audioRef,
+                    audioURL,
+                    true
+                  )
+                }
               />
             ) : (
               dawSpinner
@@ -117,7 +136,21 @@ const SimpleDawControlsTop = ({
             {ffmpegLoaded ? (
               <IoTrashOutline
                 fontSize="1rem"
-                onClick={() => destroyRegion(cutRegion)}
+                onClick={() =>
+                  transcoder(
+                    cutRegion,
+                    ffmpegRef,
+                    urlSetter,
+                    waveSurfer,
+                    listSetter,
+                    editList,
+                    indexSetter,
+                    editIndex,
+                    audioRef,
+                    audioURL,
+                    false
+                  )
+                }
               />
             ) : (
               dawSpinner
@@ -127,13 +160,17 @@ const SimpleDawControlsTop = ({
         <div className="d-flex align-items-center">
           <Button
             className="prog-button pr-2"
-            onClick={() => restoreState(editIndex - 1)}
+            onClick={() =>
+              restoreState(editIndex - 1, editList, indexSetter, waveSurfer)
+            }
           >
             <IoArrowUndo fontSize="1rem" />
           </Button>
           <Button
             className="prog-button pr-2"
-            onClick={() => restoreState(editIndex + 1)}
+            onClick={() =>
+              restoreState(editIndex + 1, editList, indexSetter, waveSurfer)
+            }
           >
             <IoArrowRedo fontSize="1rem" />
           </Button>
