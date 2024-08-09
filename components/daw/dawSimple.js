@@ -21,7 +21,7 @@ import {
 import SimpleDawControlsTop from '../../components/daw/simpleControlsTop';
 import SimpleDawControlsBottom from '../../components/daw/simpleControlsBottom';
 
-const { useMemo, useState, useCallback, useRef } = React;
+const { useMemo, useState, useCallback, useRef, useEffect } = React;
 
 const EQCAP = 26;
 const EQWIDTH = 28;
@@ -47,6 +47,7 @@ const MinimapContainer = function (hide) {
 const audio = new Audio();
 audio.controls = false;
 audio.src = '/sample_audio/uncso-bruckner4-1.mp3';
+const origAudioURL = '/sample_audio/uncso-bruckner4-1.mp3';
 
 const audioContext = new AudioContext();
 const eqBands = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
@@ -132,6 +133,7 @@ export default function DawSimple() {
   const [inGain, setInGain] = useState(0);
   const [outGain, setOutGain] = useState(0);
   const [loaded, setLoaded] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [cutRegion, setCutRegion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [eqPresent, setEqPresent] = useState(false);
@@ -261,9 +263,6 @@ export default function DawSimple() {
     const start = region.start;
     const ffmpeg = ffmpegRef.current;
     const duration = region.end - start;
-
-    console.log('start, end', start);
-    // const audioURL = '/sample_audio/uncso-bruckner4-1.mp3';
 
     await ffmpeg.writeFile('input.mp3', await fetchFile(audioURL));
     await ffmpeg.exec([
@@ -418,6 +417,33 @@ export default function DawSimple() {
     if (!loaded) load();
   });
 
+  useEffect(() => {
+    async function updatePlaybackSpeed() {
+      const ffmpeg = ffmpegRef.current;
+      await ffmpeg.writeFile('input.mp3', await fetchFile(origAudioURL));
+      await ffmpeg.exec([
+        '-i',
+        'input.mp3',
+        '-af',
+        `atempo=${playbackSpeed}`,
+        'output.mp3',
+      ]);
+
+      const data = await ffmpeg.readFile('output.mp3');
+      if (audioRef.current) {
+        audioRef.current.src = URL.createObjectURL(
+          new Blob([data.buffer], { type: 'video/mp4' })
+        );
+      }
+
+      setAudioURL(audioRef.current.src);
+      console.log('speed adjust done', audioRef.current.src);
+      wavesurfer.load(audioRef.current.src);
+    }
+
+    if (ffmpegRef.current.loaded) updatePlaybackSpeed();
+  }, [playbackSpeed]);
+
   console.log('plugins:', wavesurfer?.getActivePlugins());
 
   return (
@@ -458,7 +484,11 @@ export default function DawSimple() {
               className="ml-auto mr-auto mb-0 mt-0"
             />
             {MinimapContainer(!mapPresent)}
-            <SimpleDawControlsBottom waveSurfer={wavesurfer} />
+            <SimpleDawControlsBottom
+              waveSurfer={wavesurfer}
+              playbackSpeed={playbackSpeed}
+              speedSetter={setPlaybackSpeed}
+            />
           </div>
           {EQSliders(!eqPresent)}
           {ReverbTool(!rvbPresent)}
