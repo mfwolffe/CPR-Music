@@ -26,6 +26,7 @@ const { useMemo, useState, useCallback, useRef, useEffect } = React;
 const EQCAP = 26;
 const EQWIDTH = 28;
 const RVBWIDTH = 16;
+const CHRWIDTH = 24;
 
 const formatTime = (seconds) =>
   [seconds / 60, seconds % 60]
@@ -132,13 +133,20 @@ export default function DawSimple() {
   const [delay, setDelay] = useState(0);
   const [inGain, setInGain] = useState(0);
   const [outGain, setOutGain] = useState(0);
+  const [speedChr, setSpeedChr] = useState(0);
+  const [delayChr, setDelayChr] = useState(0);
+  const [decayChr, setDecayChr] = useState(0);
   const [loaded, setLoaded] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [depthsChr, setDepthsChr] = useState(0);
+  const [inGainChr, setInGainChr] = useState(0);
   const [cutRegion, setCutRegion] = useState('');
+  const [outGainChr, setOutGainChr] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [eqPresent, setEqPresent] = useState(false);
   const [mapPresent, setMapPrsnt] = useState(false);
   const [rvbPresent, setRvbPresent] = useState(false);
+  const [chrPresent, setChrPresent] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
 
   const ReverbTool = (hide) => {
     const hidden = hide;
@@ -225,6 +233,134 @@ export default function DawSimple() {
             </div>
             <div className="d-flex justify-content-end">
               <Button size="sm" className="mb-1 mr-1" onClick={updateReverb}>
+                Apply
+              </Button>
+            </div>
+          </CardBody>
+        </Card>
+      </>
+    );
+  };
+
+  const chorusToggle = (hide) => {
+    const hidden = hide;
+
+    const gain = (
+      <div className="mb-0 pb-0">
+        <div className="d-flex gap-2">
+          <div className="d-block">
+            <input
+              min={0}
+              max={1}
+              type="range"
+              step={0.001}
+              defaultValue={0}
+              onInput={(e) => setInGainChr(e.target.value)}
+              orient="vertical"
+              className="mlr-auto"
+            ></input>
+            <Form.Label className="d-block text-center mb-0">Input</Form.Label>
+          </div>
+          <div className="d-block">
+            <input
+              min={0}
+              max={1}
+              type="range"
+              step={0.001}
+              defaultValue={0}
+              onInput={(e) => setOutGainChr(e.target.value)}
+              orient="vertical"
+              className="mlr-auto"
+            ></input>
+            <Form.Label className="d-block text-center mb-0">Output</Form.Label>
+          </div>
+        </div>
+        <p className="text-center mt-0 mb-0">
+          <strong>Gain</strong>
+        </p>
+      </div>
+    );
+
+    const decayDelay = (
+      <div className="mb-0 pb-0">
+        <div className="d-flex gap-2">
+          <div>
+            <input
+              min={0}
+              max={70}
+              type="range"
+              step={0.1}
+              defaultValue={50}
+              onInput={(e) => setDelay(e.target.value)}
+              orient="vertical"
+              className="mlr-auto"
+            ></input>
+            <Form.Label className="d-block text-center mb-0">Delay</Form.Label>
+          </div>
+          <div>
+            <input
+              min={0.01}
+              max={1}
+              type="range"
+              step={0.001}
+              defaultValue={0.01}
+              onInput={(e) => setDecayChr(e.target.value)}
+              orient="vertical"
+              className="mlr-a"
+            ></input>
+            <Form.Label className="d-block text-center mb-0">Decay</Form.Label>
+          </div>
+        </div>
+      </div>
+    );
+
+    const speedDepth = (
+      <div className="mb-0 pb-0">
+        <div className="d-flex gap-2">
+          <div>
+            <input
+              min={0.1}
+              max={90000.0}
+              type="range"
+              step={0.1}
+              defaultValue={1000}
+              onInput={(e) => setSpeedChr(e.target.value)}
+              orient="vertical"
+              className="mlr-auto"
+            ></input>
+            <Form.Label className="d-block text-center mb-0">Speeds</Form.Label>
+          </div>
+          <div>
+            <input
+              min={0.01}
+              max={4}
+              type="range"
+              step={0.001}
+              defaultValue={1}
+              onInput={(e) => setDepthsChr(e.target.value)}
+              orient="vertical"
+              className="mlr-a"
+            ></input>
+            <Form.Label className="d-block text-center mb-0">Depths</Form.Label>
+          </div>
+        </div>
+      </div>
+    );
+
+    return (
+      <>
+        <Card id="chorus" hidden={hidden} style={{ width: `${CHRWIDTH}%` }}>
+          <CardHeader className="text-center text-white pt-1 pb-1 bg-daw-toolbars">
+            <CardTitle className="pt-0 pb-0 mt-0 mb-0">Chorus</CardTitle>
+          </CardHeader>
+          <CardBody className="bg-dawcontrol text-white pl-0 pr-0 pt-2 pb-0">
+            <div className="d-flex gap-2 mlr-a w-fc">
+              {gain}
+              {decayDelay}
+              {speedDepth}
+            </div>
+            <div className="d-flex justify-content-end">
+              <Button size="sm" className="mb-1 mr-1" onClick={applyChorus}>
                 Apply
               </Button>
             </div>
@@ -345,6 +481,29 @@ export default function DawSimple() {
     wavesurfer.load(audioRef.current.src);
   };
 
+  const applyChorus = async () => {
+    const ffmpeg = ffmpegRef.current;
+    await ffmpeg.writeFile('input.mp3', await fetchFile(audioURL));
+    await ffmpeg.exec([
+      '-i',
+      'input.mp3',
+      '-af',
+      `chorus=${inGainChr}:${outGainChr}:${delayChr}:${decayChr}:${speedChr}:${depthsChr}`,
+      'output.mp3',
+    ]);
+
+    const data = await ffmpeg.readFile('output.mp3');
+    if (audioRef.current) {
+      audioRef.current.src = URL.createObjectURL(
+        new Blob([data.buffer], { type: 'video/mp4' })
+      );
+    }
+
+    setAudioURL(audioRef.current.src);
+    console.log('chorus updated', audioRef.current.src);
+    wavesurfer.load(audioRef.current.src);
+  };
+
   const { wavesurfer, isPlaying, currentTime } = useWavesurfer({
     height: 196,
     media: audio,
@@ -459,9 +618,10 @@ export default function DawSimple() {
             style={{
               width: `${
                 100 -
-                (rvbPresent || eqPresent ? 1.5 : 0) -
+                (rvbPresent || eqPresent || chrPresent ? 1.5 : 0) -
                 (eqPresent ? EQWIDTH : 0) -
-                (rvbPresent ? RVBWIDTH : 0)
+                (rvbPresent ? RVBWIDTH : 0) -
+                (chrPresent ? CHRWIDTH : 0)
               }%`,
             }}
           >
@@ -477,6 +637,8 @@ export default function DawSimple() {
               ffmpegLoaded={loaded}
               rvbPresent={rvbPresent}
               rvbSetter={setRvbPresent}
+              chrPresent={chrPresent}
+              chrSetter={setChrPresent}
             />
             <div
               ref={dawRef}
@@ -492,6 +654,7 @@ export default function DawSimple() {
           </div>
           {EQSliders(!eqPresent)}
           {ReverbTool(!rvbPresent)}
+          {chorusToggle(!chrPresent)}
         </div>
       </CardBody>
     </Card>

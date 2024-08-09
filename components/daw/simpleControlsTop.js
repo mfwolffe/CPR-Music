@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import Button from 'react-bootstrap/Button';
 import { Spinner } from 'react-bootstrap';
 
+import { MdGroups } from 'react-icons/md';
 import { BsZoomIn } from 'react-icons/bs';
 import { BsZoomOut } from 'react-icons/bs';
 import { TbZoomReset } from 'react-icons/tb';
@@ -23,12 +24,15 @@ const SimpleDawControlsTop = ({
   cutRegion,
   destroyRegion,
   ffmpegLoaded,
+  chrPresent,
+  chrSetter,
 }) => {
   if (!waveSurfer) return '';
 
   const [eqHvr, setEqHvr] = useState(false);
   const [mapHvr, setMapHvr] = useState(false);
   const [rvbHvr, setRvbHvr] = useState(false);
+  const [chrHvr, setChrHvr] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(15);
 
   const handleMinimap = useCallback(() => {
@@ -41,6 +45,10 @@ const SimpleDawControlsTop = ({
 
   const toggleRvb = useCallback(() => {
     rvbSetter(!rvbPresent);
+  });
+
+  const toggleChorus = useCallback(() => {
+    chrSetter(!chrPresent);
   });
 
   const dawSpinner = <Spinner animation="grow" size="sm" />;
@@ -66,6 +74,32 @@ const SimpleDawControlsTop = ({
           />
         </Button>
 
+        <Button className="prog-button" onClick={toggleRvb}>
+          {ffmpegLoaded ? (
+            <RiSoundModuleFill
+              fontSize="1rem"
+              onPointerEnter={() => setRvbHvr(true)}
+              onPointerLeave={() => setRvbHvr(false)}
+              style={{ color: rvbPresent || rvbHvr ? 'aqua' : 'white' }}
+            />
+          ) : (
+            dawSpinner
+          )}
+        </Button>
+
+        <Button className="prog-button" onClick={() => toggleChorus(cutRegion)}>
+          {ffmpegLoaded ? (
+            <MdGroups
+              onPointerEnter={() => setChrHvr(true)}
+              onPointerLeave={() => setChrHvr(false)}
+              style={{ color: chrPresent || chrHvr ? 'aqua' : 'white' }}
+              fontSize="1rem"
+            />
+          ) : (
+            dawSpinner
+          )}
+        </Button>
+
         <Button className="prog-button">
           {ffmpegLoaded ? (
             <IoCutOutline
@@ -82,19 +116,6 @@ const SimpleDawControlsTop = ({
             <IoTrashOutline
               fontSize="1rem"
               onClick={() => destroyRegion(cutRegion)}
-            />
-          ) : (
-            dawSpinner
-          )}
-        </Button>
-
-        <Button className="prog-button" onClick={toggleRvb}>
-          {ffmpegLoaded ? (
-            <RiSoundModuleFill
-              fontSize="1rem"
-              onPointerEnter={() => setRvbHvr(true)}
-              onPointerLeave={() => setRvbHvr(false)}
-              style={{ color: rvbPresent || rvbHvr ? 'aqua' : 'white' }}
             />
           ) : (
             dawSpinner
