@@ -147,6 +147,10 @@ export default function DawSimple() {
   const [rvbPresent, setRvbPresent] = useState(false);
   const [chrPresent, setChrPresent] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [editListIndex, setEditListIndex] = useState(0);
+  const [editList, setEditList] = useState([
+    '/sample_audio/uncso-bruckner4-1.mp3',
+  ]);
 
   const ReverbTool = (hide) => {
     const hidden = hide;
@@ -414,13 +418,15 @@ export default function DawSimple() {
     const data = await ffmpeg.readFile('output.mp3');
     if (audioRef.current) {
       audioRef.current.src = URL.createObjectURL(
-        new Blob([data.buffer], { type: 'video/mp4' })
+        new Blob([data.buffer], { type: 'audio/mp3' })
       );
     }
 
     setAudioURL(audioRef.current.src);
     console.log('transcode done', audioRef.current.src);
     wavesurfer.load(audioRef.current.src);
+    setEditList([...editList, audioRef.current.src]);
+    setEditListIndex(editListIndex + 1);
   };
 
   const destroyRegion = async (region) => {
@@ -444,13 +450,15 @@ export default function DawSimple() {
     const data = await ffmpeg.readFile('output.mp3');
     if (audioRef.current) {
       audioRef.current.src = URL.createObjectURL(
-        new Blob([data.buffer], { type: 'video/mp4' })
+        new Blob([data.buffer], { type: 'audio/mp3' })
       );
     }
 
     setAudioURL(audioRef.current.src);
     console.log('deletion done', audioRef.current.src);
     wavesurfer.load(audioRef.current.src);
+    setEditList([...editList, audioRef.current.src]);
+    setEditListIndex(editListIndex + 1);
   };
 
   const updateReverb = async () => {
@@ -472,13 +480,15 @@ export default function DawSimple() {
     const data = await ffmpeg.readFile('output.mp3');
     if (audioRef.current) {
       audioRef.current.src = URL.createObjectURL(
-        new Blob([data.buffer], { type: 'video/mp4' })
+        new Blob([data.buffer], { type: 'audio/mp3' })
       );
     }
 
     setAudioURL(audioRef.current.src);
     console.log('reverb updated', audioRef.current.src);
     wavesurfer.load(audioRef.current.src);
+    setEditList([...editList, audioRef.current.src]);
+    setEditListIndex(editListIndex + 1);
   };
 
   const applyChorus = async () => {
@@ -495,14 +505,20 @@ export default function DawSimple() {
     const data = await ffmpeg.readFile('output.mp3');
     if (audioRef.current) {
       audioRef.current.src = URL.createObjectURL(
-        new Blob([data.buffer], { type: 'video/mp4' })
+        new Blob([data.buffer], { type: 'audio/mp3' })
       );
     }
 
     setAudioURL(audioRef.current.src);
     console.log('chorus updated', audioRef.current.src);
     wavesurfer.load(audioRef.current.src);
+    setEditList([...editList, audioRef.current.src]);
+    setEditListIndex(editListIndex + 1);
   };
+
+  useEffect(() => {
+    console.log('blobs', editList);
+  }, [editList]);
 
   const { wavesurfer, isPlaying, currentTime } = useWavesurfer({
     height: 196,
@@ -591,7 +607,7 @@ export default function DawSimple() {
       const data = await ffmpeg.readFile('output.mp3');
       if (audioRef.current) {
         audioRef.current.src = URL.createObjectURL(
-          new Blob([data.buffer], { type: 'video/mp4' })
+          new Blob([data.buffer], { type: 'audio/mp3' })
         );
       }
 
@@ -602,6 +618,15 @@ export default function DawSimple() {
 
     if (ffmpegRef.current.loaded) updatePlaybackSpeed();
   }, [playbackSpeed]);
+
+  const restoreState = (index) => {
+    if (index < 0 || index >= editList.length) return;
+
+    console.log('current list', editList);
+    console.log('restoring to index', index);
+    wavesurfer.load(editList[index]);
+    setEditListIndex(index);
+  };
 
   console.log('plugins:', wavesurfer?.getActivePlugins());
 
@@ -639,6 +664,9 @@ export default function DawSimple() {
               rvbSetter={setRvbPresent}
               chrPresent={chrPresent}
               chrSetter={setChrPresent}
+              editIndex={editListIndex}
+              editList={editList}
+              restoreState={restoreState}
             />
             <div
               ref={dawRef}
