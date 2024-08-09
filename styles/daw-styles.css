@@ -174,3 +174,9 @@ input[type='range'][orient='vertical'] {
   height: 7.5rem;
   vertical-align: bottom;
 }
+
+.flex-between {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
