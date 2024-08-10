@@ -7,36 +7,45 @@ import Timeline from 'wavesurfer.js/dist/plugins/timeline.esm.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
 import { Card, CardBody, CardHeader, CardTitle, Form } from 'react-bootstrap';
 
-import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile } from '@ffmpeg/util';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
 
+import {
+  formatTime,
+  restoreState,
+  effectChorusReverb,
+} from '../../lib/dawUtils';
 import EQSliders from './equalizer';
 import { MinimapContainer } from './common';
+import { loadFfmpeg } from '../../lib/dawUtils';
+import ReverbChorusWidget from './reverbWidget';
 import WidgetSlider from './widgetSliderVertical';
-import SliderWidgetVertical from './reverbWidget';
-import { formatTime, restoreState } from '../../lib/dawUtils';
+import { setupAudioContext } from '../../lib/dawUtils';
 import SimpleDawControlsTop from '../../components/daw/simpleControlsTop';
 import SimpleDawControlsBottom from '../../components/daw/simpleControlsBottom';
-
-import { loadFfmpeg } from '../../lib/dawUtils';
-import { setupAudioContext } from '../../lib/dawUtils';
 
 const { useMemo, useState, useCallback, useRef, useEffect } = React;
 
 const EQWIDTH = 28;
-const RVBWIDTH = 16;
-const CHRWIDTH = 24;
+const RVBWIDTH = 13;
+const CHRWIDTH = 18;
 const ORIGURL = '/sample_audio/uncso-bruckner4-1.mp3';
 const { audio, audioContext, filters } = setupAudioContext();
 
 export default function DawSimple() {
-  let disableRegionCreate;
   let zoom, hover, minimap, timeline, regions;
+  let disableRegionCreate;
 
   const dawRef = useRef(null);
   const audioRef = useRef(audio);
   const ffmpegRef = useRef(new FFmpeg());
 
+  const [editList, setEditList] = useState([
+    '/sample_audio/uncso-bruckner4-1.mp3',
+  ]);
+  const [audioURL, setAudioURL] = useState(
+    '/sample_audio/uncso-bruckner4-1.mp3'
+  );
   const [decay, setDecay] = useState(0);
   const [delay, setDelay] = useState(0);
   const [inGain, setInGain] = useState(0);
@@ -56,12 +65,6 @@ export default function DawSimple() {
   const [chrPresent, setChrPresent] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [editListIndex, setEditListIndex] = useState(0);
-  const [editList, setEditList] = useState([
-    '/sample_audio/uncso-bruckner4-1.mp3',
-  ]);
-  const [audioURL, setAudioURL] = useState(
-    '/sample_audio/uncso-bruckner4-1.mp3'
-  );
 
   const chorusSliders = [
     WidgetSlider(0, 1, 0.001, 0, setInGainChr, 'Input'),
@@ -79,67 +82,12 @@ export default function DawSimple() {
     WidgetSlider(0.1, 1, 0.001, 0.1, setDecay, 'Decay'),
   ];
 
-  const applyReverb = async () => {
-    console.log('values:');
-    console.log(inGain, outGain, delay, decay);
-    const ffmpeg = ffmpegRef.current;
-
-    await ffmpeg.writeFile('input.mp3', await fetchFile(audioURL));
-    await ffmpeg.exec([
-      '-i',
-      'input.mp3',
-      '-map',
-      '0',
-      '-af',
-      `aecho=${inGain}:${outGain}:${delay}:${decay}`,
-      'output.mp3',
-    ]);
-
-    const data = await ffmpeg.readFile('output.mp3');
-    if (audioRef.current) {
-      audioRef.current.src = URL.createObjectURL(
-        new Blob([data.buffer], { type: 'audio/mp3' })
-      );
-    }
-
-    setAudioURL(audioRef.current.src);
-    console.log('reverb updated', audioRef.current.src);
-    wavesurfer.load(audioRef.current.src);
-    setEditList([...editList, audioRef.current.src]);
-    setEditListIndex(editListIndex + 1);
-  };
-
-  const applyChorus = async () => {
-    const ffmpeg = ffmpegRef.current;
-    await ffmpeg.writeFile('input.mp3', await fetchFile(audioURL));
-    await ffmpeg.exec([
-      '-i',
-      'input.mp3',
-      '-af',
-      `chorus=${inGainChr}:${outGainChr}:${delayChr}:${decayChr}:${speedChr}:${depthsChr}`,
-      'output.mp3',
-    ]);
-
-    const data = await ffmpeg.readFile('output.mp3');
-    if (audioRef.current) {
-      audioRef.current.src = URL.createObjectURL(
-        new Blob([data.buffer], { type: 'audio/mp3' })
-      );
-    }
-
-    setAudioURL(audioRef.current.src);
-    console.log('chorus updated', audioRef.current.src);
-    wavesurfer.load(audioRef.current.src);
-    setEditList([...editList, audioRef.current.src]);
-    setEditListIndex(editListIndex + 1);
-  };
-
   useEffect(() => {
     console.log('blobs', editList);
   }, [editList]);
 
   const { wavesurfer, isPlaying, currentTime } = useWavesurfer({
-    height: 196,
+    height: 208,
     media: audio,
     barHeight: 0.8,
     cursorWidth: 2,
@@ -239,6 +187,20 @@ export default function DawSimple() {
 
   console.log('plugins:', wavesurfer?.getActivePlugins());
 
+  const params = {
+    audioRef: audioRef,
+    setAudioURL: setAudioURL,
+    audioURL: audioURL,
+    wavesurfer: wavesurfer,
+    setEditList: setEditList,
+    editList: editList,
+    setEditListIndex: setEditListIndex,
+    editListIndex: editListIndex,
+    hasButton: true,
+    ffmpegRef: ffmpegRef,
+    handler: effectChorusReverb,
+  };
+
   return (
     <Card className="mt-2 mb-2">
       <CardHeader className="pt-1 pb-1">
@@ -266,8 +228,6 @@ export default function DawSimple() {
               eqSetter={setEqPresent}
               eqPresent={eqPresent}
               cutRegion={cutRegion}
-              // transcoder={transcoder}
-              // destroyRegion={destroyRegion}
               ffmpegRef={ffmpegRef}
               ffmpegLoaded={loaded}
               rvbPresent={rvbPresent}
@@ -296,23 +256,31 @@ export default function DawSimple() {
             />
           </div>
           {EQSliders(!eqPresent, filters, EQWIDTH)}
-          {/* {ReverbTool(!rvbPresent)} */}
-          <SliderWidgetVertical
+          <ReverbChorusWidget
             hide={!rvbPresent}
             width={RVBWIDTH}
             sliders={reverbSliders}
-            handler={applyReverb}
             title={'Reverb'}
-            hasButton={true}
+            inGainChr={inGain}
+            outGainChr={outGain}
+            delayChr={delay}
+            decayChr={decay}
+            speedChr={null}
+            depthsChr={null}
+            {...params}
           />
-          {/* {chorusToggle(!chrPresent)} */}
-          <SliderWidgetVertical
+          <ReverbChorusWidget
             hide={!chrPresent}
             width={CHRWIDTH}
             sliders={chorusSliders}
-            handler={applyChorus}
             title={'Chorus'}
-            hasButton={true}
+            inGainChr={inGainChr}
+            outGainChr={outGainChr}
+            delayChr={delayChr}
+            decayChr={decayChr}
+            speedChr={speedChr}
+            depthsChr={depthsChr}
+            {...params}
           />
         </div>
       </CardBody>
