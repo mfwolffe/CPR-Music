@@ -32,8 +32,8 @@ const EQSliders = (hide, filters, width) => {
         <CardHeader className="text-center text-white pt-1 pb-1 bg-daw-toolbars">
           <CardTitle className="pt-0 pb-0 mt-0 mb-0">Equalizer</CardTitle>
         </CardHeader>
-        <CardBody className="bg-dawcontrol text-white mlr-a pt-2 pb-2">
-          <div className="d-flex gap-2 mlr-a">
+        <CardBody className="bg-dawcontrol text-white mlr-a plr-0 pt-2 pb-2 w-100">
+          <div className="flex-even gap-2 mlr-a w-100 plr-1">
             <div>{sliders.slice(0, 5)}</div>
             <div>{sliders.slice(5, 10)}</div>
           </div>
