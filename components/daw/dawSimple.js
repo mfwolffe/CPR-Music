@@ -198,6 +198,7 @@ export default function DawSimple() {
     editListIndex: editListIndex,
     hasButton: true,
     ffmpegRef: ffmpegRef,
+    ffmpegLoaded: loaded,
     handler: effectChorusReverb,
   };
 
@@ -222,26 +223,16 @@ export default function DawSimple() {
             }}
           >
             <SimpleDawControlsTop
-              waveSurfer={wavesurfer}
               mapPresent={mapPresent}
               mapSetter={setMapPrsnt}
               eqSetter={setEqPresent}
               eqPresent={eqPresent}
               cutRegion={cutRegion}
-              ffmpegRef={ffmpegRef}
-              ffmpegLoaded={loaded}
               rvbPresent={rvbPresent}
               rvbSetter={setRvbPresent}
               chrPresent={chrPresent}
               chrSetter={setChrPresent}
-              editIndex={editListIndex}
-              indexSetter={setEditListIndex}
-              editList={editList}
-              listSetter={setEditList}
-              restoreState={restoreState}
-              urlSetter={setAudioURL}
-              audioRef={audioRef}
-              audioURL={audioURL}
+              {...params}
             />
             <div
               ref={dawRef}
@@ -250,7 +241,7 @@ export default function DawSimple() {
             />
             {MinimapContainer(!mapPresent)}
             <SimpleDawControlsBottom
-              waveSurfer={wavesurfer}
+              wavesurfer={wavesurfer}
               playbackSpeed={playbackSpeed}
               speedSetter={setPlaybackSpeed}
             />

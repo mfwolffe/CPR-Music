@@ -21,29 +21,29 @@ const skipStartButton = <BsSkipBackwardCircle fontSize="1rem" />;
 import { formatTime } from '../../lib/dawUtils';
 
 const SimpleDawControlsBottom = ({
-  waveSurfer,
+  wavesurfer,
   playbackSpeed,
   speedSetter,
 }) => {
-  if (!waveSurfer) return '';
+  if (!wavesurfer) return '';
 
   const [zoomLevel, setZoomLevel] = useState(15);
 
   const onSkipTenFwd = useCallback(() => {
-    waveSurfer.skip(10);
+    wavesurfer.skip(10);
   });
 
   const onSkipTenBkwd = useCallback(() => {
-    waveSurfer.skip(-10);
+    wavesurfer.skip(-10);
   });
 
   const onPlayPause = useCallback(() => {
-    waveSurfer && waveSurfer.playPause();
-  }, [waveSurfer]);
+    wavesurfer && wavesurfer.playPause();
+  }, [wavesurfer]);
 
   const onStopSeekZero = useCallback(() => {
-    waveSurfer.seekTo(0);
-    waveSurfer.isPlaying() && waveSurfer.pause();
+    wavesurfer.seekTo(0);
+    wavesurfer.isPlaying() && wavesurfer.pause();
   });
 
   return (
@@ -56,16 +56,16 @@ const SimpleDawControlsBottom = ({
           {skipStartButton}
         </Button>
         <Button onClick={onPlayPause} className="prog-button">
-          {waveSurfer.isPlaying() ? pauseButton : playButton}
+          {wavesurfer.isPlaying() ? pauseButton : playButton}
         </Button>
         <Button onClick={onSkipTenFwd} className="prog-button">
           {skipTenButton}
         </Button>
         <span
           className="pl-1 pt-0 pb-0 mt-0 mb-0"
-          style={{ color: waveSurfer.isPlaying() ? 'aqua' : 'white' }}
+          style={{ color: wavesurfer.isPlaying() ? 'aqua' : 'white' }}
         >
-          {formatTime(waveSurfer.getCurrentTime())}
+          {formatTime(wavesurfer.getCurrentTime())}
         </span>
       </div>
 
@@ -74,7 +74,7 @@ const SimpleDawControlsBottom = ({
           className="prog-button"
           onClick={() => {
             setZoomLevel(zoomLevel + 25);
-            waveSurfer.zoom(zoomLevel);
+            wavesurfer.zoom(zoomLevel);
           }}
         >
           <BsZoomIn fontSize="1rem" />
@@ -85,7 +85,7 @@ const SimpleDawControlsBottom = ({
           onClick={() => {
             const zoom = zoomLevel - 25;
             setZoomLevel(zoom < 0 ? 0 : zoom);
-            waveSurfer.zoom(zoomLevel);
+            wavesurfer.zoom(zoomLevel);
           }}
         >
           <BsZoomOut fontSize="1rem" />
@@ -96,7 +96,7 @@ const SimpleDawControlsBottom = ({
             fontSize="1rem"
             onClick={() => {
               setZoomLevel(0);
-              waveSurfer.zoom(0);
+              wavesurfer.zoom(0);
             }}
           />
         </Button>
