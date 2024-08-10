@@ -11,7 +11,7 @@ import { RiEqualizerLine } from 'react-icons/ri';
 import { IoTrashOutline } from 'react-icons/io5';
 import { RiSoundModuleFill } from 'react-icons/ri';
 
-import { transcoder, reverbEffects } from '../../lib/dawUtils';
+import { effectSliceRegions } from '../../lib/dawUtils';
 
 const dawSpinner = <Spinner animation="grow" size="sm" />;
 
@@ -64,6 +64,22 @@ const SimpleDawControlsTop = ({
     chrSetter(!chrPresent);
   });
 
+  const sliceRegion = (keep) => {
+    effectSliceRegions(
+      cutRegion,
+      ffmpegRef,
+      urlSetter,
+      waveSurfer,
+      listSetter,
+      editList,
+      indexSetter,
+      editIndex,
+      audioRef,
+      audioURL,
+      keep
+    );
+  };
+
   return (
     <>
       <div className="d-flex w-100 ml-auto mr-auto pl-2 toolbar align-items-center flex-row flex-between gap-0375">
@@ -110,24 +126,7 @@ const SimpleDawControlsTop = ({
           </Button>
           <Button className="prog-button">
             {ffmpegLoaded ? (
-              <IoCutOutline
-                fontSize="1rem"
-                onClick={() =>
-                  transcoder(
-                    cutRegion,
-                    ffmpegRef,
-                    urlSetter,
-                    waveSurfer,
-                    listSetter,
-                    editList,
-                    indexSetter,
-                    editIndex,
-                    audioRef,
-                    audioURL,
-                    true
-                  )
-                }
-              />
+              <IoCutOutline fontSize="1rem" onClick={() => sliceRegion(true)} />
             ) : (
               dawSpinner
             )}
@@ -136,21 +135,7 @@ const SimpleDawControlsTop = ({
             {ffmpegLoaded ? (
               <IoTrashOutline
                 fontSize="1rem"
-                onClick={() =>
-                  transcoder(
-                    cutRegion,
-                    ffmpegRef,
-                    urlSetter,
-                    waveSurfer,
-                    listSetter,
-                    editList,
-                    indexSetter,
-                    editIndex,
-                    audioRef,
-                    audioURL,
-                    false
-                  )
-                }
+                onClick={() => sliceRegion(false)}
               />
             ) : (
               dawSpinner
