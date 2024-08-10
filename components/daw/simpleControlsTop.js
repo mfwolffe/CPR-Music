@@ -16,7 +16,7 @@ import { effectSliceRegions } from '../../lib/dawUtils';
 const dawSpinner = <Spinner animation="grow" size="sm" />;
 
 const SimpleDawControlsTop = ({
-  waveSurfer,
+  wavesurfer,
   mapPresent,
   mapSetter,
   eqPresent,
@@ -29,19 +29,19 @@ const SimpleDawControlsTop = ({
   ffmpegLoaded,
   chrPresent,
   chrSetter,
-  editIndex,
+  editListIndex,
   editList,
-  listSetter,
-  indexSetter,
+  setEditList,
+  setEditListIndex,
   restoreState,
-  urlSetter,
+  setAudioUrL,
   audioRef,
   ffmpegRef,
   audioURL,
   chrParams,
   rvbParams,
 }) => {
-  if (!waveSurfer) return '';
+  if (!wavesurfer) return '';
 
   const [eqHvr, setEqHvr] = useState(false);
   const [mapHvr, setMapHvr] = useState(false);
@@ -68,12 +68,12 @@ const SimpleDawControlsTop = ({
     effectSliceRegions(
       cutRegion,
       ffmpegRef,
-      urlSetter,
-      waveSurfer,
-      listSetter,
+      setAudioUrL,
+      wavesurfer,
+      setEditList,
       editList,
-      indexSetter,
-      editIndex,
+      setEditListIndex,
+      editListIndex,
       audioRef,
       audioURL,
       keep
@@ -146,7 +146,12 @@ const SimpleDawControlsTop = ({
           <Button
             className="prog-button pr-2"
             onClick={() =>
-              restoreState(editIndex - 1, editList, indexSetter, waveSurfer)
+              restoreState(
+                editListIndex - 1,
+                editList,
+                setEditListIndex,
+                wavesurfer
+              )
             }
           >
             <IoArrowUndo fontSize="1rem" />
@@ -154,7 +159,12 @@ const SimpleDawControlsTop = ({
           <Button
             className="prog-button pr-2"
             onClick={() =>
-              restoreState(editIndex + 1, editList, indexSetter, waveSurfer)
+              restoreState(
+                editListIndex + 1,
+                editList,
+                setEditListIndex,
+                wavesurfer
+              )
             }
           >
             <IoArrowRedo fontSize="1rem" />
