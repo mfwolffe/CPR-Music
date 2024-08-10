@@ -75,6 +75,10 @@
   margin-right: auto !important;
 }
 
+.mb-05 {
+  margin-bottom: 0.5rem !important;
+}
+
 .gap-2p {
   gap: 1.5% !important;
 }
@@ -162,10 +166,6 @@
   border-top: 2px solid #fff;
 }
 
-#equalizer {
-  width: fit-content;
-}
-
 input[type='range'][orient='vertical'] {
   writing-mode: vertical-lr;
   direction: rtl;
@@ -179,4 +179,42 @@ input[type='range'][orient='vertical'] {
   display: flex;
   flex-direction: row;
   justify-content: space-between;
+}
+
+.flex-around {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-around;
+}
+
+.flex-even {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-evenly;
+}
+
+.flex-center {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+}
+
+.plr-1 {
+  padding-left: '1rem';
+  padding-right: '1rem';
+}
+
+.plr-0 {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.plr-05 {
+  padding-left: '0.5rem';
+  padding-right: '0.5rem';
+}
+
+.plr-025 {
+  padding-left: '0.25rem';
+  padding-right: '0.25rem';
 }
