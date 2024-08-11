@@ -34,7 +34,7 @@ const SimpleDawControlsTop = ({
   setEditList,
   setEditListIndex,
   restoreState,
-  setAudioUrL,
+  setAudioURL,
   audioRef,
   ffmpegRef,
   audioURL,
@@ -68,7 +68,7 @@ const SimpleDawControlsTop = ({
     effectSliceRegions(
       cutRegion,
       ffmpegRef,
-      setAudioUrL,
+      setAudioURL,
       wavesurfer,
       setEditList,
       editList,
