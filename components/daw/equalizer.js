@@ -1,7 +1,5 @@
 import { Card, CardHeader, CardTitle, CardBody, Form } from 'react-bootstrap';
 
-const eqBands = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
-
 const EQSliders = (hide, filters, width) => {
   const hidden = hide;
   const sliders = [];

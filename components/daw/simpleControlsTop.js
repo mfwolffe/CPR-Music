@@ -11,7 +11,7 @@ import { RiEqualizerLine } from 'react-icons/ri';
 import { IoTrashOutline } from 'react-icons/io5';
 import { RiSoundModuleFill } from 'react-icons/ri';
 
-import { effectSliceRegions } from '../../lib/dawUtils';
+import { effectSliceRegions, restoreState } from '../../lib/dawUtils';
 
 const dawSpinner = <Spinner animation="grow" size="sm" />;
 
@@ -23,9 +23,7 @@ const SimpleDawControlsTop = ({
   eqSetter,
   rvbPresent,
   rvbSetter,
-  // transcoder,
   cutRegion,
-  // destroyRegion,
   ffmpegLoaded,
   chrPresent,
   chrSetter,
@@ -33,13 +31,10 @@ const SimpleDawControlsTop = ({
   editList,
   setEditList,
   setEditListIndex,
-  restoreState,
   setAudioURL,
   audioRef,
   ffmpegRef,
   audioURL,
-  chrParams,
-  rvbParams,
 }) => {
   if (!wavesurfer) return '';
 

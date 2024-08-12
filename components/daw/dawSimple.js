@@ -5,32 +5,32 @@ import Hover from 'wavesurfer.js/dist/plugins/hover.esm.js';
 import Minimap from 'wavesurfer.js/dist/plugins/minimap.esm.js';
 import Timeline from 'wavesurfer.js/dist/plugins/timeline.esm.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
-import { Card, CardBody, CardHeader, CardTitle, Form } from 'react-bootstrap';
+import { Card, CardBody, CardHeader, CardTitle } from 'react-bootstrap';
 
 import { fetchFile } from '@ffmpeg/util';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 
 import {
+  loadFfmpeg,
   formatTime,
-  restoreState,
+  setupAudioContext,
   effectChorusReverb,
 } from '../../lib/dawUtils';
 import EQSliders from './equalizer';
 import { MinimapContainer } from './common';
-import { loadFfmpeg } from '../../lib/dawUtils';
 import ReverbChorusWidget from './reverbWidget';
 import WidgetSlider from './widgetSliderVertical';
-import { setupAudioContext } from '../../lib/dawUtils';
 import SimpleDawControlsTop from '../../components/daw/simpleControlsTop';
 import SimpleDawControlsBottom from '../../components/daw/simpleControlsBottom';
 
-const { useMemo, useState, useCallback, useRef, useEffect } = React;
+const { useMemo, useState, useRef, useEffect } = React;
 
 const EQWIDTH = 28;
 const RVBWIDTH = 13;
 const CHRWIDTH = 18;
+
 const ORIGURL = '/sample_audio/uncso-bruckner4-1.mp3';
-const { audio, audioContext, filters } = setupAudioContext();
+const { audio, filters } = setupAudioContext();
 
 export default function DawSimple() {
   let zoom, hover, minimap, timeline, regions;
@@ -40,12 +40,8 @@ export default function DawSimple() {
   const audioRef = useRef(audio);
   const ffmpegRef = useRef(new FFmpeg());
 
-  const [editList, setEditList] = useState([
-    '/sample_audio/uncso-bruckner4-1.mp3',
-  ]);
-  const [audioURL, setAudioURL] = useState(
-    '/sample_audio/uncso-bruckner4-1.mp3'
-  );
+  const [editList, setEditList] = useState([ORIGURL]);
+  const [audioURL, setAudioURL] = useState(ORIGURL);
   const [decay, setDecay] = useState(0);
   const [delay, setDelay] = useState(0);
   const [inGain, setInGain] = useState(0);
@@ -211,7 +207,6 @@ export default function DawSimple() {
         <div className="d-flex w-100 gap-2p">
           <div
             id="waveform-container"
-            // className="w-100"
             style={{
               width: `${
                 100 -
