@@ -44,6 +44,13 @@ function Navigation() {
             {piece && <NavActivityPicker />}
           </Nav>
           <Nav>
+            <Link
+              href="/silence-sandbox/catch-dropped-audio"
+              passHref
+              legacyBehavior
+            >
+              <Nav.Link>Sandbox</Nav.Link>
+            </Link>
             <Link href="/about" passHref legacyBehavior>
               <Nav.Link>About</Nav.Link>
             </Link>
