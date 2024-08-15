@@ -15,20 +15,14 @@ import {
   FormText,
 } from 'react-bootstrap';
 
-import {
-  catchSilence,
-  loadFfmpeg,
-  setupAudioContext,
-} from '../../lib/audioUtils';
+import { catchSilence, loadFfmpeg } from '../../lib/audioUtils';
 import Layout from '../../components/layout';
 import AudioDropModal from '../../components/audioDropWarning';
 
+const URL = '/sample_audio/uncso-bruckner4-1.mp3';
 const { useCallback, useEffect, useRef, useState } = React;
-const url = '/sample_audio/uncso-bruckner4-1.mp3';
-const { audio, filters, audioContext } = setupAudioContext();
 
 export default function DroppedAudioSandBox() {
-  const audioRef = useRef(audio);
   const ffmpegRef = useRef(new FFmpeg());
   const [loaded, setLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -39,8 +33,6 @@ export default function DroppedAudioSandBox() {
   const [multichannelScan, setMultichannelScan] = useState(false);
 
   if (!loaded) loadFfmpeg(ffmpegRef, setLoaded, setIsLoading);
-
-  const ffmpeg = ffmpegRef.current;
 
   useEffect(() => {
     console.log(
@@ -53,7 +45,7 @@ export default function DroppedAudioSandBox() {
 
     const { silences, numSilences, silenceFlag } = await catchSilence(
       ffmpegRef,
-      url,
+      URL,
       noiseTolerance,
       silenceDuration,
       multichannelScan ? true : null
@@ -105,7 +97,7 @@ export default function DroppedAudioSandBox() {
                 </FormText>
               </div>
             </div>
-            <div className="d-flex justify-content-between mt-1">
+            <div className="d-flex justify-content-between mt-2">
               <FormLabel style={{ fontSize: '1.15rem' }}>
                 Silence Duration
               </FormLabel>
@@ -134,7 +126,7 @@ export default function DroppedAudioSandBox() {
           <div className="d-flex justify-content-between align-items-center mt-4">
             <p className="text-info pb-0 mb-0">
               <strong>File to scan: </strong>
-              <em>{`${url}`}</em>
+              <em>{`${URL}`}</em>
             </p>
 
             <Button variant="primary" onClick={scan}>

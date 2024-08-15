@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Table } from 'react-bootstrap';
 import Modal from 'react-bootstrap/Modal';
 import Button from 'react-bootstrap/Button';
+
 import { PiWarningOctagonFill } from 'react-icons/pi';
 
 import { formatTimeMilli } from '../lib/audioUtils';
@@ -80,7 +81,7 @@ export default function AudioDropModal({ show, setShow, silenceData }) {
             Close
           </Button>
           <Button variant="primary" onClick={closeModal}>
-            Save Changes
+            Show on Waveform
           </Button>
         </Modal.Footer>
       </Modal>
