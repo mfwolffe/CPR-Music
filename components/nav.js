@@ -1,4 +1,5 @@
 'use client';
+
 import Nav from 'react-bootstrap/Nav';
 import Navbar from 'react-bootstrap/Navbar';
 import Container from 'react-bootstrap/Container';
@@ -8,6 +9,7 @@ import { useQuery } from 'react-query';
 import LoginOut from './loginout';
 import { getEnrollments } from '../api';
 import CourseSelector from './courseSelector';
+import { NavActivityPicker } from './student/navActivityPicker';
 import { NavActivityPicker } from './student/navActivityPicker';
 import { PiecePicker } from './student/piecePicker';
 
@@ -45,6 +47,13 @@ function Navigation() {
           <Nav>
             <Link href="/daw/daw" passHref legacyBehavior>
               <Nav.Link>DAW</Nav.Link>
+            </Link>
+            <Link
+              href="/silence-sandbox/catch-dropped-audio"
+              passHref
+              legacyBehavior
+            >
+              <Nav.Link>Sandbox</Nav.Link>
             </Link>
             <Link href="/about" passHref legacyBehavior>
               <Nav.Link>About</Nav.Link>
