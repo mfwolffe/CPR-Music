@@ -10,6 +10,7 @@ import LoginOut from './loginout';
 import { getEnrollments } from '../api';
 import CourseSelector from './courseSelector';
 import { NavActivityPicker } from './student/navActivityPicker';
+import { NavActivityPicker } from './student/navActivityPicker';
 import { PiecePicker } from './student/piecePicker';
 
 function Navigation() {
@@ -44,6 +45,9 @@ function Navigation() {
             {piece && <NavActivityPicker />}
           </Nav>
           <Nav>
+            <Link href="/daw/daw" passHref legacyBehavior>
+              <Nav.Link>DAW</Nav.Link>
+            </Link>
             <Link
               href="/silence-sandbox/catch-dropped-audio"
               passHref

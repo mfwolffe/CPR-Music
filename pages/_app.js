@@ -5,6 +5,7 @@ import { SessionProvider } from 'next-auth/react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '../styles/bootstrap.min-musiccpr.css';
 import '../styles/global.css';
+import '../styles/daw-styles.css';
 import { ReactQueryDevtools } from 'react-query/devtools';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import wrapper from '../store';
