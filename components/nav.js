@@ -52,7 +52,7 @@ function Navigation() {
               passHref
               legacyBehavior
             >
-              <Nav.Link>Sandbox</Nav.Link>
+              <Nav.Link>Silence-Sandbox</Nav.Link>
             </Link>
             <Link href="/about" passHref legacyBehavior>
               <Nav.Link>About</Nav.Link>
@@ -66,3 +66,5 @@ function Navigation() {
 }
 
 export default Navigation;
+
+
