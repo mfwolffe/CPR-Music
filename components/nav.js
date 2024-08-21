@@ -10,7 +10,6 @@ import LoginOut from './loginout';
 import { getEnrollments } from '../api';
 import CourseSelector from './courseSelector';
 import { NavActivityPicker } from './student/navActivityPicker';
-import { NavActivityPicker } from './student/navActivityPicker';
 import { PiecePicker } from './student/piecePicker';
 
 function Navigation() {
