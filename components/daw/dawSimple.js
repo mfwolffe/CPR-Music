@@ -5,7 +5,9 @@ import Hover from 'wavesurfer.js/dist/plugins/hover.esm.js';
 import Minimap from 'wavesurfer.js/dist/plugins/minimap.esm.js';
 import Timeline from 'wavesurfer.js/dist/plugins/timeline.esm.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
-import { Card, CardBody, CardHeader, CardTitle } from 'react-bootstrap';
+import { Button, Card, CardBody, CardHeader, CardTitle } from 'react-bootstrap';
+
+import { GrHelpBook } from "react-icons/gr";
 
 import { fetchFile } from '@ffmpeg/util';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
@@ -23,7 +25,7 @@ import WidgetSlider from './widgetSliderVertical';
 import SimpleDawControlsTop from '../../components/daw/simpleControlsTop';
 import SimpleDawControlsBottom from '../../components/daw/simpleControlsBottom';
 
-const { useMemo, useState, useRef, useEffect } = React;
+const { useCallback, useMemo, useState, useRef, useEffect } = React;
 
 const EQWIDTH = 28;
 const RVBWIDTH = 13;
@@ -40,8 +42,6 @@ export default function DawSimple() {
   const audioRef = useRef(audio);
   const ffmpegRef = useRef(new FFmpeg());
 
-  const [editList, setEditList] = useState([ORIGURL]);
-  const [audioURL, setAudioURL] = useState(ORIGURL);
   const [decay, setDecay] = useState(0);
   const [delay, setDelay] = useState(0);
   const [inGain, setInGain] = useState(0);
@@ -53,10 +53,13 @@ export default function DawSimple() {
   const [depthsChr, setDepthsChr] = useState(0);
   const [inGainChr, setInGainChr] = useState(0);
   const [cutRegion, setCutRegion] = useState('');
+  const [showHelp, setShowHelp] = useState(false);
   const [outGainChr, setOutGainChr] = useState(0);
+  const [audioURL, setAudioURL] = useState(ORIGURL);
   const [isLoading, setIsLoading] = useState(false);
   const [eqPresent, setEqPresent] = useState(false);
   const [mapPresent, setMapPrsnt] = useState(false);
+  const [editList, setEditList] = useState([ORIGURL]);
   const [rvbPresent, setRvbPresent] = useState(false);
   const [chrPresent, setChrPresent] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -198,10 +201,15 @@ export default function DawSimple() {
     handler: effectChorusReverb,
   };
 
+  const handleHelp = useCallback(() => setShowHelp(true));
+
   return (
     <Card className="mt-2 mb-2">
-      <CardHeader className="pt-1 pb-1">
+      <CardHeader className="pt-1 pb-1 flex-between">
         <CardTitle className="pt-0 pb-0 mt-0 mb-0">Audio Editor</CardTitle>
+        <Button className='help-button daw-help align-center' onClick={handleHelp}>
+          <GrHelpBook className="help-ico" fontSize="1.5rem" />
+        </Button>
       </CardHeader>
       <CardBody>
         <div className="d-flex w-100 gap-2p">
