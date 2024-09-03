@@ -44,6 +44,9 @@ function Navigation() {
             {piece && <NavActivityPicker />}
           </Nav>
           <Nav>
+            <Link href="/daw/dawCreative" passHref legacyBehavior>
+              <Nav.Link>DAW-Create</Nav.Link>
+            </Link>
             <Link
               href="/silence-sandbox/catch-dropped-audio"
               passHref

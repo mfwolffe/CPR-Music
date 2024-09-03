@@ -127,7 +127,7 @@
   filter: drop-shadow(0 0 8px #333);
 }
 
-.prog-button {
+.prog-button, .help-button {
   display: flex !important;
   align-self: center !important;
   flex-direction: row !important;
@@ -136,6 +136,10 @@
   border: none;
   padding-left: 0;
   padding-right: 0;
+}
+
+.help-ico:hover {
+  color:teal;
 }
 
 .prog-button:hover {
@@ -217,4 +221,13 @@ input[type='range'][orient='vertical'] {
 .plr-025 {
   padding-left: '0.25rem';
   padding-right: '0.25rem';
+}
+
+
+.daw-help {
+  color: #92ce84 !important;
+}
+
+.align-center {
+  align-items: center;
 }
