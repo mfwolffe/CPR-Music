@@ -186,6 +186,35 @@ export default function HelpAccordion() {
           </dl>
         </Accordion.Body>
       </Accordion.Item>
+      <Accordion.Item eventKey="3">
+        <Accordion.Header>Other Features</Accordion.Header>
+        <Accordion.Body>
+          <dl>
+            <dt>Highlighting/Selecting an Audio Segment</dt>
+            <dd>
+              To highlight a region so that you can make edits to only a specific segment of your recording,
+              click the waveform with your mouse, hold the mouse button, and drag the mouse to the left or right.
+            </dd>
+            <dt>Deselecting an Audio Segment</dt>
+            <dd>
+              By default, creating a new segment is locked when a region currently exists on the waveform.
+              To deselect a segment and allow creation of a new highlighted region, hover your mouse over your highlighted region
+              and double click it.
+            </dd>
+            <dt>Moving a Highlighted Segment</dt>
+            <dd>
+              To move a highlighted segment to a different location on the waveform, simply click and drag to the left or right.
+            </dd>
+            <dt>Resizing a Highlighted Segment</dt>
+            <dd>
+              To resize a highlighted audio segment, hover your mouse over the left or right edge of the region
+              until you see the shape of the mouse cursor change to a double-sided arrow
+              (Region endpoints have a different color to assist in this task).
+              Once changed, click and drag to extend or shrink your highlighted region.
+            </dd>
+          </dl>
+        </Accordion.Body>
+      </Accordion.Item>
     </Accordion>
   );
 }
