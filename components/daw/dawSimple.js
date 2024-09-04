@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { Modal } from 'react-bootstrap';
 import { useWavesurfer } from '@wavesurfer/react';
 import Zoom from 'wavesurfer.js/dist/plugins/zoom.esm.js';
 import Hover from 'wavesurfer.js/dist/plugins/hover.esm.js';
@@ -19,6 +20,7 @@ import {
   effectChorusReverb,
 } from '../../lib/dawUtils';
 import EQSliders from './equalizer';
+import HelpAccordion from './dawHelp';
 import { MinimapContainer } from './common';
 import ReverbChorusWidget from './reverbWidget';
 import WidgetSlider from './widgetSliderVertical';
@@ -33,6 +35,26 @@ const CHRWIDTH = 18;
 
 const ORIGURL = '/sample_audio/uncso-bruckner4-1.mp3';
 const { audio, filters } = setupAudioContext();
+
+const HelpModal = ({ setFn, shown }) => {
+  return (
+    <>
+      <Modal size='lg' show={shown} onHide={() => setFn(false)} style={{maxHeight: "96%"}}>
+        <Modal.Header style={{background: "var(--daw-timeline-bg)", color: "white" }}>
+          <Modal.Title>DAW Help</Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{overflow: "scroll", backgroundColor: "var(--daw-grey"}}>
+          <HelpAccordion />
+        </Modal.Body>
+        <Modal.Footer style={{backgroundColor: "var(--daw-timeline-bg"}}>
+          <Button variant="primary" onClick={() => setFn(false)}>
+            Close
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    </>
+  );
+}
 
 export default function DawSimple() {
   let zoom, hover, minimap, timeline, regions;
@@ -201,83 +223,89 @@ export default function DawSimple() {
     handler: effectChorusReverb,
   };
 
-  const handleHelp = useCallback(() => setShowHelp(true));
+  const handleHelp = useCallback(() => {
+    setShowHelp(true)
+    console.log("yooo");
+  });
 
   return (
-    <Card className="mt-2 mb-2">
-      <CardHeader className="pt-1 pb-1 flex-between">
-        <CardTitle className="pt-0 pb-0 mt-0 mb-0">Audio Editor</CardTitle>
-        <Button className='help-button daw-help align-center' onClick={handleHelp}>
-          <GrHelpBook className="help-ico" fontSize="1.5rem" />
-        </Button>
-      </CardHeader>
-      <CardBody>
-        <div className="d-flex w-100 gap-2p">
-          <div
-            id="waveform-container"
-            style={{
-              width: `${
-                100 -
-                (rvbPresent || eqPresent || chrPresent ? 1.5 : 0) -
-                (eqPresent ? EQWIDTH : 0) -
-                (rvbPresent ? RVBWIDTH : 0) -
-                (chrPresent ? CHRWIDTH : 0)
-              }%`,
-            }}
-          >
-            <SimpleDawControlsTop
-              mapPresent={mapPresent}
-              mapSetter={setMapPrsnt}
-              eqSetter={setEqPresent}
-              eqPresent={eqPresent}
-              cutRegion={cutRegion}
-              rvbPresent={rvbPresent}
-              rvbSetter={setRvbPresent}
-              chrPresent={chrPresent}
-              chrSetter={setChrPresent}
+    <>
+      <HelpModal setFn={setShowHelp} shown={showHelp} />
+      <Card className="mt-2 mb-2">
+        <CardHeader className="pt-1 pb-1 flex-between">
+          <CardTitle className="pt-0 pb-0 mt-0 mb-0">Audio Editor</CardTitle>
+          <Button className='help-button daw-help align-center' onClick={() => handleHelp()}>
+            <GrHelpBook className="help-ico" fontSize="1.5rem" />
+          </Button>
+        </CardHeader>
+        <CardBody>
+          <div className="d-flex w-100 gap-2p">
+            <div
+              id="waveform-container"
+              style={{
+                width: `${
+                  100 -
+                  (rvbPresent || eqPresent || chrPresent ? 1.5 : 0) -
+                  (eqPresent ? EQWIDTH : 0) -
+                  (rvbPresent ? RVBWIDTH : 0) -
+                  (chrPresent ? CHRWIDTH : 0)
+                }%`,
+              }}
+            >
+              <SimpleDawControlsTop
+                mapPresent={mapPresent}
+                mapSetter={setMapPrsnt}
+                eqSetter={setEqPresent}
+                eqPresent={eqPresent}
+                cutRegion={cutRegion}
+                rvbPresent={rvbPresent}
+                rvbSetter={setRvbPresent}
+                chrPresent={chrPresent}
+                chrSetter={setChrPresent}
+                {...params}
+              />
+              <div
+                ref={dawRef}
+                id="waveform"
+                className="ml-auto mr-auto mb-0 mt-0"
+              />
+              {MinimapContainer(!mapPresent)}
+              <SimpleDawControlsBottom
+                wavesurfer={wavesurfer}
+                playbackSpeed={playbackSpeed}
+                speedSetter={setPlaybackSpeed}
+              />
+            </div>
+            {EQSliders(!eqPresent, filters, EQWIDTH)}
+            <ReverbChorusWidget
+              hide={!rvbPresent}
+              width={RVBWIDTH}
+              sliders={reverbSliders}
+              title={'Reverb'}
+              inGainChr={inGain}
+              outGainChr={outGain}
+              delayChr={delay}
+              decayChr={decay}
+              speedChr={null}
+              depthsChr={null}
               {...params}
             />
-            <div
-              ref={dawRef}
-              id="waveform"
-              className="ml-auto mr-auto mb-0 mt-0"
-            />
-            {MinimapContainer(!mapPresent)}
-            <SimpleDawControlsBottom
-              wavesurfer={wavesurfer}
-              playbackSpeed={playbackSpeed}
-              speedSetter={setPlaybackSpeed}
+            <ReverbChorusWidget
+              hide={!chrPresent}
+              width={CHRWIDTH}
+              sliders={chorusSliders}
+              title={'Chorus'}
+              inGainChr={inGainChr}
+              outGainChr={outGainChr}
+              delayChr={delayChr}
+              decayChr={decayChr}
+              speedChr={speedChr}
+              depthsChr={depthsChr}
+              {...params}
             />
           </div>
-          {EQSliders(!eqPresent, filters, EQWIDTH)}
-          <ReverbChorusWidget
-            hide={!rvbPresent}
-            width={RVBWIDTH}
-            sliders={reverbSliders}
-            title={'Reverb'}
-            inGainChr={inGain}
-            outGainChr={outGain}
-            delayChr={delay}
-            decayChr={decay}
-            speedChr={null}
-            depthsChr={null}
-            {...params}
-          />
-          <ReverbChorusWidget
-            hide={!chrPresent}
-            width={CHRWIDTH}
-            sliders={chorusSliders}
-            title={'Chorus'}
-            inGainChr={inGainChr}
-            outGainChr={outGainChr}
-            delayChr={delayChr}
-            decayChr={decayChr}
-            speedChr={speedChr}
-            depthsChr={depthsChr}
-            {...params}
-          />
-        </div>
-      </CardBody>
-    </Card>
+        </CardBody>
+      </Card>
+    </>
   );
 }
