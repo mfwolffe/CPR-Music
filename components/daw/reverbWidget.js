@@ -1,3 +1,5 @@
+'use client';
+
 import { Button, Card, CardBody, CardHeader, CardTitle } from 'react-bootstrap';
 
 const SliderGroup = ({ slider1, slider2, showGain }) => {

@@ -1,3 +1,5 @@
+'use client';
+
 import * as React from 'react';
 import { Accordion, Container, Row, Col } from 'react-bootstrap';
 
@@ -19,7 +21,6 @@ import { BsSkipBackwardCircle } from 'react-icons/bs';
 import { BsZoomIn } from 'react-icons/bs';
 import { BsZoomOut } from 'react-icons/bs';
 import { TbZoomReset } from 'react-icons/tb';
-
 
 export default function HelpAccordion() {
   return (

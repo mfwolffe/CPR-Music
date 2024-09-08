@@ -1,3 +1,5 @@
+'use client';
+
 import { Card, CardHeader, CardTitle, CardBody, Form } from 'react-bootstrap';
 
 const EQSliders = (hide, filters, width) => {

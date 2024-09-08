@@ -1,3 +1,5 @@
+'use client';
+
 import * as React from 'react';
 
 import Layout from '../../components/layout';
@@ -49,6 +51,4 @@ export default function DawCreative() {
       <SongFetch />
     </Layout>
   )
-
-
 }
