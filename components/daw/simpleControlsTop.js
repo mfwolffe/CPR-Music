@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useCallback } from 'react';
 import Button from 'react-bootstrap/Button';
 import { Spinner } from 'react-bootstrap';
@@ -13,6 +15,7 @@ import { RiSoundModuleFill } from 'react-icons/ri';
 
 import { effectSliceRegions, restoreState } from '../../lib/dawUtils';
 
+const icoSize = "1.25rem";
 const dawSpinner = <Spinner animation="grow" size="sm" />;
 
 const SimpleDawControlsTop = ({
@@ -78,10 +81,10 @@ const SimpleDawControlsTop = ({
   return (
     <>
       <div className="d-flex w-100 ml-auto mr-auto pl-2 toolbar align-items-center flex-row flex-between gap-0375">
-        <div className="d-flex gap-0375 align-items-center">
+        <div className="d-flex gap-05 align-items-center">
           <Button className="prog-button" onClick={handleMinimap}>
             <MdOutlineWaves
-              fontSize="1rem"
+              fontSize={icoSize}
               onPointerEnter={() => setMapHvr(true)}
               onPointerLeave={() => setMapHvr(false)}
               style={{ color: mapPresent || mapHvr ? 'aqua' : 'white' }}
@@ -89,7 +92,7 @@ const SimpleDawControlsTop = ({
           </Button>
           <Button className="prog-button" onClick={toggleEQ}>
             <RiEqualizerLine
-              fontSize="1rem"
+              fontSize={icoSize}
               onPointerEnter={() => setEqHvr(true)}
               onPointerLeave={() => setEqHvr(false)}
               style={{ color: eqPresent || eqHvr ? 'aqua' : 'white' }}
@@ -98,7 +101,7 @@ const SimpleDawControlsTop = ({
           <Button className="prog-button" onClick={toggleRvb}>
             {ffmpegLoaded ? (
               <RiSoundModuleFill
-                fontSize="1rem"
+                fontSize={icoSize}
                 onPointerEnter={() => setRvbHvr(true)}
                 onPointerLeave={() => setRvbHvr(false)}
                 style={{ color: rvbPresent || rvbHvr ? 'aqua' : 'white' }}
@@ -113,7 +116,7 @@ const SimpleDawControlsTop = ({
                 onPointerEnter={() => setChrHvr(true)}
                 onPointerLeave={() => setChrHvr(false)}
                 style={{ color: chrPresent || chrHvr ? 'aqua' : 'white' }}
-                fontSize="1rem"
+                fontSize={icoSize}
               />
             ) : (
               dawSpinner
@@ -121,7 +124,7 @@ const SimpleDawControlsTop = ({
           </Button>
           <Button className="prog-button">
             {ffmpegLoaded ? (
-              <IoCutOutline fontSize="1rem" onClick={() => sliceRegion(true)} />
+              <IoCutOutline fontSize={icoSize} onClick={() => sliceRegion(true)} />
             ) : (
               dawSpinner
             )}
@@ -129,7 +132,7 @@ const SimpleDawControlsTop = ({
           <Button className="prog-button">
             {ffmpegLoaded ? (
               <IoTrashOutline
-                fontSize="1rem"
+                fontSize={icoSize}
                 onClick={() => sliceRegion(false)}
               />
             ) : (
@@ -149,7 +152,7 @@ const SimpleDawControlsTop = ({
               )
             }
           >
-            <IoArrowUndo fontSize="1rem" />
+            <IoArrowUndo fontSize={icoSize} />
           </Button>
           <Button
             className="prog-button pr-2"
@@ -162,7 +165,7 @@ const SimpleDawControlsTop = ({
               )
             }
           >
-            <IoArrowRedo fontSize="1rem" />
+            <IoArrowRedo fontSize={icoSize} />
           </Button>
         </div>
       </div>

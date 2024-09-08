@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react';
+'use client';
 
+import { useCallback, useState } from 'react';
 import { BsSpeedometer2 } from 'react-icons/bs';
 import { FaRegCirclePlay } from 'react-icons/fa6';
 import { FaRegCirclePause } from 'react-icons/fa6';
@@ -12,11 +13,12 @@ import { BsZoomIn } from 'react-icons/bs';
 import { BsZoomOut } from 'react-icons/bs';
 import { TbZoomReset } from 'react-icons/tb';
 
-const playButton = <FaRegCirclePlay fontSize="1rem" />;
-const pauseButton = <FaRegCirclePause fontSize="1rem" />;
-const backTenButton = <FaArrowRotateLeft fontSize="1rem" />;
-const skipTenButton = <FaArrowRotateRight fontSize="1rem" />;
-const skipStartButton = <BsSkipBackwardCircle fontSize="1rem" />;
+const icoSize = "1.25rem";
+const playButton = <FaRegCirclePlay fontSize={icoSize} />;
+const pauseButton = <FaRegCirclePause fontSize={icoSize} />;
+const backTenButton = <FaArrowRotateLeft fontSize={icoSize} />;
+const skipTenButton = <FaArrowRotateRight fontSize={icoSize} />;
+const skipStartButton = <BsSkipBackwardCircle fontSize={icoSize} />;
 
 import { formatTime } from '../../lib/dawUtils';
 
@@ -48,7 +50,7 @@ const SimpleDawControlsBottom = ({
 
   return (
     <div className="d-flex w-100 ml-auto mr-auto prog-bar align-items-center flex-between flex gap-0375">
-      <div className="d-flex gap-0375 align-items-center">
+      <div className="d-flex gap-05 align-items-center">
         <Button onClick={onSkipTenBkwd} className="prog-button pl-2">
           {backTenButton}
         </Button>
@@ -77,7 +79,7 @@ const SimpleDawControlsBottom = ({
             wavesurfer.zoom(zoomLevel);
           }}
         >
-          <BsZoomIn fontSize="1rem" />
+          <BsZoomIn fontSize={icoSize} />
         </Button>
 
         <Button
@@ -88,12 +90,12 @@ const SimpleDawControlsBottom = ({
             wavesurfer.zoom(zoomLevel);
           }}
         >
-          <BsZoomOut fontSize="1rem" />
+          <BsZoomOut fontSize={icoSize} />
         </Button>
 
         <Button className="prog-button">
           <TbZoomReset
-            fontSize="1rem"
+            fontSize={icoSize}
             onClick={() => {
               setZoomLevel(0);
               wavesurfer.zoom(0);
@@ -109,7 +111,7 @@ const SimpleDawControlsBottom = ({
             className="prog-button mt-0 mb-0 pt-0 pb-0"
             id="dropdown-basic"
           >
-            <BsSpeedometer2 fontSize="1rem" />
+            <BsSpeedometer2 fontSize={icoSize} />
           </Dropdown.Toggle>
           <Dropdown.Menu className="bg-daw-toolbars">
             <Dropdown.Item className="text-white" eventKey={2}>

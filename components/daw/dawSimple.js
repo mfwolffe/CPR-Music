@@ -1,3 +1,5 @@
+'use client';
+
 import * as React from 'react';
 import { Modal } from 'react-bootstrap';
 import { useWavesurfer } from '@wavesurfer/react';

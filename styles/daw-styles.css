@@ -8,6 +8,9 @@
   --daw-progress-mute: #92ceaa;
   --daw-grey: rgba(99, 98, 97, 0.712);
   --daw-control: rgba(107, 107, 107, 0.8);
+
+  --daw-ico: "1.8rem";
+  --toolbar-height: "38px";
 }
 
 #waveform ::part(wrapper) {
@@ -148,7 +151,7 @@
 
 .prog-bar {
   background-color: var(--daw-timeline-bg) !important;
-  max-height: 24px !important;
+  max-height: var(--toolbar-height) !important;
 }
 
 .mmap-container {
@@ -158,7 +161,7 @@
 
 .toolbar {
   background-color: var(--daw-timeline-bg) !important;
-  max-height: 24px !important;
+  max-height: var(--toolbar-height) !important;
   border-bottom: 1px solid #fff;
 }
 

@@ -1,3 +1,5 @@
+'use client';
+
 import { Form } from 'react-bootstrap';
 
 const WidgetSlider = (min, max, step, dfault, setter, label) => {
