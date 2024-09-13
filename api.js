@@ -70,7 +70,9 @@ export function getAllPieces(slug) {
 export function mutateAssignPiece(slug) {
   return async (piecePlanId) => {
     const endpoint = `courses/${slug}/assign_piece_plan/`;
-    const json = await makeRequest(endpoint, 'POST', { piece_id: piecePlanId });
+    const json = await makeRequest(endpoint, 'POST', {
+      piece_plan_id: piecePlanId,
+    });
     return json;
   };
 }
