@@ -28,6 +28,8 @@ import WaveSurfer from 'wavesurfer.js';
 import { UploadStatusEnum } from '../types';
 import StatusIndicator from './statusIndicator';
 import styles from '../styles/recorder.module.css';
+import DawSimple from './daw/dawSimple';
+import { setupAudioContext } from '../lib/dawUtils';
 
 function AudioViewer({ src }) {
   const containerW = useRef(null);
@@ -220,10 +222,67 @@ export default function Recorder({ submit, accompaniment }) {
   const dispatch = useDispatch();
   const [min, setMinute] = useState(0);
   const [sec, setSecond] = useState(0);
+  const [showDAW, setShowDAW] = useState(false);
+  const [audio, setAudio] = useState(new Audio());
+  const [filters, setFilters] = useState([]);
 
-  const accompanimentRef = useRef(null);
+  const dawRef = useRef(null);
+
+  // const audioRef = useRef(audio);
+
+  // useEffect(() => {
+  //   if (!blobURL || !blobData || !blobInfo)
+  //     return;
+
+  //   setAudio(new Audio());
+    
+  //   audio.controls = false;
+  //   audio.src = blobURL;
+
+  //   const audioContext = new AudioContext();
+  //   const eqBands = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+
+  //   let f = eqBands.map((band) => {
+  //     const filter = audioContext.createBiquadFilter();
+  //     filter.type =
+  //       band <= 32 ? 'lowshelf' : band >= 16000 ? 'highshelf' : 'peaking';
+  //     filter.gain.value = 0;
+  //     filter.Q.value = 1; // resonance
+  //     filter.frequency.value = band; // cut-off frequency
+  //     return filter;
+  //   });
+
+  //   audio.addEventListener(
+  //   'canplay',
+  //   () => {
+  //     const mediaNode = audioContext.createMediaElementSource(audio);
+
+  //     const equalizer = filters.reduce((prev, curr) => {
+  //       prev.connect(curr);
+  //       return curr;
+  //     }, mediaNode);
+  //     equalizer.connect(audioContext.destination);
+  //   },
+  //   { once: true }
+  //   );
+
+  //   console.log('audio context established');
+  //   console.log('SAC pre-return filters', f);
+  //   console.log('SAC pre-return audio', audio);
+
+  //   if (audioRef.current) {
+  //     audioRef.current.pause();
+  //     audioRef.current.load();
+  //     audioRef.current.play();
+  //   }
+
+  //   // SEEME @mfwolffe maybe state gets corrupted with filters array
+  //   setFilters([...f]);
+
+  // }, [blobData, blobURL, blobInfo]);
 
   const router = useRouter();
+  const accompanimentRef = useRef(null);
   const { slug, piece, actCategory, partType } = router.query;
 
   useEffect(() => {
@@ -246,6 +305,10 @@ export default function Recorder({ submit, accompaniment }) {
     }
   };
 
+
+  // SEEME @mfwolffe if you can't resolve state issues 
+  //                 try moving context to post stop - record
+
   const stopRecording = (ev) => {
     accompanimentRef.current.pause();
     accompanimentRef.current.load();
@@ -265,6 +328,42 @@ export default function Recorder({ submit, accompaniment }) {
           },
         ]);
         setIsRecording(false);
+
+        const a = new Audio();
+        a.controls = false;
+        a.src = blobURL;
+        console.log("BLOB: ", a.src);
+
+        const audioContext = new AudioContext();
+        const eqBands = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+
+        const f = eqBands.map((band) => {
+          const filter = audioContext.createBiquadFilter();
+          filter.type =
+            band <= 32 ? 'lowshelf' : band >= 16000 ? 'highshelf' : 'peaking';
+          filter.gain.value = 0;
+          filter.Q.value = 1; // resonance
+          filter.frequency.value = band; // cut-off frequency
+          return filter;
+        });
+
+        audio.addEventListener(
+          'canplay',
+          () => {
+            const mediaNode = audioContext.createMediaElementSource(audio);
+
+            const equalizer = f.reduce((prev, curr) => {
+              prev.connect(curr);
+              return curr;
+            }, mediaNode);
+            equalizer.connect(audioContext.destination);
+          },
+          { once: true }
+        );
+
+        console.log('audio context established', f);
+        setAudio(a);
+        setFilters(f);
       })
       .catch((e) => console.error('error stopping recording', e));
   };
@@ -286,6 +385,10 @@ export default function Recorder({ submit, accompaniment }) {
     newInfo.splice(index, 1);
     setBlobInfo(newInfo);
   }
+
+  const toggleDAW = useCallback(() => {
+    setShowDAW(!showDAW);
+  });
 
   // check for recording permissions
   useEffect(() => {
@@ -336,7 +439,7 @@ export default function Recorder({ submit, accompaniment }) {
     <>
       <Row>
         <Col>
-          {isRecording ? (
+          {isRecording ? ( 
             <Button onClick={stopRecording}>
               <FaStop /> {String(min).padStart(2, '0')}:
               {String(sec).padStart(2, '0')}
@@ -372,7 +475,7 @@ export default function Recorder({ submit, accompaniment }) {
                     src={take.url}
                     controls
                   /> */}
-                  <AudioViewer src={take.url} />
+                  {/* <AudioViewer src={take.url} /> */}
                   <div>
                     <Button
                       onClick={() => submitRecording(i, `recording-take-${i}`)}
@@ -391,7 +494,10 @@ export default function Recorder({ submit, accompaniment }) {
             </ListGroup>
           )}
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <audio src={blobURL} />
+          <br />
+          <Button onClick={toggleDAW}>Show DAW</Button>
+          {showDAW && <DawSimple takeURL={blobURL} setAudioURL={setBlobURL} audio={audio} filters={filters} surfRef={dawRef} blobInfo={blobInfo} /> } 
+          {/* <audio src={blobURL} /> */}
         </Col>
       </Row>
     </>
