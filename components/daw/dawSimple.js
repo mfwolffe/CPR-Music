@@ -18,8 +18,9 @@ import { FFmpeg } from '@ffmpeg/ffmpeg';
 import {
   loadFfmpeg,
   formatTime,
-  setupAudioContext,
+  // setupAudioContext,
   effectChorusReverb,
+  // setupAudioContext,
 } from '../../lib/dawUtils';
 import EQSliders from './equalizer';
 import HelpAccordion from './dawHelp';
@@ -35,8 +36,7 @@ const EQWIDTH = 28;
 const RVBWIDTH = 13;
 const CHRWIDTH = 18;
 
-const ORIGURL = '/sample_audio/uncso-bruckner4-1.mp3';
-const { audio, filters } = setupAudioContext();
+// const ORIGURL = takeURL;
 
 const HelpModal = ({ setFn, shown }) => {
   return (
@@ -58,14 +58,62 @@ const HelpModal = ({ setFn, shown }) => {
   );
 }
 
-export default function DawSimple() {
+const DawSimple = ({ takeURL, setAudioURL, filters, audio, surfRef, blobInfo }) => {
+  if (!takeURL)
+    return;
+
+  const audioRef = useRef(audio);
+  audioRef.current.src = takeURL;
+
+  const formData = new FormData();
+  formData.append('file', new File([blobInfo[0].data], 'student-rec.mp3', {
+    mimeType: 'audio/mpeg',
+  }))
+
+  // console.log("FORM:", formData.get('file'));
+  // audioRef.current.src = formData.get('file');
+
+
+  console.log("takeURL passed to DawSimple: ", takeURL);
+  console.log("filters passed to DawSimple: ", filters);
+  console.log("audioRef source passed to DawSimple: ", audioRef.current.src);
+
+  
+
+
+  // if (audioRef.current) {
+  //   audioRef.current.src = URL.createObjectURL(new Blob())
+  //   setAudioURL();
+  //     // audioRef.current.pause();
+  //     // audioRef.current.load();
+  //     // audioRef.current.play();
+  // }
+
+  // useEffect(() => {
+  //   if (!blobURL || !blobData || !blobInfo)
+  //     return;
+
+    // setAudio(new Audio());
+    
+
+
+    // if (audioRef.current) {
+    //   audioRef.current.pause();
+    //   audioRef.current.load();
+    //   audioRef.current.play();
+    // }
+
+    // SEEME @mfwolffe maybe state gets corrupted with filters array
+    // setFilters([...f]);
+
+  // }, [takeURL]);
+
   let zoom, hover, minimap, timeline, regions;
   let disableRegionCreate;
 
-  const dawRef = useRef(null);
-  const audioRef = useRef(audio);
+  // const dawRef = useRef(null);
   const ffmpegRef = useRef(new FFmpeg());
-
+  
   const [decay, setDecay] = useState(0);
   const [delay, setDelay] = useState(0);
   const [inGain, setInGain] = useState(0);
@@ -79,12 +127,12 @@ export default function DawSimple() {
   const [cutRegion, setCutRegion] = useState('');
   const [showHelp, setShowHelp] = useState(false);
   const [outGainChr, setOutGainChr] = useState(0);
-  const [audioURL, setAudioURL] = useState(ORIGURL);
+  // const [audioURL, setAudioURL] = useState(takeURL);
   const [isLoading, setIsLoading] = useState(false);
   const [eqPresent, setEqPresent] = useState(false);
   const [mapPresent, setMapPrsnt] = useState(false);
-  const [editList, setEditList] = useState([ORIGURL]);
-  const [rvbPresent, setRvbPresent] = useState(false);
+  const [editList, setEditList] = useState([takeURL]);
+  const [rvbPresent, setRvbPresent] = useState(false); 
   const [chrPresent, setChrPresent] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [editListIndex, setEditListIndex] = useState(0);
@@ -105,10 +153,6 @@ export default function DawSimple() {
     WidgetSlider(0.1, 1, 0.001, 0.1, setDecay, 'Decay'),
   ];
 
-  useEffect(() => {
-    console.log('blobs', editList);
-  }, [editList]);
-
   const { wavesurfer, isPlaying, currentTime } = useWavesurfer({
     height: 208,
     media: audio,
@@ -116,7 +160,7 @@ export default function DawSimple() {
     cursorWidth: 2,
     autoScroll: true,
     dragToSeek: true,
-    container: dawRef,
+    container: surfRef,
     waveColor: '#7bafd4',
     cursorColor: 'var(--jmu-gold)',
     hideScrollbar: false,
@@ -125,6 +169,8 @@ export default function DawSimple() {
   });
 
   wavesurfer?.once('ready', () => {
+    console.log("surfer pret");
+    
     if (wavesurfer.getActivePlugins().length === 0) {
       zoom = wavesurfer?.registerPlugin(
         Zoom.create({
@@ -184,7 +230,7 @@ export default function DawSimple() {
   useEffect(() => {
     async function updatePlaybackSpeed() {
       const ffmpeg = ffmpegRef.current;
-      await ffmpeg.writeFile('input.mp3', await fetchFile(ORIGURL));
+      await ffmpeg.writeFile('input.mp3', await fetchFile(takeURL));
       await ffmpeg.exec([
         '-i',
         'input.mp3',
@@ -208,12 +254,12 @@ export default function DawSimple() {
     if (ffmpegRef.current.loaded) updatePlaybackSpeed();
   }, [playbackSpeed]);
 
-  console.log('plugins:', wavesurfer?.getActivePlugins());
+  // console.log('plugins:', wavesurfer?.getActivePlugins());
 
   const params = {
     audioRef: audioRef,
     setAudioURL: setAudioURL,
-    audioURL: audioURL,
+    audioURL: takeURL,
     wavesurfer: wavesurfer,
     setEditList: setEditList,
     editList: editList,
@@ -227,87 +273,88 @@ export default function DawSimple() {
 
   const handleHelp = useCallback(() => {
     setShowHelp(true)
-    console.log("yooo");
   });
 
   return (
     <>
       <HelpModal setFn={setShowHelp} shown={showHelp} />
-      <Card className="mt-2 mb-2">
-        <CardHeader className="pt-1 pb-1 flex-between">
-          <CardTitle className="pt-0 pb-0 mt-0 mb-0">Audio Editor</CardTitle>
-          <Button className='help-button daw-help align-center' onClick={() => handleHelp()}>
-            <GrHelpBook className="help-ico" fontSize="1.5rem" />
-          </Button>
-        </CardHeader>
-        <CardBody>
-          <div className="d-flex w-100 gap-2p">
-            <div
-              id="waveform-container"
-              style={{
-                width: `${
-                  100 -
-                  (rvbPresent || eqPresent || chrPresent ? 1.5 : 0) -
-                  (eqPresent ? EQWIDTH : 0) -
-                  (rvbPresent ? RVBWIDTH : 0) -
-                  (chrPresent ? CHRWIDTH : 0)
-                }%`,
-              }}
-            >
-              <SimpleDawControlsTop
-                mapPresent={mapPresent}
-                mapSetter={setMapPrsnt}
-                eqSetter={setEqPresent}
-                eqPresent={eqPresent}
-                cutRegion={cutRegion}
-                rvbPresent={rvbPresent}
-                rvbSetter={setRvbPresent}
-                chrPresent={chrPresent}
-                chrSetter={setChrPresent}
+        <Card className="mt-2 mb-2">
+          <CardHeader className="pt-1 pb-1 flex-between">
+            <CardTitle className="pt-0 pb-0 mt-0 mb-0">Audio Editor</CardTitle>
+            <Button className='help-button daw-help align-center' onClick={() => handleHelp()}>
+              <GrHelpBook className="help-ico" fontSize="1.5rem" />
+            </Button>
+          </CardHeader>
+          <CardBody>
+            <div className="d-flex w-100 gap-2p">
+              <div
+                id="waveform-container"
+                style={{
+                  width: `${
+                    100 -
+                    (rvbPresent || eqPresent || chrPresent ? 1.5 : 0) -
+                    (eqPresent ? EQWIDTH : 0) -
+                    (rvbPresent ? RVBWIDTH : 0) -
+                    (chrPresent ? CHRWIDTH : 0)
+                  }%`,
+                }}
+              >
+                <SimpleDawControlsTop
+                  mapPresent={mapPresent}
+                  mapSetter={setMapPrsnt}
+                  eqSetter={setEqPresent}
+                  eqPresent={eqPresent}
+                  cutRegion={cutRegion}
+                  rvbPresent={rvbPresent}
+                  rvbSetter={setRvbPresent}
+                  chrPresent={chrPresent}
+                  chrSetter={setChrPresent}
+                  {...params}
+                />
+                <div
+                  ref={surfRef}
+                  id="waveform"
+                  className="ml-auto mr-auto mb-0 mt-0"
+                />
+                {MinimapContainer(!mapPresent)}
+                <SimpleDawControlsBottom
+                  wavesurfer={wavesurfer}
+                  playbackSpeed={playbackSpeed}
+                  speedSetter={setPlaybackSpeed}
+                />
+              </div>
+              {EQSliders(!eqPresent, filters, EQWIDTH)}
+              <ReverbChorusWidget
+                hide={!rvbPresent}
+                width={RVBWIDTH}
+                sliders={reverbSliders}
+                title={'Reverb'}
+                inGainChr={inGain}
+                outGainChr={outGain}
+                delayChr={delay}
+                decayChr={decay}
+                speedChr={null}
+                depthsChr={null}
                 {...params}
               />
-              <div
-                ref={dawRef}
-                id="waveform"
-                className="ml-auto mr-auto mb-0 mt-0"
-              />
-              {MinimapContainer(!mapPresent)}
-              <SimpleDawControlsBottom
-                wavesurfer={wavesurfer}
-                playbackSpeed={playbackSpeed}
-                speedSetter={setPlaybackSpeed}
+              <ReverbChorusWidget
+                hide={!chrPresent}
+                width={CHRWIDTH}
+                sliders={chorusSliders}
+                title={'Chorus'}
+                inGainChr={inGainChr}
+                outGainChr={outGainChr}
+                delayChr={delayChr}
+                decayChr={decayChr}
+                speedChr={speedChr}
+                depthsChr={depthsChr}
+                {...params}
               />
             </div>
-            {EQSliders(!eqPresent, filters, EQWIDTH)}
-            <ReverbChorusWidget
-              hide={!rvbPresent}
-              width={RVBWIDTH}
-              sliders={reverbSliders}
-              title={'Reverb'}
-              inGainChr={inGain}
-              outGainChr={outGain}
-              delayChr={delay}
-              decayChr={decay}
-              speedChr={null}
-              depthsChr={null}
-              {...params}
-            />
-            <ReverbChorusWidget
-              hide={!chrPresent}
-              width={CHRWIDTH}
-              sliders={chorusSliders}
-              title={'Chorus'}
-              inGainChr={inGainChr}
-              outGainChr={outGainChr}
-              delayChr={delayChr}
-              decayChr={decayChr}
-              speedChr={speedChr}
-              depthsChr={depthsChr}
-              {...params}
-            />
-          </div>
-        </CardBody>
-      </Card>
+          </CardBody>
+        </Card>
     </>
   );
 }
+
+export default DawSimple;

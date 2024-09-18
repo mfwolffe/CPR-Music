@@ -12,9 +12,7 @@ function SongFetch() {
 
   const handleClose = () => setShow(false);
   const handleShow = () => setShow(true);
-
-
-
+  
   return (
     <>
       <Button variant="primary" onClick={handleShow}>
