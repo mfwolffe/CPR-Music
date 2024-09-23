@@ -70,16 +70,9 @@ const DawSimple = ({ takeURL, setAudioURL, filters, audio, surfRef, blobInfo }) 
     mimeType: 'audio/mpeg',
   }))
 
-  // console.log("FORM:", formData.get('file'));
-  // audioRef.current.src = formData.get('file');
-
-
   console.log("takeURL passed to DawSimple: ", takeURL);
   console.log("filters passed to DawSimple: ", filters);
   console.log("audioRef source passed to DawSimple: ", audioRef.current.src);
-
-  
-
 
   // if (audioRef.current) {
   //   audioRef.current.src = URL.createObjectURL(new Blob())
@@ -95,8 +88,6 @@ const DawSimple = ({ takeURL, setAudioURL, filters, audio, surfRef, blobInfo }) 
 
     // setAudio(new Audio());
     
-
-
     // if (audioRef.current) {
     //   audioRef.current.pause();
     //   audioRef.current.load();
@@ -111,7 +102,7 @@ const DawSimple = ({ takeURL, setAudioURL, filters, audio, surfRef, blobInfo }) 
   let zoom, hover, minimap, timeline, regions;
   let disableRegionCreate;
 
-  // const dawRef = useRef(null);
+  const dawRef = useRef(null);
   const ffmpegRef = useRef(new FFmpeg());
   
   const [decay, setDecay] = useState(0);
@@ -160,7 +151,7 @@ const DawSimple = ({ takeURL, setAudioURL, filters, audio, surfRef, blobInfo }) 
     cursorWidth: 2,
     autoScroll: true,
     dragToSeek: true,
-    container: surfRef,
+    container: dawRef,
     waveColor: '#7bafd4',
     cursorColor: 'var(--jmu-gold)',
     hideScrollbar: false,
