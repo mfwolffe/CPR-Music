@@ -1,7 +1,7 @@
 'use client';
 
-import * as React from 'react';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   Button,
@@ -17,8 +17,8 @@ import {
   FormText,
 } from 'react-bootstrap';
 
-import { catchSilence, loadFfmpeg } from '../../lib/audioUtils';
 import Layout from '../../components/layout';
+import { catchSilence, loadFfmpeg } from '../../lib/dawUtils';
 import AudioDropModal from '../../components/audioDropWarning';
 
 const URL = '/sample_audio/uncso-bruckner4-1.mp3';
