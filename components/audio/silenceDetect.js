@@ -85,3 +85,5 @@ const AudioDropModal = ({ show, setShow, silenceData }) => {
     </>
   );
 }
+
+export { AudioDropModal }
