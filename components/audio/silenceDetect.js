@@ -1,11 +1,8 @@
 import { useCallback } from 'react';
-import { Table } from 'react-bootstrap';
 import Modal from 'react-bootstrap/Modal';
-import Button from 'react-bootstrap/Button';
-
+import { Button, Table } from 'react-bootstrap';
+import { formatTimeMilli } from '../lib/dawUtils';
 import { PiWarningOctagonFill } from 'react-icons/pi';
-
-import { formatTimeMilli } from '../lib/audioUtils';
 
 const WarningIcon = <PiWarningOctagonFill fontSize="2.2rem" />;
 
@@ -41,7 +38,7 @@ const silenceDataTable = (silenceData) => {
   );
 };
 
-export default function AudioDropModal({ show, setShow, silenceData }) {
+const AudioDropModal = ({ show, setShow, silenceData }) => {
   const closeModal = useCallback(() => setShow(false));
 
   return (
