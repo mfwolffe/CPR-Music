@@ -1,3 +1,5 @@
+'use client';
+
 import { useCallback } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import { Button, Table } from 'react-bootstrap';

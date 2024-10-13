@@ -4,8 +4,8 @@ import { TbZoomReset } from 'react-icons/tb';
 import { MdGroups, MdOutlineWaves } from 'react-icons/md';
 import { Accordion, Container, Row, Col } from 'react-bootstrap';
 import { RiEqualizerLine, RiSoundModuleFill } from 'react-icons/ri';
-import { BsSpeedometer2, BsSkipBackwardCircle, BsZoomOut, BsZoomIn } from 'react-icons/bs';
 import { IoArrowUndo, IoArrowRedo, IoCutOutline, IoTrashOutline } from 'react-icons/io5';
+import { BsSpeedometer2, BsSkipBackwardCircle, BsZoomOut, BsZoomIn } from 'react-icons/bs';
 import { FaRegCirclePlay, FaRegCirclePause, FaArrowRotateLeft, FaArrowRotateRight } from 'react-icons/fa6';
 
 export default function HelpAccordion() {
