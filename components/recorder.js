@@ -29,6 +29,8 @@ import { UploadStatusEnum } from '../types';
 import StatusIndicator from './statusIndicator';
 import styles from '../styles/recorder.module.css';
 
+import DawStd from './audio/daw/dawStd';
+
 function AudioViewer({ src }) {
   const containerW = useRef(null);
   const waveSurf = useRef(null);
@@ -221,6 +223,9 @@ export default function Recorder({ submit, accompaniment }) {
   const [min, setMinute] = useState(0);
   const [sec, setSecond] = useState(0);
 
+  // @mfwolffe
+  const [showDAW, setShowDAW] = useState(false);
+
   const accompanimentRef = useRef(null);
 
   const router = useRouter();
@@ -372,7 +377,7 @@ export default function Recorder({ submit, accompaniment }) {
                     src={take.url}
                     controls
                   /> */}
-                  <AudioViewer src={take.url} />
+                  {/* <AudioViewer src={take.url} /> */}
                   <div>
                     <Button
                       onClick={() => submitRecording(i, `recording-take-${i}`)}
@@ -391,6 +396,11 @@ export default function Recorder({ submit, accompaniment }) {
             </ListGroup>
           )}
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+
+          {/* @mfwolffe */}
+          { blobInfo.length === 0 ? ( <Button variant='primary' onClick={ () => setShowDAW(true) } >Edit Take</Button>) : <></> }
+          { showDAW == true ? ( <DawStd takeURL={take.url}></DawStd> ) : ( <></> ) }
+
           <audio src={blobURL} />
         </Col>
       </Row>
