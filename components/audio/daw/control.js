@@ -2,9 +2,12 @@
 
 import { Button, Card, CardHeader, CardTitle, CardBody, Form } from 'react-bootstrap';
 
-const EQSliders = (hide, filters, width) => {
+// SEEME @mfwolffe idk if I want to elevate state here actually
+const EQSliders = ({ hide, filters, width }) => {
   const hidden = hide;
   const sliders = [];
+
+  console.log("dfolt", filters)
 
   filters.forEach((filter) => {
     const frqVal = filter.frequency.value;
