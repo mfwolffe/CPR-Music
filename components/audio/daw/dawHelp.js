@@ -2,13 +2,13 @@
 
 import { TbZoomReset } from 'react-icons/tb';
 import { MdGroups, MdOutlineWaves } from 'react-icons/md';
-import { Accordion, Container, Row, Col } from 'react-bootstrap';
 import { RiEqualizerLine, RiSoundModuleFill } from 'react-icons/ri';
+import { Accordion, Button, Container, Modal, Row, Col } from 'react-bootstrap';
 import { IoArrowUndo, IoArrowRedo, IoCutOutline, IoTrashOutline } from 'react-icons/io5';
 import { BsSpeedometer2, BsSkipBackwardCircle, BsZoomOut, BsZoomIn } from 'react-icons/bs';
 import { FaRegCirclePlay, FaRegCirclePause, FaArrowRotateLeft, FaArrowRotateRight } from 'react-icons/fa6';
 
-export default function HelpAccordion() {
+function HelpAccordion() {
   return (
     <Accordion defaultActiveKey="0">
       <Accordion.Item eventKey="0">
@@ -202,5 +202,32 @@ export default function HelpAccordion() {
         </Accordion.Body>
       </Accordion.Item>
     </Accordion>
+  );
+}
+
+export default function HelpModal({ setFn, shown }) {
+  return (
+    <Modal
+      size="lg"
+      show={shown}
+      onHide={() => setFn(false)}
+      style={{ maxHeight: '96%' }}
+    >
+      <Modal.Header
+        style={{ background: 'var(--daw-timeline-bg)', color: 'white' }}
+      >
+        <Modal.Title>DAW Help</Modal.Title>
+      </Modal.Header>
+      <Modal.Body
+        style={{ overflow: 'scroll', backgroundColor: 'var(--daw-grey' }}
+      >
+        <HelpAccordion />
+      </Modal.Body>
+      <Modal.Footer style={{ backgroundColor: 'var(--daw-timeline-bg' }}>
+        <Button variant="primary" onClick={() => setFn(false)}>
+          Close
+        </Button>
+      </Modal.Footer>
+    </Modal>
   );
 }
