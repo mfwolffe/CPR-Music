@@ -69,7 +69,6 @@ const EQWIDTH = 28;
 const RVBWIDTH = 13;
 const CHRWIDTH = 18;
 
-// @mfwolffe
 const scratchURL = '/sample_audio/uncso-bruckner4-1.mp3';
 const { audio, audioContext, filters } = setupAudioContext(scratchURL);
 
@@ -289,6 +288,7 @@ export default function Recorder({ submit, accompaniment }) {
   const [sec, setSecond] = useState(0);
 
   // @mfwolffe | effects
+  //                (I'm like 96% certain though actually; I've had iterations w/out)
   const [decay, setDecay] = useState(0);
   const [delay, setDelay] = useState(0);
   const [inGain, setInGain] = useState(0);
@@ -482,7 +482,6 @@ export default function Recorder({ submit, accompaniment }) {
       }
 
       setAudioURL(audioRef.current.src);
-      console.log('speed adjust done', audioRef.current.src);
       wavesurfer.load(audioRef.current.src);
     }
 
