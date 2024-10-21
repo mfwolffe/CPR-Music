@@ -217,8 +217,7 @@ export default function DawStd({ takeURL }) {
   };
 
   const handleHelp = useCallback(() => {
-    setShowHelp(true)
-    console.log("yooo");
+    setShowHelp(true);
   });
 
   return (
@@ -232,7 +231,7 @@ export default function DawStd({ takeURL }) {
           </Button>
         </CardHeader>
         <CardBody>
-          <div className="d-flex w-100 gap-2p">
+          <div className="d-flex w-100 gap-2p" hidden={!show}>
             <div
               id="waveform-container"
               style={{

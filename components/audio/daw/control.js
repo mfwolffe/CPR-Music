@@ -7,8 +7,6 @@ const EQSliders = ({ hide, filters, width }) => {
   const hidden = hide;
   const sliders = [];
 
-  console.log("dfolt", filters)
-
   filters.forEach((filter) => {
     const frqVal = filter.frequency.value;
     const slider = (
@@ -89,8 +87,6 @@ const ReverbChorusWidget = ({
   const hidden = hide;
   const sliderGroups = [];
 
-  console.log('sliders:', sliders);
-
   for (let i = 0; i < sliders.length; i += 2) {
     sliderGroups.push(
       <SliderGroup
@@ -100,8 +96,6 @@ const ReverbChorusWidget = ({
       />
     );
   }
-
-  console.log('groups', sliderGroups);
 
   return (
     <Card
