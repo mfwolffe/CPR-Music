@@ -1,26 +1,9 @@
 // with thanks to https://medium.com/front-end-weekly/recording-audio-in-mp3-using-reactjs-under-5-minutes-5e960defaf10
 
-import HelpAccordion from './audio/daw/dawHelp';
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile } from '@ffmpeg/util';
-import { GrHelpBook } from "react-icons/gr";
-import { useWavesurfer } from '@wavesurfer/react';
-import Zoom from 'wavesurfer.js/dist/plugins/zoom.esm.js';
-import Hover from 'wavesurfer.js/dist/plugins/hover.esm.js';
-import Minimap from 'wavesurfer.js/dist/plugins/minimap.esm.js';
-import Timeline from 'wavesurfer.js/dist/plugins/timeline.esm.js';
-import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
-import MicRecorder from 'mic-recorder-to-mp3';
-import { WidgetSlider, ReverbChorusWidget, EQSliders } from './audio/daw/control';
-import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
-
 import {
   FaMicrophone,
   FaStop,
   FaCloudUploadAlt,
-  FaSpinner,
-  FaTimesCircle,
-  FaCheck,
   FaPlay,
   FaPause,
   FaVolumeOff,
@@ -29,47 +12,65 @@ import {
   FaVolumeUp,
   FaRegTrashAlt,
 } from 'react-icons/fa';
-import { useDispatch, useSelector } from 'react-redux';
-import ListGroup from 'react-bootstrap/ListGroup';
-import ListGroupItem from 'react-bootstrap/ListGroupItem';
+import {
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  CardTitle,
+  Modal,
+  Spinner,
+} from 'react-bootstrap';
 import Col from 'react-bootstrap/Col';
 import Row from 'react-bootstrap/Row';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { useRouter } from 'next/router';
+import { fetchFile } from '@ffmpeg/util';
+import { useDispatch } from 'react-redux';
+import { GrHelpBook } from 'react-icons/gr';
+import MicRecorder from 'mic-recorder-to-mp3';
+import { useWavesurfer } from '@wavesurfer/react';
+import ListGroup from 'react-bootstrap/ListGroup';
+/* eslint-disable import/extensions */
+import Zoom from 'wavesurfer.js/dist/plugins/zoom.esm.js';
+import ListGroupItem from 'react-bootstrap/ListGroupItem';
+import Hover from 'wavesurfer.js/dist/plugins/hover.esm.js';
+import Minimap from 'wavesurfer.js/dist/plugins/minimap.esm.js';
+import Timeline from 'wavesurfer.js/dist/plugins/timeline.esm.js';
+import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
+/* eslint-enable import/extensions */
+import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import WaveSurfer from 'wavesurfer.js';
-import { UploadStatusEnum } from '../types';
-import StatusIndicator from './statusIndicator';
 import styles from '../styles/recorder.module.css';
+import StatusIndicator from './statusIndicator';
+import HelpModal from './audio/daw/dawHelp';
 
-// @mfwolffe
-import { loadFfmpeg, formatTime, formatTimeMilli, setupAudioContext, effectChorusReverb } from '../lib/dawUtils';
-import { Button, Card, CardBody, CardHeader, CardTitle, Modal, Spinner } from 'react-bootstrap';
-import { DawControlsBottom, DawControlsTop, MinimapContainer  } from '../components/audio/daw/common';
+import {
+  loadFfmpeg,
+  formatTime,
+  formatTimeMilli,
+  setupAudioContext,
+  effectChorusReverb,
+} from '../lib/dawUtils';
+import {
+  DawControlsBottom,
+  DawControlsTop,
+  MinimapContainer,
+} from './audio/daw/common';
+import {
+  WidgetSlider,
+  ReverbChorusWidget,
+  EQSliders,
+} from './audio/daw/control';
 
+// TODO @mfwolffe don't do the width calculations like this
 const EQWIDTH = 28;
 const RVBWIDTH = 13;
 const CHRWIDTH = 18;
 
 // @mfwolffe
-const HelpModal = ({ setFn, shown }) => {
-  return (
-    <>
-      <Modal size='lg' show={shown} onHide={() => setFn(false)} style={{maxHeight: "96%"}}>
-        <Modal.Header style={{background: "var(--daw-timeline-bg)", color: "white" }}>
-          <Modal.Title>DAW Help</Modal.Title>
-        </Modal.Header>
-        <Modal.Body style={{overflow: "scroll", backgroundColor: "var(--daw-grey"}}>
-          <HelpAccordion />
-        </Modal.Body>
-        <Modal.Footer style={{backgroundColor: "var(--daw-timeline-bg"}}>
-          <Button variant="primary" onClick={() => setFn(false)}>
-            Close
-          </Button>
-        </Modal.Footer>
-      </Modal>
-    </>
-  );
-}
-
+const scratchURL = '/sample_audio/uncso-bruckner4-1.mp3';
+const { audio, audioContext, filters } = setupAudioContext(scratchURL);
 
 function AudioViewer({ src }) {
   const containerW = useRef(null);
@@ -252,17 +253,61 @@ function AudioViewer({ src }) {
 }
 
 export default function Recorder({ submit, accompaniment }) {
-  let zoom, hover, minimap, timeline, regions;
+  let zoom;
+  let hover;
+  let minimap;
+  let regions;
+  let timeline;
   let disableRegionCreate;
 
-  const [filters, setFilters] = useState([]);
-
-  let audio;
-
   const dawRef = useRef(null);
-  const audioRef = useRef(null);
-
+  const audioRef = useRef(audio);
   const ffmpegRef = useRef(new FFmpeg());
+
+  // TODO @mfwolffe SURELY many of these do not need state
+  const [decay, setDecay] = useState(0);
+  const [delay, setDelay] = useState(0);
+  const [inGain, setInGain] = useState(0);
+  const [outGain, setOutGain] = useState(0);
+  const [speedChr, setSpeedChr] = useState(0);
+  const [delayChr, setDelayChr] = useState(0);
+  const [decayChr, setDecayChr] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  const [editList, setEditList] = useState([]);
+  const [showDAW, setShowDAW] = useState(false);
+  const [depthsChr, setDepthsChr] = useState(0);
+  const [inGainChr, setInGainChr] = useState(0);
+  const [cutRegion, setCutRegion] = useState('');
+  const [showHelp, setShowHelp] = useState(false);
+  const [outGainChr, setOutGainChr] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [eqPresent, setEqPresent] = useState(false);
+  const [mapPresent, setMapPrsnt] = useState(false);
+  const [rvbPresent, setRvbPresent] = useState(false);
+  const [chrPresent, setChrPresent] = useState(false);
+  const [audioURL, setAudioURL] = useState(scratchURL);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [editListIndex, setEditListIndex] = useState(0);
+
+  // vertical slider controls for the chorus widget
+  const chorusSliders = [
+    WidgetSlider(0, 1, 0.001, 0, setInGainChr, 'Input'),
+    WidgetSlider(0, 1, 0.001, 0, setOutGainChr, 'Output'),
+    WidgetSlider(0, 70, 0.1, 0, setDelayChr, 'Delay'),
+    WidgetSlider(0.01, 1, 0.001, 0.01, setDecayChr, 'Decay'),
+    WidgetSlider(0.1, 90000.0, 0.1, 1000, setSpeedChr, 'Speed'),
+    WidgetSlider(0.01, 4, 0.001, 1, setDepthsChr, 'Depth'),
+  ];
+
+  // vertical slider controls for the 'reverb' widget
+  // TODO @mfwolffe write the real reverb functionality
+  //                (this is really just echo)
+  const reverbSliders = [
+    WidgetSlider(0, 1, 0.001, 0, setInGain, 'Input'),
+    WidgetSlider(0, 1, 0.001, 0, setOutGain, 'Output'),
+    WidgetSlider(0.1, 90000.0, 1, 1000, setDelay, 'Delay'),
+    WidgetSlider(0.1, 1, 0.001, 0.1, setDecay, 'Decay'),
+  ];
 
   // const Mp3Recorder = new MicRecorder({ bitRate: 128 }); // 128 is default already
   const [isRecording, setIsRecording] = useState(false);
@@ -275,78 +320,7 @@ export default function Recorder({ submit, accompaniment }) {
   const [min, setMinute] = useState(0);
   const [sec, setSecond] = useState(0);
 
-  // @mfwolffe | effects
-  const [decay, setDecay] = useState(0);
-  const [delay, setDelay] = useState(0);
-  const [inGain, setInGain] = useState(0);
-  const [outGain, setOutGain] = useState(0);
-  const [speedChr, setSpeedChr] = useState(0);
-  const [delayChr, setDelayChr] = useState(0);
-  const [decayChr, setDecayChr] = useState(0);
-
-  // @mfwolffe 
-  const [audioURL, setAudioURL] = useState("");
-  
-  // @mfwolffe
-  const [loaded, setLoaded] = useState(false);
-  const [depthsChr, setDepthsChr] = useState(0);
-  const [inGainChr, setInGainChr] = useState(0);
-  const [cutRegion, setCutRegion] = useState('');
-  const [showHelp, setShowHelp] = useState(false);
-  const [outGainChr, setOutGainChr] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
-  const [eqPresent, setEqPresent] = useState(false);
-  const [mapPresent, setMapPrsnt] = useState(false);
-  const [editList, setEditList] = useState([]);
-  const [rvbPresent, setRvbPresent] = useState(false);
-  const [chrPresent, setChrPresent] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const [editListIndex, setEditListIndex] = useState(0);
-
-  const chorusSliders = [
-    WidgetSlider(0, 1, 0.001, 0, setInGainChr, 'Input'),
-    WidgetSlider(0, 1, 0.001, 0, setOutGainChr, 'Output'),
-    WidgetSlider(0, 70, 0.1, 0, setDelayChr, 'Delay'),
-    WidgetSlider(0.01, 1, 0.001, 0.01, setDecayChr, 'Decay'),
-    WidgetSlider(0.1, 90000.0, 0.1, 1000, setSpeedChr, 'Speed'),
-    WidgetSlider(0.01, 4, 0.001, 1, setDepthsChr, 'Depth'),
-  ];
-
-  const reverbSliders = [
-    WidgetSlider(0, 1, 0.001, 0, setInGain, 'Input'),
-    WidgetSlider(0, 1, 0.001, 0, setOutGain, 'Output'),
-    WidgetSlider(0.1, 90000.0, 1, 1000, setDelay, 'Delay'),
-    WidgetSlider(0.1, 1, 0.001, 0.1, setDecay, 'Decay'),
-  ];
-
-  useEffect(() => {
-    console.log('blobs', editList);
-  }, [editList]);
-
-  // @mfwolffe
-  const [showDAW, setShowDAW] = useState(false);
-  // const [audio, setAudio] = useState(null);
-  // SEEME @mfwolffe try useEffect on dawURL then setupAudioContext if no dice.
-
-  useEffect(() => {
-    if (audioURL === "") return;
-    console.log("daudio", audioURL);
-    let tempAudioObj = setupAudioContext(audioURL);
-
-    audio = tempAudioObj.audio;
-    setFilters([...tempAudioObj.filters]);
-
-    audioRef.current = audio;
-    audioRef.current.src = audioURL;
-  }, [audioURL]);
-
-
-  useEffect(() => {
-    if (!filters || !filters.length) return;
-    setShowDAW(true);
-  }, [filters])
-
-  // @mfwolffe
+  // @mfwolffe wavesurfer initialization
   const { wavesurfer, isPlaying, currentTime } = useWavesurfer({
     height: 208,
     media: audio,
@@ -362,15 +336,19 @@ export default function Recorder({ submit, accompaniment }) {
     plugins: useMemo(() => [], []),
   });
 
-  // @mfwolffe
+  // @mfwolffe only attempt to register plugins once
+  //           surfer is ready
+  //           Also there is superfluous opt chaining
+  //           below
   wavesurfer?.once('ready', () => {
+    // only add them once, and when you do, add them all at once.
     if (wavesurfer.getActivePlugins().length === 0) {
       zoom = wavesurfer?.registerPlugin(
         Zoom.create({
           deltaThreshold: 5,
           maxZoom: 150,
           scale: 0.125,
-        })
+        }),
       );
 
       hover = wavesurfer?.registerPlugin(
@@ -380,7 +358,7 @@ export default function Recorder({ submit, accompaniment }) {
           labelColor: '#fff',
           formatTimeCallback: formatTime,
           lineColor: 'var(--jmu-gold)',
-        })
+        }),
       );
 
       minimap = wavesurfer?.registerPlugin(
@@ -392,38 +370,78 @@ export default function Recorder({ submit, accompaniment }) {
           cursorColor: 'var(--jmu-gold)',
           progressColor: '#92ceaa',
           cursorWidth: 2,
-        })
+        }),
       );
 
+      // TODO @mfwolffe get timeline detached ref working
       timeline = wavesurfer?.registerPlugin(
         Timeline.create({
           height: 24,
           insertPosition: 'beforebegin',
           style: 'color: #e6dfdc; background-color: var(--daw-timeline-bg)',
-        })
+        }),
       );
 
       regions = wavesurfer?.registerPlugin(RegionsPlugin.create());
+
+      // FIXME @mfwolffe color param has no effect
       disableRegionCreate = regions?.enableDragSelection({
-        color: 'rgba(155, 115, 215, 0.4)', // FIXME @mfwolffe color param has no effect
+        color: 'rgba(155, 115, 215, 0.4)',
       });
+
+      // subscribe the plugin to region creation event, and disable
+      // creating new regions
+      //
+      // @hcientist wrt design here, idk if locking regions is right -
+      //            I can see an argument for allowing multiple region selection
+      //            followed by delete button for fast delete of multiple regions etc
       regions?.on('region-created', (region) => {
         disableRegionCreate();
         setCutRegion(region);
       });
+
+      // subscribe the plugin to the macro (?) I've arbitrarily
+      // assigned to region deletion: double-clicking w/ mouse on region
+      //
+      // @hcientist if you have better ideas for deletion design, let me know
       regions?.on('region-double-clicked', (region) => {
         region.remove();
         disableRegionCreate = regions.enableDragSelection();
       });
     }
 
+    // make sure ffmpeg is ready before trying to use it
     if (!loaded) loadFfmpeg(ffmpegRef, setLoaded, setIsLoading);
   });
 
+  // Essentially whenever a new take is selected we need to
+  // refresh the audio ref and consequently the surfer
+  useEffect(() => {
+    // okay this is cruffed (cruft + scuffed)
+    // but it does get the job done
+    if (audioURL === '/sample_audio/uncso-bruckner4-1.mp3') return;
+
+    async function loadAudio() {
+      if (audioRef.current) {
+        audioRef.current.src = audioURL;
+      }
+
+      setAudioURL(audioRef.current.src);
+      wavesurfer?.load(audioRef.current.src);
+    }
+
+    loadAudio()
+      .then(() => setShowDAW(true))
+      .catch(console.error());
+  }, [audioURL]);
+
+  // TODO @mfwolffe this really needs rethinking - should students be
+  //                able to change speed of piece in the data or just during
+  //                playback? @hcientist?
   useEffect(() => {
     async function updatePlaybackSpeed() {
       const ffmpeg = ffmpegRef.current;
-      await ffmpeg.writeFile('input.mp3', await fetchFile(ORIGURL));
+      await ffmpeg.writeFile('input.mp3', await fetchFile(audioURL));
       await ffmpeg.exec([
         '-i',
         'input.mp3',
@@ -435,7 +453,7 @@ export default function Recorder({ submit, accompaniment }) {
       const data = await ffmpeg.readFile('output.mp3');
       if (audioRef.current) {
         audioRef.current.src = URL.createObjectURL(
-          new Blob([data.buffer], { type: 'audio/mp3' })
+          new Blob([data.buffer], { type: 'audio/mp3' }),
         );
       }
 
@@ -447,25 +465,23 @@ export default function Recorder({ submit, accompaniment }) {
     if (ffmpegRef.current.loaded) updatePlaybackSpeed();
   }, [playbackSpeed]);
 
+  // okay this is also 'cruffed' (see above comment if confused)
+  // and I really just need to get some of the things out of state
   const params = {
-    audioRef: audioRef,
-    setAudioURL: setAudioURL,
-    audioURL: audioURL,
-    wavesurfer: wavesurfer,
-    setEditList: setEditList,
-    editList: editList,
-    setEditListIndex: setEditListIndex,
-    editListIndex: editListIndex,
+    audioRef,
+    setAudioURL,
+    audioURL,
+    wavesurfer,
+    setEditList,
+    editList,
+    setEditListIndex,
+    editListIndex,
     hasButton: true,
-    ffmpegRef: ffmpegRef,
+    ffmpegRef,
     ffmpegLoaded: loaded,
     handler: effectChorusReverb,
   };
 
-  const handleHelp = useCallback(() => {
-    setShowHelp(true)
-  });
-  
   const accompanimentRef = useRef(null);
 
   const router = useRouter();
@@ -603,7 +619,6 @@ export default function Recorder({ submit, accompaniment }) {
           {blobInfo.length === 0 ? (
             <span>No takes yet. Click the microphone icon to record.</span>
           ) : (
-            <>
             <ListGroup as="ol" numbered>
               {blobInfo.map((take, i) => (
                 <ListGroupItem
@@ -633,101 +648,114 @@ export default function Recorder({ submit, accompaniment }) {
                     <StatusIndicator statusId={`recording-take-${i}`} />
                   </div>
                   <div>
-                    <Button variant='primary' onClick={ () => { setAudioURL(take.url); } }>Edit Take</Button>
+                    <Button
+                      variant="primary"
+                      onClick={() => {
+                        setAudioURL(take.url);
+                      }}
+                    >
+                      Edit Take
+                    </Button>
                   </div>
                 </ListGroupItem>
               ))}
             </ListGroup>
-            </>
           )}
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          {/* { showDAW == true ? ( <DawStd takeURL={blobURL}></DawStd> ) : ( <></> ) } */}
-          <audio src={blobURL} />
+          {/* <audio src={blobURL} /> */}
 
-      <HelpModal setFn={setShowHelp} shown={showHelp} />
+          <HelpModal setFn={setShowHelp} shown={showHelp} />
 
-      <Card className="mt-2 mb-2">
-        <CardHeader className="pt-1 pb-1 flex-between">
-          <CardTitle className="pt-0 pb-0 mt-0 mb-0">Audio Editor</CardTitle>
-          <Button className='help-button daw-help align-center' onClick={() => handleHelp()}>
-            <GrHelpBook className="help-ico" fontSize="1.5rem" />
-          </Button>
-        </CardHeader>
-        <CardBody>
+          <Card className="mt-2 mb-2" hidden={!showDAW}>
+            <CardHeader className="pt-1 pb-1 flex-between">
+              <CardTitle className="pt-0 pb-0 mt-0 mb-0">
+                Audio Editor
+              </CardTitle>
+              <Button
+                className="help-button daw-help align-center"
+                onClick={() => setShowHelp(true)}
+              >
+                <GrHelpBook className="help-ico" fontSize="1.5rem" />
+              </Button>
+            </CardHeader>
+            <CardBody>
+              <div className="d-flex w-100 gap-2p">
+                {/* TODO @mfwolffe don't do widget width calcs like this */}
+                <div
+                  id="waveform-container"
+                  style={{
+                    width: `${
+                      100 -
+                      (rvbPresent || eqPresent || chrPresent ? 1.5 : 0) -
+                      (eqPresent ? EQWIDTH : 0) -
+                      (rvbPresent ? RVBWIDTH : 0) -
+                      (chrPresent ? CHRWIDTH : 0)
+                    }%`,
+                  }}
+                >
+                  <DawControlsTop
+                    mapPresent={mapPresent}
+                    mapSetter={setMapPrsnt}
+                    eqSetter={setEqPresent}
+                    eqPresent={eqPresent}
+                    cutRegion={cutRegion}
+                    rvbPresent={rvbPresent}
+                    rvbSetter={setRvbPresent}
+                    chrPresent={chrPresent}
+                    chrSetter={setChrPresent}
+                    // eslint-disable-next-line react/jsx-props-no-spreading
+                    {...params}
+                  />
+                  <div
+                    ref={dawRef}
+                    id="waveform"
+                    className="ml-auto mr-auto mb-0 mt-0"
+                  />
+                  {MinimapContainer(!mapPresent)}
+                  <DawControlsBottom
+                    wavesurfer={wavesurfer}
+                    playbackSpeed={playbackSpeed}
+                    speedSetter={setPlaybackSpeed}
+                  />
+                </div>
 
+                <EQSliders
+                  hide={!eqPresent}
+                  filters={filters}
+                  width={EQWIDTH}
+                />
 
-          { showDAW ? 
-          
-          <div className="d-flex w-100 gap-2p">
-            <div
-              id="waveform-container"
-              style={{
-                width: `${
-                  100 -
-                  (rvbPresent || eqPresent || chrPresent ? 1.5 : 0) -
-                  (eqPresent ? EQWIDTH : 0) -
-                  (rvbPresent ? RVBWIDTH : 0) -
-                  (chrPresent ? CHRWIDTH : 0)
-                }%`,
-              }}
-            >
-              <DawControlsTop
-                mapPresent={mapPresent}
-                mapSetter={setMapPrsnt}
-                eqSetter={setEqPresent}
-                eqPresent={eqPresent}
-                cutRegion={cutRegion}
-                rvbPresent={rvbPresent}
-                rvbSetter={setRvbPresent}
-                chrPresent={chrPresent}
-                chrSetter={setChrPresent}
-                {...params}
-              />
-              <div
-                ref={dawRef}
-                id="waveform"
-                className="ml-auto mr-auto mb-0 mt-0"
-              />
-              {MinimapContainer(!mapPresent)}
-              <DawControlsBottom
-                wavesurfer={wavesurfer}
-                playbackSpeed={playbackSpeed}
-                speedSetter={setPlaybackSpeed}
-              />
-            </div>
-
-            <EQSliders hide={!eqPresent} filters={filters} width={EQWIDTH} />
-
-            <ReverbChorusWidget
-              hide={!rvbPresent}
-              width={RVBWIDTH}
-              sliders={reverbSliders}
-              title={'Reverb'}
-              inGainChr={inGain}
-              outGainChr={outGain}
-              delayChr={delay}
-              decayChr={decay}
-              speedChr={null}
-              depthsChr={null}
-              {...params}
-            />
-            <ReverbChorusWidget
-              hide={!chrPresent}
-              width={CHRWIDTH}
-              sliders={chorusSliders}
-              title={'Chorus'}
-              inGainChr={inGainChr}
-              outGainChr={outGainChr}
-              delayChr={delayChr}
-              decayChr={decayChr}
-              speedChr={speedChr}
-              depthsChr={depthsChr}
-              {...params}
-            />
-          </div> : <Spinner /> }
-
-        </CardBody>
-      </Card>
+                <ReverbChorusWidget
+                  hide={!rvbPresent}
+                  width={RVBWIDTH}
+                  sliders={reverbSliders}
+                  title="Reverb"
+                  inGainChr={inGain}
+                  outGainChr={outGain}
+                  delayChr={delay}
+                  decayChr={decay}
+                  speedChr={null}
+                  depthsChr={null}
+                  // eslint-disable-next-line react/jsx-props-no-spreading
+                  {...params}
+                />
+                <ReverbChorusWidget
+                  hide={!chrPresent}
+                  width={CHRWIDTH}
+                  sliders={chorusSliders}
+                  title="Chorus"
+                  inGainChr={inGainChr}
+                  outGainChr={outGainChr}
+                  delayChr={delayChr}
+                  decayChr={decayChr}
+                  speedChr={speedChr}
+                  depthsChr={depthsChr}
+                  // eslint-disable-next-line react/jsx-props-no-spreading
+                  {...params}
+                />
+              </div>
+            </CardBody>
+          </Card>
         </Col>
       </Row>
     </>
