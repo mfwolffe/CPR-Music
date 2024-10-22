@@ -1,5 +1,7 @@
 // with thanks to https://medium.com/front-end-weekly/recording-audio-in-mp3-using-reactjs-under-5-minutes-5e960defaf10
 
+'use client';
+
 import {
   FaMicrophone,
   FaStop,
@@ -39,7 +41,7 @@ import Minimap from 'wavesurfer.js/dist/plugins/minimap.esm.js';
 import Timeline from 'wavesurfer.js/dist/plugins/timeline.esm.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
 /* eslint-enable import/extensions */
-import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
+import { useCallback, useMemo, useState, useRef, useEffect, use } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 import styles from '../styles/recorder.module.css';
 import StatusIndicator from './statusIndicator';
@@ -62,14 +64,6 @@ import {
   ReverbChorusWidget,
   EQSliders,
 } from './audio/daw/control';
-
-// TODO @mfwolffe don't do the width calculations like this
-const EQWIDTH = 28;
-const RVBWIDTH = 13;
-const CHRWIDTH = 18;
-
-const scratchURL = '/sample_audio/uncso-bruckner4-1.mp3';
-const { audio, audioContext, filters } = setupAudioContext(scratchURL);
 
 function AudioViewer({ src }) {
   const containerW = useRef(null);
@@ -252,6 +246,20 @@ function AudioViewer({ src }) {
 }
 
 export default function Recorder({ submit, accompaniment }) {
+  // TODO @mfwolffe don't do the width calculations like this
+  const EQWIDTH = 28;
+  const RVBWIDTH = 13;
+  const CHRWIDTH = 18;
+
+  const scratchURL = '/sample_audio/uncso-bruckner4-1.mp3';
+  console.log('setupAudioContext', setupAudioContext);
+  let audio;
+  let filters = [];
+  useEffect(() => {
+    const result = setupAudioContext(scratchURL);
+    audio = result.audio;
+    filters = result.filters;
+  }, [window]);
   let zoom;
   let hover;
   let minimap;
