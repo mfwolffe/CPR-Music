@@ -8,11 +8,18 @@ import {
   fetchSingleStudentAssignment,
   postRecording,
 } from '../../../../../../actions';
-import Recorder from '../../../../../../components/recorder';
+// import Recorder from '../../../../../../components/recorder';
 import StudentAssignment from '../../../../../../components/student/assignment';
 
 const FlatEditor = dynamic(
   () => import('../../../../../../components/flatEditor'),
+  {
+    ssr: false,
+  },
+);
+
+const Recorder = dynamic(
+  () => import('../../../../../../components/recorder'),
   {
     ssr: false,
   },
