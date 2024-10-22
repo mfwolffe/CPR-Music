@@ -1,26 +1,28 @@
 // with thanks to https://medium.com/front-end-weekly/recording-audio-in-mp3-using-reactjs-under-5-minutes-5e960defaf10
 
 import {
-  FaMicrophone,
+  FaEdit,
   FaStop,
-  FaCloudUploadAlt,
   FaPlay,
   FaPause,
-  FaVolumeOff,
-  FaVolumeMute,
-  FaVolumeDown,
   FaVolumeUp,
+  FaVolumeOff,
+  FaMicrophone,
   FaRegTrashAlt,
   FaDownload,
+  FaVolumeDown,
+  FaVolumeMute,
+  FaCloudUploadAlt,
 } from 'react-icons/fa';
 import {
-  Button,
   Card,
-  CardBody,
-  CardHeader,
-  CardTitle,
   Modal,
+  Button,
   Spinner,
+  CardBody,
+  CardTitle,
+  CardHeader,
+  CardFooter,
 } from 'react-bootstrap';
 import Col from 'react-bootstrap/Col';
 import Row from 'react-bootstrap/Row';
@@ -344,6 +346,8 @@ export default function Recorder({ submit, accompaniment }) {
   const [min, setMinute] = useState(0);
   const [sec, setSecond] = useState(0);
 
+  const [takeNo, setTakeNo] = useState(-1);
+
   // @mfwolffe wavesurfer initialization
   const { wavesurfer, isPlaying, currentTime } = useWavesurfer({
     height: 208,
@@ -453,7 +457,7 @@ export default function Recorder({ submit, accompaniment }) {
       setAudioURL(audioRef.current.src);
       wavesurfer?.load(audioRef.current.src);
     }
-
+    
     loadAudio()
       .then(() => setShowDAW(true))
       .catch(console.error());
@@ -569,6 +573,16 @@ export default function Recorder({ submit, accompaniment }) {
     // dispatch(submit({ audio: formData }));
     submit({ audio: formData, submissionId });
   };
+
+  // SEEME @hcientist do you want me to just wrap this inside 
+  // of your submitRecording or keep separate?
+  const submitEditedRecording = async (url) => {
+    await fetch(url).then(response => response.blob()).then(blob => {      
+      const formData = new FormData();
+      formData.append('file', new File([blob], `edited-take-${takeNo}.mp3`, { mimeType: "audio/mpeg" }));
+      submit({ audio: formData, formData });
+    });
+  }
 
   function deleteTake(index) {
     const newInfo = blobInfo.slice();
@@ -693,7 +707,7 @@ export default function Recorder({ submit, accompaniment }) {
                 <ListGroupItem
                   key={take.url}
                   as="li"
-                  className="d-flex justify-content-between align-items-start"
+                  className="d-flex justify-content-between align-items-center"
                   style={{ fontSize: '1.5rem' }}
                 >
                   {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
@@ -704,6 +718,14 @@ export default function Recorder({ submit, accompaniment }) {
                   /> */}
                   {/* <AudioViewer src={take.url} /> */}
                   <div>
+                    <Button
+                      onClick={() => {
+                        setTakeNo(i);
+                        setAudioURL(take.url);
+                      }}
+                    >
+                      <FaEdit />
+                    </Button>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <Button
                         onClick={() =>
@@ -723,16 +745,6 @@ export default function Recorder({ submit, accompaniment }) {
                   <div className="minWidth">
                     <StatusIndicator statusId={`recording-take-${i}`} />
                   </div>
-                  <div>
-                    <Button
-                      variant="primary"
-                      onClick={() => {
-                        setAudioURL(take.url);
-                      }}
-                    >
-                      Edit Take
-                    </Button>
-                  </div>
                 </ListGroupItem>
               ))}
             </ListGroup>
@@ -743,7 +755,7 @@ export default function Recorder({ submit, accompaniment }) {
           <HelpModal setFn={setShowHelp} shown={showHelp} />
 
           <Card className="mt-2 mb-2" hidden={!showDAW}>
-            <CardHeader className="pt-1 pb-1 flex-between">
+            <CardHeader className="pt-1 pb-1 flex-between dawHeaderFooter align-items-center">
               <CardTitle className="pt-0 pb-0 mt-0 mb-0">
                 Audio Editor
               </CardTitle>
@@ -754,7 +766,7 @@ export default function Recorder({ submit, accompaniment }) {
                 <GrHelpBook className="help-ico" fontSize="1.5rem" />
               </Button>
             </CardHeader>
-            <CardBody>
+            <CardBody style={{ background: "lightsteelblue" }}>
               <div className="d-flex w-100 gap-2p">
                 {/* TODO @mfwolffe don't do widget width calcs like this */}
                 <div
@@ -831,6 +843,11 @@ export default function Recorder({ submit, accompaniment }) {
                 />
               </div>
             </CardBody>
+            <CardFooter className='dawHeaderFooter'>
+              <Button style={{ float: "right" }} onClick={() => submitEditedRecording(audioURL)}>
+                Submit with Edits
+              </Button>
+            </CardFooter>
           </Card>
         </Col>
       </Row>
