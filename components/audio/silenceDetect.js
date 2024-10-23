@@ -3,7 +3,7 @@
 import { useCallback } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import { Button, Table } from 'react-bootstrap';
-import { formatTimeMilli } from '../lib/dawUtils';
+import { formatTimeMilli } from '../../lib/dawUtils';
 import { PiWarningOctagonFill } from 'react-icons/pi';
 
 const WarningIcon = <PiWarningOctagonFill fontSize="2.2rem" />;
@@ -40,8 +40,11 @@ const silenceDataTable = (silenceData) => {
   );
 };
 
-const AudioDropModal = ({ show, setShow, silenceData }) => {
+const AudioDropModal = ({ show, setShow, silenceData, setIgnore }) => {
   const closeModal = useCallback(() => setShow(false));
+  const closeAndSubmit = useCallback(() => {
+    setIgnore(true);
+  })
 
   return (
     <>
@@ -79,8 +82,8 @@ const AudioDropModal = ({ show, setShow, silenceData }) => {
           <Button variant="secondary" onClick={closeModal}>
             Close
           </Button>
-          <Button variant="primary" onClick={closeModal}>
-            Show on Waveform
+          <Button variant="primary" onClick={closeAndSubmit}>
+            Submit Anyway
           </Button>
         </Modal.Footer>
       </Modal>
