@@ -1,5 +1,7 @@
 // with thanks to https://medium.com/front-end-weekly/recording-audio-in-mp3-using-reactjs-under-5-minutes-5e960defaf10
 
+'use client';
+
 import {
   FaEdit,
   FaStop,
@@ -67,7 +69,6 @@ import {
 import HelpModal from './audio/daw/dawHelp';
 import StatusIndicator from './statusIndicator';
 import { AudioDropModal } from './audio/silenceDetect';
-
 
 // TODO @mfwolffe don't do the width calculations like this
 const EQWIDTH = 28;
