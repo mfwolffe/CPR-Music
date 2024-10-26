@@ -68,6 +68,7 @@ import HelpModal from './audio/daw/dawHelp';
 import StatusIndicator from './statusIndicator';
 import { AudioDropModal } from './audio/silenceDetect';
 
+
 // TODO @mfwolffe don't do the width calculations like this
 const EQWIDTH = 28;
 const RVBWIDTH = 13;
@@ -257,6 +258,19 @@ function AudioViewer({ src }) {
 }
 
 export default function Recorder({ submit, accompaniment }) {
+  // SEEME from @hcientist and I's attempts to 
+  //       fix Audio ref/document undef issues
+  // 
+  // const scratchURL = '/sample_audio/uncso-bruckner4-1.mp3';
+  // console.log('setupAudioContext', setupAudioContext);
+  // let audio;
+  // let filters = [];
+  // useEffect(() => {
+  //   const result = setupAudioContext(scratchURL);
+  //   audio = result.audio;
+  //   filters = result.filters;
+  // }, [window]);
+  // 
   let zoom;
   let hover;
   let minimap;
