@@ -239,3 +239,8 @@ input[type='range'][orient='vertical'] {
   background-color: slategrey;
   color:antiquewhite;
 }
+
+.disabled-cursor:disabled {
+  cursor: not-allowed;
+  pointer-events: all !important;
+}
