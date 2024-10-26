@@ -104,9 +104,9 @@ export default function PerformMelody() {
         <>
           <FlatEditor score={parsedScore} />
           {assignment?.part?.sample_audio && (
-            <dl>
+            <dl className='mb-0'>
               <dt>Sample Recording</dt>
-              <dd>
+              <dd className='mb-0'>
                 {
                   // eslint-disable-next-line jsx-a11y/media-has-caption
                   <audio controls src={preferredSample} />
