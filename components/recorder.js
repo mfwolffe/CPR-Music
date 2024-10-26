@@ -8,16 +8,15 @@ import {
   FaVolumeUp,
   FaVolumeOff,
   FaMicrophone,
-  FaRegTrashAlt,
   FaVolumeDown,
   FaVolumeMute,
+  FaRegTrashAlt,
   FaCloudUploadAlt,
 } from 'react-icons/fa';
 import {
   Card,
-  Modal,
+  Form,
   Button,
-  Spinner,
   CardBody,
   CardTitle,
   CardHeader,
@@ -25,12 +24,15 @@ import {
 } from 'react-bootstrap';
 import Col from 'react-bootstrap/Col';
 import Row from 'react-bootstrap/Row';
+import WaveSurfer from 'wavesurfer.js';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { useRouter } from 'next/router';
 import { fetchFile } from '@ffmpeg/util';
+import { BiRename } from "react-icons/bi";
 import { useDispatch } from 'react-redux';
 import { GrHelpBook } from 'react-icons/gr';
 import MicRecorder from 'mic-recorder-to-mp3';
+import { PiWarningDuotone } from 'react-icons/pi';
 import { useWavesurfer } from '@wavesurfer/react';
 import ListGroup from 'react-bootstrap/ListGroup';
 /* eslint-disable import/extensions */
@@ -42,15 +44,13 @@ import Timeline from 'wavesurfer.js/dist/plugins/timeline.esm.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
 /* eslint-enable import/extensions */
 import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
-import WaveSurfer from 'wavesurfer.js';
+
 import styles from '../styles/recorder.module.css';
-import StatusIndicator from './statusIndicator';
-import HelpModal from './audio/daw/dawHelp';
 
 import {
   loadFfmpeg,
   formatTime,
-  formatTimeMilli,
+  catchSilence,
   setupAudioContext,
   effectChorusReverb,
 } from '../lib/dawUtils';
@@ -64,6 +64,9 @@ import {
   ReverbChorusWidget,
   EQSliders,
 } from './audio/daw/control';
+import HelpModal from './audio/daw/dawHelp';
+import StatusIndicator from './statusIndicator';
+import { AudioDropModal } from './audio/silenceDetect';
 
 // TODO @mfwolffe don't do the width calculations like this
 const EQWIDTH = 28;
@@ -71,7 +74,7 @@ const RVBWIDTH = 13;
 const CHRWIDTH = 18;
 
 const scratchURL = '/sample_audio/uncso-bruckner4-1.mp3';
-const { audio, audioContext, filters } = setupAudioContext(scratchURL);
+const { audio, filters } = setupAudioContext(scratchURL);
 
 function AudioViewer({ src }) {
   const containerW = useRef(null);
@@ -287,9 +290,14 @@ export default function Recorder({ submit, accompaniment }) {
   const [mapPresent, setMapPrsnt] = useState(false);
   const [rvbPresent, setRvbPresent] = useState(false);
   const [chrPresent, setChrPresent] = useState(false);
+  const [showRename, setShowRename] = useState(false);
   const [audioURL, setAudioURL] = useState(scratchURL);
+  const [silenceData, setSilenceData] = useState(null);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [editListIndex, setEditListIndex] = useState(0);
+  const [showAudioDrop, setShowAudioDrop] = useState(false);
+  const [ignoreSilence, setIgnoreSilence] = useState(false);
+  const [submissionFile, setSubmissionFile] = useState(null);
 
   // vertical slider controls for the chorus widget
   const chorusSliders = [
@@ -418,8 +426,6 @@ export default function Recorder({ submit, accompaniment }) {
     if (!loaded) loadFfmpeg(ffmpegRef, setLoaded, setIsLoading);
   });
 
-  // Essentially whenever a new take is selected we need to
-  // refresh the audio ref and consequently the surfer
   useEffect(() => {
     // okay this is cruffed (cruft + scuffed)
     // but it does get the job done
@@ -433,7 +439,7 @@ export default function Recorder({ submit, accompaniment }) {
       setAudioURL(audioRef.current.src);
       wavesurfer?.load(audioRef.current.src);
     }
-    
+
     loadAudio()
       .then(() => setShowDAW(true))
       .catch(console.error());
@@ -526,9 +532,13 @@ export default function Recorder({ submit, accompaniment }) {
           {
             url,
             data: blob,
+            takeName: null,
+            timeStr: new Date().toLocaleString(),
           },
         ]);
         setIsRecording(false);
+        setAudioURL(url);
+        setTakeNo(takeNo + 1);
       })
       .catch((e) => console.error('error stopping recording', e));
   };
@@ -545,21 +555,77 @@ export default function Recorder({ submit, accompaniment }) {
     submit({ audio: formData, submissionId });
   };
 
-  // SEEME @hcientist do you want me to just wrap this inside 
-  // of your submitRecording or keep separate?
+  const submitUneditedRecording = async (i, submissionId) => {
+    const formData = new FormData(); // TODO: make filename reflect assignment
+    formData.append(
+      'file',
+      new File([blobInfo[i].data], 'student-recoding.mp3', {
+        mimeType: 'audio/mpeg',
+      }),
+    );
+  };
+
   const submitEditedRecording = async (url) => {
-    await fetch(url).then(response => response.blob()).then(blob => {      
-      const formData = new FormData();
-      formData.append('file', new File([blob], `edited-take-${takeNo}.mp3`, { mimeType: "audio/mpeg" }));
-      submit({ audio: formData, formData });
+    await fetch(url)
+      .then((response) => response.blob())
+      .then((blob) => {
+        setSubmissionFile(
+          new File([blob], `edited-take-${takeNo}.mp3`, {
+            mimeType: 'audio/mpeg',
+          }),
+        );
+      });
+  };
+
+  useEffect(() => {
+    if (!submissionFile) return;
+    async function scanAudio() {
+      // SEEME @mfwolffe @hcientist how should configuring these params look?
+      //                            teacher sets them? student? per-instrument basis?
+      const scanData = await catchSilence(
+        ffmpegRef,
+        submissionFile,
+        0.001,
+        0.05,
+      );
+      return scanData;
+    }
+
+    scanAudio().then((result) => {
+      if (result.silenceFlag) {
+        setSilenceData({ ...result });
+        setShowAudioDrop(true);
+      } else {
+        const formData = new FormData(); // TODO: make filename reflect assignment
+        formData.append('file', submissionFile);
+        submit({ audio: formData, formData });
+      }
     });
-  }
+  }, [submissionFile]);
+
+  useEffect(() => {
+    if (ignoreSilence) {
+      setShowAudioDrop(false);
+
+      const formData = new FormData();
+      formData.append('file', submissionFile);
+      submit({ audio: formData, formData });
+    }
+  }, [ignoreSilence]);
 
   function deleteTake(index) {
+    // SEEME @mfwolffe this needs reimplementing 
+    //                 what if user deletes a take?
+    if (takeNo == index) {
+      setShowDAW(false);
+    }
+
     const newInfo = blobInfo.slice();
     newInfo.splice(index, 1);
     setBlobInfo(newInfo);
   }
+
+  const takeRename = (i, userName) => {blobInfo[i].takeName = userName};
 
   // check for recording permissions
   useEffect(() => {
@@ -611,12 +677,12 @@ export default function Recorder({ submit, accompaniment }) {
       <Row>
         <Col>
           {isRecording ? (
-            <Button onClick={stopRecording}>
+            <Button onClick={stopRecording} className='mb-2 mt-2'>
               <FaStop /> {String(min).padStart(2, '0')}:
               {String(sec).padStart(2, '0')}
             </Button>
           ) : (
-            <Button onClick={startRecording}>
+            <Button onClick={startRecording} className='mb-2 mt-2'>
               <FaMicrophone />
             </Button>
           )}
@@ -626,19 +692,20 @@ export default function Recorder({ submit, accompaniment }) {
         <Col>
           {/* <StatusIndicator statusId={`recording-take-test`} /> */}
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <audio ref={accompanimentRef}>
+          <audio ref={accompanimentRef} className='mb-2'>
             <source src={accompaniment} type="audio/mpeg" />
           </audio>
           {blobInfo.length === 0 ? (
-            <span>No takes yet. Click the microphone icon to record.</span>
+            <span className='mt-2'>No takes yet. Click the microphone icon to record.</span>
           ) : (
-            <ListGroup as="ol" numbered>
+            <ListGroup as="ol" numbered className='mt-2'>
+              <h3>Your Takes ({blobInfo.length})</h3>
               {blobInfo.map((take, i) => (
                 <ListGroupItem
                   key={take.url}
                   as="li"
-                  className="d-flex justify-content-between align-items-center"
-                  style={{ fontSize: '1.5rem' }}
+                  className="d-flex justify-content-between"
+                  style={{ fontSize: '1rem', alignItems: "center" }}
                 >
                   {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
                   {/* <audio
@@ -647,21 +714,36 @@ export default function Recorder({ submit, accompaniment }) {
                     controls
                   /> */}
                   {/* <AudioViewer src={take.url} /> */}
-                  <div>
+
+                  {/* TODO @mfwolffe think abt options for  dyanmic handlers. */}
+                  <span style={{ display: showRename ? "none" : '', width: "50%" }}>{ take.takeName ?? `Take recorded on ${take.timeStr}` }</span>
+                  <Form.Control type="text" 
+                  placeholder={ take.takeName ?? `Take recorded on ${take.timeStr}` } 
+                  aria-label="rename take" style={{ display: !showRename ? "none" : '', width: "50%" }} 
+                  onBlur={(e) => {
+                    blobInfo[i].takeName = e.target.value;
+                    setShowRename(false);
+                  }}/>
+
+                  <div className='d-flex justify-content-center align-items-center'>
+
+                  <Button onClick={() => {setShowRename(true)}} className='ml-1'>
+                    <BiRename />
+                  </Button>
+
                     <Button
+                      // TODO @mfwolffe - delete will also break down once indices don't match takeNo. 
+                      // I think resetting takeNo's whenever a delete is fired 
+                      disabled={takeNo == i}
                       onClick={() => {
                         setTakeNo(i);
                         setAudioURL(take.url);
                       }}
+                      className='ml-1 disabled-cursor'
                     >
                       <FaEdit />
                     </Button>
-                    <Button
-                      onClick={() => submitRecording(i, `recording-take-${i}`)}
-                    >
-                      <FaCloudUploadAlt />
-                    </Button>
-                    <Button onClick={() => deleteTake(i)}>
+                    <Button onClick={() => deleteTake(i)} className='ml-1'>
                       <FaRegTrashAlt />
                     </Button>
                   </div>
@@ -676,6 +758,12 @@ export default function Recorder({ submit, accompaniment }) {
           {/* <audio src={blobURL} /> */}
 
           <HelpModal setFn={setShowHelp} shown={showHelp} />
+          <AudioDropModal
+            show={showAudioDrop}
+            setShow={setShowAudioDrop}
+            silenceData={silenceData}
+            setIgnore={setIgnoreSilence}
+          />
 
           <Card className="mt-2 mb-2" hidden={!showDAW}>
             <CardHeader className="pt-1 pb-1 flex-between dawHeaderFooter align-items-center">
@@ -689,9 +777,10 @@ export default function Recorder({ submit, accompaniment }) {
                 <GrHelpBook className="help-ico" fontSize="1.5rem" />
               </Button>
             </CardHeader>
-            <CardBody style={{ background: "lightsteelblue" }}>
+            <CardBody style={{ background: 'lightsteelblue' }}>
               <div className="d-flex w-100 gap-2p">
                 {/* TODO @mfwolffe don't do widget width calcs like this */}
+                {/* TODO @mfwolffe why are the widget calcs still like this? */}
                 <div
                   id="waveform-container"
                   style={{
@@ -729,13 +818,11 @@ export default function Recorder({ submit, accompaniment }) {
                     speedSetter={setPlaybackSpeed}
                   />
                 </div>
-
                 <EQSliders
                   hide={!eqPresent}
                   filters={filters}
                   width={EQWIDTH}
                 />
-
                 <ReverbChorusWidget
                   hide={!rvbPresent}
                   width={RVBWIDTH}
@@ -766,9 +853,13 @@ export default function Recorder({ submit, accompaniment }) {
                 />
               </div>
             </CardBody>
-            <CardFooter className='dawHeaderFooter'>
-              <Button style={{ float: "right" }} onClick={() => submitEditedRecording(audioURL)}>
-                Submit with Edits
+            <CardFooter className="dawHeaderFooter">
+              <Button
+                style={{ float: 'right' }}
+                onClick={() => submitEditedRecording(audioURL)}
+              >
+                Submit{' '}
+                {silenceData?.silenceFlag ? <PiWarningDuotone /> : ''}
               </Button>
             </CardFooter>
           </Card>
