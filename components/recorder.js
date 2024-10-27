@@ -14,7 +14,7 @@ import {
   FaVolumeDown,
   FaVolumeUp,
   FaRegTrashAlt,
-  FaDownload
+  FaDownload,
 } from 'react-icons/fa';
 import { useDispatch, useSelector } from 'react-redux';
 import ListGroup from 'react-bootstrap/ListGroup';
@@ -89,7 +89,7 @@ function AudioViewer({ src }) {
         height: '1.05em',
         cursor: 'pointer',
         color: 'red',
-        paddingLeft: '2px'
+        paddingLeft: '2px',
       }}
       onClick={toggleVolume}
     />
@@ -112,7 +112,7 @@ function AudioViewer({ src }) {
         width: '1.23em',
         height: '1.23em',
         cursor: 'pointer',
-        paddingLeft: '3px'
+        paddingLeft: '3px',
       }}
       onClick={toggleVolume}
     />
@@ -131,7 +131,7 @@ function AudioViewer({ src }) {
         cursorWidth: 3,
         height: 200,
         barGap: 3,
-        dragToSeek: true
+        dragToSeek: true,
         // plugins:[
         //   WaveSurferRegions.create({maxLength: 60}),
         //   WaveSurferTimeLinePlugin.create({container: containerT.current})
@@ -161,7 +161,7 @@ function AudioViewer({ src }) {
         flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        margin: '0 1rem 0 1rem'
+        margin: '0 1rem 0 1rem',
       }}
     >
       <div
@@ -173,7 +173,7 @@ function AudioViewer({ src }) {
         style={{
           display: 'flex',
           justifyContent: 'center',
-          alignItems: 'center'
+          alignItems: 'center',
         }}
       >
         <Button
@@ -185,7 +185,7 @@ function AudioViewer({ src }) {
             width: '40px',
             height: '40px',
             borderRadius: '50%',
-            padding: '0'
+            padding: '0',
           }}
           onClick={playPause}
         >
@@ -220,13 +220,13 @@ export default function Recorder({ submit, accompaniment }) {
 
   const getSupportedMimeType = () => {
     const types = [
+      'audio/ogg;codecs=opus',
       'audio/webm',
       'audio/webm;codecs=opus',
-      'audio/ogg;codecs=opus',
       'audio/mp4',
-      'audio/mpeg'
+      'audio/mpeg',
     ];
-    return types.find(type => MediaRecorder.isTypeSupported(type)) || null;
+    return types.find((type) => MediaRecorder.isTypeSupported(type)) || null;
   };
   const [min, setMinute] = useState(0);
   const [sec, setSecond] = useState(0);
@@ -236,14 +236,11 @@ export default function Recorder({ submit, accompaniment }) {
   const router = useRouter();
   const { slug, piece, actCategory, partType } = router.query;
 
-  useEffect(
-    () => {
-      setBlobInfo([]);
-      setBlobURL('');
-      setBlobData();
-    },
-    [partType]
-  );
+  useEffect(() => {
+    setBlobInfo([]);
+    setBlobURL('');
+    setBlobData();
+  }, [partType]);
 
   const startRecording = () => {
     if (isBlocked) {
@@ -263,7 +260,7 @@ export default function Recorder({ submit, accompaniment }) {
     mediaRecorder.stop();
   };
 
-  const downloadRecording = i => {
+  const downloadRecording = (i) => {
     const url = window.URL.createObjectURL(blobInfo[i].data);
     const a = document.createElement('a');
     a.style.display = 'none';
@@ -283,12 +280,19 @@ export default function Recorder({ submit, accompaniment }) {
   };
 
   const submitRecording = (i, submissionId) => {
+    const extension = mimeType.includes('webm')
+      ? 'webm'
+      : mimeType.includes('ogg')
+        ? 'ogg'
+        : mimeType.includes('mp4')
+          ? 'm4a'
+          : 'wav';
     const formData = new FormData(); // TODO: make filename reflect assignment
     formData.append(
       'file',
-      new File([blobInfo[i].data], 'student-recording', {
-        type: mimeType
-      })
+      new File([blobInfo[i].data], `student-recording-${i}.${extension}`, {
+        type: mimeType,
+      }),
     );
     // dispatch(submit({ audio: formData }));
     submit({ audio: formData, submissionId });
@@ -314,10 +318,10 @@ export default function Recorder({ submit, accompaniment }) {
             autoGainControl: false,
             channelCount: 1,
             sampleRate: 48000,
-            latency: 0
-          }
+            latency: 0,
+          },
         })
-        .then(stream => {
+        .then((stream) => {
           const supportedType = getSupportedMimeType();
           if (!supportedType) {
             console.error('No supported audio MIME type found');
@@ -327,10 +331,10 @@ export default function Recorder({ submit, accompaniment }) {
           setMimeType(supportedType);
 
           const recorder = new MediaRecorder(stream, {
-            mimeType: supportedType
+            mimeType: supportedType,
           });
 
-          recorder.ondataavailable = e => {
+          recorder.ondataavailable = (e) => {
             if (e.data.size > 0) {
               chunksRef.current.push(e.data);
             }
@@ -341,12 +345,12 @@ export default function Recorder({ submit, accompaniment }) {
             setBlobData(blob);
             const url = URL.createObjectURL(blob);
             setBlobURL(url);
-            setBlobInfo(prevInfo => [
+            setBlobInfo((prevInfo) => [
               ...prevInfo,
               {
                 url,
-                data: blob
-              }
+                data: blob,
+              },
             ]);
             setIsRecording(false);
             chunksRef.current = [];
@@ -355,39 +359,36 @@ export default function Recorder({ submit, accompaniment }) {
           setMediaRecorder(recorder);
           setIsBlocked(false);
         })
-        .catch(err => {
+        .catch((err) => {
           console.log('Permission Denied');
           setIsBlocked(true);
         });
     }
   }, []);
 
-  useEffect(
-    () => {
-      let interval = null;
-      if (isRecording) {
-        interval = setInterval(() => {
-          setSecond(sec + 1);
-          if (sec === 59) {
-            setMinute(min + 1);
-            setSecond(0);
-          }
-          if (min === 99) {
-            setMinute(0);
-            setSecond(0);
-          }
-        }, 1000);
-      } else if (!isRecording && sec !== 0) {
-        setMinute(0);
-        setSecond(0);
-        clearInterval(interval);
-      }
-      return () => {
-        clearInterval(interval);
-      };
-    },
-    [isRecording, sec]
-  );
+  useEffect(() => {
+    let interval = null;
+    if (isRecording) {
+      interval = setInterval(() => {
+        setSecond(sec + 1);
+        if (sec === 59) {
+          setMinute(min + 1);
+          setSecond(0);
+        }
+        if (min === 99) {
+          setMinute(0);
+          setSecond(0);
+        }
+      }, 1000);
+    } else if (!isRecording && sec !== 0) {
+      setMinute(0);
+      setSecond(0);
+      clearInterval(interval);
+    }
+    return () => {
+      clearInterval(interval);
+    };
+  }, [isRecording, sec]);
 
   return (
     <>
