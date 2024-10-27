@@ -1,6 +1,3 @@
-// with thanks to https://medium.com/front-end-weekly/recording-audio-in-mp3-using-reactjs-under-5-minutes-5e960defaf10
-
-import MicRecorder from 'mic-recorder-to-mp3';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Button from 'react-bootstrap/Button';
 import {
@@ -17,6 +14,7 @@ import {
   FaVolumeDown,
   FaVolumeUp,
   FaRegTrashAlt,
+  FaDownload
 } from 'react-icons/fa';
 import { useDispatch, useSelector } from 'react-redux';
 import ListGroup from 'react-bootstrap/ListGroup';
@@ -91,7 +89,7 @@ function AudioViewer({ src }) {
         height: '1.05em',
         cursor: 'pointer',
         color: 'red',
-        paddingLeft: '2px',
+        paddingLeft: '2px'
       }}
       onClick={toggleVolume}
     />
@@ -114,7 +112,7 @@ function AudioViewer({ src }) {
         width: '1.23em',
         height: '1.23em',
         cursor: 'pointer',
-        paddingLeft: '3px',
+        paddingLeft: '3px'
       }}
       onClick={toggleVolume}
     />
@@ -133,7 +131,7 @@ function AudioViewer({ src }) {
         cursorWidth: 3,
         height: 200,
         barGap: 3,
-        dragToSeek: true,
+        dragToSeek: true
         // plugins:[
         //   WaveSurferRegions.create({maxLength: 60}),
         //   WaveSurferTimeLinePlugin.create({container: containerT.current})
@@ -163,7 +161,7 @@ function AudioViewer({ src }) {
         flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        margin: '0 1rem 0 1rem',
+        margin: '0 1rem 0 1rem'
       }}
     >
       <div
@@ -175,7 +173,7 @@ function AudioViewer({ src }) {
         style={{
           display: 'flex',
           justifyContent: 'center',
-          alignItems: 'center',
+          alignItems: 'center'
         }}
       >
         <Button
@@ -187,7 +185,7 @@ function AudioViewer({ src }) {
             width: '40px',
             height: '40px',
             borderRadius: '50%',
-            padding: '0',
+            padding: '0'
           }}
           onClick={playPause}
         >
@@ -210,14 +208,26 @@ function AudioViewer({ src }) {
 }
 
 export default function Recorder({ submit, accompaniment }) {
-  // const Mp3Recorder = new MicRecorder({ bitRate: 128 }); // 128 is default already
   const [isRecording, setIsRecording] = useState(false);
   const [blobURL, setBlobURL] = useState('');
   const [blobData, setBlobData] = useState();
   const [blobInfo, setBlobInfo] = useState([]);
   const [isBlocked, setIsBlocked] = useState(false);
-  const [recorder, setRecorder] = useState(new MicRecorder());
+  const [mediaRecorder, setMediaRecorder] = useState(null);
+  const [mimeType, setMimeType] = useState(null);
+  const chunksRef = useRef([]);
   const dispatch = useDispatch();
+
+  const getSupportedMimeType = () => {
+    const types = [
+      'audio/webm',
+      'audio/webm;codecs=opus',
+      'audio/ogg;codecs=opus',
+      'audio/mp4',
+      'audio/mpeg'
+    ];
+    return types.find(type => MediaRecorder.isTypeSupported(type)) || null;
+  };
   const [min, setMinute] = useState(0);
   const [sec, setSecond] = useState(0);
 
@@ -226,56 +236,59 @@ export default function Recorder({ submit, accompaniment }) {
   const router = useRouter();
   const { slug, piece, actCategory, partType } = router.query;
 
-  useEffect(() => {
-    setBlobInfo([]);
-    setBlobURL('');
-    setBlobData();
-  }, [partType]);
+  useEffect(
+    () => {
+      setBlobInfo([]);
+      setBlobURL('');
+      setBlobData();
+    },
+    [partType]
+  );
 
-  const startRecording = (ev) => {
+  const startRecording = () => {
     if (isBlocked) {
       console.error('cannot record, microphone permissions are blocked');
-    } else {
-      accompanimentRef.current.play();
-      recorder
-        .start()
-        .then(() => {
-          setIsRecording(true);
-        })
-        .catch((err) => console.error('problem starting recording', err));
+      return;
     }
+
+    accompanimentRef.current.play();
+    chunksRef.current = [];
+    mediaRecorder.start();
+    setIsRecording(true);
   };
 
-  const stopRecording = (ev) => {
+  const stopRecording = () => {
     accompanimentRef.current.pause();
     accompanimentRef.current.load();
+    mediaRecorder.stop();
+  };
 
-    recorder
-      .stop()
-      .getMp3()
-      .then(([buffer, blob]) => {
-        setBlobData(blob);
-        const url = URL.createObjectURL(blob);
-        setBlobURL(url);
-        setBlobInfo([
-          ...blobInfo,
-          {
-            url,
-            data: blob,
-          },
-        ]);
-        setIsRecording(false);
-      })
-      .catch((e) => console.error('error stopping recording', e));
+  const downloadRecording = i => {
+    const url = window.URL.createObjectURL(blobInfo[i].data);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    const extension = mimeType.includes('webm')
+      ? 'webm'
+      : mimeType.includes('ogg')
+        ? 'ogg'
+        : mimeType.includes('mp4')
+          ? 'm4a'
+          : 'wav';
+    a.download = `recording-${i + 1}.${extension}`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
   };
 
   const submitRecording = (i, submissionId) => {
     const formData = new FormData(); // TODO: make filename reflect assignment
     formData.append(
       'file',
-      new File([blobInfo[i].data], 'student-recoding.mp3', {
-        mimeType: 'audio/mpeg',
-      }),
+      new File([blobInfo[i].data], 'student-recording', {
+        type: mimeType
+      })
     );
     // dispatch(submit({ audio: formData }));
     submit({ audio: formData, submissionId });
@@ -287,50 +300,94 @@ export default function Recorder({ submit, accompaniment }) {
     setBlobInfo(newInfo);
   }
 
-  // check for recording permissions
+  // Initialize MediaRecorder
   useEffect(() => {
     if (
       typeof window !== 'undefined' &&
-      navigator &&
-      navigator.mediaDevices.getUserMedia
+      navigator?.mediaDevices?.getUserMedia
     ) {
       navigator.mediaDevices
         .getUserMedia({
-          audio: { echoCancellation: false, noiseSuppression: false },
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            channelCount: 1,
+            sampleRate: 48000,
+            latency: 0
+          }
         })
-        .then(() => {
+        .then(stream => {
+          const supportedType = getSupportedMimeType();
+          if (!supportedType) {
+            console.error('No supported audio MIME type found');
+            setIsBlocked(true);
+            return;
+          }
+          setMimeType(supportedType);
+
+          const recorder = new MediaRecorder(stream, {
+            mimeType: supportedType
+          });
+
+          recorder.ondataavailable = e => {
+            if (e.data.size > 0) {
+              chunksRef.current.push(e.data);
+            }
+          };
+
+          recorder.onstop = () => {
+            const blob = new Blob(chunksRef.current, { type: supportedType });
+            setBlobData(blob);
+            const url = URL.createObjectURL(blob);
+            setBlobURL(url);
+            setBlobInfo(prevInfo => [
+              ...prevInfo,
+              {
+                url,
+                data: blob
+              }
+            ]);
+            setIsRecording(false);
+            chunksRef.current = [];
+          };
+
+          setMediaRecorder(recorder);
           setIsBlocked(false);
         })
-        .catch(() => {
+        .catch(err => {
           console.log('Permission Denied');
           setIsBlocked(true);
         });
     }
   }, []);
 
-  useEffect(() => {
-    let interval = null;
-    if (isRecording) {
-      interval = setInterval(() => {
-        setSecond(sec + 1);
-        if (sec === 59) {
-          setMinute(min + 1);
-          setSecond(0);
-        }
-        if (min === 99) {
-          setMinute(0);
-          setSecond(0);
-        }
-      }, 1000);
-    } else if (!isRecording && sec !== 0) {
-      setMinute(0);
-      setSecond(0);
-      clearInterval(interval);
-    }
-    return () => {
-      clearInterval(interval);
-    };
-  }, [isRecording, sec]);
+  useEffect(
+    () => {
+      let interval = null;
+      if (isRecording) {
+        interval = setInterval(() => {
+          setSecond(sec + 1);
+          if (sec === 59) {
+            setMinute(min + 1);
+            setSecond(0);
+          }
+          if (min === 99) {
+            setMinute(0);
+            setSecond(0);
+          }
+        }, 1000);
+      } else if (!isRecording && sec !== 0) {
+        setMinute(0);
+        setSecond(0);
+        clearInterval(interval);
+      }
+      return () => {
+        clearInterval(interval);
+      };
+    },
+    [isRecording, sec]
+  );
 
   return (
     <>
@@ -374,14 +431,21 @@ export default function Recorder({ submit, accompaniment }) {
                   /> */}
                   <AudioViewer src={take.url} />
                   <div>
-                    <Button
-                      onClick={() => submitRecording(i, `recording-take-${i}`)}
-                    >
-                      <FaCloudUploadAlt />
-                    </Button>
-                    <Button onClick={() => deleteTake(i)}>
-                      <FaRegTrashAlt />
-                    </Button>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <Button
+                        onClick={() =>
+                          submitRecording(i, `recording-take-${i}`)
+                        }
+                      >
+                        <FaCloudUploadAlt />
+                      </Button>
+                      <Button onClick={() => downloadRecording(i)}>
+                        <FaDownload />
+                      </Button>
+                      <Button onClick={() => deleteTake(i)}>
+                        <FaRegTrashAlt />
+                      </Button>
+                    </div>
                   </div>
                   <div className="minWidth">
                     <StatusIndicator statusId={`recording-take-${i}`} />
