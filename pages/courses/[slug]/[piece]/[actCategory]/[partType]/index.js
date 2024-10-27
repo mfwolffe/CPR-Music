@@ -23,6 +23,7 @@ export default function PerformMelody() {
   const { slug, piece, actCategory, partType } = router.query;
   const dispatch = useDispatch();
   const [parsedScore, setParsedScore] = useState();
+  const [preferredSample, setPreferredSample] = useState();
 
   const userInfo = useSelector((state) => state.currentUser);
   useEffect(() => {
@@ -67,6 +68,19 @@ export default function PerformMelody() {
     if (score) {
       setParsedScore(JSON.parse(score));
     }
+
+    // if there's an instrument_sample for the student's instrument, use that,
+    // otherwise use the sample from the part
+    const myInstrumentId = assignment?.instrument?.id ?? userInfo.instrument;
+    const instrumentSample = assignment?.part?.instrument_samples?.find(
+      (instrument) => instrument.instrument === myInstrumentId,
+    );
+    if (instrumentSample) {
+      setPreferredSample(instrumentSample.sample_audio);
+    } else {
+      setPreferredSample(assignment?.part?.sample_audio);
+    }
+    console.log('preferredSample', preferredSample);
   }, [assignment]);
 
   // TODO: maybe I should let studentAssignment render anyway but then handle missing things at a lower level
@@ -95,7 +109,7 @@ export default function PerformMelody() {
               <dd>
                 {
                   // eslint-disable-next-line jsx-a11y/media-has-caption
-                  <audio controls src={assignment.part.sample_audio} />
+                  <audio controls src={preferredSample} />
                 }
               </dd>
             </dl>
