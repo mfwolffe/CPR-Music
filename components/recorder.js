@@ -13,7 +13,7 @@ import {
   FaVolumeDown,
   FaVolumeMute,
   FaRegTrashAlt,
-  FaCloudUploadAlt,
+  // FaCloudUploadAlt,
 } from 'react-icons/fa';
 import {
   Card,
@@ -78,6 +78,7 @@ const CHRWIDTH = 18;
 const scratchURL = '/sample_audio/uncso-bruckner4-1.mp3';
 const { audio, filters } = setupAudioContext(scratchURL);
 
+// TODO @anyone - refactor jerome audio viewer things to other file?
 function AudioViewer({ src }) {
   const containerW = useRef(null);
   const waveSurf = useRef(null);
@@ -259,19 +260,6 @@ function AudioViewer({ src }) {
 }
 
 export default function Recorder({ submit, accompaniment }) {
-  // SEEME from @hcientist and I's attempts to 
-  //       fix Audio ref/document undef issues
-  // 
-  // const scratchURL = '/sample_audio/uncso-bruckner4-1.mp3';
-  // console.log('setupAudioContext', setupAudioContext);
-  // let audio;
-  // let filters = [];
-  // useEffect(() => {
-  //   const result = setupAudioContext(scratchURL);
-  //   audio = result.audio;
-  //   filters = result.filters;
-  // }, [window]);
-  // 
   let zoom;
   let hover;
   let minimap;
@@ -412,29 +400,12 @@ export default function Recorder({ submit, accompaniment }) {
       regions = wavesurfer?.registerPlugin(RegionsPlugin.create());
 
       // FIXME @mfwolffe color param has no effect
-      disableRegionCreate = regions?.enableDragSelection({
-        color: 'rgba(155, 115, 215, 0.4)',
-      });
+      disableRegionCreate = regions?.enableDragSelection({ color: 'rgba(155, 115, 215, 0.4)', });
 
-      // subscribe the plugin to region creation event, and disable
-      // creating new regions
-      //
-      // @hcientist wrt design here, idk if locking regions is right -
-      //            I can see an argument for allowing multiple region selection
-      //            followed by delete button for fast delete of multiple regions etc
-      regions?.on('region-created', (region) => {
-        disableRegionCreate();
-        setCutRegion(region);
-      });
-
-      // subscribe the plugin to the macro (?) I've arbitrarily
-      // assigned to region deletion: double-clicking w/ mouse on region
-      //
-      // @hcientist if you have better ideas for deletion design, let me know
-      regions?.on('region-double-clicked', (region) => {
-        region.remove();
-        disableRegionCreate = regions.enableDragSelection();
-      });
+      // subscribe regions plugin to events
+      regions?.on('region-double-clicked',  (region) => { region.remove(); });
+      regions?.on('region-created',         (region) => { disableRegionCreate(); setCutRegion(region); });
+      regions?.on('region-removed',         (region) => { disableRegionCreate = regions.enableDragSelection(); });
     }
 
     // make sure ffmpeg is ready before trying to use it
@@ -640,6 +611,7 @@ export default function Recorder({ submit, accompaniment }) {
     setBlobInfo(newInfo);
   }
 
+  // TODO @mfwolffe I forget why I am no longer using this helper
   const takeRename = (i, userName) => {blobInfo[i].takeName = userName};
 
   // check for recording permissions
@@ -796,6 +768,7 @@ export default function Recorder({ submit, accompaniment }) {
               <div className="d-flex w-100 gap-2p">
                 {/* TODO @mfwolffe don't do widget width calcs like this */}
                 {/* TODO @mfwolffe why are the widget calcs still like this? */}
+                {/* TODO @mfwolffe WHY are the widget calcs STILL like this?? */}
                 <div
                   id="waveform-container"
                   style={{
@@ -818,6 +791,7 @@ export default function Recorder({ submit, accompaniment }) {
                     rvbSetter={setRvbPresent}
                     chrPresent={chrPresent}
                     chrSetter={setChrPresent}
+                    regions={regions}
                     // eslint-disable-next-line react/jsx-props-no-spreading
                     {...params}
                   />
