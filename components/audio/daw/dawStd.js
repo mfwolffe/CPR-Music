@@ -13,15 +13,15 @@ import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
 import { WidgetSlider, ReverbChorusWidget, EQSliders } from './control';
 import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import { DawControlsBottom, DawControlsTop, MinimapContainer  } from './common';
-import { Button, Card, CardBody, CardHeader, CardTitle, Modal } from 'react-bootstrap';
+import { Button, Card, CardBody, CardHeader, CardTitle, Modal, Spinner } from 'react-bootstrap';
 import { loadFfmpeg, formatTime, setupAudioContext, effectChorusReverb } from '../../../lib/dawUtils';
 
 const EQWIDTH = 28;
 const RVBWIDTH = 13;
 const CHRWIDTH = 18;
 
-const ORIGURL = '/sample_audio/uncso-bruckner4-1.mp3';
-const { audio, filters } = setupAudioContext();
+// const ORIGURL = '/sample_audio/uncso-bruckner4-1.mp3';
+// const { audio, filters } = setupAudioContext();
 
 const HelpModal = ({ setFn, shown }) => {
   return (
@@ -43,7 +43,13 @@ const HelpModal = ({ setFn, shown }) => {
   );
 }
 
-export default function DawStd() {
+export default function DawStd({ takeURL }) {
+  if (!takeURL) return (<Spinner />);
+
+  // just being paranoid I guess
+  const ORIGURL = JSON.parse(JSON.stringify(takeURL));
+  const { audio, filters } = setupAudioContext();
+
   let zoom, hover, minimap, timeline, regions;
   let disableRegionCreate;
 
@@ -211,8 +217,7 @@ export default function DawStd() {
   };
 
   const handleHelp = useCallback(() => {
-    setShowHelp(true)
-    console.log("yooo");
+    setShowHelp(true);
   });
 
   return (
@@ -226,7 +231,7 @@ export default function DawStd() {
           </Button>
         </CardHeader>
         <CardBody>
-          <div className="d-flex w-100 gap-2p">
+          <div className="d-flex w-100 gap-2p" hidden={!show}>
             <div
               id="waveform-container"
               style={{

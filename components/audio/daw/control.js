@@ -2,7 +2,8 @@
 
 import { Button, Card, CardHeader, CardTitle, CardBody, Form } from 'react-bootstrap';
 
-const EQSliders = (hide, filters, width) => {
+// SEEME @mfwolffe idk if I want to elevate state here actually
+const EQSliders = ({ hide, filters, width }) => {
   const hidden = hide;
   const sliders = [];
 
@@ -86,8 +87,6 @@ const ReverbChorusWidget = ({
   const hidden = hide;
   const sliderGroups = [];
 
-  console.log('sliders:', sliders);
-
   for (let i = 0; i < sliders.length; i += 2) {
     sliderGroups.push(
       <SliderGroup
@@ -97,8 +96,6 @@ const ReverbChorusWidget = ({
       />
     );
   }
-
-  console.log('groups', sliderGroups);
 
   return (
     <Card

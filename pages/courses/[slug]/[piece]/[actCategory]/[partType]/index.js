@@ -8,11 +8,18 @@ import {
   fetchSingleStudentAssignment,
   postRecording,
 } from '../../../../../../actions';
-import Recorder from '../../../../../../components/recorder';
+// import Recorder from '../../../../../../components/recorder';
 import StudentAssignment from '../../../../../../components/student/assignment';
 
 const FlatEditor = dynamic(
   () => import('../../../../../../components/flatEditor'),
+  {
+    ssr: false,
+  },
+);
+
+const Recorder = dynamic(
+  () => import('../../../../../../components/recorder'),
   {
     ssr: false,
   },
@@ -104,9 +111,9 @@ export default function PerformMelody() {
         <>
           <FlatEditor score={parsedScore} />
           {assignment?.part?.sample_audio && (
-            <dl>
+            <dl className='mb-0'>
               <dt>Sample Recording</dt>
-              <dd>
+              <dd className='mb-0'>
                 {
                   // eslint-disable-next-line jsx-a11y/media-has-caption
                   <audio controls src={preferredSample} />

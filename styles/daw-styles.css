@@ -142,7 +142,7 @@
 }
 
 .help-ico:hover {
-  color:teal;
+  color:#92ceaa;
 }
 
 .prog-button:hover {
@@ -228,9 +228,19 @@ input[type='range'][orient='vertical'] {
 
 
 .daw-help {
-  color: #92ce84 !important;
+  color: antiquewhite !important;
 }
 
 .align-center {
   align-items: center;
+}
+
+.dawHeaderFooter {
+  background-color: slategrey;
+  color:antiquewhite;
+}
+
+.disabled-cursor:disabled {
+  cursor: not-allowed;
+  pointer-events: all !important;
 }

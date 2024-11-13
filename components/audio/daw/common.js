@@ -206,8 +206,11 @@ const DawControlsTop = ({
       editListIndex,
       audioRef,
       audioURL,
-      keep
-    );
+      keep,
+    ).then(() => {
+      cutRegion.remove();
+    } ).catch((e) => {console.error(e);
+    });
   };
 
   return (
