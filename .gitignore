@@ -33,7 +33,7 @@ yarn-error.log*
 # vercel
 .vercel
 
-/public/sample_audio/
-
 # audio files for @mfwolffe DAW testing
 /public/sample_audio
+# Sentry Config File
+.env.sentry-build-plugin
