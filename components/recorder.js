@@ -70,6 +70,7 @@ import {
 import HelpModal from './audio/daw/dawHelp';
 import StatusIndicator from './statusIndicator';
 import { AudioDropModal } from './audio/silenceDetect';
+import { set } from 'date-fns';
 
 // TODO @mfwolffe don't do the width calculations like this
 const EQWIDTH = 28;
@@ -340,6 +341,8 @@ export default function Recorder({ submit, accompaniment }) {
   const [ignoreSilence, setIgnoreSilence] = useState(false);
   const [submissionFile, setSubmissionFile] = useState(null);
 
+  const [activeTakeNo, setActiveTakeNo] = useState(-1);
+
   // vertical slider controls for the chorus widget
   const chorusSliders = [
     WidgetSlider(0, 1, 0.001, 0, setInGainChr, 'Input'),
@@ -454,6 +457,8 @@ export default function Recorder({ submit, accompaniment }) {
     // okay this is cruffed (cruft + scuffed)
     // but it does get the job done
     if (audioURL === '/sample_audio/uncso-bruckner4-1.mp3') return;
+
+    // setTakeNo(takeNo + 1);
 
     async function loadAudio() {
       if (audioRef.current) {
@@ -694,23 +699,26 @@ export default function Recorder({ submit, accompaniment }) {
           };
 
           recorder.onstop = () => {
-            const blob = new Blob(chunksRef.current, { type: supportedType });
-            setBlobData(blob);
-            const url = URL.createObjectURL(blob);
-            setBlobURL(url);
-            setBlobInfo((prevInfo) => [
-              ...prevInfo,
-              {
-                url,
-                data: blob,
-              },
-            ]);
+            // const blob = new Blob(chunksRef.current, { type: supportedType });
+            // setBlobData(blob);
+            // const url = URL.createObjectURL(blob);
+            // setBlobURL(url);
+            // setBlobInfo((prevInfo) => [
+            //   ...prevInfo,
+            //   {
+            //     url,
+            //     data: blob,
+                
+            //     take: takeNo + 1,
+            //   },
+            // ]);
             setIsRecording(false);
-            chunksRef.current = [];
-            setAudioURL(url);
-            setTakeNo(takeNo + 1);
+            // chunksRef.current = [];
+            
+            // setAudioURL(url);
+            // setTakeNo(takeNo + 1);
           };
-
+          
           setMediaRecorder(recorder);
           setIsBlocked(false);
         })
@@ -720,6 +728,37 @@ export default function Recorder({ submit, accompaniment }) {
         });
     }
   }, []);
+
+  useEffect(() => {
+    if (takeNo === -1) return;
+    
+    // if (takeNo > activeTakeNo) {
+    //   setAudioURL(blobInfo.find((o) => o.take == activeTakeNo).url);
+      
+    // }
+      
+
+    const blob = new Blob(chunksRef.current, { type: mimeType });
+    setBlobData(blob);
+    const url = URL.createObjectURL(blob);
+    setBlobURL(url);
+    setBlobInfo((prevInfo) => [
+      ...prevInfo,
+      {
+        url,
+        data: blob,
+        take: takeNo,
+      },
+    ]);
+    chunksRef.current = [];
+    setActiveTakeNo(takeNo);
+
+  }, [takeNo]);
+
+  useEffect(() => {
+    if (activeTakeNo == -1) return;
+    setAudioURL(blobInfo.find((o) => o.take == activeTakeNo).url);
+  }, [activeTakeNo]);
 
   useEffect(() => {
     let interval = null;
@@ -739,6 +778,7 @@ export default function Recorder({ submit, accompaniment }) {
       setMinute(0);
       setSecond(0);
       clearInterval(interval);
+      setTakeNo(takeNo + 1);
     }
     return () => {
       clearInterval(interval);
@@ -790,6 +830,7 @@ export default function Recorder({ submit, accompaniment }) {
 
                   {/* TODO @mfwolffe think abt options for  dyanmic handlers. */}
                   <span style={{ display: showRename ? "none" : '', width: "50%" }}>{ take.takeName ?? `Take recorded on ${take.timeStr}` }</span>
+                  { console.log(`ddduuude i: ${i}, takeNo: ${takeNo} active: ${activeTakeNo}`, take) }
                   <Form.Control type="text" 
                   placeholder={ take.takeName ?? `Take recorded on ${take.timeStr}` } 
                   aria-label="rename take" style={{ display: !showRename ? "none" : '', width: "50%" }} 
@@ -807,9 +848,9 @@ export default function Recorder({ submit, accompaniment }) {
                     <Button
                       // TODO @mfwolffe - delete will also break down once indices don't match takeNo. 
                       // I think resetting takeNo's whenever a delete is fired 
-                      disabled={takeNo == i}
+                      disabled={take.take == activeTakeNo}
                       onClick={() => {
-                        setTakeNo(i);
+                        setActiveTakeNo(take.take);
                         setAudioURL(take.url);
                       }}
                       className='ml-1 disabled-cursor'
