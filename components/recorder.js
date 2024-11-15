@@ -616,6 +616,8 @@ export default function Recorder({ submit, accompaniment }) {
             ]);
             setIsRecording(false);
             chunksRef.current = [];
+            setAudioURL(url);
+            setTakeNo(takeNo + 1);
           };
 
           setMediaRecorder(recorder);
