@@ -34,7 +34,7 @@ import { fetchFile } from '@ffmpeg/util';
 import { BiRename } from "react-icons/bi";
 import { useDispatch } from 'react-redux';
 import { GrHelpBook } from 'react-icons/gr';
-import MicRecorder from 'mic-recorder-to-mp3';
+// import MicRecorder from 'mic-recorder-to-mp3';
 import { PiWarningDuotone } from 'react-icons/pi';
 import { useWavesurfer } from '@wavesurfer/react';
 import ListGroup from 'react-bootstrap/ListGroup';
@@ -342,6 +342,7 @@ export default function Recorder({ submit, accompaniment }) {
   const [submissionFile, setSubmissionFile] = useState(null);
 
   const [activeTakeNo, setActiveTakeNo] = useState(-1);
+  const [activeNaming, setActiveNaming]  = useState(-1);
 
   // vertical slider controls for the chorus widget
   const chorusSliders = [
@@ -729,14 +730,15 @@ export default function Recorder({ submit, accompaniment }) {
     }
   }, []);
 
+  const handleRename = (index) => {
+    const scratch = document.getElementById(`name-take-${index}`);
+    scratch.style.display = scratch.style.display == 'none' ? '' : 'none'
+    const scratch2 = document.getElementById(`plc-txt-${index}`);
+    scratch2.style.display = scratch2.style.display == 'none' ? '' : 'none';
+  }
+
   useEffect(() => {
     if (takeNo === -1) return;
-    
-    // if (takeNo > activeTakeNo) {
-    //   setAudioURL(blobInfo.find((o) => o.take == activeTakeNo).url);
-      
-    // }
-      
 
     const blob = new Blob(chunksRef.current, { type: mimeType });
     setBlobData(blob);
@@ -748,11 +750,11 @@ export default function Recorder({ submit, accompaniment }) {
         url,
         data: blob,
         take: takeNo,
+        timeStr: new Date().toLocaleString(),
       },
     ]);
     chunksRef.current = [];
     setActiveTakeNo(takeNo);
-
   }, [takeNo]);
 
   useEffect(() => {
@@ -829,19 +831,24 @@ export default function Recorder({ submit, accompaniment }) {
                   {/* <AudioViewer src={take.url} /> */}
 
                   {/* TODO @mfwolffe think abt options for  dyanmic handlers. */}
-                  <span style={{ display: showRename ? "none" : '', width: "50%" }}>{ take.takeName ?? `Take recorded on ${take.timeStr}` }</span>
-                  { console.log(`ddduuude i: ${i}, takeNo: ${takeNo} active: ${activeTakeNo}`, take) }
+                  <span id={`plc-txt-${take.take}`} style={{ width: "50%" }}>{ take.takeName ?? `Take recorded on ${ take.timeStr }` }</span>
+                  { console.log(`take info i: ${i}, takeNo: ${takeNo} active: ${activeTakeNo}`, take) }
                   <Form.Control type="text" 
-                  placeholder={ take.takeName ?? `Take recorded on ${take.timeStr}` } 
-                  aria-label="rename take" style={{ display: !showRename ? "none" : '', width: "50%" }} 
+                  placeholder={ take.takeName ?? `Take recorded on ${ take.timeStr }` } 
+                  aria-label="rename take" style={{ display: "none", width: "50%" }} 
+                  id={`name-take-${take.take}`}
                   onBlur={(e) => {
-                    blobInfo[i].takeName = e.target.value;
-                    setShowRename(false);
+                    take.takeName = e.target.value;
+                    // setShowRename(false);
+                    // const scratch = document.getElementById(`plc-txt-${take.take}`)
+                    // scratch.style.display = scratch.style.display == 'none' ? '' : 'none'
+                    handleRename(take.take);
+                    setAudioURL(take.url);
                   }}/>
 
                   <div className='d-flex justify-content-center align-items-center'>
 
-                  <Button onClick={() => {setShowRename(true)}} className='ml-1'>
+                  <Button onClick={() => {handleRename(take.take)}} className='ml-1'>
                     <BiRename />
                   </Button>
 

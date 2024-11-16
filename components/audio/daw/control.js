@@ -7,10 +7,9 @@ const EQSliders = ({ hide, filters, width }) => {
   const hidden = hide;
   const sliders = [];
 
-  filters.forEach((filter) => {
+  filters.forEach((filter, i) => {
     const frqVal = filter.frequency.value;
     const slider = (
-      <>
         <div className="d-flex" key={`${frqVal} MHz`}>
           <Form.Label style={{ width: '40%' }}>{frqVal} MHz</Form.Label>
           <Form.Range
@@ -21,7 +20,6 @@ const EQSliders = ({ hide, filters, width }) => {
             onInput={(e) => (filter.gain.value = e.target.value)}
           ></Form.Range>
         </div>
-      </>
     );
 
     sliders.push(slider);
@@ -90,6 +88,7 @@ const ReverbChorusWidget = ({
   for (let i = 0; i < sliders.length; i += 2) {
     sliderGroups.push(
       <SliderGroup
+        key={`slider-${i}`}
         slider1={sliders[i]}
         slider2={i + 1 < sliders.length ? sliders[i + 1] : null}
         showGain={i < 1 ? true : false}
