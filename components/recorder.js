@@ -379,7 +379,7 @@ export default function Recorder({ submit, accompaniment }) {
       zoom = wavesurfer?.registerPlugin(
         Zoom.create({
           deltaThreshold: 5,
-          maxZoom: 150,
+          maxZoom: 300,
           scale: 0.125,
         }),
       );
