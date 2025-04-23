@@ -42,7 +42,7 @@ jobs:
             echo "Deploying to ${{ env.DEPLOY_DIR }}..."
 
             cd ${{ env.DEPLOY_DIR }}
-  
+
             echo "Pulling latest changes..."
             git pull origin ${{ github.ref_name }}
 
@@ -57,5 +57,5 @@ jobs:
             docker build -t ${{ env.IMAGE_NAME }} .
 
             echo "Starting new container..."
-            docker run -d --name ${{ env.CONTAINER_NAME }} -p ${{ env.HOST_PORT }}:3000 ${{ env.IMAGE_NAME }}
+            docker run -d --name ${{ env.CONTAINER_NAME }} -p ${{ env.HOST_PORT }}:3000 --restart unless-stopped ${{ env.IMAGE_NAME }}
           EOF
