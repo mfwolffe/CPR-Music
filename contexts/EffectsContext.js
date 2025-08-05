@@ -48,6 +48,28 @@ export const EffectsProvider = ({ children }) => {
   // Regions for cutting
   const [cutRegion, setCutRegion] = useState('');
   
+  // Distortion state
+  const [distortionPresent, setDistortionPresent] = useState(false);
+  const [distortionAmount, setDistortionAmount] = useState(50);
+  const [distortionType, setDistortionType] = useState('overdrive');
+  const [distortionTone, setDistortionTone] = useState(5000);
+  const [distortionOutputGain, setDistortionOutputGain] = useState(0.7);
+  
+  // Phaser state
+  const [phaserPresent, setPhaserPresent] = useState(false);
+  const [phaserRate, setPhaserRate] = useState(0.5);
+  const [phaserDepth, setPhaserDepth] = useState(0.7);
+  const [phaserFeedback, setPhaserFeedback] = useState(0.5);
+  const [phaserStages, setPhaserStages] = useState(4);
+  const [phaserWetMix, setPhaserWetMix] = useState(0.5);
+  
+  // Auto-Pan state
+  const [autoPanPresent, setAutoPanPresent] = useState(false);
+  const [autoPanRate, setAutoPanRate] = useState(1);
+  const [autoPanDepth, setAutoPanDepth] = useState(1);
+  const [autoPanWaveform, setAutoPanWaveform] = useState('sine');
+  const [autoPanPhase, setAutoPanPhase] = useState(0);
+  
   // Reset all effects to default
   const resetEffects = useCallback(() => {
     // Echo
@@ -74,6 +96,25 @@ export const EffectsProvider = ({ children }) => {
     setSpeedChr(0);
     setDepthsChr(0);
     
+    // Distortion
+    setDistortionAmount(50);
+    setDistortionType('overdrive');
+    setDistortionTone(5000);
+    setDistortionOutputGain(0.7);
+    
+    // Phaser
+    setPhaserRate(0.5);
+    setPhaserDepth(0.7);
+    setPhaserFeedback(0.5);
+    setPhaserStages(4);
+    setPhaserWetMix(0.5);
+    
+    // Auto-Pan
+    setAutoPanRate(1);
+    setAutoPanDepth(1);
+    setAutoPanWaveform('sine');
+    setAutoPanPhase(0);
+    
     // Don't reset filters as they're initialized elsewhere
   }, []);
   
@@ -82,6 +123,9 @@ export const EffectsProvider = ({ children }) => {
   const toggleReverb = useCallback(() => setRvbPresent(prev => !prev), []);
   const toggleReverbNew = useCallback(() => setReverbPresent(prev => !prev), []);
   const toggleChorus = useCallback(() => setChrPresent(prev => !prev), []);
+  const toggleDistortion = useCallback(() => setDistortionPresent(prev => !prev), []);
+  const togglePhaser = useCallback(() => setPhaserPresent(prev => !prev), []);
+  const toggleAutoPan = useCallback(() => setAutoPanPresent(prev => !prev), []);
   
   const value = {
     // EQ
@@ -141,6 +185,47 @@ export const EffectsProvider = ({ children }) => {
     setSpeedChr,
     depthsChr,
     setDepthsChr,
+    
+    // Distortion
+    distortionPresent,
+    setDistortionPresent,
+    toggleDistortion,
+    distortionAmount,
+    setDistortionAmount,
+    distortionType,
+    setDistortionType,
+    distortionTone,
+    setDistortionTone,
+    distortionOutputGain,
+    setDistortionOutputGain,
+    
+    // Phaser
+    phaserPresent,
+    setPhaserPresent,
+    togglePhaser,
+    phaserRate,
+    setPhaserRate,
+    phaserDepth,
+    setPhaserDepth,
+    phaserFeedback,
+    setPhaserFeedback,
+    phaserStages,
+    setPhaserStages,
+    phaserWetMix,
+    setPhaserWetMix,
+    
+    // Auto-Pan
+    autoPanPresent,
+    setAutoPanPresent,
+    toggleAutoPan,
+    autoPanRate,
+    setAutoPanRate,
+    autoPanDepth,
+    setAutoPanDepth,
+    autoPanWaveform,
+    setAutoPanWaveform,
+    autoPanPhase,
+    setAutoPanPhase,
     
     // Regions
     cutRegion,

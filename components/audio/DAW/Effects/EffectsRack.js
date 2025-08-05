@@ -7,6 +7,9 @@ import EQ from './EQ';
 import Echo from './Echo';
 import Reverb from './Reverb';
 import Chorus from './Chorus';
+import Distortion from './Distortion';
+import Phaser from './Phaser';
+import AutoPan from './AutoPan';
 
 /**
  * Effects Rack - Tabbed container for all effects
@@ -17,7 +20,10 @@ export default function EffectsRack({ width }) {
     setEqPresent,
     setRvbPresent,
     setReverbPresent,
-    setChrPresent
+    setChrPresent,
+    setDistortionPresent,
+    setPhaserPresent,
+    setAutoPanPresent
   } = useEffects();
   
   // Track active tab
@@ -29,6 +35,9 @@ export default function EffectsRack({ width }) {
     setRvbPresent(true);
     setReverbPresent(true);
     setChrPresent(true);
+    setDistortionPresent(true);
+    setPhaserPresent(true);
+    setAutoPanPresent(true);
     
     // Cleanup: disable all when unmounted
     return () => {
@@ -36,15 +45,21 @@ export default function EffectsRack({ width }) {
       setRvbPresent(false);
       setReverbPresent(false);
       setChrPresent(false);
+      setDistortionPresent(false);
+      setPhaserPresent(false);
+      setAutoPanPresent(false);
     };
-  }, [setEqPresent, setRvbPresent, setReverbPresent, setChrPresent]);
+  }, [setEqPresent, setRvbPresent, setReverbPresent, setChrPresent, setDistortionPresent, setPhaserPresent, setAutoPanPresent]);
   
   // All tabs are always available in the rack
   const tabs = [
     { key: 'eq', title: 'Equalizer', component: EQ },
     { key: 'echo', title: 'Echo', component: Echo },
     { key: 'reverb', title: 'Reverb', component: Reverb },
-    { key: 'chorus', title: 'Chorus', component: Chorus }
+    { key: 'chorus', title: 'Chorus', component: Chorus },
+    { key: 'distortion', title: 'Distortion', component: Distortion },
+    { key: 'phaser', title: 'Phaser', component: Phaser },
+    { key: 'autopan', title: 'Auto-Pan', component: AutoPan }
   ];
   
   return (
