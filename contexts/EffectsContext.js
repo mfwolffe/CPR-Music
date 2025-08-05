@@ -70,6 +70,29 @@ export const EffectsProvider = ({ children }) => {
   const [autoPanWaveform, setAutoPanWaveform] = useState('sine');
   const [autoPanPhase, setAutoPanPhase] = useState(0);
   
+  // Tremolo state
+  const [tremoloPresent, setTremoloPresent] = useState(false);
+  const [tremoloRate, setTremoloRate] = useState(5);
+  const [tremoloDepth, setTremoloDepth] = useState(0.5);
+  const [tremoloWaveform, setTremoloWaveform] = useState('sine');
+  const [tremoloPhase, setTremoloPhase] = useState(0);
+  
+  // Compressor state
+  const [compressorPresent, setCompressorPresent] = useState(false);
+  const [compressorThreshold, setCompressorThreshold] = useState(-24);
+  const [compressorRatio, setCompressorRatio] = useState(4);
+  const [compressorAttack, setCompressorAttack] = useState(0.003);
+  const [compressorRelease, setCompressorRelease] = useState(0.1);
+  const [compressorKnee, setCompressorKnee] = useState(30);
+  const [compressorMakeup, setCompressorMakeup] = useState(0);
+  
+  // Ring Modulator state
+  const [ringModPresent, setRingModPresent] = useState(false);
+  const [ringModFrequency, setRingModFrequency] = useState(440);
+  const [ringModWaveform, setRingModWaveform] = useState('sine');
+  const [ringModMix, setRingModMix] = useState(1);
+  const [ringModDepth, setRingModDepth] = useState(1);
+  
   // Reset all effects to default
   const resetEffects = useCallback(() => {
     // Echo
@@ -115,6 +138,26 @@ export const EffectsProvider = ({ children }) => {
     setAutoPanWaveform('sine');
     setAutoPanPhase(0);
     
+    // Tremolo
+    setTremoloRate(5);
+    setTremoloDepth(0.5);
+    setTremoloWaveform('sine');
+    setTremoloPhase(0);
+    
+    // Compressor
+    setCompressorThreshold(-24);
+    setCompressorRatio(4);
+    setCompressorAttack(0.003);
+    setCompressorRelease(0.1);
+    setCompressorKnee(30);
+    setCompressorMakeup(0);
+    
+    // Ring Modulator
+    setRingModFrequency(440);
+    setRingModWaveform('sine');
+    setRingModMix(1);
+    setRingModDepth(1);
+    
     // Don't reset filters as they're initialized elsewhere
   }, []);
   
@@ -126,6 +169,9 @@ export const EffectsProvider = ({ children }) => {
   const toggleDistortion = useCallback(() => setDistortionPresent(prev => !prev), []);
   const togglePhaser = useCallback(() => setPhaserPresent(prev => !prev), []);
   const toggleAutoPan = useCallback(() => setAutoPanPresent(prev => !prev), []);
+  const toggleTremolo = useCallback(() => setTremoloPresent(prev => !prev), []);
+  const toggleCompressor = useCallback(() => setCompressorPresent(prev => !prev), []);
+  const toggleRingMod = useCallback(() => setRingModPresent(prev => !prev), []);
   
   const value = {
     // EQ
@@ -226,6 +272,49 @@ export const EffectsProvider = ({ children }) => {
     setAutoPanWaveform,
     autoPanPhase,
     setAutoPanPhase,
+    
+    // Tremolo
+    tremoloPresent,
+    setTremoloPresent,
+    toggleTremolo,
+    tremoloRate,
+    setTremoloRate,
+    tremoloDepth,
+    setTremoloDepth,
+    tremoloWaveform,
+    setTremoloWaveform,
+    tremoloPhase,
+    setTremoloPhase,
+    
+    // Compressor
+    compressorPresent,
+    setCompressorPresent,
+    toggleCompressor,
+    compressorThreshold,
+    setCompressorThreshold,
+    compressorRatio,
+    setCompressorRatio,
+    compressorAttack,
+    setCompressorAttack,
+    compressorRelease,
+    setCompressorRelease,
+    compressorKnee,
+    setCompressorKnee,
+    compressorMakeup,
+    setCompressorMakeup,
+    
+    // Ring Modulator
+    ringModPresent,
+    setRingModPresent,
+    toggleRingMod,
+    ringModFrequency,
+    setRingModFrequency,
+    ringModWaveform,
+    setRingModWaveform,
+    ringModMix,
+    setRingModMix,
+    ringModDepth,
+    setRingModDepth,
     
     // Regions
     cutRegion,

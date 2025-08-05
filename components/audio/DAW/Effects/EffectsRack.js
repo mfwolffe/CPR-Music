@@ -10,6 +10,9 @@ import Chorus from './Chorus';
 import Distortion from './Distortion';
 import Phaser from './Phaser';
 import AutoPan from './AutoPan';
+import Tremolo from './Tremolo';
+import Compressor from './Compressor';
+import RingModulator from './RingModulator';
 
 /**
  * Effects Rack - Tabbed container for all effects
@@ -23,7 +26,10 @@ export default function EffectsRack({ width }) {
     setChrPresent,
     setDistortionPresent,
     setPhaserPresent,
-    setAutoPanPresent
+    setAutoPanPresent,
+    setTremoloPresent,
+    setCompressorPresent,
+    setRingModPresent
   } = useEffects();
   
   // Track active tab
@@ -38,6 +44,9 @@ export default function EffectsRack({ width }) {
     setDistortionPresent(true);
     setPhaserPresent(true);
     setAutoPanPresent(true);
+    setTremoloPresent(true);
+    setCompressorPresent(true);
+    setRingModPresent(true);
     
     // Cleanup: disable all when unmounted
     return () => {
@@ -48,8 +57,11 @@ export default function EffectsRack({ width }) {
       setDistortionPresent(false);
       setPhaserPresent(false);
       setAutoPanPresent(false);
+      setTremoloPresent(false);
+      setCompressorPresent(false);
+      setRingModPresent(false);
     };
-  }, [setEqPresent, setRvbPresent, setReverbPresent, setChrPresent, setDistortionPresent, setPhaserPresent, setAutoPanPresent]);
+  }, [setEqPresent, setRvbPresent, setReverbPresent, setChrPresent, setDistortionPresent, setPhaserPresent, setAutoPanPresent, setTremoloPresent, setCompressorPresent, setRingModPresent]);
   
   // All tabs are always available in the rack
   const tabs = [
@@ -59,7 +71,10 @@ export default function EffectsRack({ width }) {
     { key: 'chorus', title: 'Chorus', component: Chorus },
     { key: 'distortion', title: 'Distortion', component: Distortion },
     { key: 'phaser', title: 'Phaser', component: Phaser },
-    { key: 'autopan', title: 'Auto-Pan', component: AutoPan }
+    { key: 'autopan', title: 'Auto-Pan', component: AutoPan },
+    { key: 'tremolo', title: 'Tremolo', component: Tremolo },
+    { key: 'compressor', title: 'Compressor', component: Compressor },
+    { key: 'ringmod', title: 'Ring Mod', component: RingModulator }
   ];
   
   return (

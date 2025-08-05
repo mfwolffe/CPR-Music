@@ -89,85 +89,79 @@ function HelpAccordion() {
         </Accordion.Body>
       </Accordion.Item>
       <Accordion.Item eventKey="2">
-        <Accordion.Header>Glossary</Accordion.Header>
+        <Accordion.Header>Effects Guide</Accordion.Header>
         <Accordion.Body>
+          <h5>Audio Effects Overview</h5>
+          
           <dl>
-            <dt>Amplitude</dt>
+            <dt>Equalizer (EQ)</dt>
             <dd>
-              Put simply, the loudness of a sound.
-              Measured in decibels (dB), a larger number of decibels corresponds to louder sounds.
-            </dd>
-
-            <dt>Chorus</dt>
-            <dd>
-              Splits an audio sample into wet and dry signals, then modifies the wet signal so that when remixed with the dry signal, gives an illusion of multiple instruments/voices.
-            </dd>
-
-            <dt>Decay</dt>
-            <dd>
-              The time it takes for an audio signal to drop to a specified amplitude from full volume.
-            </dd>
-
-            <dt>Delay</dt>
-            <dd>A time-based effect that replays an original audio signal at set intervals to create an echo-like effect.</dd>
-
-            <dt>Depth</dt>
-            <dd>
-              The amplitude of pitch modulation within a chorus effect. The higher the depth, the more pitches deviate, leading to a more noticeable chorus effect.
+              Adjusts the volume of specific frequency ranges in your audio. Boost low frequencies for more bass, 
+              cut high frequencies to reduce harshness, or shape the mid-range to clarify vocals. Functions like 
+              an advanced tone control.
             </dd>
 
             <dt>Echo</dt>
             <dd>
-              A time-based effect that creates delayed repetitions of the original sound. 
-              The delay time controls how long before each echo, and feedback controls how many echoes occur and how quickly they fade.
+              Produces delayed repetitions of the original sound. Control the time between echoes and how quickly 
+              they fade away. Used to create spatial depth or rhythmic effects.
             </dd>
 
-            <dt>Equalization</dt>
+            <dt>Reverb</dt>
             <dd>
-              (EQ) is the process of modifying the volume of specific frequency bands within an audio sample.
-              It can be used to amplify sound, eliminate unwanted sounds or make others more prominent, alter instrument timbre, correct recording hardware shortcomings, and more.
+              Simulates the acoustic properties of physical spaces by adding reflected sound. Can make audio 
+              sound like it was recorded in anything from a small room to a large hall. Adds natural ambience 
+              to dry recordings.
             </dd>
 
-            <dt>Frequency</dt>
+            <dt>Chorus</dt>
             <dd>
-              Put simply, the pitch of a sound, i.e., how high or low a sound is.
-              Measured in the SI unit of Hz and its metric prefixes, a larger number corresponds to higher pitched sounds.
+              Creates multiple slightly detuned copies of the sound, producing a thicker, richer texture. 
+              Simulates the effect of multiple instruments or voices performing the same part simultaneously.
             </dd>
 
-            <dt>Gain</dt>
+            <dt>Distortion</dt>
             <dd>
-              The amount of a given audio signal that has been increased by an amplifier.
-              Unlike changing <em>volume</em>, changing gain alters the tone of a sound.
+              Intentionally clips or shapes the audio waveform to add harmonic content. Ranges from subtle 
+              warmth (overdrive) to aggressive clipping (distortion/fuzz). Bit crusher reduces the digital 
+              resolution for lo-fi effects.
             </dd>
 
-            <dt>Gain Envelope</dt>
+            <dt>Phaser</dt>
             <dd>
-              A line overlayed on a waveform whose relative height corresponds to sound amplitudes.
-              Users can often add keyframes/nodes and drag them up and down to change the amplitude at that time position.
-              The higher a keyframe/node, the louder the sound at that keyframe's position.
+              Combines the original signal with a phase-shifted copy, creating characteristic sweeping 
+              notches in the frequency spectrum. Produces a swooshing or jet-like effect that moves 
+              through the audio.
             </dd>
 
-            <dt>Speed</dt>
-            <dd>The rate of pitch modulation in a chorus effect. The higher the speed, the faster the modulation, and the more chorus-like a signal will sound.</dd>
-
-            <dt>Timbre</dt>
+            <dt>Auto-Pan</dt>
             <dd>
-              The unique, perceived quality of a sound or tone.
-              When a saxophone and clarinet play the same sequence of pitches, it is the timbre of each instrument that allows us to distinguish their sounds by ear.
+              Automatically moves the sound position between left and right channels at a specified rate. 
+              Creates spatial movement in the stereo field, from subtle shifts to dramatic ping-pong effects.
             </dd>
 
-            <dt>Volume</dt>
+            <dt>Tremolo</dt>
             <dd>
-              The loudness of a sound. Unlike gain, changing volume only changes the loudness of a sound sample and has no impact on tone.
+              Modulates the amplitude (volume) of the signal at a regular rate. Creates rhythmic pulsing 
+              effects, commonly used in vintage guitar amplifiers and electronic music.
             </dd>
 
-            <dt>Waveform</dt>
+            <dt>Compressor</dt>
             <dd>
-              A type of graph which describes a sound wave.
-              The horizontal axis most often represents elapsed time.
-              The vertical axis represents displacement of molecules by a source of sound; this is distinguishable to humans as volume, or how loud we perceive a sound.
+              Reduces the dynamic range by attenuating signals above a threshold. Makes quiet parts louder 
+              and loud parts quieter, resulting in more consistent volume levels. Essential for balancing 
+              recordings and increasing perceived loudness.
+            </dd>
+
+            <dt>Ring Modulator</dt>
+            <dd>
+              Multiplies the input signal with an oscillator, creating sum and difference frequencies. 
+              Produces metallic, bell-like tones or extreme pitch effects. Often used for robotic voices 
+              or experimental sound design.
             </dd>
           </dl>
+
+          <p><strong>Note:</strong> Effects are typically most effective when applied with restraint. Begin with conservative settings and adjust to taste.</p>
         </Accordion.Body>
       </Accordion.Item>
       <Accordion.Item eventKey="3">
