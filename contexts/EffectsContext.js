@@ -17,12 +17,19 @@ export const EffectsProvider = ({ children }) => {
   const [filters, setFilters] = useState([]);
   const [eqPresent, setEqPresent] = useState(false);
   
-  // Reverb state (actually echo for now)
+  // Echo state (was reverb)
   const [rvbPresent, setRvbPresent] = useState(false);
   const [inGain, setInGain] = useState(0);
   const [outGain, setOutGain] = useState(0);
   const [delay, setDelay] = useState(0);
   const [decay, setDecay] = useState(0);
+  
+  // Reverb state (new Web Audio reverb)
+  const [reverbPresent, setReverbPresent] = useState(false);
+  const [reverbPreset, setReverbPreset] = useState('mediumHall');
+  const [reverbWetMix, setReverbWetMix] = useState(0.3);
+  const [reverbPreDelay, setReverbPreDelay] = useState(0);
+  const [reverbOutputGain, setReverbOutputGain] = useState(1);
   
   // Chorus state
   const [chrPresent, setChrPresent] = useState(false);
@@ -38,11 +45,17 @@ export const EffectsProvider = ({ children }) => {
   
   // Reset all effects to default
   const resetEffects = useCallback(() => {
-    // Reverb
+    // Echo
     setInGain(0);
     setOutGain(0);
     setDelay(0);
     setDecay(0);
+    
+    // Reverb
+    setReverbPreset('mediumHall');
+    setReverbWetMix(0.3);
+    setReverbPreDelay(0);
+    setReverbOutputGain(1);
     
     // Chorus
     setInGainChr(0);
@@ -58,6 +71,7 @@ export const EffectsProvider = ({ children }) => {
   // Toggle effect panels
   const toggleEQ = useCallback(() => setEqPresent(prev => !prev), []);
   const toggleReverb = useCallback(() => setRvbPresent(prev => !prev), []);
+  const toggleReverbNew = useCallback(() => setReverbPresent(prev => !prev), []);
   const toggleChorus = useCallback(() => setChrPresent(prev => !prev), []);
   
   const value = {
@@ -68,7 +82,7 @@ export const EffectsProvider = ({ children }) => {
     setEqPresent,
     toggleEQ,
     
-    // Reverb
+    // Echo (was Reverb)
     rvbPresent,
     setRvbPresent,
     toggleReverb,
@@ -80,6 +94,19 @@ export const EffectsProvider = ({ children }) => {
     setDelay,
     decay,
     setDecay,
+    
+    // Reverb (new Web Audio)
+    reverbPresent,
+    setReverbPresent,
+    toggleReverbNew,
+    reverbPreset,
+    setReverbPreset,
+    reverbWetMix,
+    setReverbWetMix,
+    reverbPreDelay,
+    setReverbPreDelay,
+    reverbOutputGain,
+    setReverbOutputGain,
     
     // Chorus
     chrPresent,

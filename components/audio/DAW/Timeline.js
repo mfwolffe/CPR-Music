@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { Button, Spinner } from 'react-bootstrap';
 import { MdOutlineWaves, MdGroups } from 'react-icons/md';
 import { RiSoundModuleFill, RiEqualizerLine } from 'react-icons/ri';
+import { BiWater } from 'react-icons/bi';
 import { IoArrowUndo, IoTrashOutline, IoArrowRedo, IoCutOutline } from 'react-icons/io5';
 import { 
   useAudio, 
@@ -37,6 +38,8 @@ export default function Timeline() {
     toggleEQ,
     rvbPresent,
     toggleReverb,
+    reverbPresent,
+    toggleReverbNew,
     chrPresent,
     toggleChorus,
     cutRegion,
@@ -58,6 +61,9 @@ export default function Timeline() {
     setChrHvr
   } = useUI();
   
+  // Add reverb hover state
+  const [reverbHvr, setReverbHvr] = useState(false);
+  
   const wavesurfer = wavesurferRef?.current;
   
   // Handle region slicing
@@ -66,7 +72,6 @@ export default function Timeline() {
     
     try {
       // Get the current audio URL from wavesurfer's media element
-      // This ensures we're working with the actual loaded audio, not stale state
       const currentAudioURL = wavesurfer.getMediaElement()?.currentSrc || audioURL;
       
       // Create a wrapper for addToEditHistory that matches the old setEditList signature
@@ -137,7 +142,7 @@ export default function Timeline() {
           />
         </Button>
         
-        {/* Echo toggle (was Reverb) */}
+        {/* Echo toggle */}
         <Button className="prog-button" onClick={toggleReverb}>
           {ffmpegLoaded ? (
             <RiSoundModuleFill
@@ -149,6 +154,16 @@ export default function Timeline() {
           ) : (
             dawSpinner
           )}
+        </Button>
+        
+        {/* Reverb toggle (new Web Audio reverb) */}
+        <Button className="prog-button" onClick={toggleReverbNew}>
+          <BiWater
+            fontSize={icoSize}
+            onPointerEnter={() => setReverbHvr(true)}
+            onPointerLeave={() => setReverbHvr(false)}
+            style={{ color: reverbPresent || reverbHvr ? 'aqua' : 'white' }}
+          />
         </Button>
         
         {/* Chorus toggle */}

@@ -13,7 +13,8 @@ import { PiWarningDuotone } from 'react-icons/pi';
 
 // Width calculations for effects panels
 const EQWIDTH = 28;
-const RVBWIDTH = 13;
+const ECHOWIDTH = 13;
+const REVERBWIDTH = 15;
 const CHRWIDTH = 18;
 
 /**
@@ -26,7 +27,7 @@ export default function DAW({
   silenceWarning = false 
 }) {
   const { audioURL, wavesurferRef } = useAudio();
-  const { eqPresent, rvbPresent, chrPresent } = useEffects();
+  const { eqPresent, rvbPresent, reverbPresent, chrPresent } = useEffects();
   const { loadFFmpeg, loaded: ffmpegLoaded } = useFFmpeg();
   const { showDAW, showHelp, setShowHelp, mapPresent } = useUI();
   
@@ -39,9 +40,10 @@ export default function DAW({
   
   // Calculate waveform container width based on visible effects
   const waveformWidth = 100 - 
-    (rvbPresent || eqPresent || chrPresent ? 1.5 : 0) -
+    (rvbPresent || eqPresent || reverbPresent || chrPresent ? 1.5 : 0) -
     (eqPresent ? EQWIDTH : 0) -
-    (rvbPresent ? RVBWIDTH : 0) -
+    (rvbPresent ? ECHOWIDTH : 0) -
+    (reverbPresent ? REVERBWIDTH : 0) -
     (chrPresent ? CHRWIDTH : 0);
   
   if (!showDAW) return null;
