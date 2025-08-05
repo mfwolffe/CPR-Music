@@ -10,9 +10,10 @@ import {
 import { effectChorusReverb } from '../../../../lib/dawUtils';
 
 /**
- * Reverb effect component (currently implements echo)
+ * Echo effect component
+ * Implements a simple echo/delay effect with feedback (decay)
  */
-export default function Reverb({ width }) {
+export default function Echo({ width }) {
   const {
     audioURL,
     setAudioURL,
@@ -39,7 +40,7 @@ export default function Reverb({ width }) {
   
   const wavesurfer = wavesurferRef?.current;
   
-  const applyReverb = useCallback(async () => {
+  const applyEcho = useCallback(async () => {
     if (!ffmpegLoaded || !wavesurfer) return;
     
     try {
@@ -63,7 +64,7 @@ export default function Reverb({ width }) {
         editListIndex
       );
     } catch (error) {
-      console.error('Error applying reverb:', error);
+      console.error('Error applying echo:', error);
     }
   }, [
     ffmpegLoaded,
@@ -83,9 +84,9 @@ export default function Reverb({ width }) {
   ]);
   
   return (
-    <Card id="reverb" style={{ width: `${width}%` }}>
+    <Card id="echo" style={{ width: `${width}%` }}>
       <CardHeader className="text-center text-white pt-1 pb-1 bg-daw-toolbars">
-        <CardTitle className="pt-0 pb-0 mt-0 mb-0">Reverb</CardTitle>
+        <CardTitle className="pt-0 pb-0 mt-0 mb-0">Echo</CardTitle>
       </CardHeader>
       <CardBody className="bg-dawcontrol text-white plr-0 pt-2 pb-0 w-100">
         <div className="flex-even gap-0 mlr-a w-100 plr-0">
@@ -124,7 +125,7 @@ export default function Reverb({ width }) {
             </p>
           </div>
           
-          {/* Delay/Decay */}
+          {/* Delay Time / Feedback */}
           <div className="mb-0 pb-0">
             <div className="d-flex gap-025">
               <div>
@@ -138,7 +139,7 @@ export default function Reverb({ width }) {
                   defaultValue={1000}
                   onInput={(e) => setDelay(parseFloat(e.target.value))}
                 />
-                <Form.Label className="d-block text-center mb-0">Delay</Form.Label>
+                <Form.Label className="d-block text-center mb-0">Time</Form.Label>
               </div>
               <div>
                 <input
@@ -151,9 +152,12 @@ export default function Reverb({ width }) {
                   defaultValue={0.1}
                   onInput={(e) => setDecay(parseFloat(e.target.value))}
                 />
-                <Form.Label className="d-block text-center mb-0">Decay</Form.Label>
+                <Form.Label className="d-block text-center mb-0">Feedback</Form.Label>
               </div>
             </div>
+            <p className="text-center mt-0 mb-0">
+              <strong>Echo</strong>
+            </p>
           </div>
         </div>
         
@@ -161,7 +165,7 @@ export default function Reverb({ width }) {
           <Button
             size="sm"
             className="mb-0 mr-2 mt-1"
-            onClick={applyReverb}
+            onClick={applyEcho}
             disabled={!ffmpegLoaded}
           >
             Apply

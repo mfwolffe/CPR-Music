@@ -2,12 +2,12 @@
 
 import { useEffects } from '../../../../contexts/DAWProvider';
 import EQ from './EQ';
-import Reverb from './Reverb';
+import Echo from './Echo';
 import Chorus from './Chorus';
 
 // Width calculations for effects panels
 const EQWIDTH = 28;
-const RVBWIDTH = 13;
+const ECHOWIDTH = 13;
 const CHRWIDTH = 18;
 
 /**
@@ -20,7 +20,7 @@ export default function Effects() {
   return (
     <>
       {eqPresent && <EQ width={EQWIDTH} />}
-      {rvbPresent && <Reverb width={RVBWIDTH} />}
+      {rvbPresent && <Echo width={ECHOWIDTH} />}
       {chrPresent && <Chorus width={CHRWIDTH} />}
     </>
   );
