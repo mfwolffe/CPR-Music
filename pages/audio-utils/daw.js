@@ -1,15 +1,33 @@
 'use client';
 
+import { useEffect } from 'react';
 import Layout from '../../components/layout';
-import DawStd from '../../components/audio/daw/dawStd';
-// import { ErrorBoundary } from 'react-error-boundary';
+import DAW from '../../components/audio/DAW';
+import { DAWProvider, useAudio, useUI } from '../../contexts/DAWProvider';
+
+// Component that sets the initial audio URL
+const DAWWithInitialAudio = ({ url }) => {
+  const { setAudioURL } = useAudio();
+  const { setShowDAW } = useUI();
+  
+  useEffect(() => {
+    if (url) {
+      setAudioURL(url);
+      setShowDAW(true);
+    }
+  }, [url, setAudioURL, setShowDAW]);
+  
+  return <DAW />;
+};
 
 const DawEditorSimple = () => {
   const url = '/sample_audio/uncso-bruckner4-1.mp3';
 
   return (
     <Layout>
-      <DawStd />
+      <DAWProvider>
+        <DAWWithInitialAudio url={url} />
+      </DAWProvider>
     </Layout>
   );
 }
