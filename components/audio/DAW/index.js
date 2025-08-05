@@ -1,28 +1,34 @@
 'use client';
 
-import { useEffect } from 'react';
-import { Card, CardBody, CardHeader, CardTitle, CardFooter, Button } from 'react-bootstrap';
-import { useAudio, useEffects, useFFmpeg, useUI } from '../../../contexts/DAWProvider';
+import { useEffect, useState } from 'react';
+import { Card, CardBody, CardHeader, CardTitle, CardFooter, Button, ButtonGroup } from 'react-bootstrap';
+import { useAudio, useEffects, useFFmpeg, useUI, useMultitrack } from '../../../contexts/DAWProvider';
 import Waveform from './Waveform';
 import Transport from './Transport';
 import Timeline from './Timeline';
 import EffectsRack from './Effects/EffectsRack';
+import MultitrackDAW from './Multitrack/MultitrackDAW';
 import HelpModal from '../daw-old/dawHelp';
 import { GrHelpBook } from 'react-icons/gr';
 import { PiWarningDuotone } from 'react-icons/pi';
+import { MdLayers, MdLayersClear } from 'react-icons/md';
 
 /**
- * Main DAW component that orchestrates all the audio editing functionality
- * This is a unified component that can be used standalone or within the recorder
+ * Main DAW component that can switch between single-track and multitrack modes
  */
 export default function DAW({ 
   onSubmit, 
   showSubmitButton = false,
-  silenceWarning = false 
+  silenceWarning = false,
+  defaultMode = 'single' // 'single' or 'multi'
 }) {
   const { audioURL, wavesurferRef } = useAudio();
   const { loadFFmpeg, loaded: ffmpegLoaded } = useFFmpeg();
   const { showDAW, showHelp, setShowHelp, mapPresent, useEffectsRack } = useUI();
+  const { tracks } = useMultitrack();
+  
+  // Track editing mode
+  const [mode, setMode] = useState(defaultMode);
   
   // Initialize FFmpeg when component mounts
   useEffect(() => {
@@ -31,36 +37,101 @@ export default function DAW({
     }
   }, [ffmpegLoaded, loadFFmpeg]);
   
+  // Auto-switch to multitrack if tracks have audio
+  useEffect(() => {
+    if (tracks.length > 0 && tracks.some(t => t.audioURL)) {
+      setMode('multi');
+    }
+  }, [tracks]);
+  
   if (!showDAW) return null;
   
+  // Render multitrack mode
+  if (mode === 'multi') {
+    return (
+      <MultitrackDAW 
+        onSubmit={onSubmit}
+        showSubmitButton={showSubmitButton}
+        onModeSwitch={setMode}
+      />
+    );
+  }
+  
+  // Render single-track mode
   return (
     <>
       <HelpModal setFn={setShowHelp} shown={showHelp} />
       
       <Card className="mt-2 mb-2" id="daw-card">
         <CardHeader className="pt-1 pb-1 flex-between dawHeaderFooter align-items-center">
-          <CardTitle className="pt-0 pb-0 mt-0 mb-0">
-            Audio Editor
-          </CardTitle>
-          <Button
-            className="help-button daw-help align-center"
-            onClick={() => setShowHelp(true)}
-          >
-            <GrHelpBook className="help-ico" fontSize="1.5rem" />
-          </Button>
-        </CardHeader>
-        
-        <CardBody style={{ background: 'lightsteelblue' }}>
-          {/* Main waveform area - full width */}
-          <div id="waveform-container" style={{ width: '100%' }}>
-            <Timeline />
-            <Waveform />
-            <Transport />
+          <div className="d-flex align-items-center gap-2">
+            <CardTitle className="pt-0 pb-0 mt-0 mb-0">
+              Audio Editor
+            </CardTitle>
+            
+            {/* Mode switcher */}
+            <ButtonGroup size="sm">
+              <Button
+                variant="primary"
+                title="Single track mode"
+                disabled
+              >
+                <MdLayersClear fontSize="1rem" />
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setMode('multi')}
+                title="Multitrack mode"
+              >
+                <MdLayers fontSize="1rem" />
+              </Button>
+            </ButtonGroup>
           </div>
           
-          {/* Effects rack below waveform when toggled */}
+          <div className="d-flex gap-2">
+            {mapPresent && (
+              <Button
+                className="help-button"
+                variant="none"
+                size="sm"
+              >
+                <GrHelpBook fontSize="1.25rem" />
+              </Button>
+            )}
+            
+            {silenceWarning && (
+              <Button
+                className="prog-button"
+                size="sm"
+                variant="none"
+              >
+                <PiWarningDuotone className="progIco help-ico" fontSize="1.5rem" />
+              </Button>
+            )}
+            
+            <Button
+              className="help-button"
+              size="sm"
+              onClick={() => setShowHelp(true)}
+            >
+              <GrHelpBook fontSize="1.25rem" />
+            </Button>
+          </div>
+        </CardHeader>
+        
+        <CardBody>
+          {audioURL && (
+            <>
+              <Timeline />
+              <div id="waveform-container">
+                <Waveform />
+              </div>
+              <Transport />
+            </>
+          )}
+          
           {useEffectsRack && (
-            <div className="mt-2">
+            <div className="mt-3">
               <EffectsRack width={100} />
             </div>
           )}
@@ -70,10 +141,13 @@ export default function DAW({
           <CardFooter className="dawHeaderFooter">
             <Button
               style={{ float: 'right' }}
-              onClick={() => onSubmit && onSubmit(audioURL)}
+              onClick={() => {
+                if (onSubmit) {
+                  onSubmit(audioURL);
+                }
+              }}
             >
-              Submit{' '}
-              {silenceWarning && <PiWarningDuotone />}
+              Submit Edited Audio
             </Button>
           </CardFooter>
         )}
