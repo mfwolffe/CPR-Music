@@ -20,8 +20,8 @@ export default function Chorus({ width }) {
     wavesurferRef,
     editList,
     editListIndex,
-    addToEditHistory,
-    setEditListIndex
+    setEditListIndex,
+    addToEditHistory
   } = useAudio();
   
   const {

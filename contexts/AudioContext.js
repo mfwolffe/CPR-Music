@@ -82,6 +82,7 @@ export const AudioProvider = ({ children }) => {
     // Edit history
     editList,
     editListIndex,
+    setEditListIndex,
     addToEditHistory,
     restoreFromHistory,
     
