@@ -11,7 +11,7 @@ import {
   useFFmpeg, 
   useUI 
 } from '../../../contexts/DAWProvider';
-import { effectSliceRegions, restoreState } from '../../../lib/dawUtils';
+import { effectSliceRegions } from '../../../lib/dawUtils';
 
 const icoSize = "1.25rem";
 const dawSpinner = <Spinner animation="grow" size="sm" />;
@@ -25,11 +25,11 @@ export default function Timeline() {
     audioURL,
     setAudioURL,
     audioRef,
-    editList,
-    editListIndex,
-    setEditListIndex,
     addToEditHistory,
-    restoreFromHistory
+    undo,
+    redo,
+    canUndo,
+    canRedo
   } = useAudio();
   
   const {
@@ -65,17 +65,33 @@ export default function Timeline() {
     if (!cutRegion || !ffmpegLoaded || !wavesurfer) return;
     
     try {
+      // Get the current audio URL from wavesurfer's media element
+      // This ensures we're working with the actual loaded audio, not stale state
+      const currentAudioURL = wavesurfer.getMediaElement()?.currentSrc || audioURL;
+      
+      // Create a wrapper for addToEditHistory that matches the old setEditList signature
+      const setEditListWrapper = (newList) => {
+        if (newList && newList.length > 0) {
+          const newURL = newList[newList.length - 1];
+          addToEditHistory(newURL, keep ? 'Cut Region' : 'Delete Region', {
+            regionStart: cutRegion.start,
+            regionEnd: cutRegion.end,
+            keep: keep
+          });
+        }
+      };
+      
       await effectSliceRegions(
         cutRegion,
         ffmpegRef,
         setAudioURL,
         wavesurfer,
-        addToEditHistory,
-        editList,
-        setEditListIndex,
-        editListIndex,
+        setEditListWrapper,
+        [], // editList - not used but kept for compatibility
+        () => {}, // setEditListIndex - not used
+        0, // editListIndex - not used
         audioRef,
-        audioURL,
+        currentAudioURL, // Use the current URL from wavesurfer
         keep
       );
       
@@ -91,28 +107,10 @@ export default function Timeline() {
     ffmpegRef, 
     setAudioURL, 
     addToEditHistory,
-    editList,
-    setEditListIndex,
-    editListIndex,
     audioRef,
     audioURL,
     setCutRegion
   ]);
-  
-  // Handle undo/redo
-  const handleUndo = useCallback(() => {
-    const url = restoreFromHistory(editListIndex - 1);
-    if (url && wavesurfer) {
-      wavesurfer.load(url);
-    }
-  }, [editListIndex, restoreFromHistory, wavesurfer]);
-  
-  const handleRedo = useCallback(() => {
-    const url = restoreFromHistory(editListIndex + 1);
-    if (url && wavesurfer) {
-      wavesurfer.load(url);
-    }
-  }, [editListIndex, restoreFromHistory, wavesurfer]);
   
   if (!wavesurfer) return null;
   
@@ -139,7 +137,7 @@ export default function Timeline() {
           />
         </Button>
         
-        {/* Reverb toggle */}
+        {/* Echo toggle (was Reverb) */}
         <Button className="prog-button" onClick={toggleReverb}>
           {ffmpegLoaded ? (
             <RiSoundModuleFill
@@ -186,10 +184,18 @@ export default function Timeline() {
       
       {/* Undo/Redo */}
       <div className="d-flex align-items-center">
-        <Button className="prog-button pr-2" onClick={handleUndo}>
+        <Button 
+          className="prog-button pr-2" 
+          onClick={undo}
+          disabled={!canUndo}
+        >
           <IoArrowUndo fontSize={icoSize} />
         </Button>
-        <Button className="prog-button pr-2" onClick={handleRedo}>
+        <Button 
+          className="prog-button pr-2" 
+          onClick={redo}
+          disabled={!canRedo}
+        >
           <IoArrowRedo fontSize={icoSize} />
         </Button>
       </div>

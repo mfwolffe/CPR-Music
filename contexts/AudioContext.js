@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react';
+import { getCommandManager, createAudioCommand } from '../lib/AudioCommandManager';
 
 const AudioContext = createContext();
 
@@ -13,54 +14,128 @@ export const useAudio = () => {
 };
 
 export const AudioProvider = ({ children }) => {
-  // Core audio state - keeping it minimal and stable
+  // Core audio state
   const [audioURL, setAudioURL] = useState('');
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   
-  // References - these won't cause re-renders
+  // Undo/redo state
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  
+  // References
   const audioRef = useRef(null);
   const wavesurferRef = useRef(null);
+  const commandManagerRef = useRef(null);
   
-  // Edit history for undo/redo
-  const [editList, setEditList] = useState([]);
-  const [editListIndex, setEditListIndex] = useState(0);
+  // Initialize command manager
+  useEffect(() => {
+    const manager = getCommandManager();
+    commandManagerRef.current = manager;
+    
+    // Listen for state changes
+    const handleStateChange = (state) => {
+      setCanUndo(state.canUndo);
+      setCanRedo(state.canRedo);
+    };
+    
+    manager.addListener(handleStateChange);
+    
+    return () => {
+      manager.removeListener(handleStateChange);
+    };
+  }, []);
   
-  // Carefully managed audio loading
-  const loadAudio = useCallback(async (url) => {
+  // Load audio and handle wavesurfer updates
+  const loadAudio = useCallback(async (url, skipHistory = false) => {
     if (!url || !wavesurferRef.current) return;
     
     try {
       setAudioURL(url);
-      // We'll let the component handle the actual wavesurfer loading
-      // to avoid breaking the delicate setup
+      
+      // Add to history unless explicitly skipped (like during undo/redo)
+      if (!skipHistory && commandManagerRef.current) {
+        const command = createAudioCommand('Load Audio', url, {
+          source: 'user_action'
+        });
+        commandManagerRef.current.execute(command);
+      }
+      
+      // Load into wavesurfer if available
+      if (wavesurferRef.current) {
+        await wavesurferRef.current.load(url);
+      }
     } catch (error) {
       console.error('Error in loadAudio:', error);
     }
   }, []);
   
-  // Add to edit history
-  const addToEditHistory = useCallback((url) => {
-    setEditList(prev => {
-      const newList = [...prev.slice(0, editListIndex + 1), url];
-      setEditListIndex(newList.length - 1);
-      return newList;
-    });
-  }, [editListIndex]);
-  
-  // Restore from edit history
-  const restoreFromHistory = useCallback((index) => {
-    if (index < 0 || index >= editList.length) return;
+  // Add new audio state to history
+  const addToEditHistory = useCallback((url, name = 'Edit', metadata = {}) => {
+    if (!commandManagerRef.current) return;
     
-    const url = editList[index];
+    const command = createAudioCommand(name, url, metadata);
+    commandManagerRef.current.execute(command);
+    
+    // Update current audio URL
     setAudioURL(url);
-    setEditListIndex(index);
+  }, []);
+  
+  // Undo operation
+  const undo = useCallback(async () => {
+    if (!commandManagerRef.current) return;
     
-    // Return the URL so the component can load it into wavesurfer
-    return url;
-  }, [editList]);
+    const command = commandManagerRef.current.undo();
+    if (command) {
+      setAudioURL(command.audioData);
+      
+      // Load into wavesurfer without adding to history
+      if (wavesurferRef.current) {
+        await wavesurferRef.current.load(command.audioData);
+        
+        // Force audio element update to ensure sync
+        if (audioRef.current) {
+          audioRef.current.src = command.audioData;
+          audioRef.current.load();
+        }
+      }
+    }
+  }, []);
+  
+  // Redo operation
+  const redo = useCallback(async () => {
+    if (!commandManagerRef.current) return;
+    
+    const command = commandManagerRef.current.redo();
+    if (command) {
+      setAudioURL(command.audioData);
+      
+      // Load into wavesurfer without adding to history
+      if (wavesurferRef.current) {
+        await wavesurferRef.current.load(command.audioData);
+        
+        // Force audio element update to ensure sync
+        if (audioRef.current) {
+          audioRef.current.src = command.audioData;
+          audioRef.current.load();
+        }
+      }
+    }
+  }, []);
+  
+  // Get current command for debugging
+  const getCurrentCommand = useCallback(() => {
+    if (!commandManagerRef.current) return null;
+    return commandManagerRef.current.getCurrentCommand();
+  }, []);
+  
+  // Clear history (useful when switching between parts)
+  const clearHistory = useCallback(() => {
+    if (!commandManagerRef.current) return;
+    commandManagerRef.current.clear();
+  }, []);
   
   const value = {
     // State
@@ -79,12 +154,14 @@ export const AudioProvider = ({ children }) => {
     audioRef,
     wavesurferRef,
     
-    // Edit history
-    editList,
-    editListIndex,
-    setEditListIndex,
+    // Command history
+    canUndo,
+    canRedo,
     addToEditHistory,
-    restoreFromHistory,
+    undo,
+    redo,
+    getCurrentCommand,
+    clearHistory,
     
     // Methods
     loadAudio,

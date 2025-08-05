@@ -35,7 +35,7 @@ function HelpAccordion() {
             </Row>
             <Row className='mb-2'>
               <Col lg={1}><RiSoundModuleFill fontSize="1.6rem" /></Col>
-              <Col>Hides/shows a widget for adding echo effects such as delay, decay, and input/output gain.</Col>
+              <Col>Hides/shows a widget for adding echo effects such as delay time, feedback, and input/output gain.</Col>
             </Row>
             <Row className='mb-2'>
               <Col lg={1}><MdGroups fontSize="1.6rem" /></Col>
@@ -122,6 +122,12 @@ function HelpAccordion() {
             <dt>Depth</dt>
             <dd>
               The amplitude of pitch modulation within a chorus effect. The higher the depth, the more pitches deviate, leading to a more noticeable chorus effect.
+            </dd>
+
+            <dt>Echo</dt>
+            <dd>
+              A time-based effect that creates delayed repetitions of the original sound. 
+              The delay time controls how long before each echo, and feedback controls how many echoes occur and how quickly they fade.
             </dd>
 
             <dt>Equalization</dt>
