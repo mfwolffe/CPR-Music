@@ -1,13 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useRef } from 'react';
-import { Card, CardHeader, CardTitle, CardBody, Button, Form, Dropdown, Nav } from 'react-bootstrap';
+import { Card, CardHeader, CardTitle, CardBody, Button, Form, Dropdown, Nav, Container, Row, Col } from 'react-bootstrap';
 import { 
   useAudio, 
   useEffects 
 } from '../../../../contexts/DAWProvider';
 import { ReverbProcessor } from '../../../../lib/ReverbProcessor';
 import { getPresetNames, impulseResponsePresets } from '../../../../lib/impulseResponses';
+import Knob from '../../../Knob';
 
 /**
  * Reverb effect component using Web Audio API
@@ -160,13 +161,11 @@ export default function Reverb({ width }) {
   const presetNames = getPresetNames();
   
   return (
-    <Card id="reverb" style={{ width: `${width}%` }}>
-      <CardHeader className="text-center text-white pt-1 pb-1 bg-daw-toolbars">
-        <CardTitle className="pt-0 pb-0 mt-0 mb-0">Reverb</CardTitle>
-      </CardHeader>
-      <CardBody className="bg-dawcontrol text-white plr-0 pt-2 pb-0 w-100">
-        {/* Preset Selector */}
-        <div className="mb-2 px-2">
+    <Container fluid className="p-2">
+      <Row className="text-center align-items-end">
+        {/* Preset and Button */}
+        <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
+          <Form.Label className="text-white small mb-1">Preset</Form.Label>
           <Dropdown
             onSelect={(eventKey) => setReverbPreset(eventKey)}
             size="sm"
@@ -190,157 +189,113 @@ export default function Reverb({ width }) {
               ))}
             </Dropdown.Menu>
           </Dropdown>
-        </div>
+        </Col>
         
-        {/* Main Controls */}
-        <div className="flex-even gap-0 mlr-a w-100 plr-0">
-          {/* Wet/Dry Mix */}
-          <div className="mb-0 pb-0 text-center">
-            <input
-              min={0}
-              max={1}
-              step={0.01}
-              type="range"
-              orient="vertical"
-              className="mlr-auto"
-              value={reverbWetMix}
-              onChange={(e) => setReverbWetMix(parseFloat(e.target.value))}
-            />
-            <Form.Label className="d-block text-center mb-0">
-              Mix<br/>
-              <small>{Math.round(reverbWetMix * 100)}%</small>
-            </Form.Label>
-          </div>
-          
-          {/* Pre-Delay */}
-          <div className="mb-0 pb-0 text-center">
-            <input
-              min={0}
-              max={200}
-              step={1}
-              type="range"
-              orient="vertical"
-              className="mlr-auto"
-              value={reverbPreDelay}
-              onChange={(e) => setReverbPreDelay(parseFloat(e.target.value))}
-            />
-            <Form.Label className="d-block text-center mb-0">
-              Pre-Dly<br/>
-              <small>{reverbPreDelay}ms</small>
-            </Form.Label>
-          </div>
-          
-          {/* High Damping */}
-          <div className="mb-0 pb-0 text-center">
-            <input
-              min={0}
-              max={1}
-              step={0.01}
-              type="range"
-              orient="vertical"
-              className="mlr-auto"
-              value={reverbHighDamp}
-              onChange={(e) => setReverbHighDamp(parseFloat(e.target.value))}
-            />
-            <Form.Label className="d-block text-center mb-0">
-              Hi Damp<br/>
-              <small>{Math.round(reverbHighDamp * 100)}%</small>
-            </Form.Label>
-          </div>
-          
-          {/* Low Damping */}
-          <div className="mb-0 pb-0 text-center">
-            <input
-              min={0}
-              max={1}
-              step={0.01}
-              type="range"
-              orient="vertical"
-              className="mlr-auto"
-              value={reverbLowDamp}
-              onChange={(e) => setReverbLowDamp(parseFloat(e.target.value))}
-            />
-            <Form.Label className="d-block text-center mb-0">
-              Lo Damp<br/>
-              <small>{Math.round(reverbLowDamp * 100)}%</small>
-            </Form.Label>
-          </div>
-        </div>
+        {/* Knobs */}
+        <Col xs={6} sm={4} md={2} lg={1}>
+          <Knob
+            value={reverbWetMix}
+            onChange={setReverbWetMix}
+            min={0}
+            max={1}
+            label="Mix"
+            displayValue={`${Math.round(reverbWetMix * 100)}%`}
+            size={45}
+            color="#92ce84"
+          />
+        </Col>
         
-        {/* Secondary Controls */}
-        <div className="flex-even gap-0 mlr-a w-100 plr-0 mt-2">
-          {/* Early/Late */}
-          <div className="mb-0 pb-0 text-center">
-            <input
-              min={0}
-              max={1}
-              step={0.01}
-              type="range"
-              orient="vertical"
-              className="mlr-auto"
-              value={reverbEarlyLate}
-              onChange={(e) => setReverbEarlyLate(parseFloat(e.target.value))}
-            />
-            <Form.Label className="d-block text-center mb-0">
-              E/L Mix<br/>
-              <small>{Math.round(reverbEarlyLate * 100)}%</small>
-            </Form.Label>
-          </div>
-          
-          {/* Stereo Width */}
-          <div className="mb-0 pb-0 text-center">
-            <input
-              min={0}
-              max={2}
-              step={0.01}
-              type="range"
-              orient="vertical"
-              className="mlr-auto"
-              value={reverbStereoWidth}
-              onChange={(e) => setReverbStereoWidth(parseFloat(e.target.value))}
-            />
-            <Form.Label className="d-block text-center mb-0">
-              Width<br/>
-              <small>{Math.round(reverbStereoWidth * 100)}%</small>
-            </Form.Label>
-          </div>
-          
-          {/* Output Gain */}
-          <div className="mb-0 pb-0 text-center">
-            <input
-              min={0}
-              max={2}
-              step={0.01}
-              type="range"
-              orient="vertical"
-              className="mlr-auto"
-              value={reverbOutputGain}
-              onChange={(e) => setReverbOutputGain(parseFloat(e.target.value))}
-            />
-            <Form.Label className="d-block text-center mb-0">
-              Output<br/>
-              <small>{reverbOutputGain.toFixed(1)}x</small>
-            </Form.Label>
-          </div>
-        </div>
+        <Col xs={6} sm={4} md={2} lg={1}>
+          <Knob
+            value={reverbPreDelay}
+            onChange={setReverbPreDelay}
+            min={0}
+            max={200}
+            step={1}
+            label="Pre-Dly"
+            displayValue={`${reverbPreDelay}ms`}
+            size={45}
+            color="#7bafd4"
+          />
+        </Col>
         
-        <div className="d-flex justify-content-end px-2">
+        <Col xs={6} sm={4} md={2} lg={1}>
+          <Knob
+            value={reverbHighDamp}
+            onChange={setReverbHighDamp}
+            min={0}
+            max={1}
+            label="Hi Damp"
+            displayValue={`${Math.round(reverbHighDamp * 100)}%`}
+            size={45}
+            color="#cbb677"
+          />
+        </Col>
+        
+        <Col xs={6} sm={4} md={2} lg={1}>
+          <Knob
+            value={reverbLowDamp}
+            onChange={setReverbLowDamp}
+            min={0}
+            max={1}
+            label="Lo Damp"
+            displayValue={`${Math.round(reverbLowDamp * 100)}%`}
+            size={45}
+            color="#cbb677"
+          />
+        </Col>
+        
+        <Col xs={6} sm={4} md={2} lg={1}>
+          <Knob
+            value={reverbEarlyLate}
+            onChange={setReverbEarlyLate}
+            min={0}
+            max={1}
+            label="E/L Mix"
+            displayValue={`${Math.round(reverbEarlyLate * 100)}%`}
+            size={45}
+            color="#92ceaa"
+          />
+        </Col>
+        
+        <Col xs={6} sm={4} md={2} lg={1}>
+          <Knob
+            value={reverbStereoWidth}
+            onChange={setReverbStereoWidth}
+            min={0}
+            max={2}
+            label="Width"
+            displayValue={`${Math.round(reverbStereoWidth * 100)}%`}
+            size={45}
+            color="#e75b5c"
+          />
+        </Col>
+        
+        <Col xs={6} sm={4} md={2} lg={1}>
+          <Knob
+            value={reverbOutputGain}
+            onChange={setReverbOutputGain}
+            min={0}
+            max={2}
+            label="Output"
+            displayValue={`${reverbOutputGain.toFixed(1)}x`}
+            size={45}
+            color="#92ceaa"
+          />
+        </Col>
+        
+        {/* Apply Button */}
+        <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
           <Button
             size="sm"
-            className="mb-2 mr-0 mt-1"
+            className="w-100"
             onClick={applyReverb}
           >
             Apply to Region
           </Button>
-        </div>
-        
-        <div className="px-2 pb-2">
-          <small className="text-muted">
-            Note: Real-time preview coming soon. Select a region and click Apply to hear the reverb.
-          </small>
-        </div>
-      </CardBody>
-    </Card>
+        </Col>
+      </Row>
+    </Container>
   );
 }
 

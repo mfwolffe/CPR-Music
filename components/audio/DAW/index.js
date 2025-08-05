@@ -60,7 +60,7 @@ export default function DAW({
           
           {/* Effects rack below waveform when toggled */}
           {useEffectsRack && (
-            <div className="mt-3">
+            <div className="mt-2">
               <EffectsRack width={100} />
             </div>
           )}
