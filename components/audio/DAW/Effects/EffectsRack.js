@@ -13,6 +13,9 @@ import AutoPan from './AutoPan';
 import Tremolo from './Tremolo';
 import Compressor from './Compressor';
 import RingModulator from './RingModulator';
+import Flanger from './Flanger';
+import AutoWah from './AutoWah';
+import Gate from './Gate';
 
 /**
  * Effects Rack - Tabbed container for all effects
@@ -29,7 +32,10 @@ export default function EffectsRack({ width }) {
     setAutoPanPresent,
     setTremoloPresent,
     setCompressorPresent,
-    setRingModPresent
+    setRingModPresent,
+    setFlangerPresent,
+    setAutoWahPresent,
+    setGatePresent
   } = useEffects();
   
   // Track active tab
@@ -47,6 +53,9 @@ export default function EffectsRack({ width }) {
     setTremoloPresent(true);
     setCompressorPresent(true);
     setRingModPresent(true);
+    setFlangerPresent(true);
+    setAutoWahPresent(true);
+    setGatePresent(true);
     
     // Cleanup: disable all when unmounted
     return () => {
@@ -60,8 +69,11 @@ export default function EffectsRack({ width }) {
       setTremoloPresent(false);
       setCompressorPresent(false);
       setRingModPresent(false);
+      setFlangerPresent(false);
+      setAutoWahPresent(false);
+      setGatePresent(false);
     };
-  }, [setEqPresent, setRvbPresent, setReverbPresent, setChrPresent, setDistortionPresent, setPhaserPresent, setAutoPanPresent, setTremoloPresent, setCompressorPresent, setRingModPresent]);
+  }, [setEqPresent, setRvbPresent, setReverbPresent, setChrPresent, setDistortionPresent, setPhaserPresent, setAutoPanPresent, setTremoloPresent, setCompressorPresent, setRingModPresent, setFlangerPresent, setAutoWahPresent, setGatePresent]);
   
   // All tabs are always available in the rack
   const tabs = [
@@ -71,9 +83,12 @@ export default function EffectsRack({ width }) {
     { key: 'chorus', title: 'Chorus', component: Chorus },
     { key: 'distortion', title: 'Distortion', component: Distortion },
     { key: 'phaser', title: 'Phaser', component: Phaser },
+    { key: 'flanger', title: 'Flanger', component: Flanger },
+    { key: 'autowah', title: 'Auto-Wah', component: AutoWah },
     { key: 'autopan', title: 'Auto-Pan', component: AutoPan },
     { key: 'tremolo', title: 'Tremolo', component: Tremolo },
     { key: 'compressor', title: 'Compressor', component: Compressor },
+    { key: 'gate', title: 'Gate', component: Gate },
     { key: 'ringmod', title: 'Ring Mod', component: RingModulator }
   ];
   

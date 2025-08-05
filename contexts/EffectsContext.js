@@ -93,6 +93,32 @@ export const EffectsProvider = ({ children }) => {
   const [ringModMix, setRingModMix] = useState(1);
   const [ringModDepth, setRingModDepth] = useState(1);
   
+  // Flanger state
+  const [flangerPresent, setFlangerPresent] = useState(false);
+  const [flangerRate, setFlangerRate] = useState(0.5);
+  const [flangerDepth, setFlangerDepth] = useState(0.002);
+  const [flangerFeedback, setFlangerFeedback] = useState(0.5);
+  const [flangerDelay, setFlangerDelay] = useState(0.005);
+  const [flangerMix, setFlangerMix] = useState(0.5);
+  
+  // Auto-Wah state
+  const [autoWahPresent, setAutoWahPresent] = useState(false);
+  const [autoWahSensitivity, setAutoWahSensitivity] = useState(0.5);
+  const [autoWahFrequency, setAutoWahFrequency] = useState(1000);
+  const [autoWahRange, setAutoWahRange] = useState(2000);
+  const [autoWahQ, setAutoWahQ] = useState(2);
+  const [autoWahAttack, setAutoWahAttack] = useState(0.01);
+  const [autoWahRelease, setAutoWahRelease] = useState(0.1);
+  
+  // Gate state
+  const [gatePresent, setGatePresent] = useState(false);
+  const [gateThreshold, setGateThreshold] = useState(-40);
+  const [gateRatio, setGateRatio] = useState(10);
+  const [gateAttack, setGateAttack] = useState(0.001);
+  const [gateRelease, setGateRelease] = useState(0.1);
+  const [gateHold, setGateHold] = useState(0.01);
+  const [gateRange, setGateRange] = useState(-60);
+  
   // Reset all effects to default
   const resetEffects = useCallback(() => {
     // Echo
@@ -158,6 +184,29 @@ export const EffectsProvider = ({ children }) => {
     setRingModMix(1);
     setRingModDepth(1);
     
+    // Flanger
+    setFlangerRate(0.5);
+    setFlangerDepth(0.002);
+    setFlangerFeedback(0.5);
+    setFlangerDelay(0.005);
+    setFlangerMix(0.5);
+    
+    // Auto-Wah
+    setAutoWahSensitivity(0.5);
+    setAutoWahFrequency(1000);
+    setAutoWahRange(2000);
+    setAutoWahQ(2);
+    setAutoWahAttack(0.01);
+    setAutoWahRelease(0.1);
+    
+    // Gate
+    setGateThreshold(-40);
+    setGateRatio(10);
+    setGateAttack(0.001);
+    setGateRelease(0.1);
+    setGateHold(0.01);
+    setGateRange(-60);
+    
     // Don't reset filters as they're initialized elsewhere
   }, []);
   
@@ -172,6 +221,9 @@ export const EffectsProvider = ({ children }) => {
   const toggleTremolo = useCallback(() => setTremoloPresent(prev => !prev), []);
   const toggleCompressor = useCallback(() => setCompressorPresent(prev => !prev), []);
   const toggleRingMod = useCallback(() => setRingModPresent(prev => !prev), []);
+  const toggleFlanger = useCallback(() => setFlangerPresent(prev => !prev), []);
+  const toggleAutoWah = useCallback(() => setAutoWahPresent(prev => !prev), []);
+  const toggleGate = useCallback(() => setGatePresent(prev => !prev), []);
   
   const value = {
     // EQ
@@ -315,6 +367,55 @@ export const EffectsProvider = ({ children }) => {
     setRingModMix,
     ringModDepth,
     setRingModDepth,
+    
+    // Flanger
+    flangerPresent,
+    setFlangerPresent,
+    toggleFlanger,
+    flangerRate,
+    setFlangerRate,
+    flangerDepth,
+    setFlangerDepth,
+    flangerFeedback,
+    setFlangerFeedback,
+    flangerDelay,
+    setFlangerDelay,
+    flangerMix,
+    setFlangerMix,
+    
+    // Auto-Wah
+    autoWahPresent,
+    setAutoWahPresent,
+    toggleAutoWah,
+    autoWahSensitivity,
+    setAutoWahSensitivity,
+    autoWahFrequency,
+    setAutoWahFrequency,
+    autoWahRange,
+    setAutoWahRange,
+    autoWahQ,
+    setAutoWahQ,
+    autoWahAttack,
+    setAutoWahAttack,
+    autoWahRelease,
+    setAutoWahRelease,
+    
+    // Gate
+    gatePresent,
+    setGatePresent,
+    toggleGate,
+    gateThreshold,
+    setGateThreshold,
+    gateRatio,
+    setGateRatio,
+    gateAttack,
+    setGateAttack,
+    gateRelease,
+    setGateRelease,
+    gateHold,
+    setGateHold,
+    gateRange,
+    setGateRange,
     
     // Regions
     cutRegion,
