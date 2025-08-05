@@ -1,7 +1,8 @@
+// components/audio/DAW/index.js
 'use client';
 
 import { useEffect } from 'react';
-import { Card, CardBody, CardHeader, CardTitle, CardFooter, Button } from 'react-bootstrap';
+import { Card, CardBody, CardHeader, CardTitle, CardFooter, Button, ButtonGroup } from 'react-bootstrap';
 import { useAudio, useEffects, useFFmpeg, useUI } from '../../../contexts/DAWProvider';
 import Waveform from './Waveform';
 import Transport from './Transport';
@@ -10,6 +11,7 @@ import EffectsRack from './Effects/EffectsRack';
 import HelpModal from '../daw-old/dawHelp';
 import { GrHelpBook } from 'react-icons/gr';
 import { PiWarningDuotone } from 'react-icons/pi';
+import { MdLayers, MdLayersClear } from 'react-icons/md';
 
 /**
  * Main DAW component that orchestrates all the audio editing functionality
@@ -20,7 +22,7 @@ export default function DAW({
   showSubmitButton = false,
   silenceWarning = false 
 }) {
-  const { audioURL, wavesurferRef } = useAudio();
+  const { audioURL, wavesurferRef, dawMode, setDawMode } = useAudio();
   const { loadFFmpeg, loaded: ffmpegLoaded } = useFFmpeg();
   const { showDAW, showHelp, setShowHelp, mapPresent, useEffectsRack } = useUI();
   
@@ -33,15 +35,77 @@ export default function DAW({
   
   if (!showDAW) return null;
   
+  // For now, multitrack mode just shows a placeholder
+  if (dawMode === 'multi') {
+    return (
+      <Card className="mt-2 mb-2" id="daw-card">
+        <CardHeader className="pt-1 pb-1 flex-between dawHeaderFooter align-items-center">
+          <div className="d-flex align-items-center gap-2">
+            <CardTitle className="pt-0 pb-0 mt-0 mb-0">
+              Multitrack Editor
+            </CardTitle>
+            
+            {/* Mode switcher */}
+            <ButtonGroup size="sm">
+              <Button 
+                variant="secondary" 
+                onClick={() => setDawMode('single')}
+                title="Single track mode"
+              >
+                <MdLayersClear fontSize="1rem" />
+              </Button>
+              <Button 
+                variant="primary"
+                disabled
+                title="Multitrack mode"
+              >
+                <MdLayers fontSize="1rem" />
+              </Button>
+            </ButtonGroup>
+          </div>
+        </CardHeader>
+        
+        <CardBody style={{ background: 'lightsteelblue' }}>
+          <div className="text-center p-5">
+            <h4>Multitrack Mode</h4>
+            <p>Multitrack editor coming soon...</p>
+          </div>
+        </CardBody>
+      </Card>
+    );
+  }
+  
+  // Single track mode (existing functionality)
   return (
     <>
       <HelpModal setFn={setShowHelp} shown={showHelp} />
       
       <Card className="mt-2 mb-2" id="daw-card">
         <CardHeader className="pt-1 pb-1 flex-between dawHeaderFooter align-items-center">
-          <CardTitle className="pt-0 pb-0 mt-0 mb-0">
-            Audio Editor
-          </CardTitle>
+          <div className="d-flex align-items-center gap-2">
+            <CardTitle className="pt-0 pb-0 mt-0 mb-0">
+              Audio Editor
+            </CardTitle>
+            
+            {/* Mode switcher */}
+            <ButtonGroup size="sm">
+              <Button 
+                variant="primary"
+                disabled
+                title="Single track mode"
+              >
+                <MdLayersClear fontSize="1rem" />
+              </Button>
+              <Button 
+                variant="secondary" 
+                onClick={() => setDawMode('multi')}
+                title="Multitrack mode"
+              >
+                <MdLayers fontSize="1rem" />
+              </Button>
+            </ButtonGroup>
+          </div>
+          
           <Button
             className="help-button daw-help align-center"
             onClick={() => setShowHelp(true)}

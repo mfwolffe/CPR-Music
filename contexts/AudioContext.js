@@ -1,3 +1,4 @@
+// contexts/AudioContext.js
 'use client';
 
 import { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react';
@@ -20,6 +21,9 @@ export const AudioProvider = ({ children }) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  
+  // DAW mode state
+  const [dawMode, setDawMode] = useState('single'); // 'single' or 'multi'
   
   // Undo/redo state
   const [canUndo, setCanUndo] = useState(false);
@@ -149,6 +153,10 @@ export const AudioProvider = ({ children }) => {
     setDuration,
     playbackSpeed,
     setPlaybackSpeed,
+    
+    // DAW mode
+    dawMode,
+    setDawMode,
     
     // Refs
     audioRef,

@@ -1,3 +1,4 @@
+// contexts/DAWProvider.js
 'use client';
 
 import React from 'react';
@@ -6,6 +7,7 @@ import { RecordingProvider } from './RecordingContext';
 import { EffectsProvider } from './EffectsContext';
 import { FFmpegProvider } from './FFmpegContext';
 import { UIProvider } from './UIContext';
+import { MultitrackProvider } from './MultitrackContext';
 
 /**
  * DAWProvider combines all the context providers needed for the DAW and Recorder
@@ -18,7 +20,9 @@ export const DAWProvider = ({ children }) => {
         <RecordingProvider>
           <EffectsProvider>
             <UIProvider>
-              {children}
+              <MultitrackProvider>
+                {children}
+              </MultitrackProvider>
             </UIProvider>
           </EffectsProvider>
         </RecordingProvider>
@@ -33,3 +37,4 @@ export { useRecording } from './RecordingContext';
 export { useEffects } from './EffectsContext';
 export { useFFmpeg } from './FFmpegContext';
 export { useUI } from './UIContext';
+export { useMultitrack } from './MultitrackContext';
