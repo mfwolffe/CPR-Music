@@ -93,6 +93,7 @@ function HelpAccordion() {
         <Accordion.Body>
           <h5>Audio Effects Overview</h5>
           
+          <h6>Traditional Effects</h6>
           <dl>
             <dt>Equalizer (EQ)</dt>
             <dd>
@@ -101,29 +102,10 @@ function HelpAccordion() {
               an advanced tone control.
             </dd>
 
-            <dt>Compressor</dt>
-            <dd>
-              Reduces the dynamic range by attenuating signals above a threshold. Makes quiet parts louder 
-              and loud parts quieter, resulting in more consistent volume levels. Essential for balancing 
-              recordings and increasing perceived loudness.
-            </dd>
-
-            <dt>Gate</dt>
-            <dd>
-              Cuts audio that falls below a threshold level. Useful for removing background noise, breath sounds, 
-              or unwanted room ambience between musical phrases. The opposite of a compressor.
-            </dd>
-
             <dt>Echo</dt>
             <dd>
               Produces delayed repetitions of the original sound. Control the time between echoes and how quickly 
               they fade away. Used to create spatial depth or rhythmic effects.
-            </dd>
-
-            <dt>Advanced Delay</dt>
-            <dd>
-              Sophisticated delay with additional features. Includes ping-pong mode (alternates between left/right channels), 
-              feedback filtering to shape the tone of repeats, and extended delay times for complex rhythmic patterns.
             </dd>
 
             <dt>Reverb</dt>
@@ -138,7 +120,10 @@ function HelpAccordion() {
               Creates multiple slightly detuned copies of the sound, producing a thicker, richer texture. 
               Simulates the effect of multiple instruments or voices performing the same part simultaneously.
             </dd>
+          </dl>
 
+          <h6>Modulation Effects</h6>
+          <dl>
             <dt>Phaser</dt>
             <dd>
               Combines the original signal with a phase-shifted copy, creating characteristic sweeping 
@@ -164,32 +149,6 @@ function HelpAccordion() {
               Creates spatial movement in the stereo field, from subtle shifts to dramatic ping-pong effects.
             </dd>
 
-            <dt>Distortion</dt>
-            <dd>
-              Intentionally clips or shapes the audio waveform to add harmonic content. Ranges from subtle 
-              warmth (overdrive) to aggressive clipping (distortion/fuzz). Bit crusher reduces the digital 
-              resolution for lo-fi effects.
-            </dd>
-
-            <dt>Auto-Wah</dt>
-            <dd>
-              A filter that automatically sweeps based on the input signal's amplitude. Creates a "wah" effect 
-              that responds to playing dynamics. Like a wah pedal that moves itself based on how loud you play.
-            </dd>
-
-            <dt>Pitch Shifter</dt>
-            <dd>
-              Changes the pitch of audio without affecting its duration. Can shift by semitones (musical intervals) 
-              or cents (fine tuning). Useful for harmony creation, correction, or creative sound design.
-            </dd>
-
-            <dt>Stereo Widener</dt>
-            <dd>
-              Enhances the stereo image to make sounds appear wider. Uses psychoacoustic techniques including 
-              the Haas effect and mid/side processing. Includes bass mono retention to prevent phase issues 
-              in low frequencies.
-            </dd>
-
             <dt>Ring Modulator</dt>
             <dd>
               Multiplies the input signal with an oscillator, creating sum and difference frequencies. 
@@ -198,7 +157,117 @@ function HelpAccordion() {
             </dd>
           </dl>
 
-          <p><strong>Note:</strong> Effects are typically most effective when applied with restraint. Begin with conservative settings and adjust to taste.</p>
+          <h6>Dynamics Processing</h6>
+          <dl>
+            <dt>Compressor</dt>
+            <dd>
+              Reduces the dynamic range by attenuating signals above a threshold. Makes quiet parts louder 
+              and loud parts quieter, resulting in more consistent volume levels. Essential for balancing 
+              recordings and increasing perceived loudness.
+            </dd>
+
+            <dt>Gate</dt>
+            <dd>
+              Cuts audio that falls below a threshold level. Useful for removing background noise, breath sounds, 
+              or unwanted room ambience between musical phrases. The opposite of a compressor.
+            </dd>
+          </dl>
+
+          <h6>Distortion & Saturation</h6>
+          <dl>
+            <dt>Distortion</dt>
+            <dd>
+              Intentionally clips or shapes the audio waveform to add harmonic content. Ranges from subtle 
+              warmth (overdrive) to aggressive clipping (distortion/fuzz). Bit crusher reduces the digital 
+              resolution for lo-fi effects.
+            </dd>
+          </dl>
+
+          <h6>Filter Effects</h6>
+          <dl>
+            <dt>Auto-Wah</dt>
+            <dd>
+              A filter that automatically sweeps based on the input signal's amplitude. Creates a "wah" effect 
+              that responds to playing dynamics. Like a wah pedal that moves itself based on how loud you play.
+            </dd>
+          </dl>
+
+          <h6>Pitch & Time Effects</h6>
+          <dl>
+            <dt>Pitch Shifter</dt>
+            <dd>
+              Changes the pitch of audio without affecting its duration. Can shift by semitones (musical intervals) 
+              or cents (fine tuning). Useful for harmony creation, correction, or creative sound design.
+            </dd>
+
+            <dt>Frequency Shifter</dt>
+            <dd>
+              Shifts all frequencies by a fixed Hz amount, destroying harmonic relationships. Unlike pitch shifting, 
+              this creates inharmonic, metallic, and alien sounds. Great for sound design and experimental effects.
+            </dd>
+          </dl>
+
+          <h6>Spatial Effects</h6>
+          <dl>
+            <dt>Stereo Widener</dt>
+            <dd>
+              Enhances the stereo image to make sounds appear wider. Uses psychoacoustic techniques including 
+              the Haas effect and mid/side processing. Includes bass mono retention to prevent phase issues 
+              in low frequencies.
+            </dd>
+
+            <dt>Advanced Delay</dt>
+            <dd>
+              Sophisticated delay with additional features. Includes ping-pong mode (alternates between left/right channels), 
+              feedback filtering to shape the tone of repeats, and extended delay times for complex rhythmic patterns.
+            </dd>
+          </dl>
+
+          <h6>Experimental Effects</h6>
+          <dl>
+            <dt>Glitch/Beat Repeat</dt>
+            <dd>
+              Randomly or rhythmically repeats small chunks of audio. Can reverse, pitch shift, and gate 
+              these chunks. Creates stuttering, glitchy effects perfect for electronic music and creative 
+              sound design.
+            </dd>
+
+            <dt>Granular Freeze</dt>
+            <dd>
+              Captures tiny grains of audio and loops them with variations in position, pitch, and density. 
+              Creates evolving textures, drones, and ethereal soundscapes from any source material.
+            </dd>
+
+            <dt>Paulstretch</dt>
+            <dd>
+              Extreme time-stretching algorithm that can stretch audio by 50x or more without changing pitch. 
+              Creates beautiful, ambient textures by randomizing phase information. Turn any sound into an 
+              evolving soundscape.
+            </dd>
+
+            <dt>Spectral Filter</dt>
+            <dd>
+              FFT-based frequency manipulation with multiple modes: Robot Voice (vocoder-like), Whisper 
+              (removes pitched content), Harmonic Boost, Frequency Shift, Spectral Gate, and Odd Harmonics. 
+              Powerful tool for sound design.
+            </dd>
+
+            <dt>Reverse Reverb</dt>
+            <dd>
+              Pre-verb effect where reverb comes BEFORE the sound, creating a supernatural "sucking" effect. 
+              Famous for creating ethereal vocal entries and impossible acoustic spaces. Works with all 
+              reverb presets.
+            </dd>
+          </dl>
+
+          <p><strong>Pro Tips:</strong></p>
+          <ul>
+            <li>Always select a region before applying effects (except EQ which is real-time)</li>
+            <li>Effects are typically most effective when applied with restraint</li>
+            <li>Use Undo/Redo (arrows in toolbar) to compare before/after</li>
+            <li>Experimental effects can dramatically transform your audio - save your work first!</li>
+            <li>Try combining effects - apply one, then select a new region and apply another</li>
+          </ul>
         </Accordion.Body>
       </Accordion.Item>
       <Accordion.Item eventKey="3">

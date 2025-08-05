@@ -93,6 +93,68 @@ export const EffectsProvider = ({ children }) => {
   const [ringModMix, setRingModMix] = useState(1);
   const [ringModDepth, setRingModDepth] = useState(1);
   
+  // Glitch/Beat Repeat state
+  const [glitchPresent, setGlitchPresent] = useState(false);
+  const [glitchDivision, setGlitchDivision] = useState(16);
+  const [glitchProbability, setGlitchProbability] = useState(0.3);
+  const [glitchReverse, setGlitchReverse] = useState(0.2);
+  const [glitchPitch, setGlitchPitch] = useState(0);
+  const [glitchGate, setGlitchGate] = useState(1);
+  
+  // Frequency Shifter state
+  const [freqShiftPresent, setFreqShiftPresent] = useState(false);
+  const [freqShiftAmount, setFreqShiftAmount] = useState(0);
+  const [freqShiftFeedback, setFreqShiftFeedback] = useState(0);
+  const [freqShiftMix, setFreqShiftMix] = useState(0.5);
+  
+  // Granular Freeze state
+  const [granularPresent, setGranularPresent] = useState(false);
+  const [granularGrainSize, setGranularGrainSize] = useState(100);
+  const [granularPosition, setGranularPosition] = useState(0.5);
+  const [granularSpray, setGranularSpray] = useState(0);
+  const [granularPitch, setGranularPitch] = useState(0);
+  const [granularDensity, setGranularDensity] = useState(10);
+  
+  // Paulstretch state
+  const [paulstretchPresent, setPaulstretchPresent] = useState(false);
+  const [paulstretchFactor, setPaulstretchFactor] = useState(8);
+  const [paulstretchWindow, setPaulstretchWindow] = useState(0.25);
+  const [paulstretchSmooth, setPaulstretchSmooth] = useState(10);
+  
+  // Spectral Filter state
+  const [spectralPresent, setSpectralPresent] = useState(false);
+  const [spectralType, setSpectralType] = useState('robot');
+  const [spectralThreshold, setSpectralThreshold] = useState(0.1);
+  const [spectralBands, setSpectralBands] = useState(16);
+  const [spectralSpread, setSpectralSpread] = useState(1);
+  const [spectralShift, setSpectralShift] = useState(0);
+  
+  // Reverse Reverb state
+  const [reverseReverbPresent, setReverseReverbPresent] = useState(false);
+  const [reverseReverbPreset, setReverseReverbPreset] = useState('mediumHall');
+  const [reverseReverbMix, setReverseReverbMix] = useState(0.7);
+  const [reverseReverbFade, setReverseReverbFade] = useState(0.1);
+  const [reverseReverbPredelay, setReverseReverbPredelay] = useState(0);
+  const [reverseReverbBuildup, setReverseReverbBuildup] = useState(0.5);
+  
+  // Advanced Delay state
+  const [advDelayPresent, setAdvDelayPresent] = useState(false);
+  const [advDelayTime, setAdvDelayTime] = useState(500);
+  const [advDelayFeedback, setAdvDelayFeedback] = useState(0.5);
+  const [advDelayMix, setAdvDelayMix] = useState(0.5);
+  const [advDelayPingPong, setAdvDelayPingPong] = useState(false);
+  const [advDelayFilterFreq, setAdvDelayFilterFreq] = useState(2000);
+  const [advDelayFilterType, setAdvDelayFilterType] = useState('lowpass');
+  
+  // Auto-Wah state
+  const [autoWahPresent, setAutoWahPresent] = useState(false);
+  const [autoWahSensitivity, setAutoWahSensitivity] = useState(0.5);
+  const [autoWahFrequency, setAutoWahFrequency] = useState(500);
+  const [autoWahRange, setAutoWahRange] = useState(2000);
+  const [autoWahQ, setAutoWahQ] = useState(5);
+  const [autoWahAttack, setAutoWahAttack] = useState(0.01);
+  const [autoWahRelease, setAutoWahRelease] = useState(0.1);
+  
   // Flanger state
   const [flangerPresent, setFlangerPresent] = useState(false);
   const [flangerRate, setFlangerRate] = useState(0.5);
@@ -100,15 +162,6 @@ export const EffectsProvider = ({ children }) => {
   const [flangerFeedback, setFlangerFeedback] = useState(0.5);
   const [flangerDelay, setFlangerDelay] = useState(0.005);
   const [flangerMix, setFlangerMix] = useState(0.5);
-  
-  // Auto-Wah state
-  const [autoWahPresent, setAutoWahPresent] = useState(false);
-  const [autoWahSensitivity, setAutoWahSensitivity] = useState(0.5);
-  const [autoWahFrequency, setAutoWahFrequency] = useState(1000);
-  const [autoWahRange, setAutoWahRange] = useState(2000);
-  const [autoWahQ, setAutoWahQ] = useState(2);
-  const [autoWahAttack, setAutoWahAttack] = useState(0.01);
-  const [autoWahRelease, setAutoWahRelease] = useState(0.1);
   
   // Gate state
   const [gatePresent, setGatePresent] = useState(false);
@@ -120,27 +173,18 @@ export const EffectsProvider = ({ children }) => {
   const [gateRange, setGateRange] = useState(-60);
   
   // Pitch Shifter state
-  const [pitchShifterPresent, setPitchShifterPresent] = useState(false);
+  const [pitchShiftPresent, setPitchShiftPresent] = useState(false);
   const [pitchShiftSemitones, setPitchShiftSemitones] = useState(0);
   const [pitchShiftCents, setPitchShiftCents] = useState(0);
   const [pitchShiftMix, setPitchShiftMix] = useState(1);
   const [pitchShiftQuality, setPitchShiftQuality] = useState('medium');
   
-  // Advanced Delay state
-  const [advDelayPresent, setAdvDelayPresent] = useState(false);
-  const [advDelayTime, setAdvDelayTime] = useState(250);
-  const [advDelayFeedback, setAdvDelayFeedback] = useState(0.3);
-  const [advDelayMix, setAdvDelayMix] = useState(0.3);
-  const [advDelayPingPong, setAdvDelayPingPong] = useState(false);
-  const [advDelayFilterFreq, setAdvDelayFilterFreq] = useState(2000);
-  const [advDelayFilterType, setAdvDelayFilterType] = useState('highpass');
-  
   // Stereo Widener state
   const [stereoWidenerPresent, setStereoWidenerPresent] = useState(false);
-  const [stereoWidenerWidth, setStereoWidenerWidth] = useState(1);
-  const [stereoWidenerDelay, setStereoWidenerDelay] = useState(20);
+  const [stereoWidenerWidth, setStereoWidenerWidth] = useState(1.5);
+  const [stereoWidenerDelay, setStereoWidenerDelay] = useState(10);
   const [stereoWidenerBassRetain, setStereoWidenerBassRetain] = useState(true);
-  const [stereoWidenerBassFreq, setStereoWidenerBassFreq] = useState(120);
+  const [stereoWidenerBassFreq, setStereoWidenerBassFreq] = useState(200);
   
   // Reset all effects to default
   const resetEffects = useCallback(() => {
@@ -207,20 +251,66 @@ export const EffectsProvider = ({ children }) => {
     setRingModMix(1);
     setRingModDepth(1);
     
+    // Glitch/Beat Repeat
+    setGlitchDivision(16);
+    setGlitchProbability(0.3);
+    setGlitchReverse(0.2);
+    setGlitchPitch(0);
+    setGlitchGate(1);
+    
+    // Frequency Shifter
+    setFreqShiftAmount(0);
+    setFreqShiftFeedback(0);
+    setFreqShiftMix(0.5);
+    
+    // Granular Freeze
+    setGranularGrainSize(100);
+    setGranularPosition(0.5);
+    setGranularSpray(0);
+    setGranularPitch(0);
+    setGranularDensity(10);
+    
+    // Paulstretch
+    setPaulstretchFactor(8);
+    setPaulstretchWindow(0.25);
+    setPaulstretchSmooth(10);
+    
+    // Spectral Filter
+    setSpectralType('robot');
+    setSpectralThreshold(0.1);
+    setSpectralBands(16);
+    setSpectralSpread(1);
+    setSpectralShift(0);
+    
+    // Reverse Reverb
+    setReverseReverbPreset('mediumHall');
+    setReverseReverbMix(0.7);
+    setReverseReverbFade(0.1);
+    setReverseReverbPredelay(0);
+    setReverseReverbBuildup(0.5);
+    
+    // Advanced Delay
+    setAdvDelayTime(500);
+    setAdvDelayFeedback(0.5);
+    setAdvDelayMix(0.5);
+    setAdvDelayPingPong(false);
+    setAdvDelayFilterFreq(2000);
+    setAdvDelayFilterType('lowpass');
+    
+    // Auto-Wah
+    setAutoWahSensitivity(0.5);
+    setAutoWahFrequency(500);
+    setAutoWahRange(2000);
+    setAutoWahQ(5);
+    setAutoWahAttack(0.01);
+    setAutoWahRelease(0.1);
+    
     // Flanger
     setFlangerRate(0.5);
     setFlangerDepth(0.002);
     setFlangerFeedback(0.5);
     setFlangerDelay(0.005);
     setFlangerMix(0.5);
-    
-    // Auto-Wah
-    setAutoWahSensitivity(0.5);
-    setAutoWahFrequency(1000);
-    setAutoWahRange(2000);
-    setAutoWahQ(2);
-    setAutoWahAttack(0.01);
-    setAutoWahRelease(0.1);
     
     // Gate
     setGateThreshold(-40);
@@ -236,19 +326,11 @@ export const EffectsProvider = ({ children }) => {
     setPitchShiftMix(1);
     setPitchShiftQuality('medium');
     
-    // Advanced Delay
-    setAdvDelayTime(250);
-    setAdvDelayFeedback(0.3);
-    setAdvDelayMix(0.3);
-    setAdvDelayPingPong(false);
-    setAdvDelayFilterFreq(2000);
-    setAdvDelayFilterType('highpass');
-    
     // Stereo Widener
-    setStereoWidenerWidth(1);
-    setStereoWidenerDelay(20);
+    setStereoWidenerWidth(1.5);
+    setStereoWidenerDelay(10);
     setStereoWidenerBassRetain(true);
-    setStereoWidenerBassFreq(120);
+    setStereoWidenerBassFreq(200);
     
     // Don't reset filters as they're initialized elsewhere
   }, []);
@@ -264,11 +346,17 @@ export const EffectsProvider = ({ children }) => {
   const toggleTremolo = useCallback(() => setTremoloPresent(prev => !prev), []);
   const toggleCompressor = useCallback(() => setCompressorPresent(prev => !prev), []);
   const toggleRingMod = useCallback(() => setRingModPresent(prev => !prev), []);
-  const toggleFlanger = useCallback(() => setFlangerPresent(prev => !prev), []);
-  const toggleAutoWah = useCallback(() => setAutoWahPresent(prev => !prev), []);
-  const toggleGate = useCallback(() => setGatePresent(prev => !prev), []);
-  const togglePitchShifter = useCallback(() => setPitchShifterPresent(prev => !prev), []);
+  const toggleGlitch = useCallback(() => setGlitchPresent(prev => !prev), []);
+  const toggleFreqShift = useCallback(() => setFreqShiftPresent(prev => !prev), []);
+  const toggleGranular = useCallback(() => setGranularPresent(prev => !prev), []);
+  const togglePaulstretch = useCallback(() => setPaulstretchPresent(prev => !prev), []);
+  const toggleSpectral = useCallback(() => setSpectralPresent(prev => !prev), []);
+  const toggleReverseReverb = useCallback(() => setReverseReverbPresent(prev => !prev), []);
   const toggleAdvDelay = useCallback(() => setAdvDelayPresent(prev => !prev), []);
+  const toggleAutoWah = useCallback(() => setAutoWahPresent(prev => !prev), []);
+  const toggleFlanger = useCallback(() => setFlangerPresent(prev => !prev), []);
+  const toggleGate = useCallback(() => setGatePresent(prev => !prev), []);
+  const togglePitchShift = useCallback(() => setPitchShiftPresent(prev => !prev), []);
   const toggleStereoWidener = useCallback(() => setStereoWidenerPresent(prev => !prev), []);
   
   const value = {
@@ -414,20 +502,104 @@ export const EffectsProvider = ({ children }) => {
     ringModDepth,
     setRingModDepth,
     
-    // Flanger
-    flangerPresent,
-    setFlangerPresent,
-    toggleFlanger,
-    flangerRate,
-    setFlangerRate,
-    flangerDepth,
-    setFlangerDepth,
-    flangerFeedback,
-    setFlangerFeedback,
-    flangerDelay,
-    setFlangerDelay,
-    flangerMix,
-    setFlangerMix,
+    // Glitch/Beat Repeat
+    glitchPresent,
+    setGlitchPresent,
+    toggleGlitch,
+    glitchDivision,
+    setGlitchDivision,
+    glitchProbability,
+    setGlitchProbability,
+    glitchReverse,
+    setGlitchReverse,
+    glitchPitch,
+    setGlitchPitch,
+    glitchGate,
+    setGlitchGate,
+    
+    // Frequency Shifter
+    freqShiftPresent,
+    setFreqShiftPresent,
+    toggleFreqShift,
+    freqShiftAmount,
+    setFreqShiftAmount,
+    freqShiftFeedback,
+    setFreqShiftFeedback,
+    freqShiftMix,
+    setFreqShiftMix,
+    
+    // Granular Freeze
+    granularPresent,
+    setGranularPresent,
+    toggleGranular,
+    granularGrainSize,
+    setGranularGrainSize,
+    granularPosition,
+    setGranularPosition,
+    granularSpray,
+    setGranularSpray,
+    granularPitch,
+    setGranularPitch,
+    granularDensity,
+    setGranularDensity,
+    
+    // Paulstretch
+    paulstretchPresent,
+    setPaulstretchPresent,
+    togglePaulstretch,
+    paulstretchFactor,
+    setPaulstretchFactor,
+    paulstretchWindow,
+    setPaulstretchWindow,
+    paulstretchSmooth,
+    setPaulstretchSmooth,
+    
+    // Spectral Filter
+    spectralPresent,
+    setSpectralPresent,
+    toggleSpectral,
+    spectralType,
+    setSpectralType,
+    spectralThreshold,
+    setSpectralThreshold,
+    spectralBands,
+    setSpectralBands,
+    spectralSpread,
+    setSpectralSpread,
+    spectralShift,
+    setSpectralShift,
+    
+    // Reverse Reverb
+    reverseReverbPresent,
+    setReverseReverbPresent,
+    toggleReverseReverb,
+    reverseReverbPreset,
+    setReverseReverbPreset,
+    reverseReverbMix,
+    setReverseReverbMix,
+    reverseReverbFade,
+    setReverseReverbFade,
+    reverseReverbPredelay,
+    setReverseReverbPredelay,
+    reverseReverbBuildup,
+    setReverseReverbBuildup,
+    
+    // Advanced Delay
+    advDelayPresent,
+    setAdvDelayPresent,
+    toggleAdvDelay,
+    advDelayTime,
+    setAdvDelayTime,
+    advDelayFeedback,
+    setAdvDelayFeedback,
+    advDelayMix,
+    setAdvDelayMix,
+    advDelayPingPong,
+    setAdvDelayPingPong,
+    advDelayFilterFreq,
+    setAdvDelayFilterFreq,
+    advDelayFilterType,
+    setAdvDelayFilterType,
     
     // Auto-Wah
     autoWahPresent,
@@ -445,6 +617,21 @@ export const EffectsProvider = ({ children }) => {
     setAutoWahAttack,
     autoWahRelease,
     setAutoWahRelease,
+    
+    // Flanger
+    flangerPresent,
+    setFlangerPresent,
+    toggleFlanger,
+    flangerRate,
+    setFlangerRate,
+    flangerDepth,
+    setFlangerDepth,
+    flangerFeedback,
+    setFlangerFeedback,
+    flangerDelay,
+    setFlangerDelay,
+    flangerMix,
+    setFlangerMix,
     
     // Gate
     gatePresent,
@@ -464,9 +651,9 @@ export const EffectsProvider = ({ children }) => {
     setGateRange,
     
     // Pitch Shifter
-    pitchShifterPresent,
-    setPitchShifterPresent,
-    togglePitchShifter,
+    pitchShiftPresent,
+    setPitchShiftPresent,
+    togglePitchShift,
     pitchShiftSemitones,
     setPitchShiftSemitones,
     pitchShiftCents,
@@ -475,23 +662,6 @@ export const EffectsProvider = ({ children }) => {
     setPitchShiftMix,
     pitchShiftQuality,
     setPitchShiftQuality,
-    
-    // Advanced Delay
-    advDelayPresent,
-    setAdvDelayPresent,
-    toggleAdvDelay,
-    advDelayTime,
-    setAdvDelayTime,
-    advDelayFeedback,
-    setAdvDelayFeedback,
-    advDelayMix,
-    setAdvDelayMix,
-    advDelayPingPong,
-    setAdvDelayPingPong,
-    advDelayFilterFreq,
-    setAdvDelayFilterFreq,
-    advDelayFilterType,
-    setAdvDelayFilterType,
     
     // Stereo Widener
     stereoWidenerPresent,

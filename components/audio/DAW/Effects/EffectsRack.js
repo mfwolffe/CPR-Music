@@ -13,11 +13,17 @@ import AutoPan from './AutoPan';
 import Tremolo from './Tremolo';
 import Compressor from './Compressor';
 import RingModulator from './RingModulator';
-import Flanger from './Flanger';
+import Paulstretch from './Paulstretch';
+import SpectralFilter from './SpectralFilter';
+import ReverseReverb from './ReverseReverb';
+import Glitch from './Glitch';
+import FrequencyShifter from './FrequencyShifter';
+import GranularFreeze from './GranularFreeze';
+import AdvancedDelay from './AdvancedDelay';
 import AutoWah from './AutoWah';
+import Flanger from './Flanger';
 import Gate from './Gate';
 import PitchShifter from './PitchShifter';
-import AdvancedDelay from './AdvancedDelay';
 import StereoWidener from './StereoWidener';
 
 /**
@@ -36,11 +42,17 @@ export default function EffectsRack({ width }) {
     setTremoloPresent,
     setCompressorPresent,
     setRingModPresent,
-    setFlangerPresent,
-    setAutoWahPresent,
-    setGatePresent,
-    setPitchShifterPresent,
+    setPaulstretchPresent,
+    setSpectralPresent,
+    setReverseReverbPresent,
+    setGlitchPresent,
+    setFreqShiftPresent,
+    setGranularPresent,
     setAdvDelayPresent,
+    setAutoWahPresent,
+    setFlangerPresent,
+    setGatePresent,
+    setPitchShiftPresent,
     setStereoWidenerPresent
   } = useEffects();
   
@@ -59,11 +71,17 @@ export default function EffectsRack({ width }) {
     setTremoloPresent(true);
     setCompressorPresent(true);
     setRingModPresent(true);
-    setFlangerPresent(true);
-    setAutoWahPresent(true);
-    setGatePresent(true);
-    setPitchShifterPresent(true);
+    setPaulstretchPresent(true);
+    setSpectralPresent(true);
+    setReverseReverbPresent(true);
+    setGlitchPresent(true);
+    setFreqShiftPresent(true);
+    setGranularPresent(true);
     setAdvDelayPresent(true);
+    setAutoWahPresent(true);
+    setFlangerPresent(true);
+    setGatePresent(true);
+    setPitchShiftPresent(true);
     setStereoWidenerPresent(true);
     
     // Cleanup: disable all when unmounted
@@ -78,14 +96,20 @@ export default function EffectsRack({ width }) {
       setTremoloPresent(false);
       setCompressorPresent(false);
       setRingModPresent(false);
-      setFlangerPresent(false);
-      setAutoWahPresent(false);
-      setGatePresent(false);
-      setPitchShifterPresent(false);
+      setPaulstretchPresent(false);
+      setSpectralPresent(false);
+      setReverseReverbPresent(false);
+      setGlitchPresent(false);
+      setFreqShiftPresent(false);
+      setGranularPresent(false);
       setAdvDelayPresent(false);
+      setAutoWahPresent(false);
+      setFlangerPresent(false);
+      setGatePresent(false);
+      setPitchShiftPresent(false);
       setStereoWidenerPresent(false);
     };
-  }, [setEqPresent, setRvbPresent, setReverbPresent, setChrPresent, setDistortionPresent, setPhaserPresent, setAutoPanPresent, setTremoloPresent, setCompressorPresent, setRingModPresent, setFlangerPresent, setAutoWahPresent, setGatePresent, setPitchShifterPresent, setAdvDelayPresent, setStereoWidenerPresent]);
+  }, [setEqPresent, setRvbPresent, setReverbPresent, setChrPresent, setDistortionPresent, setPhaserPresent, setAutoPanPresent, setTremoloPresent, setCompressorPresent, setRingModPresent, setPaulstretchPresent, setSpectralPresent, setReverseReverbPresent, setGlitchPresent, setFreqShiftPresent, setGranularPresent, setAdvDelayPresent, setAutoWahPresent, setFlangerPresent, setGatePresent, setPitchShiftPresent, setStereoWidenerPresent]);
   
   // All tabs are always available in the rack
   const tabs = [
@@ -93,18 +117,24 @@ export default function EffectsRack({ width }) {
     { key: 'compressor', title: 'Compressor', component: Compressor },
     { key: 'gate', title: 'Gate', component: Gate },
     { key: 'echo', title: 'Echo', component: Echo },
-    { key: 'delay', title: 'Adv Delay', component: AdvancedDelay },
+    { key: 'advdelay', title: 'Adv Delay', component: AdvancedDelay },
     { key: 'reverb', title: 'Reverb', component: Reverb },
     { key: 'chorus', title: 'Chorus', component: Chorus },
-    { key: 'phaser', title: 'Phaser', component: Phaser },
     { key: 'flanger', title: 'Flanger', component: Flanger },
-    { key: 'tremolo', title: 'Tremolo', component: Tremolo },
-    { key: 'autopan', title: 'Auto-Pan', component: AutoPan },
+    { key: 'phaser', title: 'Phaser', component: Phaser },
     { key: 'distortion', title: 'Distortion', component: Distortion },
     { key: 'autowah', title: 'Auto-Wah', component: AutoWah },
-    { key: 'pitchshift', title: 'Pitch', component: PitchShifter },
-    { key: 'stereo', title: 'Widener', component: StereoWidener },
-    { key: 'ringmod', title: 'Ring Mod', component: RingModulator }
+    { key: 'ringmod', title: 'Ring Mod', component: RingModulator },
+    { key: 'tremolo', title: 'Tremolo', component: Tremolo },
+    { key: 'autopan', title: 'Auto-Pan', component: AutoPan },
+    { key: 'pitchshift', title: 'Pitch Shift', component: PitchShifter },
+    { key: 'freqshift', title: 'Freq Shift', component: FrequencyShifter },
+    { key: 'stereowide', title: 'Stereo Wide', component: StereoWidener },
+    { key: 'glitch', title: 'Glitch', component: Glitch },
+    { key: 'granular', title: 'Granular', component: GranularFreeze },
+    { key: 'paulstretch', title: 'Paulstretch', component: Paulstretch },
+    { key: 'spectral', title: 'Spectral', component: SpectralFilter },
+    { key: 'reverseverb', title: 'Rev Reverb', component: ReverseReverb }
   ];
   
   return (
@@ -145,4 +175,4 @@ export default function EffectsRack({ width }) {
       </CardBody>
     </Card>
   );
-}
+};
