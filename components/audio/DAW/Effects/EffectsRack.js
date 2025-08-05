@@ -16,6 +16,9 @@ import RingModulator from './RingModulator';
 import Flanger from './Flanger';
 import AutoWah from './AutoWah';
 import Gate from './Gate';
+import PitchShifter from './PitchShifter';
+import AdvancedDelay from './AdvancedDelay';
+import StereoWidener from './StereoWidener';
 
 /**
  * Effects Rack - Tabbed container for all effects
@@ -35,7 +38,10 @@ export default function EffectsRack({ width }) {
     setRingModPresent,
     setFlangerPresent,
     setAutoWahPresent,
-    setGatePresent
+    setGatePresent,
+    setPitchShifterPresent,
+    setAdvDelayPresent,
+    setStereoWidenerPresent
   } = useEffects();
   
   // Track active tab
@@ -56,6 +62,9 @@ export default function EffectsRack({ width }) {
     setFlangerPresent(true);
     setAutoWahPresent(true);
     setGatePresent(true);
+    setPitchShifterPresent(true);
+    setAdvDelayPresent(true);
+    setStereoWidenerPresent(true);
     
     // Cleanup: disable all when unmounted
     return () => {
@@ -72,23 +81,29 @@ export default function EffectsRack({ width }) {
       setFlangerPresent(false);
       setAutoWahPresent(false);
       setGatePresent(false);
+      setPitchShifterPresent(false);
+      setAdvDelayPresent(false);
+      setStereoWidenerPresent(false);
     };
-  }, [setEqPresent, setRvbPresent, setReverbPresent, setChrPresent, setDistortionPresent, setPhaserPresent, setAutoPanPresent, setTremoloPresent, setCompressorPresent, setRingModPresent, setFlangerPresent, setAutoWahPresent, setGatePresent]);
+  }, [setEqPresent, setRvbPresent, setReverbPresent, setChrPresent, setDistortionPresent, setPhaserPresent, setAutoPanPresent, setTremoloPresent, setCompressorPresent, setRingModPresent, setFlangerPresent, setAutoWahPresent, setGatePresent, setPitchShifterPresent, setAdvDelayPresent, setStereoWidenerPresent]);
   
   // All tabs are always available in the rack
   const tabs = [
     { key: 'eq', title: 'Equalizer', component: EQ },
-    { key: 'echo', title: 'Echo', component: Echo },
-    { key: 'reverb', title: 'Reverb', component: Reverb },
-    { key: 'chorus', title: 'Chorus', component: Chorus },
-    { key: 'distortion', title: 'Distortion', component: Distortion },
-    { key: 'phaser', title: 'Phaser', component: Phaser },
-    { key: 'flanger', title: 'Flanger', component: Flanger },
-    { key: 'autowah', title: 'Auto-Wah', component: AutoWah },
-    { key: 'autopan', title: 'Auto-Pan', component: AutoPan },
-    { key: 'tremolo', title: 'Tremolo', component: Tremolo },
     { key: 'compressor', title: 'Compressor', component: Compressor },
     { key: 'gate', title: 'Gate', component: Gate },
+    { key: 'echo', title: 'Echo', component: Echo },
+    { key: 'delay', title: 'Adv Delay', component: AdvancedDelay },
+    { key: 'reverb', title: 'Reverb', component: Reverb },
+    { key: 'chorus', title: 'Chorus', component: Chorus },
+    { key: 'phaser', title: 'Phaser', component: Phaser },
+    { key: 'flanger', title: 'Flanger', component: Flanger },
+    { key: 'tremolo', title: 'Tremolo', component: Tremolo },
+    { key: 'autopan', title: 'Auto-Pan', component: AutoPan },
+    { key: 'distortion', title: 'Distortion', component: Distortion },
+    { key: 'autowah', title: 'Auto-Wah', component: AutoWah },
+    { key: 'pitchshift', title: 'Pitch', component: PitchShifter },
+    { key: 'stereo', title: 'Widener', component: StereoWidener },
     { key: 'ringmod', title: 'Ring Mod', component: RingModulator }
   ];
   

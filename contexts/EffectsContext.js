@@ -119,6 +119,29 @@ export const EffectsProvider = ({ children }) => {
   const [gateHold, setGateHold] = useState(0.01);
   const [gateRange, setGateRange] = useState(-60);
   
+  // Pitch Shifter state
+  const [pitchShifterPresent, setPitchShifterPresent] = useState(false);
+  const [pitchShiftSemitones, setPitchShiftSemitones] = useState(0);
+  const [pitchShiftCents, setPitchShiftCents] = useState(0);
+  const [pitchShiftMix, setPitchShiftMix] = useState(1);
+  const [pitchShiftQuality, setPitchShiftQuality] = useState('medium');
+  
+  // Advanced Delay state
+  const [advDelayPresent, setAdvDelayPresent] = useState(false);
+  const [advDelayTime, setAdvDelayTime] = useState(250);
+  const [advDelayFeedback, setAdvDelayFeedback] = useState(0.3);
+  const [advDelayMix, setAdvDelayMix] = useState(0.3);
+  const [advDelayPingPong, setAdvDelayPingPong] = useState(false);
+  const [advDelayFilterFreq, setAdvDelayFilterFreq] = useState(2000);
+  const [advDelayFilterType, setAdvDelayFilterType] = useState('highpass');
+  
+  // Stereo Widener state
+  const [stereoWidenerPresent, setStereoWidenerPresent] = useState(false);
+  const [stereoWidenerWidth, setStereoWidenerWidth] = useState(1);
+  const [stereoWidenerDelay, setStereoWidenerDelay] = useState(20);
+  const [stereoWidenerBassRetain, setStereoWidenerBassRetain] = useState(true);
+  const [stereoWidenerBassFreq, setStereoWidenerBassFreq] = useState(120);
+  
   // Reset all effects to default
   const resetEffects = useCallback(() => {
     // Echo
@@ -207,6 +230,26 @@ export const EffectsProvider = ({ children }) => {
     setGateHold(0.01);
     setGateRange(-60);
     
+    // Pitch Shifter
+    setPitchShiftSemitones(0);
+    setPitchShiftCents(0);
+    setPitchShiftMix(1);
+    setPitchShiftQuality('medium');
+    
+    // Advanced Delay
+    setAdvDelayTime(250);
+    setAdvDelayFeedback(0.3);
+    setAdvDelayMix(0.3);
+    setAdvDelayPingPong(false);
+    setAdvDelayFilterFreq(2000);
+    setAdvDelayFilterType('highpass');
+    
+    // Stereo Widener
+    setStereoWidenerWidth(1);
+    setStereoWidenerDelay(20);
+    setStereoWidenerBassRetain(true);
+    setStereoWidenerBassFreq(120);
+    
     // Don't reset filters as they're initialized elsewhere
   }, []);
   
@@ -224,6 +267,9 @@ export const EffectsProvider = ({ children }) => {
   const toggleFlanger = useCallback(() => setFlangerPresent(prev => !prev), []);
   const toggleAutoWah = useCallback(() => setAutoWahPresent(prev => !prev), []);
   const toggleGate = useCallback(() => setGatePresent(prev => !prev), []);
+  const togglePitchShifter = useCallback(() => setPitchShifterPresent(prev => !prev), []);
+  const toggleAdvDelay = useCallback(() => setAdvDelayPresent(prev => !prev), []);
+  const toggleStereoWidener = useCallback(() => setStereoWidenerPresent(prev => !prev), []);
   
   const value = {
     // EQ
@@ -416,6 +462,49 @@ export const EffectsProvider = ({ children }) => {
     setGateHold,
     gateRange,
     setGateRange,
+    
+    // Pitch Shifter
+    pitchShifterPresent,
+    setPitchShifterPresent,
+    togglePitchShifter,
+    pitchShiftSemitones,
+    setPitchShiftSemitones,
+    pitchShiftCents,
+    setPitchShiftCents,
+    pitchShiftMix,
+    setPitchShiftMix,
+    pitchShiftQuality,
+    setPitchShiftQuality,
+    
+    // Advanced Delay
+    advDelayPresent,
+    setAdvDelayPresent,
+    toggleAdvDelay,
+    advDelayTime,
+    setAdvDelayTime,
+    advDelayFeedback,
+    setAdvDelayFeedback,
+    advDelayMix,
+    setAdvDelayMix,
+    advDelayPingPong,
+    setAdvDelayPingPong,
+    advDelayFilterFreq,
+    setAdvDelayFilterFreq,
+    advDelayFilterType,
+    setAdvDelayFilterType,
+    
+    // Stereo Widener
+    stereoWidenerPresent,
+    setStereoWidenerPresent,
+    toggleStereoWidener,
+    stereoWidenerWidth,
+    setStereoWidenerWidth,
+    stereoWidenerDelay,
+    setStereoWidenerDelay,
+    stereoWidenerBassRetain,
+    setStereoWidenerBassRetain,
+    stereoWidenerBassFreq,
+    setStereoWidenerBassFreq,
     
     // Regions
     cutRegion,
