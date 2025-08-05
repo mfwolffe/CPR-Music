@@ -34,14 +34,6 @@ export default function Timeline() {
   } = useAudio();
   
   const {
-    eqPresent,
-    toggleEQ,
-    rvbPresent,
-    toggleReverb,
-    reverbPresent,
-    toggleReverbNew,
-    chrPresent,
-    toggleChorus,
     cutRegion,
     setCutRegion
   } = useEffects();
@@ -51,18 +43,11 @@ export default function Timeline() {
   const {
     mapPresent,
     toggleMinimap,
-    eqHvr,
-    setEqHvr,
     mapHvr,
     setMapHvr,
-    rvbHvr,
-    setRvbHvr,
-    chrHvr,
-    setChrHvr
+    useEffectsRack,
+    setUseEffectsRack
   } = useUI();
-  
-  // Add reverb hover state
-  const [reverbHvr, setReverbHvr] = useState(false);
   
   const wavesurfer = wavesurferRef?.current;
   
@@ -132,52 +117,12 @@ export default function Timeline() {
           />
         </Button>
         
-        {/* EQ toggle */}
-        <Button className="prog-button" onClick={toggleEQ}>
+        {/* Effects Rack toggle - single button */}
+        <Button className="prog-button" onClick={() => setUseEffectsRack(!useEffectsRack)}>
           <RiEqualizerLine
             fontSize={icoSize}
-            onPointerEnter={() => setEqHvr(true)}
-            onPointerLeave={() => setEqHvr(false)}
-            style={{ color: eqPresent || eqHvr ? 'aqua' : 'white' }}
+            style={{ color: useEffectsRack ? 'aqua' : 'white' }}
           />
-        </Button>
-        
-        {/* Echo toggle */}
-        <Button className="prog-button" onClick={toggleReverb}>
-          {ffmpegLoaded ? (
-            <RiSoundModuleFill
-              fontSize={icoSize}
-              onPointerEnter={() => setRvbHvr(true)}
-              onPointerLeave={() => setRvbHvr(false)}
-              style={{ color: rvbPresent || rvbHvr ? 'aqua' : 'white' }}
-            />
-          ) : (
-            dawSpinner
-          )}
-        </Button>
-        
-        {/* Reverb toggle (new Web Audio reverb) */}
-        <Button className="prog-button" onClick={toggleReverbNew}>
-          <BiWater
-            fontSize={icoSize}
-            onPointerEnter={() => setReverbHvr(true)}
-            onPointerLeave={() => setReverbHvr(false)}
-            style={{ color: reverbPresent || reverbHvr ? 'aqua' : 'white' }}
-          />
-        </Button>
-        
-        {/* Chorus toggle */}
-        <Button className="prog-button" onClick={toggleChorus}>
-          {ffmpegLoaded ? (
-            <MdGroups
-              onPointerEnter={() => setChrHvr(true)}
-              onPointerLeave={() => setChrHvr(false)}
-              style={{ color: chrPresent || chrHvr ? 'aqua' : 'white' }}
-              fontSize={icoSize}
-            />
-          ) : (
-            dawSpinner
-          )}
         </Button>
         
         {/* Cut/Delete region buttons */}

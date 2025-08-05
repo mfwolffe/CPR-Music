@@ -30,6 +30,11 @@ export const EffectsProvider = ({ children }) => {
   const [reverbWetMix, setReverbWetMix] = useState(0.3);
   const [reverbPreDelay, setReverbPreDelay] = useState(0);
   const [reverbOutputGain, setReverbOutputGain] = useState(1);
+  // New reverb parameters
+  const [reverbHighDamp, setReverbHighDamp] = useState(0.5);
+  const [reverbLowDamp, setReverbLowDamp] = useState(0.1);
+  const [reverbEarlyLate, setReverbEarlyLate] = useState(0.5);
+  const [reverbStereoWidth, setReverbStereoWidth] = useState(1);
   
   // Chorus state
   const [chrPresent, setChrPresent] = useState(false);
@@ -56,6 +61,10 @@ export const EffectsProvider = ({ children }) => {
     setReverbWetMix(0.3);
     setReverbPreDelay(0);
     setReverbOutputGain(1);
+    setReverbHighDamp(0.5);
+    setReverbLowDamp(0.1);
+    setReverbEarlyLate(0.5);
+    setReverbStereoWidth(1);
     
     // Chorus
     setInGainChr(0);
@@ -107,6 +116,14 @@ export const EffectsProvider = ({ children }) => {
     setReverbPreDelay,
     reverbOutputGain,
     setReverbOutputGain,
+    reverbHighDamp,
+    setReverbHighDamp,
+    reverbLowDamp,
+    setReverbLowDamp,
+    reverbEarlyLate,
+    setReverbEarlyLate,
+    reverbStereoWidth,
+    setReverbStereoWidth,
     
     // Chorus
     chrPresent,

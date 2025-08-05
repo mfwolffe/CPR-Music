@@ -17,6 +17,9 @@ export const UIProvider = ({ children }) => {
   const [showDAW, setShowDAW] = useState(false);
   const [mapPresent, setMapPresent] = useState(false);
   
+  // Effects display mode
+  const [useEffectsRack, setUseEffectsRack] = useState(false);
+  
   // Modal states
   const [showHelp, setShowHelp] = useState(false);
   const [showRename, setShowRename] = useState(false);
@@ -53,6 +56,10 @@ export const UIProvider = ({ children }) => {
     mapPresent,
     setMapPresent,
     toggleMinimap,
+    
+    // Effects display mode
+    useEffectsRack,
+    setUseEffectsRack,
     
     // Modals
     showHelp,

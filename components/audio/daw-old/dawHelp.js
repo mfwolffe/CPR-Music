@@ -30,16 +30,8 @@ function HelpAccordion() {
               <Row className='mb-2'>
                 <Col lg={1}><RiEqualizerLine fontSize="1.6rem" /></Col>
               <Col>
-                Hides/shows equalizer widget. This widget allows you to make specific frequencies louder or quieter relative to other frequencies in your recording.
+                Hides/shows the effects rack. The effects rack contains tabs for Equalizer, Echo, Reverb, and Chorus effects.
               </Col>
-            </Row>
-            <Row className='mb-2'>
-              <Col lg={1}><RiSoundModuleFill fontSize="1.6rem" /></Col>
-              <Col>Hides/shows a widget for adding echo effects such as delay time, feedback, and input/output gain.</Col>
-            </Row>
-            <Row className='mb-2'>
-              <Col lg={1}><MdGroups fontSize="1.6rem" /></Col>
-              <Col>Hides/shows a widget for adding chorus effects; includes all parameters available to the echo effect widget in addition to speed and depth.</Col>
             </Row>
             <Row className='mb-2'>
               <Col lg={1}><IoCutOutline fontSize="1.6rem" /></Col>

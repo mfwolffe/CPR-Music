@@ -6,16 +6,10 @@ import { useAudio, useEffects, useFFmpeg, useUI } from '../../../contexts/DAWPro
 import Waveform from './Waveform';
 import Transport from './Transport';
 import Timeline from './Timeline';
-import Effects from './Effects';
+import EffectsRack from './Effects/EffectsRack';
 import HelpModal from '../daw-old/dawHelp';
 import { GrHelpBook } from 'react-icons/gr';
 import { PiWarningDuotone } from 'react-icons/pi';
-
-// Width calculations for effects panels
-const EQWIDTH = 28;
-const ECHOWIDTH = 13;
-const REVERBWIDTH = 15;
-const CHRWIDTH = 18;
 
 /**
  * Main DAW component that orchestrates all the audio editing functionality
@@ -27,9 +21,8 @@ export default function DAW({
   silenceWarning = false 
 }) {
   const { audioURL, wavesurferRef } = useAudio();
-  const { eqPresent, rvbPresent, reverbPresent, chrPresent } = useEffects();
   const { loadFFmpeg, loaded: ffmpegLoaded } = useFFmpeg();
-  const { showDAW, showHelp, setShowHelp, mapPresent } = useUI();
+  const { showDAW, showHelp, setShowHelp, mapPresent, useEffectsRack } = useUI();
   
   // Initialize FFmpeg when component mounts
   useEffect(() => {
@@ -37,14 +30,6 @@ export default function DAW({
       loadFFmpeg();
     }
   }, [ffmpegLoaded, loadFFmpeg]);
-  
-  // Calculate waveform container width based on visible effects
-  const waveformWidth = 100 - 
-    (rvbPresent || eqPresent || reverbPresent || chrPresent ? 1.5 : 0) -
-    (eqPresent ? EQWIDTH : 0) -
-    (rvbPresent ? ECHOWIDTH : 0) -
-    (reverbPresent ? REVERBWIDTH : 0) -
-    (chrPresent ? CHRWIDTH : 0);
   
   if (!showDAW) return null;
   
@@ -66,18 +51,19 @@ export default function DAW({
         </CardHeader>
         
         <CardBody style={{ background: 'lightsteelblue' }}>
-          <div className="d-flex w-100 gap-2p">
-            <div
-              id="waveform-container"
-              style={{ width: `${waveformWidth}%` }}
-            >
-              <Timeline />
-              <Waveform />
-              <Transport />
-            </div>
-            
-            <Effects />
+          {/* Main waveform area - full width */}
+          <div id="waveform-container" style={{ width: '100%' }}>
+            <Timeline />
+            <Waveform />
+            <Transport />
           </div>
+          
+          {/* Effects rack below waveform when toggled */}
+          {useEffectsRack && (
+            <div className="mt-3">
+              <EffectsRack width={100} />
+            </div>
+          )}
         </CardBody>
         
         {showSubmitButton && (

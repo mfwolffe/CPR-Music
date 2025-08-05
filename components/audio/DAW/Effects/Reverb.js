@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef } from 'react';
-import { Card, CardHeader, CardTitle, CardBody, Button, Form, Dropdown } from 'react-bootstrap';
+import { Card, CardHeader, CardTitle, CardBody, Button, Form, Dropdown, Nav } from 'react-bootstrap';
 import { 
   useAudio, 
   useEffects 
@@ -29,36 +29,30 @@ export default function Reverb({ width }) {
     setReverbPreDelay,
     reverbOutputGain,
     setReverbOutputGain,
+    reverbHighDamp,
+    setReverbHighDamp,
+    reverbLowDamp,
+    setReverbLowDamp,
+    reverbEarlyLate,
+    setReverbEarlyLate,
+    reverbStereoWidth,
+    setReverbStereoWidth,
     cutRegion
   } = useEffects();
   
   const reverbProcessorRef = useRef(null);
   const audioContextRef = useRef(null);
   
-  // Initialize reverb processor
+  // Initialize reverb processor (without real-time preview for now)
   useEffect(() => {
-    if (audioRef.current && !reverbProcessorRef.current) {
-      // Get or create audio context
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      
-      // Create reverb processor
-      reverbProcessorRef.current = new ReverbProcessor(audioContextRef.current);
-      
-      // Connect audio element to reverb for real-time preview
-      const source = audioContextRef.current.createMediaElementSource(audioRef.current);
-      source.connect(reverbProcessorRef.current.input);
-      reverbProcessorRef.current.connect(audioContextRef.current.destination);
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     }
     
-    return () => {
-      // Cleanup
-      if (reverbProcessorRef.current) {
-        reverbProcessorRef.current.disconnect();
-      }
-    };
-  }, [audioRef]);
+    if (!reverbProcessorRef.current) {
+      reverbProcessorRef.current = new ReverbProcessor(audioContextRef.current);
+    }
+  }, []);
   
   // Update reverb parameters
   useEffect(() => {
@@ -66,8 +60,12 @@ export default function Reverb({ width }) {
       reverbProcessorRef.current.setWetDryMix(reverbWetMix);
       reverbProcessorRef.current.setPreDelay(reverbPreDelay);
       reverbProcessorRef.current.setOutputGain(reverbOutputGain);
+      reverbProcessorRef.current.setHighDamping(reverbHighDamp);
+      reverbProcessorRef.current.setLowDamping(reverbLowDamp);
+      reverbProcessorRef.current.setStereoWidth(reverbStereoWidth);
+      reverbProcessorRef.current.setEarlyLateBalance(reverbEarlyLate);
     }
-  }, [reverbWetMix, reverbPreDelay, reverbOutputGain]);
+  }, [reverbWetMix, reverbPreDelay, reverbOutputGain, reverbHighDamp, reverbLowDamp, reverbStereoWidth, reverbEarlyLate]);
   
   // Update preset
   useEffect(() => {
@@ -143,8 +141,7 @@ export default function Reverb({ width }) {
       // Update audio and history
       addToEditHistory(url, 'Apply Reverb', {
         effect: 'reverb',
-        preset: reverbPreset,
-        wetMix: reverbWetMix,
+        parameters: reverbProcessorRef.current.getParameters(),
         region: { start: cutRegion.start, end: cutRegion.end }
       });
       
@@ -158,7 +155,7 @@ export default function Reverb({ width }) {
       console.error('Error applying reverb:', error);
       alert('Error applying reverb. Please try again.');
     }
-  }, [cutRegion, audioURL, reverbPreset, reverbWetMix, addToEditHistory, wavesurferRef]);
+  }, [cutRegion, audioURL, addToEditHistory, wavesurferRef]);
   
   const presetNames = getPresetNames();
   
@@ -170,9 +167,9 @@ export default function Reverb({ width }) {
       <CardBody className="bg-dawcontrol text-white plr-0 pt-2 pb-0 w-100">
         {/* Preset Selector */}
         <div className="mb-2 px-2">
-          <Form.Label>Preset</Form.Label>
           <Dropdown
             onSelect={(eventKey) => setReverbPreset(eventKey)}
+            size="sm"
           >
             <Dropdown.Toggle
               variant="secondary"
@@ -195,7 +192,7 @@ export default function Reverb({ width }) {
           </Dropdown>
         </div>
         
-        {/* Controls */}
+        {/* Main Controls */}
         <div className="flex-even gap-0 mlr-a w-100 plr-0">
           {/* Wet/Dry Mix */}
           <div className="mb-0 pb-0 text-center">
@@ -210,7 +207,7 @@ export default function Reverb({ width }) {
               onChange={(e) => setReverbWetMix(parseFloat(e.target.value))}
             />
             <Form.Label className="d-block text-center mb-0">
-              Wet Mix<br/>
+              Mix<br/>
               <small>{Math.round(reverbWetMix * 100)}%</small>
             </Form.Label>
           </div>
@@ -228,8 +225,83 @@ export default function Reverb({ width }) {
               onChange={(e) => setReverbPreDelay(parseFloat(e.target.value))}
             />
             <Form.Label className="d-block text-center mb-0">
-              Pre-Delay<br/>
+              Pre-Dly<br/>
               <small>{reverbPreDelay}ms</small>
+            </Form.Label>
+          </div>
+          
+          {/* High Damping */}
+          <div className="mb-0 pb-0 text-center">
+            <input
+              min={0}
+              max={1}
+              step={0.01}
+              type="range"
+              orient="vertical"
+              className="mlr-auto"
+              value={reverbHighDamp}
+              onChange={(e) => setReverbHighDamp(parseFloat(e.target.value))}
+            />
+            <Form.Label className="d-block text-center mb-0">
+              Hi Damp<br/>
+              <small>{Math.round(reverbHighDamp * 100)}%</small>
+            </Form.Label>
+          </div>
+          
+          {/* Low Damping */}
+          <div className="mb-0 pb-0 text-center">
+            <input
+              min={0}
+              max={1}
+              step={0.01}
+              type="range"
+              orient="vertical"
+              className="mlr-auto"
+              value={reverbLowDamp}
+              onChange={(e) => setReverbLowDamp(parseFloat(e.target.value))}
+            />
+            <Form.Label className="d-block text-center mb-0">
+              Lo Damp<br/>
+              <small>{Math.round(reverbLowDamp * 100)}%</small>
+            </Form.Label>
+          </div>
+        </div>
+        
+        {/* Secondary Controls */}
+        <div className="flex-even gap-0 mlr-a w-100 plr-0 mt-2">
+          {/* Early/Late */}
+          <div className="mb-0 pb-0 text-center">
+            <input
+              min={0}
+              max={1}
+              step={0.01}
+              type="range"
+              orient="vertical"
+              className="mlr-auto"
+              value={reverbEarlyLate}
+              onChange={(e) => setReverbEarlyLate(parseFloat(e.target.value))}
+            />
+            <Form.Label className="d-block text-center mb-0">
+              E/L Mix<br/>
+              <small>{Math.round(reverbEarlyLate * 100)}%</small>
+            </Form.Label>
+          </div>
+          
+          {/* Stereo Width */}
+          <div className="mb-0 pb-0 text-center">
+            <input
+              min={0}
+              max={2}
+              step={0.01}
+              type="range"
+              orient="vertical"
+              className="mlr-auto"
+              value={reverbStereoWidth}
+              onChange={(e) => setReverbStereoWidth(parseFloat(e.target.value))}
+            />
+            <Form.Label className="d-block text-center mb-0">
+              Width<br/>
+              <small>{Math.round(reverbStereoWidth * 100)}%</small>
             </Form.Label>
           </div>
           
@@ -260,6 +332,12 @@ export default function Reverb({ width }) {
           >
             Apply to Region
           </Button>
+        </div>
+        
+        <div className="px-2 pb-2">
+          <small className="text-muted">
+            Note: Real-time preview coming soon. Select a region and click Apply to hear the reverb.
+          </small>
         </div>
       </CardBody>
     </Card>
