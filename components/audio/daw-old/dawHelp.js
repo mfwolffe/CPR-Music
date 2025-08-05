@@ -101,10 +101,29 @@ function HelpAccordion() {
               an advanced tone control.
             </dd>
 
+            <dt>Compressor</dt>
+            <dd>
+              Reduces the dynamic range by attenuating signals above a threshold. Makes quiet parts louder 
+              and loud parts quieter, resulting in more consistent volume levels. Essential for balancing 
+              recordings and increasing perceived loudness.
+            </dd>
+
+            <dt>Gate</dt>
+            <dd>
+              Cuts audio that falls below a threshold level. Useful for removing background noise, breath sounds, 
+              or unwanted room ambience between musical phrases. The opposite of a compressor.
+            </dd>
+
             <dt>Echo</dt>
             <dd>
               Produces delayed repetitions of the original sound. Control the time between echoes and how quickly 
               they fade away. Used to create spatial depth or rhythmic effects.
+            </dd>
+
+            <dt>Advanced Delay</dt>
+            <dd>
+              Sophisticated delay with additional features. Includes ping-pong mode (alternates between left/right channels), 
+              feedback filtering to shape the tone of repeats, and extended delay times for complex rhythmic patterns.
             </dd>
 
             <dt>Reverb</dt>
@@ -120,13 +139,6 @@ function HelpAccordion() {
               Simulates the effect of multiple instruments or voices performing the same part simultaneously.
             </dd>
 
-            <dt>Distortion</dt>
-            <dd>
-              Intentionally clips or shapes the audio waveform to add harmonic content. Ranges from subtle 
-              warmth (overdrive) to aggressive clipping (distortion/fuzz). Bit crusher reduces the digital 
-              resolution for lo-fi effects.
-            </dd>
-
             <dt>Phaser</dt>
             <dd>
               Combines the original signal with a phase-shifted copy, creating characteristic sweeping 
@@ -134,10 +146,10 @@ function HelpAccordion() {
               through the audio.
             </dd>
 
-            <dt>Auto-Pan</dt>
+            <dt>Flanger</dt>
             <dd>
-              Automatically moves the sound position between left and right channels at a specified rate. 
-              Creates spatial movement in the stereo field, from subtle shifts to dramatic ping-pong effects.
+              Similar to phaser but uses very short delays (1-20ms) with feedback. Creates a more intense, 
+              metallic sweeping effect. Often described as a "jet plane" sound.
             </dd>
 
             <dt>Tremolo</dt>
@@ -146,11 +158,36 @@ function HelpAccordion() {
               effects, commonly used in vintage guitar amplifiers and electronic music.
             </dd>
 
-            <dt>Compressor</dt>
+            <dt>Auto-Pan</dt>
             <dd>
-              Reduces the dynamic range by attenuating signals above a threshold. Makes quiet parts louder 
-              and loud parts quieter, resulting in more consistent volume levels. Essential for balancing 
-              recordings and increasing perceived loudness.
+              Automatically moves the sound position between left and right channels at a specified rate. 
+              Creates spatial movement in the stereo field, from subtle shifts to dramatic ping-pong effects.
+            </dd>
+
+            <dt>Distortion</dt>
+            <dd>
+              Intentionally clips or shapes the audio waveform to add harmonic content. Ranges from subtle 
+              warmth (overdrive) to aggressive clipping (distortion/fuzz). Bit crusher reduces the digital 
+              resolution for lo-fi effects.
+            </dd>
+
+            <dt>Auto-Wah</dt>
+            <dd>
+              A filter that automatically sweeps based on the input signal's amplitude. Creates a "wah" effect 
+              that responds to playing dynamics. Like a wah pedal that moves itself based on how loud you play.
+            </dd>
+
+            <dt>Pitch Shifter</dt>
+            <dd>
+              Changes the pitch of audio without affecting its duration. Can shift by semitones (musical intervals) 
+              or cents (fine tuning). Useful for harmony creation, correction, or creative sound design.
+            </dd>
+
+            <dt>Stereo Widener</dt>
+            <dd>
+              Enhances the stereo image to make sounds appear wider. Uses psychoacoustic techniques including 
+              the Haas effect and mid/side processing. Includes bass mono retention to prevent phase issues 
+              in low frequencies.
             </dd>
 
             <dt>Ring Modulator</dt>
