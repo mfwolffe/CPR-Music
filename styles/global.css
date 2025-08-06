@@ -1092,6 +1092,19 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   background-color: #1a1a1a;
   color: #fff;
   overflow: hidden;
+  position: relative; /* For absolute positioning context */
+}
+
+/* Adjust the main content to not go under transport */
+.multitrack-main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background-color: #1a1a1a;
+  min-height: 0;
+  position: relative;
+  margin-bottom: 60px; /* Space for fixed transport */
 }
 
 /* Top Toolbar */
@@ -1119,13 +1132,54 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   vertical-align: middle;
 }
 
-/* Main Content Area */
+/* Main Content Area - Account for transport height */
 .multitrack-main-content {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background-color: #1a1a1a;
+  min-height: 0;
+  position: relative;
+  padding-bottom: 60px; /* Reserve space for transport controls */
+}
+
+/* Transport Container - Fixed at bottom */
+.multitrack-transport-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  border-top: 1px solid #444;
+  background-color: #2d2c29;
+  padding: 0.5rem;
+  z-index: 100; /* Above tracks but below modals */
+  height: 60px; /* Fixed height */
+}
+
+/* Adjust tracks layout to fill available space */
+.tracks-layout {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  background-color: #1a1a1a;
+  min-height: 0;
+  position: relative;
+  height: 100%; /* Take full height */
+}
+
+/* Ensure tracks area fills space and scrolls */
+.tracks-area {
+  flex: 1;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  background-color: #1a1a1a;
+  padding: 0;
+  margin: 0;
+  min-height: 0;
+  position: relative;
+  height: 100%; /* Take full height of parent */
+  padding-bottom: 10px; /* Small padding at bottom for last track visibility */
 }
 
 /* Timeline Container */
@@ -1190,37 +1244,103 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   align-items: center;
 }
 
-/* Tracks Area - Main Container - FIXED */
+/* Add track buttons container */
+.add-track-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  align-items: center;
+  padding-top: 8px;
+}
+
+/* Circular SVG button styles */
+.add-track-sidebar-btn {
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-width: 2px !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Record button (red/danger) */
+.add-track-sidebar-btn.btn-danger {
+  background-color: #dc3545 !important;
+  border-color: #dc3545 !important;
+}
+
+.add-track-sidebar-btn.btn-danger:hover {
+  background-color: #c82333 !important;
+  border-color: #bd2130 !important;
+  transform: scale(1.05);
+  box-shadow: 0 3px 6px rgba(220, 53, 69, 0.5) !important;
+}
+
+/* Add track button (dashed border) */
+.add-track-sidebar-btn.btn-outline-secondary {
+  background-color: transparent !important;
+  border: 2px dashed #6c757d !important;
+  color: #6c757d !important;
+}
+
+.add-track-sidebar-btn.btn-outline-secondary:hover {
+  background-color: rgba(108, 117, 125, 0.1) !important;
+  border-color: #adb5bd !important;
+  color: #adb5bd !important;
+  transform: scale(1.05);
+}
+
+/* Button divider line */
+.tracks-sidebar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 3px;
+  height: 100%;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #444 10%,
+    #444 90%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+/* Tracks Area - Main Container - FIXED WITH SCROLLING */
 .tracks-area {
   flex: 1;
-  overflow-y: auto;
+  overflow-y: auto !important; /* Force vertical scrolling */
   overflow-x: hidden;
   background-color: #1a1a1a;
   padding: 0; /* Remove any padding */
   margin: 0; /* Remove any margin */
+  min-height: 0; /* Important for flex scrolling to work */
+  position: relative;
 }
 
-/* Remove any container divs that might add spacing */
-.tracks-area > div {
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-/* Tracks container wrapper - ensure no spacing */
+/* Ensure the tracks container allows scrolling */
 .tracks-container {
   margin: 0 !important;
   padding: 0 !important;
-  display: block !important; /* Don't use flex here as it might add gaps */
+  display: block !important; /* Don't use flex here as it might prevent scrolling */
+  min-height: min-content; /* Allow natural height */
 }
 
-/* Bootstrap row/col fixes if using them */
-.tracks-area .row {
-  margin: 0 !important;
-}
-
-.tracks-area .col,
-.tracks-area [class*='col-'] {
-  padding: 0 !important;
+/* Make sure tracks layout allows scrolling */
+.tracks-layout {
+  flex: 1;
+  display: flex;
+  overflow: hidden; /* Parent should hide overflow */
+  background-color: #1a1a1a;
+  min-height: 0; /* Critical for nested flex scrolling */
+  position: relative;
 }
 
 /* Individual Track Container - FIXED */
@@ -1276,19 +1396,23 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   background-color: rgba(146, 206, 132, 0.05) !important;
 }
 
-/* Track Controls */
-.track-controls {
-  width: 200px;
-  min-width: 200px;
-  height: 120px !important; /* Match track height */
-  padding: 8px;
-  background-color: #232323;
-  border-right: 1px solid #444;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  box-sizing: border-box;
-  overflow: hidden;
+/* Track selection fix - prevent border from affecting layout */
+.track-selected {
+  background-color: rgba(146, 206, 132, 0.05) !important;
+  box-shadow: inset 0 0 0 2px rgba(146, 206, 132, 0.3) !important; /* Use inset shadow instead of border */
+  border-bottom: 1px solid #333 !important; /* Keep only bottom border */
+}
+
+/* Remove any outline that might affect spacing */
+.track:focus {
+  outline: none !important;
+}
+
+/* Ensure tracks don't shift when selected */
+.track {
+  box-sizing: border-box !important;
+  border: 0 !important; /* Remove all borders except bottom */
+  border-bottom: 1px solid #333 !important;
 }
 
 /* Track Header */
@@ -1508,19 +1632,58 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 300px;
+  min-height: 200px; /* Reduced from 300px */
   color: #666;
   font-style: italic;
   text-align: center;
   padding: 2rem;
+  margin: 0; /* No margin to prevent layout issues */
+}
+
+/* Ensure tracks fill the scrollable area naturally */
+.tracks-area > :first-child {
+  min-height: 100%; /* Fill available space but allow growing */
+}
+
+/* Debug: Add a subtle background to see scroll area */
+.tracks-area {
+  background: repeating-linear-gradient(
+    0deg,
+    #1a1a1a,
+    #1a1a1a 120px,
+    #1b1b1b 120px,
+    #1b1b1b 121px
+  ); /* Subtle lines every 120px to show track boundaries */
 }
 
 /* Transport Container */
 .multitrack-transport-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
   border-top: 1px solid #444;
   background-color: #2d2c29;
   padding: 0.5rem;
-  flex-shrink: 0;
+  z-index: 100;
+  height: 60px;
+}
+
+/* Ensure the row/col structure doesn't break scrolling */
+.multitrack-main-content .row {
+  flex: 1;
+  margin: 0;
+  min-height: 0;
+  height: 100%; /* Take full height */
+}
+
+.multitrack-main-content .col,
+.multitrack-main-content [class*='col-'] {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+  height: 100%; /* Take full height */
 }
 
 /* Effects Panel */
@@ -1531,25 +1694,38 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   overflow-y: auto;
 }
 
-/* Scrollbar Styling */
+/* Scrollbar Styling - Make it more visible */
 .tracks-area::-webkit-scrollbar {
-  width: 10px;
+  width: 12px; /* Slightly wider for better visibility */
   background-color: #1a1a1a;
 }
 
 .tracks-area::-webkit-scrollbar-track {
   background: #1a1a1a;
   border-left: 1px solid #333;
+  box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.3);
 }
 
 .tracks-area::-webkit-scrollbar-thumb {
-  background: #444;
-  border-radius: 5px;
-  border: 1px solid #333;
+  background: #555; /* Lighter color for better visibility */
+  border-radius: 6px;
+  border: 1px solid #444;
+  box-shadow: inset 0 0 3px rgba(255, 255, 255, 0.1);
 }
 
 .tracks-area::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: #666;
+  border-color: #555;
+}
+
+.tracks-area::-webkit-scrollbar-thumb:active {
+  background: #777;
+}
+
+/* Ensure scrollbar is always visible when needed */
+.tracks-area {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: #555 #1a1a1a; /* Firefox */
 }
 
 /* Recording track specific styles */
@@ -1561,13 +1737,22 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   background-color: #1f1a1a;
 }
 
-/* Walking waveform canvas specific */
+/* Walking waveform canvas specific - CENTER VERTICALLY */
 .track-waveform canvas[width='3000'] {
   position: absolute !important;
-  top: 0 !important;
+  top: 50% !important; /* Center vertically */
   left: 0 !important;
-  height: 100% !important;
+  transform: translateY(-50%) !important; /* Center transform */
+  height: auto !important; /* Let it size naturally */
+  max-height: 100px !important;
   min-width: 100%;
+}
+
+/* Walking waveform container fix */
+.track-waveform.recording-waveform {
+  display: flex;
+  align-items: center; /* Center content vertically */
+  justify-content: flex-start;
 }
 
 /* Playhead styling */
