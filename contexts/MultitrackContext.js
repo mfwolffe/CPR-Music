@@ -1,7 +1,14 @@
 // contexts/MultitrackContext.js
 'use client';
 
-import { createContext, useContext, useState, useCallback } from 'react';
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+} from 'react';
 
 const MultitrackContext = createContext();
 
@@ -24,8 +31,36 @@ export const MultitrackProvider = ({ children }) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  // editor state
+  // Editor state
   const [activeRegion, setActiveRegion] = useState(null);
+
+  // Playback timer
+  const playbackTimerRef = useRef(null);
+
+  // Update current time during playback
+  useEffect(() => {
+    if (isPlaying) {
+      playbackTimerRef.current = setInterval(() => {
+        // Get current time from the first track with a wavesurfer instance
+        const firstTrack = tracks.find((t) => t.wavesurferInstance);
+        if (firstTrack && firstTrack.wavesurferInstance) {
+          const time = firstTrack.wavesurferInstance.getCurrentTime();
+          setCurrentTime(time);
+        }
+      }, 100); // Update every 100ms
+    } else {
+      if (playbackTimerRef.current) {
+        clearInterval(playbackTimerRef.current);
+        playbackTimerRef.current = null;
+      }
+    }
+
+    return () => {
+      if (playbackTimerRef.current) {
+        clearInterval(playbackTimerRef.current);
+      }
+    };
+  }, [isPlaying, tracks]);
 
   // Track management
   const addTrack = useCallback(
@@ -40,7 +75,11 @@ export const MultitrackProvider = ({ children }) => {
         solo: trackData.solo || false,
         color: trackData.color || '#7bafd4',
         wavesurferInstance: null, // Will be set by Track component
+        // Preserve any additional properties passed in
+        ...trackData,
       };
+
+      console.log('MultitrackContext: Adding track:', newTrack);
 
       setTracks((prev) => [...prev, newTrack]);
       return newTrack;
@@ -70,31 +109,106 @@ export const MultitrackProvider = ({ children }) => {
   }, []);
 
   const clearAllTracks = useCallback(() => {
+    // Stop any playing tracks first
+    tracks.forEach((track) => {
+      if (track.wavesurferInstance) {
+        try {
+          track.wavesurferInstance.pause();
+          track.wavesurferInstance.destroy();
+        } catch (e) {
+          console.warn('Error cleaning up track:', e);
+        }
+      }
+    });
+
     setTracks([]);
     setSelectedTrackId(null);
     setSoloTrackId(null);
     setCurrentTime(0);
     setIsPlaying(false);
-  }, []);
+    setActiveRegion(null);
+  }, [tracks]);
 
   // Playback control
   const play = useCallback(() => {
-    // This will be implemented when we add actual multitrack functionality
+    console.log('MultitrackContext: Playing all tracks');
+
+    // Play all wavesurfer instances
+    tracks.forEach((track) => {
+      if (track.wavesurferInstance && !track.muted) {
+        // Check if it's solo mode
+        if (soloTrackId && track.id !== soloTrackId) {
+          return; // Skip non-solo tracks
+        }
+
+        try {
+          track.wavesurferInstance.play();
+        } catch (err) {
+          console.error(`Error playing track ${track.id}:`, err);
+        }
+      }
+    });
+
     setIsPlaying(true);
-  }, []);
+  }, [tracks, soloTrackId]);
 
   const pause = useCallback(() => {
+    console.log('MultitrackContext: Pausing all tracks');
+
+    // Pause all wavesurfer instances
+    tracks.forEach((track) => {
+      if (track.wavesurferInstance) {
+        try {
+          track.wavesurferInstance.pause();
+        } catch (err) {
+          console.error(`Error pausing track ${track.id}:`, err);
+        }
+      }
+    });
+
     setIsPlaying(false);
-  }, []);
+  }, [tracks]);
 
   const stop = useCallback(() => {
+    console.log('MultitrackContext: Stopping all tracks');
+
+    // Stop all wavesurfer instances and seek to beginning
+    tracks.forEach((track) => {
+      if (track.wavesurferInstance) {
+        try {
+          track.wavesurferInstance.pause();
+          track.wavesurferInstance.seekTo(0);
+        } catch (err) {
+          console.error(`Error stopping track ${track.id}:`, err);
+        }
+      }
+    });
+
     setIsPlaying(false);
     setCurrentTime(0);
-  }, []);
+  }, [tracks]);
 
-  const seek = useCallback((time) => {
-    setCurrentTime(time);
-  }, []);
+  const seek = useCallback(
+    (progress) => {
+      // Seek all tracks to the same position (progress is 0-1)
+      tracks.forEach((track) => {
+        if (track.wavesurferInstance) {
+          try {
+            track.wavesurferInstance.seekTo(progress);
+          } catch (err) {
+            console.error(`Error seeking track ${track.id}:`, err);
+          }
+        }
+      });
+
+      // Update current time based on longest track
+      const longestDuration = Math.max(
+        ...tracks.map((t) => t.wavesurferInstance?.getDuration() || 0),
+      );
+      setCurrentTime(progress * longestDuration);
+    },
+    [tracks],
+  );
 
   const value = {
     // Track state

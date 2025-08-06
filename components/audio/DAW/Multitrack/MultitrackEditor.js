@@ -13,9 +13,11 @@ import {
   FaTrash,
   FaFileImport,
   FaDatabase,
+  FaMicrophone,
 } from 'react-icons/fa';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import Track from './Track';
+import RecordingTrack from './RecordingTrack';
 import MultitrackTransport from './MultitrackTransport';
 import EffectsPanel from './EffectsPanel';
 import MultitrackTimeline from './MultitrackTimeline';
@@ -24,7 +26,7 @@ import TakesImportModal from './TakesImportModal';
 export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   console.log('MultitrackEditor rendering');
 
-  const { tracks, addTrack } = useMultitrack();
+  const { tracks = [], addTrack } = useMultitrack(); // Default to empty array
   const [showEffectsPanel, setShowEffectsPanel] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(100);
   const [showTakesModal, setShowTakesModal] = useState(false);
@@ -33,37 +35,80 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   // Use takes from props if provided, otherwise use empty array
   const availableTakes = propTakes;
 
-  // Generate silent audio for empty tracks (like single-track editor does)
+  // Generate silent audio for empty tracks
   const generateSilentAudio = () => {
-    // Use a simple data URL for silence instead of generating it
-    // This is 1 second of silence as a WAV data URL
-    return 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+    // Create a proper silent audio blob
+    const sampleRate = 44100;
+    const duration = 1; // 1 second of silence
+    const numSamples = sampleRate * duration;
+    const buffer = new ArrayBuffer(44 + numSamples * 2);
+    const view = new DataView(buffer);
+
+    // WAV header
+    const writeString = (offset, str) => {
+      for (let i = 0; i < str.length; i++) {
+        view.setUint8(offset + i, str.charCodeAt(i));
+      }
+    };
+
+    // RIFF header
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + numSamples * 2, true);
+    writeString(8, 'WAVE');
+
+    // fmt chunk
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true); // chunk size
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, 1, true); // mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true); // byte rate
+    view.setUint16(32, 2, true); // block align
+    view.setUint16(34, 16, true); // bits per sample
+
+    // data chunk
+    writeString(36, 'data');
+    view.setUint32(40, numSamples * 2, true);
+
+    // Fill with silence (zeros)
+    for (let i = 44; i < buffer.byteLength; i += 2) {
+      view.setInt16(i, 0, true);
+    }
+
+    const blob = new Blob([buffer], { type: 'audio/wav' });
+    return URL.createObjectURL(blob);
   };
 
-  // Handle adding a new empty track
-  const handleAddTrack = () => {
+  // Handle adding a new empty track for recording
+  const handleAddRecordingTrack = () => {
+    console.log('Adding recording track');
+    const newTrack = {
+      name: `Recording ${tracks.length + 1}`,
+      audioURL: null,
+      isEmpty: true,
+      isRecordingTrack: true,
+    };
+    console.log('Creating recording track with properties:', newTrack);
+    addTrack(newTrack);
+  };
+
+  // Handle adding track with sample audio
+  const handleAddSampleTrack = () => {
     console.log('Adding track with silent audio');
     const silentAudioURL = generateSilentAudio();
     addTrack({
       name: `Track ${tracks.length + 1}`,
       audioURL: silentAudioURL,
-      // Add a flag to indicate this is empty/silent
       isEmpty: true,
-    });
-  };
-
-  // Handle adding track with sample audio
-  const handleAddSampleTrack = () => {
-    console.log('Adding track with sample');
-    addTrack({
-      name: `Track ${tracks.length + 1}`,
-      audioURL: '/sample_audio/uncso-bruckner4-1.mp3',
     });
   };
 
   // Test function to check if tracks are being added
   useEffect(() => {
     console.log('Current tracks:', tracks);
+    if (!Array.isArray(tracks)) {
+      console.error('Tracks is not an array:', tracks);
+    }
   }, [tracks]);
 
   // Handle file import
@@ -183,14 +228,26 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
             <div className="tracks-layout">
               {/* Left side - Add Track Button */}
               <div className="tracks-sidebar">
-                <Button
-                  onClick={handleAddTrack}
-                  variant="outline-primary"
-                  className="add-track-sidebar-btn"
-                  title="Add new empty track"
-                >
-                  <FaPlus size={24} />
-                </Button>
+                <div className="add-track-buttons">
+                  <Button
+                    onClick={handleAddRecordingTrack}
+                    variant="danger"
+                    className="add-track-sidebar-btn"
+                    title="Add recording track"
+                  >
+                    <FaMicrophone size={20} />
+                  </Button>
+
+                  <Button
+                    onClick={handleAddSampleTrack}
+                    variant="outline-secondary"
+                    className="add-track-sidebar-btn mt-2"
+                    title="Add empty track"
+                    size="sm"
+                  >
+                    <FaPlus size={16} />
+                  </Button>
+                </div>
               </div>
 
               {/* Right side - Tracks */}
@@ -203,14 +260,38 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                     </p>
                   </div>
                 ) : (
-                  tracks.map((track, index) => (
-                    <Track
-                      key={track.id}
-                      track={track}
-                      index={index}
-                      zoomLevel={zoomLevel}
-                    />
-                  ))
+                  tracks.map((track, index) => {
+                    if (!track) {
+                      console.error('Null track found at index:', index);
+                      return null;
+                    }
+
+                    console.log(`Rendering track ${track.id}:`, {
+                      isRecordingTrack: track.isRecordingTrack,
+                      track,
+                    });
+
+                    // Use RecordingTrack for tracks marked as recording tracks
+                    if (track.isRecordingTrack) {
+                      return (
+                        <RecordingTrack
+                          key={track.id}
+                          track={track}
+                          index={index}
+                          zoomLevel={zoomLevel}
+                        />
+                      );
+                    }
+                    // Use regular Track for all other tracks
+                    return (
+                      <Track
+                        key={track.id}
+                        track={track}
+                        index={index}
+                        zoomLevel={zoomLevel}
+                      />
+                    );
+                  })
                 )}
               </div>
             </div>

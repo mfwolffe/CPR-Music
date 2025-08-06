@@ -32,8 +32,20 @@ export default function Track({ track, index, zoomLevel = 100 }) {
     setActiveRegion,
   } = useMultitrack();
 
+  // Guard against missing track prop
+  if (!track) {
+    console.error('Track component rendered without track prop');
+    return null;
+  }
+
   // Initialize wavesurfer manually
   useEffect(() => {
+    // Guard against missing track
+    if (!track || !track.id) {
+      console.error('Track component: Invalid track object', track);
+      return;
+    }
+
     if (!containerRef.current || !track.audioURL) return;
 
     console.log(`Track ${track.id} - Initializing wavesurfer...`);
@@ -70,12 +82,31 @@ export default function Track({ track, index, zoomLevel = 100 }) {
       console.log(`Track ${track.id} - Wavesurfer ready`);
       setWaveformReady(true);
       setIsLoading(false);
-      updateTrack(track.id, { wavesurferInstance: ws });
+
+      // Only update if track still exists
+      if (track && track.id) {
+        updateTrack(track.id, { wavesurferInstance: ws });
+      }
+
+      // Update the global duration when track is ready
+      const duration = ws.getDuration();
+      console.log(`Track ${track.id} - Duration: ${duration}s`);
     });
 
     ws.on('error', (err) => {
       console.error(`Track ${track.id} - Wavesurfer error:`, err);
       setIsLoading(false);
+    });
+
+    // Sync with other tracks during playback
+    ws.on('audioprocess', () => {
+      // This fires during playback - we could use this to sync time
+      // but for now we'll rely on the tracks starting together
+    });
+
+    ws.on('seeking', (progress) => {
+      // When user seeks on this track, seek all other tracks
+      // This is handled by the seek function in context
     });
 
     // Load the audio
@@ -92,11 +123,11 @@ export default function Track({ track, index, zoomLevel = 100 }) {
         wavesurferRef.current = null;
       }
     };
-  }, [track.id, track.audioURL]); // Only recreate when track ID or audio URL changes
+  }, [track?.id, track?.audioURL, updateTrack]); // Use optional chaining in deps
 
   // Initialize regions plugin
   useEffect(() => {
-    if (!wavesurferRef.current || !waveformReady) return;
+    if (!wavesurferRef.current || !waveformReady || !track?.id) return;
 
     const ws = wavesurferRef.current;
     const regions = ws.registerPlugin(RegionsPlugin.create());
@@ -178,7 +209,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
       });
       regions.destroy();
     };
-  }, [waveformReady, track.id]); // Removed activeRegion from dependencies to prevent loops
+  }, [waveformReady, track?.id]); // Use optional chaining
 
   // Update zoom
   useEffect(() => {
