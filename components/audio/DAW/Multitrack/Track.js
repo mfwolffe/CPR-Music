@@ -20,6 +20,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
   const fileInputRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
   const [waveformReady, setWaveformReady] = useState(false);
+  const regionsPluginRef = useRef(null);
 
   const {
     updateTrack,
@@ -49,6 +50,11 @@ export default function Track({ track, index, zoomLevel = 100 }) {
     if (!containerRef.current || !track.audioURL) return;
 
     console.log(`Track ${track.id} - Initializing wavesurfer...`);
+
+    // Clear active region if it belongs to this track (since we're recreating wavesurfer)
+    if (activeRegion && activeRegion.trackId === track.id) {
+      setActiveRegion(null);
+    }
 
     // Destroy previous instance if it exists
     if (wavesurferRef.current) {
@@ -82,11 +88,10 @@ export default function Track({ track, index, zoomLevel = 100 }) {
       console.log(`Track ${track.id} - Wavesurfer ready`);
       setWaveformReady(true);
       setIsLoading(false);
-
-      // Only update if track still exists
-      if (track && track.id) {
-        updateTrack(track.id, { wavesurferInstance: ws });
-      }
+      updateTrack(track.id, {
+        wavesurferInstance: ws,
+        regionsPlugin: null, // Will be set when regions plugin is initialized
+      });
 
       // Update the global duration when track is ready
       const duration = ws.getDuration();
@@ -98,17 +103,6 @@ export default function Track({ track, index, zoomLevel = 100 }) {
       setIsLoading(false);
     });
 
-    // Sync with other tracks during playback
-    ws.on('audioprocess', () => {
-      // This fires during playback - we could use this to sync time
-      // but for now we'll rely on the tracks starting together
-    });
-
-    ws.on('seeking', (progress) => {
-      // When user seeks on this track, seek all other tracks
-      // This is handled by the seek function in context
-    });
-
     // Load the audio
     console.log(`Track ${track.id} - Loading audio:`, track.audioURL);
     ws.load(track.audioURL).catch((err) => {
@@ -118,78 +112,85 @@ export default function Track({ track, index, zoomLevel = 100 }) {
 
     // Cleanup
     return () => {
+      // Clear active region if it belongs to this track
+      if (activeRegion && activeRegion.trackId === track.id) {
+        setActiveRegion(null);
+      }
+
       if (wavesurferRef.current) {
         wavesurferRef.current.destroy();
         wavesurferRef.current = null;
       }
     };
-  }, [track?.id, track?.audioURL, updateTrack]); // Use optional chaining in deps
+  }, [track.id, track.audioURL, updateTrack]);
 
   // Initialize regions plugin
   useEffect(() => {
-    if (!wavesurferRef.current || !waveformReady || !track?.id) return;
+    if (!wavesurferRef.current || !waveformReady) return;
 
     const ws = wavesurferRef.current;
+
+    // Clean up any existing regions plugin
+    if (regionsPluginRef.current) {
+      try {
+        regionsPluginRef.current.destroy();
+      } catch (e) {
+        console.warn('Error destroying regions plugin:', e);
+      }
+      regionsPluginRef.current = null;
+    }
+
     const regions = ws.registerPlugin(RegionsPlugin.create());
+    regionsPluginRef.current = regions;
 
-    let regionCreationEnabled = true;
-    let disableDragSelection = null;
+    // Update track with regions plugin reference
+    updateTrack(track.id, { regionsPlugin: regions });
 
-    // Enable drag selection initially
-    disableDragSelection = regions.enableDragSelection({
-      color: 'rgba(155, 115, 215, 0.4)',
-    });
+    // Store the drag selection disabler function
+    let dragSelectionDisabler = null;
+
+    // Enable drag selection only if this is the selected track
+    if (track.id === selectedTrackId) {
+      dragSelectionDisabler = regions.enableDragSelection({
+        color: 'rgba(155, 115, 215, 0.4)',
+      });
+    }
 
     regions.on('region-created', (region) => {
-      console.log(`Track ${track.id} - Region created:`, region);
-
-      // Only process if region creation is enabled
-      if (!regionCreationEnabled) {
+      // Only allow regions on the selected track
+      if (track.id !== selectedTrackId) {
         region.remove();
         return;
       }
 
-      // Remove any existing active region from OTHER tracks
-      if (
-        activeRegion &&
-        activeRegion.trackId !== track.id &&
-        activeRegion.instance
-      ) {
-        try {
-          activeRegion.instance.remove();
-        } catch (e) {
-          console.warn('Could not remove previous region:', e);
-        }
-      }
+      console.log(`Track ${track.id} - Region created:`, region);
 
-      // Set this as the new active region
       setActiveRegion({
         trackId: track.id,
         instance: region,
         start: region.start,
         end: region.end,
       });
+    });
 
-      // Disable further region creation on this track
-      regionCreationEnabled = false;
-      if (disableDragSelection) {
-        disableDragSelection();
+    // Handle double-click to remove regions
+    regions.on('region-double-clicked', (region) => {
+      console.log(`Track ${track.id} - Region double-clicked, removing`);
+      region.remove();
+
+      // If this was the active region, clear it
+      if (activeRegion && activeRegion.instance === region) {
+        setActiveRegion(null);
       }
     });
 
     regions.on('region-removed', (region) => {
       console.log(`Track ${track.id} - Region removed`);
 
-      // Only clear active region if it's from this track
-      if (activeRegion && activeRegion.trackId === track.id) {
+      // Only clear active region if it matches the removed region
+      if (activeRegion && activeRegion.instance === region) {
         setActiveRegion(null);
       }
-
-      // Re-enable region creation
-      regionCreationEnabled = true;
-      disableDragSelection = regions.enableDragSelection({
-        color: 'rgba(155, 115, 215, 0.4)',
-      });
     });
 
     // Handle clicks on existing regions
@@ -200,16 +201,52 @@ export default function Track({ track, index, zoomLevel = 100 }) {
 
     return () => {
       // Cleanup all regions before destroying the plugin
-      regions.getRegions().forEach((region) => {
+      if (regionsPluginRef.current) {
         try {
-          region.remove();
+          const allRegions = regionsPluginRef.current.getRegions();
+          allRegions.forEach((region) => {
+            try {
+              region.remove();
+            } catch (e) {
+              console.warn('Error removing region during cleanup:', e);
+            }
+          });
+          regionsPluginRef.current.destroy();
         } catch (e) {
-          console.warn('Error removing region during cleanup:', e);
+          console.warn('Error during regions cleanup:', e);
         }
-      });
-      regions.destroy();
+        regionsPluginRef.current = null;
+      }
     };
-  }, [waveformReady, track?.id]); // Use optional chaining
+  }, [waveformReady, track.id, setActiveRegion, selectedTrackId, updateTrack]);
+
+  // Enable/disable region creation based on track selection
+  useEffect(() => {
+    if (!regionsPluginRef.current || !waveformReady) return;
+
+    const regions = regionsPluginRef.current;
+
+    if (track.id === selectedTrackId) {
+      // Enable region creation on selected track
+      try {
+        regions.enableDragSelection({
+          color: 'rgba(155, 115, 215, 0.4)',
+        });
+      } catch (e) {
+        console.warn('Could not enable drag selection:', e);
+      }
+    } else {
+      // Clear regions on non-selected tracks
+      try {
+        const allRegions = regions.getRegions();
+        allRegions.forEach((region) => {
+          region.remove();
+        });
+      } catch (e) {
+        console.warn('Could not clear regions:', e);
+      }
+    }
+  }, [selectedTrackId, track.id, waveformReady]);
 
   // Update zoom
   useEffect(() => {
@@ -261,8 +298,14 @@ export default function Track({ track, index, zoomLevel = 100 }) {
 
   return (
     <div
-      className={`track ${isSelected ? 'track-selected' : ''}`}
+      className={`track ${isSelected ? 'track-active' : ''}`}
       onClick={() => setSelectedTrackId(track.id)}
+      style={{
+        border: isSelected ? '2px solid #ffd700' : '1px solid #444',
+        borderRadius: '4px',
+        margin: '2px 0',
+        padding: '4px',
+      }}
     >
       {/* Left Side - Track Controls */}
       <div className="track-controls">

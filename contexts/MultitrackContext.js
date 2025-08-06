@@ -62,6 +62,26 @@ export const MultitrackProvider = ({ children }) => {
     };
   }, [isPlaying, tracks]);
 
+  // Update duration when tracks change
+  useEffect(() => {
+    // Find the longest duration among all tracks
+    const maxDuration = Math.max(
+      0,
+      ...tracks.map((track) => {
+        if (track.wavesurferInstance) {
+          try {
+            return track.wavesurferInstance.getDuration() || 0;
+          } catch (e) {
+            return 0;
+          }
+        }
+        return 0;
+      }),
+    );
+
+    setDuration(maxDuration);
+  }, [tracks]);
+
   // Track management
   const addTrack = useCallback(
     (trackData = {}) => {
@@ -106,6 +126,14 @@ export const MultitrackProvider = ({ children }) => {
         track.id === trackId ? { ...track, ...updates } : track,
       ),
     );
+
+    // If wavesurferInstance was updated, trigger a duration recalculation
+    if (updates.wavesurferInstance) {
+      // Force a re-render to update duration
+      setTimeout(() => {
+        setTracks((prev) => [...prev]);
+      }, 100);
+    }
   }, []);
 
   const clearAllTracks = useCallback(() => {

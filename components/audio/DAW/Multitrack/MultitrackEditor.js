@@ -22,6 +22,7 @@ import MultitrackTransport from './MultitrackTransport';
 import EffectsPanel from './EffectsPanel';
 import MultitrackTimeline from './MultitrackTimeline';
 import TakesImportModal from './TakesImportModal';
+import MultitrackMixdown from './MultitrackMixdown';
 
 export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   console.log('MultitrackEditor rendering');
@@ -184,14 +185,8 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
             <FaFileImport /> Import File
           </Button>
 
-          {/* Temporary test button */}
-          <Button
-            size="sm"
-            variant="outline-info"
-            onClick={handleAddSampleTrack}
-          >
-            Test Sample
-          </Button>
+          {/* MIXDOWN BUTTON */}
+          <MultitrackMixdown />
         </div>
 
         <div className="toolbar-section ms-auto">
