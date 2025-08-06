@@ -7,7 +7,7 @@ export default function WalkingWaveform({
   mediaStream,
   isRecording,
   trackId,
-  height = 60,
+  height = 100, // Default to 100px
   color = '#ff6b6b',
   backgroundColor = '#2a2a2a',
 }) {
@@ -98,10 +98,6 @@ export default function WalkingWaveform({
         const pixelsPerSecond = 50; // Match the timeline scale
         const xPosition = elapsed * pixelsPerSecond;
 
-        // Draw the waveform
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-
         // Draw waveform bars
         const barWidth = 2;
         const barSpacing = 1;
@@ -109,10 +105,13 @@ export default function WalkingWaveform({
 
         if (currentBar < width / (barWidth + barSpacing)) {
           const x = currentBar * (barWidth + barSpacing);
-          const barHeight = amplitude * height * 0.8;
+
+          // Draw centered waveform bars
+          const barHeight = amplitude * (height - 20); // Leave margin top and bottom
+          const y = (height - barHeight) / 2; // Center vertically
 
           ctx.fillStyle = color;
-          ctx.fillRect(x, (height - barHeight) / 2, barWidth, barHeight);
+          ctx.fillRect(x, y, barWidth, barHeight);
         }
 
         // Continue animation
@@ -144,12 +143,15 @@ export default function WalkingWaveform({
   return (
     <canvas
       ref={canvasRef}
-      width={3000} // Match track width
-      height={height}
+      width={3000} // Match track width for scrolling
+      height={100} // Fixed height matching track container
       style={{
         display: 'block',
         backgroundColor,
-        border: '1px solid red', // Debug border
+        width: '3000px',
+        height: '100%', // Fill parent height
+        minHeight: '100px',
+        maxHeight: '100px',
       }}
     />
   );

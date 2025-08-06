@@ -63,15 +63,22 @@ export default function Track({ track, index, zoomLevel = 100 }) {
     }
 
     // Create new wavesurfer instance
+    // In Track.js, update the wavesurfer creation to use container height
+    // Replace the existing WaveSurfer.create call with this:
+
+    // Calculate the actual container height
+    const containerHeight = containerRef.current.offsetHeight || 80;
+
     const ws = WaveSurfer.create({
       container: containerRef.current,
-      height: 60,
+      height: 100, // Match the 100px container height
       waveColor: track.color || '#7bafd4',
       progressColor: '#92ce84',
       cursorColor: '#cbb677',
       barWidth: 2,
-      barHeight: 0.8,
-      barRadius: 3,
+      barHeight: 1, // Full height bars
+      barRadius: 2,
+      barGap: 1,
       normalize: true,
       interact: true,
       dragToSeek: true,
@@ -79,6 +86,8 @@ export default function Track({ track, index, zoomLevel = 100 }) {
       hideScrollbar: false,
       autoCenter: false,
       autoScroll: false,
+      fillParent: true,
+      backend: 'WebAudio',
     });
 
     wavesurferRef.current = ws;

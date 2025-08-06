@@ -10,9 +10,6 @@ export default function MultitrackTimeline({ zoomLevel = 100 }) {
   const animationFrameRef = useRef(null);
   const [containerWidth, setContainerWidth] = useState(0);
 
-  // Track controls width - should match the actual width of track controls
-  const TRACK_CONTROLS_WIDTH = 280; // Adjust this to match your track controls width
-
   const { duration, currentTime, seek, isPlaying, tracks } = useMultitrack();
 
   // Update container width on resize
@@ -34,12 +31,7 @@ export default function MultitrackTimeline({ zoomLevel = 100 }) {
 
     const rect = containerRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
-
-    // Only respond to clicks in the waveform area
-    if (x < TRACK_CONTROLS_WIDTH) return;
-
-    const waveformAreaWidth = rect.width - TRACK_CONTROLS_WIDTH;
-    const progress = (x - TRACK_CONTROLS_WIDTH) / waveformAreaWidth;
+    const progress = x / rect.width;
 
     // Seek all tracks to this position
     seek(Math.max(0, Math.min(1, progress)));
@@ -57,56 +49,71 @@ export default function MultitrackTimeline({ zoomLevel = 100 }) {
     canvas.width = width;
     canvas.height = height;
 
-    // Clear canvas
-    ctx.fillStyle = '#1a1a1a';
+    // Clear canvas with dark background
+    ctx.fillStyle = '#1e1e1e';
     ctx.fillRect(0, 0, width, height);
 
-    // Draw track controls background
-    ctx.fillStyle = '#2a2a2a';
-    ctx.fillRect(0, 0, TRACK_CONTROLS_WIDTH, height);
+    // Draw timeline markers
+    const pixelsPerSecond =
+      (width * (zoomLevel / 100)) / Math.max(duration, 30);
+    const secondsPerMajorTick = Math.max(1, Math.floor(50 / pixelsPerSecond));
 
-    // Draw time markers only in the waveform area
-    ctx.fillStyle = '#666';
-    ctx.font = '10px Arial';
+    ctx.font = '11px Arial';
+    ctx.fillStyle = '#888';
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 1;
 
-    const waveformAreaWidth = width - TRACK_CONTROLS_WIDTH;
+    // Draw major ticks and time labels
+    for (let sec = 0; sec <= duration; sec += secondsPerMajorTick) {
+      const x = (sec / duration) * width;
 
-    // Calculate time markers based on zoom
-    const pixelsPerSecond = 50 * (zoomLevel / 100);
-    const secondsPerMarker = Math.max(1, Math.floor(100 / pixelsPerSecond));
-
-    for (let time = 0; time <= duration; time += secondsPerMarker) {
-      const x = TRACK_CONTROLS_WIDTH + (time / duration) * waveformAreaWidth;
-
-      // Draw tick
-      ctx.strokeStyle = '#444';
+      // Major tick
       ctx.beginPath();
       ctx.moveTo(x, height - 10);
       ctx.lineTo(x, height);
       ctx.stroke();
 
-      // Draw time label
-      ctx.fillText(formatTime(time), x + 2, height - 15);
+      // Time label
+      const minutes = Math.floor(sec / 60);
+      const seconds = sec % 60;
+      const label = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      ctx.fillText(label, x + 3, height - 15);
     }
+
+    // Draw minor ticks
+    ctx.strokeStyle = '#333';
+    const secondsPerMinorTick = secondsPerMajorTick / 5;
+    for (let sec = 0; sec <= duration; sec += secondsPerMinorTick) {
+      if (sec % secondsPerMajorTick !== 0) {
+        const x = (sec / duration) * width;
+        ctx.beginPath();
+        ctx.moveTo(x, height - 5);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+    }
+
+    // Draw bottom border
+    ctx.strokeStyle = '#3a3a3a';
+    ctx.beginPath();
+    ctx.moveTo(0, height - 0.5);
+    ctx.lineTo(width, height - 0.5);
+    ctx.stroke();
   }, [containerWidth, duration, zoomLevel]);
 
-  // Draw playhead
+  // Update playhead position
   useEffect(() => {
-    const drawPlayhead = () => {
-      if (!containerRef.current || duration === 0) return;
+    const updatePlayhead = () => {
+      const playhead = document.getElementById('multitrack-playhead');
+      if (!playhead || !containerRef.current || duration === 0) return;
 
-      const playheadElement = document.getElementById('multitrack-playhead');
-      if (!playheadElement) return;
-
-      const waveformAreaWidth = containerWidth - TRACK_CONTROLS_WIDTH;
-      const x =
-        TRACK_CONTROLS_WIDTH + (currentTime / duration) * waveformAreaWidth;
-      playheadElement.style.left = `${x}px`;
+      const progress = currentTime / duration;
+      const x = progress * containerRef.current.offsetWidth;
+      playhead.style.left = `${x}px`;
     };
 
-    // Update playhead position
     const animate = () => {
-      drawPlayhead();
+      updatePlayhead();
       if (isPlaying) {
         animationFrameRef.current = requestAnimationFrame(animate);
       }
@@ -115,7 +122,7 @@ export default function MultitrackTimeline({ zoomLevel = 100 }) {
     if (isPlaying) {
       animate();
     } else {
-      drawPlayhead();
+      updatePlayhead();
     }
 
     return () => {
@@ -125,49 +132,74 @@ export default function MultitrackTimeline({ zoomLevel = 100 }) {
     };
   }, [currentTime, duration, containerWidth, isPlaying]);
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   return (
     <div
-      ref={containerRef}
-      className="multitrack-timeline"
-      onClick={handleTimelineClick}
-      style={{
-        position: 'relative',
-        height: '40px',
-        backgroundColor: '#1a1a1a',
-        cursor: 'pointer',
-        userSelect: 'none',
-        borderBottom: '1px solid #444',
-      }}
+      className="timeline-container"
+      style={{ display: 'flex', height: '40px' }}
     >
-      <canvas
-        ref={canvasRef}
+      {/* Sidebar spacer - matches add track button area */}
+      <div
+        className="timeline-sidebar-spacer"
         style={{
-          display: 'block',
-          width: '100%',
-          height: '100%',
+          width: '80px',
+          backgroundColor: '#1e1e1e',
+          borderRight: '1px solid #3a3a3a',
+          flexShrink: 0,
         }}
       />
 
-      {/* Playhead */}
+      {/* Track controls spacer */}
       <div
-        id="multitrack-playhead"
+        className="timeline-controls-spacer"
         style={{
-          position: 'absolute',
-          top: 0,
-          width: '2px',
-          height: '100vh', // Extend down through all tracks
-          backgroundColor: '#ff0000',
-          pointerEvents: 'none',
-          zIndex: 100,
-          transition: isPlaying ? 'none' : 'left 0.1s ease-out',
+          width: '200px',
+          backgroundColor: '#232323',
+          borderRight: '1px solid #444',
+          flexShrink: 0,
         }}
       />
+
+      {/* Timeline */}
+      <div
+        ref={containerRef}
+        className="multitrack-timeline"
+        onClick={handleTimelineClick}
+        style={{
+          position: 'relative',
+          flex: 1,
+          height: '40px',
+          backgroundColor: '#1e1e1e',
+          cursor: 'pointer',
+          userSelect: 'none',
+          overflow: 'hidden',
+        }}
+      >
+        <canvas
+          ref={canvasRef}
+          style={{
+            display: 'block',
+            width: '100%',
+            height: '100%',
+          }}
+        />
+
+        {/* Playhead - positioned relative to timeline container */}
+        <div
+          id="multitrack-playhead"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '2px',
+            height: '100vh',
+            backgroundColor: '#ff3030',
+            boxShadow: '0 0 3px rgba(255, 48, 48, 0.8)',
+            pointerEvents: 'none',
+            zIndex: 1000,
+            transition: isPlaying ? 'none' : 'left 0.1s ease-out',
+          }}
+        />
+      </div>
     </div>
   );
 }
