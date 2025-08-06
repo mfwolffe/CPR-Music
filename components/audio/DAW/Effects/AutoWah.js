@@ -9,6 +9,108 @@ import {
 import Knob from '../../../Knob';
 
 /**
+ * Process auto-wah on an audio buffer region
+ * Pure function - no React dependencies
+ */
+export async function processAutoWahRegion(audioBuffer, startSample, endSample, parameters) {
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const sampleRate = audioBuffer.sampleRate;
+  const regionLength = endSample - startSample;
+  
+  // Calculate envelope follower
+  const calculateEnvelope = (audioData, attack, release) => {
+    const envelope = new Float32Array(audioData.length);
+    let envValue = 0;
+    
+    const attackCoeff = Math.exp(-1 / (attack * sampleRate));
+    const releaseCoeff = Math.exp(-1 / (release * sampleRate));
+    
+    for (let i = 0; i < audioData.length; i++) {
+      const rectified = Math.abs(audioData[i]);
+      
+      if (rectified > envValue) {
+        // Attack
+        envValue = rectified + (envValue - rectified) * attackCoeff;
+      } else {
+        // Release
+        envValue = rectified + (envValue - rectified) * releaseCoeff;
+      }
+      
+      envelope[i] = envValue;
+    }
+    
+    return envelope;
+  };
+  
+  // Create output buffer
+  const outputBuffer = audioContext.createBuffer(
+    audioBuffer.numberOfChannels,
+    audioBuffer.length,
+    sampleRate
+  );
+  
+  // Process each channel
+  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+    const inputData = audioBuffer.getChannelData(channel);
+    const outputData = outputBuffer.getChannelData(channel);
+    
+    // Copy original audio
+    outputData.set(inputData);
+    
+    // Extract region for processing
+    const regionData = new Float32Array(regionLength);
+    for (let i = 0; i < regionLength; i++) {
+      regionData[i] = inputData[startSample + i];
+    }
+    
+    // Calculate envelope
+    const envelope = calculateEnvelope(regionData, parameters.attack || 0.01, parameters.release || 0.1);
+    
+    // Create offline context for filtering
+    const offlineContext = new OfflineAudioContext(1, regionLength, sampleRate);
+    const sourceBuffer = offlineContext.createBuffer(1, regionLength, sampleRate);
+    sourceBuffer.getChannelData(0).set(regionData);
+    
+    const source = offlineContext.createBufferSource();
+    const filter = offlineContext.createBiquadFilter();
+    
+    source.buffer = sourceBuffer;
+    filter.type = 'bandpass';
+    filter.Q.value = parameters.q || 5;
+    
+    // Set up automation for filter frequency based on envelope
+    const currentTime = offlineContext.currentTime;
+    filter.frequency.setValueAtTime(parameters.frequency || 500, currentTime);
+    
+    // Create automation points
+    const automationRate = 128; // samples per automation point
+    for (let i = 0; i < regionLength; i += automationRate) {
+      const envValue = envelope[i] * (parameters.sensitivity || 0.5);
+      const freq = (parameters.frequency || 500) + (envValue * (parameters.range || 2000));
+      const clampedFreq = Math.max(20, Math.min(20000, freq));
+      const time = currentTime + (i / sampleRate);
+      
+      filter.frequency.linearRampToValueAtTime(clampedFreq, time);
+    }
+    
+    // Connect and render
+    source.connect(filter);
+    filter.connect(offlineContext.destination);
+    source.start(0);
+    
+    const renderedBuffer = await offlineContext.startRendering();
+    const processedData = renderedBuffer.getChannelData(0);
+    
+    // Copy processed region back
+    for (let i = 0; i < regionLength; i++) {
+      outputData[startSample + i] = processedData[i];
+    }
+  }
+  
+  return outputBuffer;
+}
+
+/**
  * Auto-Wah effect component - envelope-controlled filter
  */
 export default function AutoWah({ width }) {
@@ -44,31 +146,6 @@ export default function AutoWah({ width }) {
     }
   }, []);
   
-  // Calculate envelope follower
-  const calculateEnvelope = (audioData, sampleRate, attack, release) => {
-    const envelope = new Float32Array(audioData.length);
-    let envValue = 0;
-    
-    const attackCoeff = Math.exp(-1 / (attack * sampleRate));
-    const releaseCoeff = Math.exp(-1 / (release * sampleRate));
-    
-    for (let i = 0; i < audioData.length; i++) {
-      const rectified = Math.abs(audioData[i]);
-      
-      if (rectified > envValue) {
-        // Attack
-        envValue = rectified + (envValue - rectified) * attackCoeff;
-      } else {
-        // Release
-        envValue = rectified + (envValue - rectified) * releaseCoeff;
-      }
-      
-      envelope[i] = envValue;
-    }
-    
-    return envelope;
-  };
-  
   // Apply auto-wah to selected region
   const applyAutoWah = useCallback(async () => {
     if (!cutRegion || !wavesurferRef.current) {
@@ -89,72 +166,23 @@ export default function AutoWah({ width }) {
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      const regionLength = endSample - startSample;
       
-      // Create output buffer
-      const outputBuffer = context.createBuffer(
-        audioBuffer.numberOfChannels,
-        audioBuffer.length,
-        sampleRate
+      // Use the exported processing function
+      const parameters = {
+        sensitivity: autoWahSensitivity,
+        frequency: autoWahFrequency,
+        range: autoWahRange,
+        q: autoWahQ,
+        attack: autoWahAttack,
+        release: autoWahRelease
+      };
+      
+      const outputBuffer = await processAutoWahRegion(
+        audioBuffer,
+        startSample,
+        endSample,
+        parameters
       );
-      
-      // Process each channel
-      for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-        const inputData = audioBuffer.getChannelData(channel);
-        const outputData = outputBuffer.getChannelData(channel);
-        
-        // Copy original audio
-        outputData.set(inputData);
-        
-        // Extract region for processing
-        const regionData = new Float32Array(regionLength);
-        for (let i = 0; i < regionLength; i++) {
-          regionData[i] = inputData[startSample + i];
-        }
-        
-        // Calculate envelope
-        const envelope = calculateEnvelope(regionData, sampleRate, autoWahAttack, autoWahRelease);
-        
-        // Create offline context for filtering
-        const offlineContext = new OfflineAudioContext(1, regionLength, sampleRate);
-        const sourceBuffer = offlineContext.createBuffer(1, regionLength, sampleRate);
-        sourceBuffer.getChannelData(0).set(regionData);
-        
-        const source = offlineContext.createBufferSource();
-        const filter = offlineContext.createBiquadFilter();
-        
-        source.buffer = sourceBuffer;
-        filter.type = 'bandpass';
-        filter.Q.value = autoWahQ;
-        
-        // Set up automation for filter frequency based on envelope
-        const currentTime = offlineContext.currentTime;
-        filter.frequency.setValueAtTime(autoWahFrequency, currentTime);
-        
-        // Create automation points
-        const automationRate = 128; // samples per automation point
-        for (let i = 0; i < regionLength; i += automationRate) {
-          const envValue = envelope[i] * autoWahSensitivity;
-          const freq = autoWahFrequency + (envValue * autoWahRange);
-          const clampedFreq = Math.max(20, Math.min(20000, freq));
-          const time = currentTime + (i / sampleRate);
-          
-          filter.frequency.linearRampToValueAtTime(clampedFreq, time);
-        }
-        
-        // Connect and render
-        source.connect(filter);
-        filter.connect(offlineContext.destination);
-        source.start(0);
-        
-        const renderedBuffer = await offlineContext.startRendering();
-        const processedData = renderedBuffer.getChannelData(0);
-        
-        // Copy processed region back
-        for (let i = 0; i < regionLength; i++) {
-          outputData[startSample + i] = processedData[i];
-        }
-      }
       
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
@@ -164,14 +192,7 @@ export default function AutoWah({ width }) {
       // Update audio and history
       addToEditHistory(url, 'Apply Auto-Wah', {
         effect: 'autowah',
-        parameters: {
-          sensitivity: autoWahSensitivity,
-          frequency: autoWahFrequency,
-          range: autoWahRange,
-          q: autoWahQ,
-          attack: autoWahAttack,
-          release: autoWahRelease
-        },
+        parameters,
         region: { start: cutRegion.start, end: cutRegion.end }
       });
       

@@ -173,3 +173,518 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   width: 100%;
 }
 
+/* TODO move me later */
+/* Multitrack Editor Styles - Audacity-inspired Layout */
+
+/* Main container */
+.multitrack-editor-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 500px;
+  background-color: #1a1a1a;
+  color: #fff;
+}
+
+/* Top Toolbar */
+.multitrack-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  background-color: #2d2c29;
+  border-bottom: 1px solid #444;
+}
+
+.toolbar-section {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.toolbar-section.ms-auto {
+  margin-left: auto;
+}
+
+.zoom-slider {
+  width: 100px;
+  vertical-align: middle;
+}
+
+/* Main Content Area */
+.multitrack-main-content {
+  flex: 1;
+  overflow: hidden;
+  background-color: #1a1a1a;
+}
+
+/* Timeline */
+.multitrack-timeline {
+  display: flex;
+  height: 30px;
+  background-color: #2a2a2a;
+  border-bottom: 1px solid #444;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.timeline-controls-spacer {
+  width: 150px; /* Match track controls width */
+  min-width: 150px;
+  background-color: #232323;
+  border-right: 1px solid #444;
+}
+
+.timeline-canvas {
+  height: 30px;
+}
+
+/* Tracks Layout */
+.tracks-layout {
+  display: flex;
+  overflow: hidden;
+}
+
+/* Tracks Sidebar (Add Track Button) */
+.tracks-sidebar {
+  width: 150px; /* Match track controls width */
+  min-width: 150px;
+  background-color: #232323;
+  border-right: 1px solid #444;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+}
+
+.add-track-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.add-track-sidebar-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 2px solid;
+  background-color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.add-track-sidebar-btn:hover {
+  transform: scale(1.1);
+}
+
+.add-track-sidebar-btn.btn-danger {
+  border-color: #dc3545;
+}
+
+.add-track-sidebar-btn.btn-danger:hover {
+  background-color: rgba(220, 53, 69, 0.2);
+}
+
+.add-track-sidebar-btn.btn-outline-secondary {
+  border-style: dashed;
+  width: 40px;
+  height: 40px;
+}
+
+/* Tracks Area */
+.tracks-area {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 300px);
+}
+
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: #666;
+  font-style: italic;
+  text-align: center;
+  padding: 2rem;
+}
+
+.empty-state p {
+  margin: 0.25rem 0;
+}
+
+/* Individual Track */
+.track {
+  display: flex;
+  height: 80px;
+  border-bottom: 1px solid #333;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.track:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.track-selected {
+  background-color: rgba(146, 206, 132, 0.05) !important;
+}
+
+/* Track Controls (Left Side) */
+.track-controls {
+  width: 150px;
+  min-width: 150px;
+  padding: 0.5rem;
+  background-color: #232323;
+  border-right: 1px solid #444;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.track-header {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+/* Track dropdown menu */
+.track-menu-btn {
+  padding: 0 0.25rem;
+  font-size: 0.75rem;
+  color: #999;
+  text-decoration: none;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.track-menu-btn:hover,
+.track-menu-btn:focus,
+.track-menu-btn:active {
+  color: #fff !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.track-menu-btn::after {
+  display: none; /* Hide Bootstrap's default dropdown arrow */
+}
+
+.dropdown-menu {
+  background-color: #2a2a2a;
+  border: 1px solid #444;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dropdown-item {
+  color: #ccc;
+  font-size: 0.875rem;
+  padding: 0.375rem 1rem;
+}
+
+.dropdown-item:hover {
+  background-color: #3a3a3a;
+  color: #fff;
+}
+
+.dropdown-item.text-danger {
+  color: #dc3545 !important;
+}
+
+.dropdown-item.text-danger:hover {
+  background-color: rgba(220, 53, 69, 0.2);
+}
+
+.dropdown-divider {
+  border-color: #444;
+}
+
+.track-name-input {
+  flex: 1;
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #fff !important;
+  font-size: 0.75rem;
+  padding: 0.125rem 0.25rem;
+  height: auto;
+}
+
+.track-name-input:focus {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  border-color: #92ce84 !important;
+  box-shadow: none !important;
+}
+
+.track-close-btn {
+  padding: 0;
+  font-size: 1rem;
+  color: #999;
+  text-decoration: none;
+  line-height: 1;
+}
+
+.track-close-btn:hover {
+  color: #dc3545;
+}
+
+/* Track Buttons */
+.track-buttons {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.track-btn {
+  flex: 1;
+  font-size: 0.7rem;
+  padding: 0.125rem 0.25rem;
+  height: auto;
+}
+
+/* Track Sliders */
+.track-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.slider-group {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.slider-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0;
+  width: 100%;
+}
+
+.track-pan-slider,
+.track-volume-slider {
+  flex: 1;
+  height: 15px;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.track-pan-slider::-webkit-slider-track,
+.track-volume-slider::-webkit-slider-track {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 1.5px;
+}
+
+.track-pan-slider::-webkit-slider-thumb,
+.track-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  background: #92ce84;
+  border-radius: 50%;
+  cursor: pointer;
+  margin-top: -3.5px;
+}
+
+/* Track Waveform */
+.track-waveform {
+  flex: 1;
+  background-color: #2a2a2a;
+  overflow: hidden;
+  min-width: 300px; /* Ensure minimum width */
+  position: relative; /* For wavesurfer positioning */
+}
+
+/* Ensure wavesurfer canvas fills the container */
+.track-waveform > div {
+  width: 100% !important;
+}
+
+.track-waveform canvas {
+  display: block !important;
+}
+
+/* Region styles */
+.track-waveform .wavesurfer-region {
+  z-index: 3 !important;
+  opacity: 0.4;
+}
+
+.track-waveform .wavesurfer-region:hover {
+  opacity: 0.5;
+}
+
+/* Region handles */
+.track-waveform .wavesurfer-handle {
+  background-color: #fff !important;
+  width: 8px !important;
+  cursor: ew-resize !important;
+}
+
+/* Takes Import Modal Styling */
+.takes-import-modal .modal-content {
+  background-color: #1a1a1a;
+  color: #fff;
+}
+
+.takes-import-modal .modal-header {
+  border-bottom: 1px solid #444;
+}
+
+.takes-import-modal .modal-footer {
+  border-top: 1px solid #444;
+}
+
+.takes-import-modal .list-group-item {
+  background-color: #2a2a2a;
+  border: 1px solid #444;
+  color: #ccc;
+  transition: all 0.2s ease;
+}
+
+.takes-import-modal .list-group-item:hover {
+  background-color: #3a3a3a;
+  border-color: #666;
+}
+
+.takes-import-modal .list-group-item.active {
+  background-color: #7bafd4;
+  border-color: #7bafd4;
+  color: #fff;
+}
+
+.takes-import-modal .form-control {
+  background-color: #2a2a2a !important;
+  border: 1px solid #444 !important;
+  color: #fff !important;
+}
+
+.takes-import-modal .form-control:focus {
+  background-color: #3a3a3a !important;
+  border-color: #7bafd4 !important;
+  box-shadow: 0 0 0 0.2rem rgba(123, 175, 212, 0.25) !important;
+}
+
+/* Transport Container */
+.multitrack-transport-container {
+  border-top: 1px solid #444;
+  background-color: #2d2c29;
+  padding: 0.5rem;
+}
+
+.multitrack-transport {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.transport-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.transport-divider {
+  width: 1px;
+  height: 24px;
+  background-color: #666;
+  margin: 0 0.5rem;
+}
+
+.transport-time {
+  font-family: monospace;
+  font-size: 0.875rem;
+}
+
+.transport-status {
+  font-size: 0.75rem;
+  color: #999;
+}
+
+/* Recording indicator */
+.recording-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #dc3545;
+  font-size: 0.875rem;
+}
+
+.recording-dot {
+  font-size: 0.5rem;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Effects Panel */
+.effects-panel {
+  background-color: #232323 !important;
+  border-left: 1px solid #444 !important;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.effects-panel .card-header {
+  background-color: #2a2a2a !important;
+  border-bottom: 1px solid #444 !important;
+  padding: 0.5rem 0.75rem;
+}
+
+.effects-panel .card-body {
+  background-color: #232323 !important;
+  padding: 0.75rem;
+}
+
+/* Scrollbar Styling */
+.tracks-area::-webkit-scrollbar,
+.multitrack-timeline::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.tracks-area::-webkit-scrollbar-track,
+.multitrack-timeline::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tracks-area::-webkit-scrollbar-thumb,
+.multitrack-timeline::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.tracks-area::-webkit-scrollbar-thumb:hover,
+.multitrack-timeline::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Sync horizontal scrolling between timeline and tracks */
+.tracks-area {
+  overflow-x: auto;
+}
+
+.track-waveform {
+  min-width: 3000px; /* Match timeline canvas width */
+}

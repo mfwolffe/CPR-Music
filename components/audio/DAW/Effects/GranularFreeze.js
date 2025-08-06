@@ -9,6 +9,109 @@ import {
 import Knob from '../../../Knob';
 
 /**
+ * Process granular freeze on an audio buffer region
+ * Pure function - no React dependencies
+ */
+export async function processGranularFreezeRegion(audioBuffer, startSample, endSample, parameters) {
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const sampleRate = audioBuffer.sampleRate;
+  const regionLength = endSample - startSample;
+  
+  // Grain parameters
+  const grainSizeSamples = Math.floor((parameters.grainSize / 1000) * sampleRate);
+  const grainSpacing = Math.floor(grainSizeSamples * (1 - (parameters.density || 0.5)));
+  const spraySamples = Math.floor((parameters.spray / 1000) * sampleRate);
+  
+  // Create output buffer (make it longer for freeze effect)
+  const freezeDuration = 2; // 2 seconds of freeze
+  const outputLength = Math.max(audioBuffer.length, startSample + sampleRate * freezeDuration);
+  const outputBuffer = audioContext.createBuffer(
+    audioBuffer.numberOfChannels,
+    outputLength,
+    sampleRate
+  );
+  
+  // Window function for smooth grains
+  const window = new Float32Array(grainSizeSamples);
+  for (let i = 0; i < grainSizeSamples; i++) {
+    window[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (grainSizeSamples - 1));
+  }
+  
+  // Process each channel
+  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+    const inputData = audioBuffer.getChannelData(channel);
+    const outputData = outputBuffer.getChannelData(channel);
+    
+    // Copy original audio up to the freeze point
+    for (let i = 0; i < startSample; i++) {
+      outputData[i] = inputData[i];
+    }
+    
+    // Extract freeze buffer from position
+    const freezePosition = Math.floor(startSample + regionLength * (parameters.position || 0.5));
+    const freezeBufferSize = Math.min(grainSizeSamples * 4, regionLength);
+    const freezeBuffer = new Float32Array(freezeBufferSize);
+    
+    for (let i = 0; i < freezeBufferSize; i++) {
+      const sourceIndex = freezePosition + i;
+      if (sourceIndex < endSample) {
+        freezeBuffer[i] = inputData[sourceIndex];
+      }
+    }
+    
+    // Generate grains for the freeze duration
+    let outputPos = startSample;
+    const endOutputPos = startSample + sampleRate * freezeDuration;
+    
+    while (outputPos < endOutputPos && outputPos < outputLength) {
+      // Random position within freeze buffer (with spray)
+      const sprayOffset = (Math.random() - 0.5) * spraySamples;
+      const grainStart = Math.floor(Math.random() * (freezeBufferSize - grainSizeSamples) + sprayOffset);
+      const safeGrainStart = Math.max(0, Math.min(freezeBufferSize - grainSizeSamples, grainStart));
+      
+      // Apply pitch shift to grain
+      const pitchRatio = Math.pow(2, (parameters.pitch || 0) / 12);
+      const pitchedGrainSize = Math.floor(grainSizeSamples / pitchRatio);
+      
+      // Process grain
+      for (let i = 0; i < grainSizeSamples; i++) {
+        if (outputPos + i < outputLength) {
+          let grainIndex = Math.floor(i * pitchRatio);
+          
+          // Reverse grain?
+          if (Math.random() < (parameters.reverse || 0)) {
+            grainIndex = pitchedGrainSize - 1 - grainIndex;
+          }
+          
+          if (grainIndex < freezeBufferSize && safeGrainStart + grainIndex < freezeBufferSize) {
+            const sample = freezeBuffer[safeGrainStart + grainIndex] * window[i];
+            outputData[outputPos + i] += sample * 0.5; // Mix multiple grains
+          }
+        }
+      }
+      
+      // Move to next grain position
+      outputPos += grainSpacing;
+      
+      // Add some randomness to grain spacing
+      outputPos += Math.floor((Math.random() - 0.5) * grainSpacing * 0.2);
+    }
+    
+    // Fade out at the end
+    const fadeLength = Math.floor(sampleRate * 0.1); // 100ms fade
+    const fadeStart = endOutputPos - fadeLength;
+    for (let i = 0; i < fadeLength; i++) {
+      const fadePos = fadeStart + i;
+      if (fadePos < outputLength) {
+        outputData[fadePos] *= 1 - (i / fadeLength);
+      }
+    }
+  }
+  
+  return outputBuffer;
+}
+
+/**
  * Granular Freeze effect - captures and loops small grains of audio
  * Creates evolving textures and drones
  */
@@ -65,98 +168,23 @@ export default function GranularFreeze({ width }) {
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      const regionLength = endSample - startSample;
       
-      // Grain parameters
-      const grainSizeSamples = Math.floor((granularGrainSize / 1000) * sampleRate);
-      const grainSpacing = Math.floor(grainSizeSamples * (1 - granularDensity));
-      const spraySamples = Math.floor((granularSpray / 1000) * sampleRate);
+      // Use the exported processing function
+      const parameters = {
+        grainSize: granularGrainSize,
+        position: granularPosition,
+        spray: granularSpray,
+        pitch: granularPitch,
+        density: granularDensity,
+        reverse: granularReverse
+      };
       
-      // Create output buffer (make it longer for freeze effect)
-      const freezeDuration = 2; // 2 seconds of freeze
-      const outputLength = Math.max(audioBuffer.length, startSample + sampleRate * freezeDuration);
-      const outputBuffer = context.createBuffer(
-        audioBuffer.numberOfChannels,
-        outputLength,
-        sampleRate
+      const outputBuffer = await processGranularFreezeRegion(
+        audioBuffer,
+        startSample,
+        endSample,
+        parameters
       );
-      
-      // Window function for smooth grains
-      const window = new Float32Array(grainSizeSamples);
-      for (let i = 0; i < grainSizeSamples; i++) {
-        window[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (grainSizeSamples - 1));
-      }
-      
-      // Process each channel
-      for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-        const inputData = audioBuffer.getChannelData(channel);
-        const outputData = outputBuffer.getChannelData(channel);
-        
-        // Copy original audio up to the freeze point
-        for (let i = 0; i < startSample; i++) {
-          outputData[i] = inputData[i];
-        }
-        
-        // Extract freeze buffer from position
-        const freezePosition = Math.floor(startSample + regionLength * granularPosition);
-        const freezeBufferSize = Math.min(grainSizeSamples * 4, regionLength);
-        const freezeBuffer = new Float32Array(freezeBufferSize);
-        
-        for (let i = 0; i < freezeBufferSize; i++) {
-          const sourceIndex = freezePosition + i;
-          if (sourceIndex < endSample) {
-            freezeBuffer[i] = inputData[sourceIndex];
-          }
-        }
-        
-        // Generate grains for the freeze duration
-        let outputPos = startSample;
-        const endOutputPos = startSample + sampleRate * freezeDuration;
-        
-        while (outputPos < endOutputPos && outputPos < outputLength) {
-          // Random position within freeze buffer (with spray)
-          const sprayOffset = (Math.random() - 0.5) * spraySamples;
-          const grainStart = Math.floor(Math.random() * (freezeBufferSize - grainSizeSamples) + sprayOffset);
-          const safeGrainStart = Math.max(0, Math.min(freezeBufferSize - grainSizeSamples, grainStart));
-          
-          // Apply pitch shift to grain
-          const pitchRatio = Math.pow(2, granularPitch / 12);
-          const pitchedGrainSize = Math.floor(grainSizeSamples / pitchRatio);
-          
-          // Process grain
-          for (let i = 0; i < grainSizeSamples; i++) {
-            if (outputPos + i < outputLength) {
-              let grainIndex = Math.floor(i * pitchRatio);
-              
-              // Reverse grain?
-              if (Math.random() < granularReverse) {
-                grainIndex = pitchedGrainSize - 1 - grainIndex;
-              }
-              
-              if (grainIndex < freezeBufferSize && safeGrainStart + grainIndex < freezeBufferSize) {
-                const sample = freezeBuffer[safeGrainStart + grainIndex] * window[i];
-                outputData[outputPos + i] += sample * 0.5; // Mix multiple grains
-              }
-            }
-          }
-          
-          // Move to next grain position
-          outputPos += grainSpacing;
-          
-          // Add some randomness to grain spacing
-          outputPos += Math.floor((Math.random() - 0.5) * grainSpacing * 0.2);
-        }
-        
-        // Fade out at the end
-        const fadeLength = Math.floor(sampleRate * 0.1); // 100ms fade
-        const fadeStart = endOutputPos - fadeLength;
-        for (let i = 0; i < fadeLength; i++) {
-          const fadePos = fadeStart + i;
-          if (fadePos < outputLength) {
-            outputData[fadePos] *= 1 - (i / fadeLength);
-          }
-        }
-      }
       
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
@@ -166,14 +194,7 @@ export default function GranularFreeze({ width }) {
       // Update audio and history
       addToEditHistory(url, 'Apply Granular Freeze', {
         effect: 'granularfreeze',
-        parameters: {
-          grainSize: granularGrainSize,
-          position: granularPosition,
-          spray: granularSpray,
-          pitch: granularPitch,
-          density: granularDensity,
-          reverse: granularReverse
-        },
+        parameters,
         region: { start: cutRegion.start, end: cutRegion.end }
       });
       

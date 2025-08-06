@@ -1,3 +1,4 @@
+// components/audio/DAW/Effects/Reverb.js
 'use client';
 
 import { useCallback, useEffect, useRef } from 'react';
@@ -9,6 +10,65 @@ import {
 import { ReverbProcessor } from '../../../../lib/ReverbProcessor';
 import { getPresetNames, impulseResponsePresets } from '../../../../lib/impulseResponses';
 import Knob from '../../../Knob';
+
+/**
+ * Process reverb on an audio buffer region
+ * Pure function - no React dependencies
+ */
+export async function processReverbRegion(audioBuffer, startSample, endSample, parameters) {
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const reverbProcessor = new ReverbProcessor(audioContext);
+  
+  // Apply parameters
+  reverbProcessor.loadPreset(parameters.preset || 'mediumHall');
+  reverbProcessor.setWetDryMix(parameters.wetMix || 0.3);
+  reverbProcessor.setPreDelay(parameters.preDelay || 0);
+  reverbProcessor.setOutputGain(parameters.outputGain || 1);
+  reverbProcessor.setHighDamping(parameters.highDamp || 0.5);
+  reverbProcessor.setLowDamping(parameters.lowDamp || 0.1);
+  reverbProcessor.setStereoWidth(parameters.stereoWidth || 1);
+  reverbProcessor.setEarlyLateBalance(parameters.earlyLate || 0.5);
+  
+  // Process the region
+  const result = await reverbProcessor.processRegion(
+    audioBuffer,
+    startSample,
+    endSample
+  );
+  
+  // Create output buffer with processed region
+  const outputBuffer = audioContext.createBuffer(
+    audioBuffer.numberOfChannels,
+    audioBuffer.length + result.tailLength,
+    audioBuffer.sampleRate
+  );
+  
+  // Copy audio with processed region
+  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+    const inputData = audioBuffer.getChannelData(channel);
+    const outputData = outputBuffer.getChannelData(channel);
+    const processedData = result.buffer.getChannelData(channel);
+    
+    // Copy before region
+    for (let i = 0; i < startSample; i++) {
+      outputData[i] = inputData[i];
+    }
+    
+    // Copy processed region (including tail)
+    for (let i = 0; i < processedData.length; i++) {
+      outputData[startSample + i] = processedData[i];
+    }
+    
+    // Copy after region (shifted by tail length)
+    for (let i = endSample; i < inputData.length; i++) {
+      if (startSample + (i - startSample) + result.tailLength < outputData.length) {
+        outputData[startSample + (i - startSample) + result.tailLength] = inputData[i];
+      }
+    }
+  }
+  
+  return outputBuffer;
+}
 
 /**
  * Reverb effect component using Web Audio API
@@ -77,7 +137,7 @@ export default function Reverb({ width }) {
   
   // Apply reverb permanently to selected region
   const applyReverb = useCallback(async () => {
-    if (!cutRegion || !reverbProcessorRef.current || !wavesurferRef.current) {
+    if (!cutRegion || !wavesurferRef.current) {
       alert('Please select a region first');
       return;
     }
@@ -91,48 +151,28 @@ export default function Reverb({ width }) {
       const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
       
       // Calculate sample positions
-      const duration = wavesurfer.getDuration();
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
       
-      // Process the region
-      const result = await reverbProcessorRef.current.processRegion(
+      // Use the exported processing function
+      const parameters = {
+        preset: reverbPreset,
+        wetMix: reverbWetMix,
+        preDelay: reverbPreDelay,
+        outputGain: reverbOutputGain,
+        highDamp: reverbHighDamp,
+        lowDamp: reverbLowDamp,
+        stereoWidth: reverbStereoWidth,
+        earlyLate: reverbEarlyLate
+      };
+      
+      const outputBuffer = await processReverbRegion(
         audioBuffer,
         startSample,
-        endSample
+        endSample,
+        parameters
       );
-      
-      // Create new buffer with processed region
-      const outputBuffer = audioContextRef.current.createBuffer(
-        audioBuffer.numberOfChannels,
-        audioBuffer.length + result.tailLength,
-        sampleRate
-      );
-      
-      // Copy audio with processed region
-      for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-        const inputData = audioBuffer.getChannelData(channel);
-        const outputData = outputBuffer.getChannelData(channel);
-        const processedData = result.buffer.getChannelData(channel);
-        
-        // Copy before region
-        for (let i = 0; i < startSample; i++) {
-          outputData[i] = inputData[i];
-        }
-        
-        // Copy processed region (including tail)
-        for (let i = 0; i < processedData.length; i++) {
-          outputData[startSample + i] = processedData[i];
-        }
-        
-        // Copy after region (shifted by tail length)
-        for (let i = endSample; i < inputData.length; i++) {
-          if (startSample + (i - startSample) + result.tailLength < outputData.length) {
-            outputData[startSample + (i - startSample) + result.tailLength] = inputData[i];
-          }
-        }
-      }
       
       // Convert buffer to blob
       const wav = await audioBufferToWav(outputBuffer);
@@ -142,7 +182,7 @@ export default function Reverb({ width }) {
       // Update audio and history
       addToEditHistory(url, 'Apply Reverb', {
         effect: 'reverb',
-        parameters: reverbProcessorRef.current.getParameters(),
+        parameters,
         region: { start: cutRegion.start, end: cutRegion.end }
       });
       
@@ -156,7 +196,7 @@ export default function Reverb({ width }) {
       console.error('Error applying reverb:', error);
       alert('Error applying reverb. Please try again.');
     }
-  }, [cutRegion, audioURL, addToEditHistory, wavesurferRef]);
+  }, [cutRegion, audioURL, addToEditHistory, wavesurferRef, reverbPreset, reverbWetMix, reverbPreDelay, reverbOutputGain, reverbHighDamp, reverbLowDamp, reverbStereoWidth, reverbEarlyLate]);
   
   const presetNames = getPresetNames();
   

@@ -9,6 +9,93 @@ import {
 import Knob from '../../../Knob';
 
 /**
+ * Generate LFO waveform for tremolo
+ */
+function generateLFOWaveform(type, sampleRate, duration, frequency, phase, depth) {
+  const samples = Math.floor(sampleRate * duration);
+  const waveform = new Float32Array(samples);
+  const phaseOffset = (phase / 360) * Math.PI * 2;
+  
+  for (let i = 0; i < samples; i++) {
+    const t = (i / sampleRate) * frequency * Math.PI * 2 + phaseOffset;
+    let modValue;
+    
+    switch(type) {
+      case 'sine':
+        modValue = Math.sin(t);
+        break;
+        
+      case 'triangle':
+        const normalized = (t / (Math.PI * 2)) % 1;
+        modValue = 4 * Math.abs(normalized - 0.5) - 1;
+        break;
+        
+      case 'square':
+        modValue = Math.sin(t) > 0 ? 1 : -1;
+        break;
+        
+      case 'sawtooth':
+        modValue = 2 * ((t / (Math.PI * 2)) % 1) - 1;
+        break;
+        
+      default:
+        modValue = Math.sin(t);
+    }
+    
+    // Convert to amplitude modulation (0 to 1 range)
+    // depth controls how deep the modulation goes
+    waveform[i] = 1 - (depth * (1 - modValue) / 2);
+  }
+  
+  return waveform;
+}
+
+/**
+ * Process tremolo on an audio buffer region
+ * Pure function - no React dependencies
+ */
+export async function processTremoloRegion(audioBuffer, startSample, endSample, parameters) {
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const sampleRate = audioBuffer.sampleRate;
+  const regionLength = endSample - startSample;
+  const regionDuration = (endSample - startSample) / sampleRate;
+  
+  // Generate LFO for tremolo
+  const lfoWaveform = generateLFOWaveform(
+    parameters.waveform || 'sine',
+    sampleRate,
+    regionDuration,
+    parameters.rate || 5,
+    parameters.phase || 0,
+    parameters.depth || 0.5
+  );
+  
+  // Create output buffer
+  const outputBuffer = audioContext.createBuffer(
+    audioBuffer.numberOfChannels,
+    audioBuffer.length,
+    sampleRate
+  );
+  
+  // Process each channel
+  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+    const inputData = audioBuffer.getChannelData(channel);
+    const outputData = outputBuffer.getChannelData(channel);
+    
+    // Copy original audio
+    outputData.set(inputData);
+    
+    // Apply tremolo to region
+    for (let i = 0; i < regionLength; i++) {
+      const sampleIndex = startSample + i;
+      outputData[sampleIndex] = inputData[sampleIndex] * lfoWaveform[i];
+    }
+  }
+  
+  return outputBuffer;
+}
+
+/**
  * Tremolo effect component - amplitude modulation
  */
 export default function Tremolo({ width }) {
@@ -40,46 +127,6 @@ export default function Tremolo({ width }) {
     }
   }, []);
   
-  // Generate LFO waveform for tremolo
-  const generateLFOWaveform = (type, sampleRate, duration, frequency, phase, depth) => {
-    const samples = Math.floor(sampleRate * duration);
-    const waveform = new Float32Array(samples);
-    const phaseOffset = (phase / 360) * Math.PI * 2;
-    
-    for (let i = 0; i < samples; i++) {
-      const t = (i / sampleRate) * frequency * Math.PI * 2 + phaseOffset;
-      let modValue;
-      
-      switch(type) {
-        case 'sine':
-          modValue = Math.sin(t);
-          break;
-          
-        case 'triangle':
-          const normalized = (t / (Math.PI * 2)) % 1;
-          modValue = 4 * Math.abs(normalized - 0.5) - 1;
-          break;
-          
-        case 'square':
-          modValue = Math.sin(t) > 0 ? 1 : -1;
-          break;
-          
-        case 'sawtooth':
-          modValue = 2 * ((t / (Math.PI * 2)) % 1) - 1;
-          break;
-          
-        default:
-          modValue = Math.sin(t);
-      }
-      
-      // Convert to amplitude modulation (0 to 1 range)
-      // depth controls how deep the modulation goes
-      waveform[i] = 1 - (depth * (1 - modValue) / 2);
-    }
-    
-    return waveform;
-  };
-  
   // Apply tremolo to selected region
   const applyTremolo = useCallback(async () => {
     if (!cutRegion || !wavesurferRef.current) {
@@ -100,40 +147,21 @@ export default function Tremolo({ width }) {
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      const regionLength = endSample - startSample;
-      const regionDuration = (endSample - startSample) / sampleRate;
       
-      // Generate LFO for tremolo
-      const lfoWaveform = generateLFOWaveform(
-        tremoloWaveform,
-        sampleRate,
-        regionDuration,
-        tremoloRate,
-        tremoloPhase,
-        tremoloDepth
+      // Use the exported processing function
+      const parameters = {
+        rate: tremoloRate,
+        depth: tremoloDepth,
+        waveform: tremoloWaveform,
+        phase: tremoloPhase
+      };
+      
+      const outputBuffer = await processTremoloRegion(
+        audioBuffer,
+        startSample,
+        endSample,
+        parameters
       );
-      
-      // Create output buffer
-      const outputBuffer = context.createBuffer(
-        audioBuffer.numberOfChannels,
-        audioBuffer.length,
-        sampleRate
-      );
-      
-      // Process each channel
-      for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-        const inputData = audioBuffer.getChannelData(channel);
-        const outputData = outputBuffer.getChannelData(channel);
-        
-        // Copy original audio
-        outputData.set(inputData);
-        
-        // Apply tremolo to region
-        for (let i = 0; i < regionLength; i++) {
-          const sampleIndex = startSample + i;
-          outputData[sampleIndex] = inputData[sampleIndex] * lfoWaveform[i];
-        }
-      }
       
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
@@ -143,12 +171,7 @@ export default function Tremolo({ width }) {
       // Update audio and history
       addToEditHistory(url, 'Apply Tremolo', {
         effect: 'tremolo',
-        parameters: {
-          rate: tremoloRate,
-          depth: tremoloDepth,
-          waveform: tremoloWaveform,
-          phase: tremoloPhase
-        },
+        parameters,
         region: { start: cutRegion.start, end: cutRegion.end }
       });
       

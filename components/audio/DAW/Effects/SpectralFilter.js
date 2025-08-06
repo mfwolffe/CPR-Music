@@ -8,307 +8,6 @@ import {
 } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
 
-/**
- * Spectral Filter effect - FFT-based frequency manipulation
- * Can create robotic voices, whisper effects, and frequency-based morphing
- */
-export default function SpectralFilter({ width }) {
-  const {
-    audioRef,
-    wavesurferRef,
-    addToEditHistory,
-    audioURL
-  } = useAudio();
-  
-  const {
-    cutRegion
-  } = useEffects();
-  
-  const audioContextRef = useRef(null);
-  const [filterType, setFilterType] = useState('robot');
-  const [threshold, setThreshold] = useState(0.1);
-  const [bands, setBands] = useState(16);
-  const [spread, setSpread] = useState(1);
-  const [shift, setShift] = useState(0);
-  
-  // Initialize audio context
-  useEffect(() => {
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-    }
-  }, []);
-  
-  // Apply spectral filter
-  const applySpectralFilter = useCallback(async () => {
-    if (!cutRegion || !wavesurferRef.current) {
-      alert('Please select a region first');
-      return;
-    }
-    
-    try {
-      const wavesurfer = wavesurferRef.current;
-      const context = audioContextRef.current;
-      
-      // Get the audio buffer
-      const response = await fetch(audioURL);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await context.decodeAudioData(arrayBuffer);
-      
-      const sampleRate = audioBuffer.sampleRate;
-      const startSample = Math.floor(cutRegion.start * sampleRate);
-      const endSample = Math.floor(cutRegion.end * sampleRate);
-      const regionLength = endSample - startSample;
-      
-      // FFT size (must be power of 2)
-      const fftSize = 2048;
-      const hopSize = fftSize / 4;
-      
-      // Create output buffer
-      const outputBuffer = context.createBuffer(
-        audioBuffer.numberOfChannels,
-        audioBuffer.length,
-        sampleRate
-      );
-      
-      // Process each channel
-      for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-        const inputData = audioBuffer.getChannelData(channel);
-        const outputData = outputBuffer.getChannelData(channel);
-        
-        // Copy original audio
-        outputData.set(inputData);
-        
-        // Process region with overlap-add
-        const processedRegion = new Float32Array(regionLength);
-        const window = createWindow(fftSize);
-        
-        for (let pos = 0; pos < regionLength - fftSize; pos += hopSize) {
-          // Extract windowed frame
-          const frame = new Float32Array(fftSize);
-          for (let i = 0; i < fftSize; i++) {
-            if (startSample + pos + i < endSample) {
-              frame[i] = inputData[startSample + pos + i] * window[i];
-            }
-          }
-          
-          // FFT
-          const spectrum = fft(frame);
-          
-          // Apply spectral filter based on type
-          switch(filterType) {
-            case 'robot':
-              // Vocoder-like effect - quantize frequencies
-              applyRobotFilter(spectrum, bands);
-              break;
-              
-            case 'whisper':
-              // Remove pitched content, keep noise
-              applyWhisperFilter(spectrum, threshold);
-              break;
-              
-            case 'harmonicBoost':
-              // Enhance harmonics
-              applyHarmonicBoost(spectrum, spread);
-              break;
-              
-            case 'frequencyShift':
-              // Shift all frequencies
-              applyFrequencyShift(spectrum, shift, sampleRate);
-              break;
-              
-            case 'spectralGate':
-              // Gate based on magnitude
-              applySpectralGate(spectrum, threshold);
-              break;
-              
-            case 'oddHarmonics':
-              // Keep only odd harmonics
-              applyOddHarmonicsFilter(spectrum);
-              break;
-          }
-          
-          // IFFT
-          const processed = ifft(spectrum);
-          
-          // Overlap-add
-          for (let i = 0; i < fftSize; i++) {
-            if (pos + i < regionLength) {
-              processedRegion[pos + i] += processed[i] * window[i];
-            }
-          }
-        }
-        
-        // Normalize
-        let maxVal = 0;
-        for (let i = 0; i < regionLength; i++) {
-          maxVal = Math.max(maxVal, Math.abs(processedRegion[i]));
-        }
-        if (maxVal > 0) {
-          for (let i = 0; i < regionLength; i++) {
-            processedRegion[i] /= maxVal;
-          }
-        }
-        
-        // Copy processed region back
-        for (let i = 0; i < regionLength; i++) {
-          outputData[startSample + i] = processedRegion[i] * 0.8;
-        }
-      }
-      
-      // Convert to blob and update
-      const wav = await audioBufferToWav(outputBuffer);
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-      
-      // Update audio and history
-      addToEditHistory(url, 'Apply Spectral Filter', {
-        effect: 'spectralFilter',
-        parameters: {
-          type: filterType,
-          threshold,
-          bands,
-          spread,
-          shift
-        },
-        region: { start: cutRegion.start, end: cutRegion.end }
-      });
-      
-      // Load new audio
-      await wavesurfer.load(url);
-      
-      // Clear region
-      cutRegion.remove();
-      
-    } catch (error) {
-      console.error('Error applying spectral filter:', error);
-      alert('Error applying spectral filter. Please try again.');
-    }
-  }, [audioURL, addToEditHistory, wavesurferRef, filterType, threshold, bands, spread, shift, cutRegion]);
-  
-  const filterTypes = [
-    { key: 'robot', name: 'Robot Voice' },
-    { key: 'whisper', name: 'Whisper' },
-    { key: 'harmonicBoost', name: 'Harmonic Boost' },
-    { key: 'frequencyShift', name: 'Frequency Shift' },
-    { key: 'spectralGate', name: 'Spectral Gate' },
-    { key: 'oddHarmonics', name: 'Odd Harmonics' }
-  ];
-  
-  // Control visibility based on filter type
-  const showThreshold = ['whisper', 'spectralGate'].includes(filterType);
-  const showBands = filterType === 'robot';
-  const showSpread = filterType === 'harmonicBoost';
-  const showShift = filterType === 'frequencyShift';
-  
-  return (
-    <Container fluid className="p-2">
-      <Row className="text-center align-items-end">
-        {/* Type selector */}
-        <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
-          <Form.Label className="text-white small mb-1">Filter Type</Form.Label>
-          <Dropdown
-            onSelect={(eventKey) => setFilterType(eventKey)}
-            size="sm"
-          >
-            <Dropdown.Toggle
-              variant="secondary"
-              size="sm"
-              className="w-100"
-            >
-              {filterTypes.find(t => t.key === filterType)?.name || 'Robot Voice'}
-            </Dropdown.Toggle>
-            <Dropdown.Menu className="bg-daw-toolbars">
-              {filterTypes.map(type => (
-                <Dropdown.Item
-                  key={type.key}
-                  eventKey={type.key}
-                  className="text-white"
-                >
-                  {type.name}
-                </Dropdown.Item>
-              ))}
-            </Dropdown.Menu>
-          </Dropdown>
-        </Col>
-        
-        {/* Dynamic controls */}
-        {showThreshold && (
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={threshold}
-              onChange={setThreshold}
-              min={0}
-              max={1}
-              label="Threshold"
-              displayValue={`${Math.round(threshold * 100)}%`}
-              size={45}
-              color="#e75b5c"
-            />
-          </Col>
-        )}
-        
-        {showBands && (
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={bands}
-              onChange={setBands}
-              min={4}
-              max={64}
-              step={1}
-              label="Bands"
-              displayValue={`${bands}`}
-              size={45}
-              color="#7bafd4"
-            />
-          </Col>
-        )}
-        
-        {showSpread && (
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={spread}
-              onChange={setSpread}
-              min={0.5}
-              max={3}
-              label="Spread"
-              displayValue={`${spread.toFixed(1)}x`}
-              size={45}
-              color="#92ce84"
-            />
-          </Col>
-        )}
-        
-        {showShift && (
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={shift}
-              onChange={setShift}
-              min={-500}
-              max={500}
-              step={10}
-              label="Shift"
-              displayValue={`${shift}Hz`}
-              size={45}
-              color="#cbb677"
-            />
-          </Col>
-        )}
-        
-        {/* Apply Button */}
-        <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
-          <Button
-            size="sm"
-            className="w-100"
-            onClick={applySpectralFilter}
-          >
-            Apply to Region
-          </Button>
-        </Col>
-      </Row>
-    </Container>
-  );
-}
-
 // Window function
 function createWindow(size) {
   const window = new Float32Array(size);
@@ -487,6 +186,328 @@ function findFundamental(spectrum) {
   }
   
   return fundamentalBin;
+}
+
+/**
+ * Process spectral filter on an audio buffer region
+ * Pure function - no React dependencies
+ */
+export async function processSpectralFilterRegion(audioBuffer, startSample, endSample, parameters) {
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const sampleRate = audioBuffer.sampleRate;
+  const regionLength = endSample - startSample;
+  
+  // FFT size (must be power of 2)
+  const fftSize = 2048;
+  const hopSize = fftSize / 4;
+  
+  // Create output buffer
+  const outputBuffer = audioContext.createBuffer(
+    audioBuffer.numberOfChannels,
+    audioBuffer.length,
+    sampleRate
+  );
+  
+  // Process each channel
+  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+    const inputData = audioBuffer.getChannelData(channel);
+    const outputData = outputBuffer.getChannelData(channel);
+    
+    // Copy original audio
+    outputData.set(inputData);
+    
+    // Process region with overlap-add
+    const processedRegion = new Float32Array(regionLength);
+    const window = createWindow(fftSize);
+    
+    for (let pos = 0; pos < regionLength - fftSize; pos += hopSize) {
+      // Extract windowed frame
+      const frame = new Float32Array(fftSize);
+      for (let i = 0; i < fftSize; i++) {
+        if (startSample + pos + i < endSample) {
+          frame[i] = inputData[startSample + pos + i] * window[i];
+        }
+      }
+      
+      // FFT
+      const spectrum = fft(frame);
+      
+      // Apply spectral filter based on type
+      switch(parameters.type) {
+        case 'robot':
+          // Vocoder-like effect - quantize frequencies
+          applyRobotFilter(spectrum, parameters.bands || 16);
+          break;
+          
+        case 'whisper':
+          // Remove pitched content, keep noise
+          applyWhisperFilter(spectrum, parameters.threshold || 0.1);
+          break;
+          
+        case 'harmonicBoost':
+          // Enhance harmonics
+          applyHarmonicBoost(spectrum, parameters.spread || 1);
+          break;
+          
+        case 'frequencyShift':
+          // Shift all frequencies
+          applyFrequencyShift(spectrum, parameters.shift || 0, sampleRate);
+          break;
+          
+        case 'spectralGate':
+          // Gate based on magnitude
+          applySpectralGate(spectrum, parameters.threshold || 0.1);
+          break;
+          
+        case 'oddHarmonics':
+          // Keep only odd harmonics
+          applyOddHarmonicsFilter(spectrum);
+          break;
+      }
+      
+      // IFFT
+      const processed = ifft(spectrum);
+      
+      // Overlap-add
+      for (let i = 0; i < fftSize; i++) {
+        if (pos + i < regionLength) {
+          processedRegion[pos + i] += processed[i] * window[i];
+        }
+      }
+    }
+    
+    // Normalize
+    let maxVal = 0;
+    for (let i = 0; i < regionLength; i++) {
+      maxVal = Math.max(maxVal, Math.abs(processedRegion[i]));
+    }
+    if (maxVal > 0) {
+      for (let i = 0; i < regionLength; i++) {
+        processedRegion[i] /= maxVal;
+      }
+    }
+    
+    // Copy processed region back
+    for (let i = 0; i < regionLength; i++) {
+      outputData[startSample + i] = processedRegion[i] * 0.8;
+    }
+  }
+  
+  return outputBuffer;
+}
+
+/**
+ * Spectral Filter effect - FFT-based frequency manipulation
+ * Can create robotic voices, whisper effects, and frequency-based morphing
+ */
+export default function SpectralFilter({ width }) {
+  const {
+    audioRef,
+    wavesurferRef,
+    addToEditHistory,
+    audioURL
+  } = useAudio();
+  
+  const {
+    cutRegion
+  } = useEffects();
+  
+  const audioContextRef = useRef(null);
+  const [filterType, setFilterType] = useState('robot');
+  const [threshold, setThreshold] = useState(0.1);
+  const [bands, setBands] = useState(16);
+  const [spread, setSpread] = useState(1);
+  const [shift, setShift] = useState(0);
+  
+  // Initialize audio context
+  useEffect(() => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+  }, []);
+  
+  // Apply spectral filter
+  const applySpectralFilter = useCallback(async () => {
+    if (!cutRegion || !wavesurferRef.current) {
+      alert('Please select a region first');
+      return;
+    }
+    
+    try {
+      const wavesurfer = wavesurferRef.current;
+      const context = audioContextRef.current;
+      
+      // Get the audio buffer
+      const response = await fetch(audioURL);
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await context.decodeAudioData(arrayBuffer);
+      
+      const sampleRate = audioBuffer.sampleRate;
+      const startSample = Math.floor(cutRegion.start * sampleRate);
+      const endSample = Math.floor(cutRegion.end * sampleRate);
+      
+      // Use the exported processing function
+      const parameters = {
+        type: filterType,
+        threshold,
+        bands,
+        spread,
+        shift
+      };
+      
+      const outputBuffer = await processSpectralFilterRegion(
+        audioBuffer,
+        startSample,
+        endSample,
+        parameters
+      );
+      
+      // Convert to blob and update
+      const wav = await audioBufferToWav(outputBuffer);
+      const blob = new Blob([wav], { type: 'audio/wav' });
+      const url = URL.createObjectURL(blob);
+      
+      // Update audio and history
+      addToEditHistory(url, 'Apply Spectral Filter', {
+        effect: 'spectralFilter',
+        parameters,
+        region: { start: cutRegion.start, end: cutRegion.end }
+      });
+      
+      // Load new audio
+      await wavesurfer.load(url);
+      
+      // Clear region
+      cutRegion.remove();
+      
+    } catch (error) {
+      console.error('Error applying spectral filter:', error);
+      alert('Error applying spectral filter. Please try again.');
+    }
+  }, [audioURL, addToEditHistory, wavesurferRef, filterType, threshold, bands, spread, shift, cutRegion]);
+  
+  const filterTypes = [
+    { key: 'robot', name: 'Robot Voice' },
+    { key: 'whisper', name: 'Whisper' },
+    { key: 'harmonicBoost', name: 'Harmonic Boost' },
+    { key: 'frequencyShift', name: 'Frequency Shift' },
+    { key: 'spectralGate', name: 'Spectral Gate' },
+    { key: 'oddHarmonics', name: 'Odd Harmonics' }
+  ];
+  
+  // Control visibility based on filter type
+  const showThreshold = ['whisper', 'spectralGate'].includes(filterType);
+  const showBands = filterType === 'robot';
+  const showSpread = filterType === 'harmonicBoost';
+  const showShift = filterType === 'frequencyShift';
+  
+  return (
+    <Container fluid className="p-2">
+      <Row className="text-center align-items-end">
+        {/* Type selector */}
+        <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
+          <Form.Label className="text-white small mb-1">Filter Type</Form.Label>
+          <Dropdown
+            onSelect={(eventKey) => setFilterType(eventKey)}
+            size="sm"
+          >
+            <Dropdown.Toggle
+              variant="secondary"
+              size="sm"
+              className="w-100"
+            >
+              {filterTypes.find(t => t.key === filterType)?.name || 'Robot Voice'}
+            </Dropdown.Toggle>
+            <Dropdown.Menu className="bg-daw-toolbars">
+              {filterTypes.map(type => (
+                <Dropdown.Item
+                  key={type.key}
+                  eventKey={type.key}
+                  className="text-white"
+                >
+                  {type.name}
+                </Dropdown.Item>
+              ))}
+            </Dropdown.Menu>
+          </Dropdown>
+        </Col>
+        
+        {/* Dynamic controls */}
+        {showThreshold && (
+          <Col xs={6} sm={4} md={2} lg={1}>
+            <Knob
+              value={threshold}
+              onChange={setThreshold}
+              min={0}
+              max={1}
+              label="Threshold"
+              displayValue={`${Math.round(threshold * 100)}%`}
+              size={45}
+              color="#e75b5c"
+            />
+          </Col>
+        )}
+        
+        {showBands && (
+          <Col xs={6} sm={4} md={2} lg={1}>
+            <Knob
+              value={bands}
+              onChange={setBands}
+              min={4}
+              max={64}
+              step={1}
+              label="Bands"
+              displayValue={`${bands}`}
+              size={45}
+              color="#7bafd4"
+            />
+          </Col>
+        )}
+        
+        {showSpread && (
+          <Col xs={6} sm={4} md={2} lg={1}>
+            <Knob
+              value={spread}
+              onChange={setSpread}
+              min={0.5}
+              max={3}
+              label="Spread"
+              displayValue={`${spread.toFixed(1)}x`}
+              size={45}
+              color="#92ce84"
+            />
+          </Col>
+        )}
+        
+        {showShift && (
+          <Col xs={6} sm={4} md={2} lg={1}>
+            <Knob
+              value={shift}
+              onChange={setShift}
+              min={-500}
+              max={500}
+              step={10}
+              label="Shift"
+              displayValue={`${shift}Hz`}
+              size={45}
+              color="#cbb677"
+            />
+          </Col>
+        )}
+        
+        {/* Apply Button */}
+        <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
+          <Button
+            size="sm"
+            className="w-100"
+            onClick={applySpectralFilter}
+          >
+            Apply to Region
+          </Button>
+        </Col>
+      </Row>
+    </Container>
+  );
 }
 
 // Helper function to convert AudioBuffer to WAV

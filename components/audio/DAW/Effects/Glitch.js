@@ -9,6 +9,108 @@ import {
 import Knob from '../../../Knob';
 
 /**
+ * Process glitch/beat repeat on an audio buffer region
+ * Pure function - no React dependencies
+ */
+export async function processGlitchRegion(audioBuffer, startSample, endSample, parameters) {
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const sampleRate = audioBuffer.sampleRate;
+  const regionLength = endSample - startSample;
+  
+  // Calculate beat division in samples (assuming 120 BPM for now)
+  const bpm = 120;
+  const beatLength = (60 / bpm) * sampleRate;
+  const divisionLength = Math.floor(beatLength / (parameters.division || 16));
+  
+  // Create output buffer
+  const outputBuffer = audioContext.createBuffer(
+    audioBuffer.numberOfChannels,
+    audioBuffer.length,
+    sampleRate
+  );
+  
+  // Process each channel
+  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+    const inputData = audioBuffer.getChannelData(channel);
+    const outputData = outputBuffer.getChannelData(channel);
+    
+    // Copy original audio
+    outputData.set(inputData);
+    
+    // Process region with glitch
+    let position = 0;
+    while (position < regionLength) {
+      const shouldGlitch = Math.random() < (parameters.probability || 0.3);
+      
+      if (shouldGlitch) {
+        // Capture a slice
+        const sliceLength = Math.min(divisionLength, regionLength - position);
+        const slice = new Float32Array(sliceLength);
+        
+        for (let i = 0; i < sliceLength; i++) {
+          slice[i] = inputData[startSample + position + i];
+        }
+        
+        // Apply effects to slice
+        let processedSlice = slice;
+        
+        // Reverse?
+        if (Math.random() < (parameters.reverse || 0)) {
+          processedSlice = new Float32Array(sliceLength);
+          for (let i = 0; i < sliceLength; i++) {
+            processedSlice[i] = slice[sliceLength - 1 - i];
+          }
+        }
+        
+        // Pitch shift?
+        if (parameters.pitch !== 0) {
+          const pitchRatio = Math.pow(2, (parameters.pitch || 0) / 12);
+          const pitchedLength = Math.floor(sliceLength / pitchRatio);
+          const tempSlice = new Float32Array(sliceLength);
+          
+          for (let i = 0; i < sliceLength; i++) {
+            const sourceIndex = Math.floor(i * pitchRatio);
+            if (sourceIndex < sliceLength) {
+              tempSlice[i] = processedSlice[sourceIndex];
+            }
+          }
+          processedSlice = tempSlice;
+        }
+        
+        // Bit crush?
+        if (parameters.crush) {
+          const bits = 4; // Crush to 4-bit
+          const levels = Math.pow(2, bits);
+          for (let i = 0; i < sliceLength; i++) {
+            processedSlice[i] = Math.round(processedSlice[i] * levels) / levels;
+          }
+        }
+        
+        // Repeat the slice
+        for (let repeat = 0; repeat < (parameters.repeats || 1); repeat++) {
+          for (let i = 0; i < sliceLength; i++) {
+            const outputIndex = startSample + position + (repeat * sliceLength) + i;
+            if (outputIndex < endSample) {
+              // Mix with some randomness
+              const mixAmount = 0.8 + Math.random() * 0.2;
+              outputData[outputIndex] = processedSlice[i] * mixAmount;
+            }
+          }
+        }
+        
+        // Skip ahead
+        position += sliceLength * (parameters.repeats || 1);
+      } else {
+        // No glitch, just move forward
+        position += divisionLength;
+      }
+    }
+  }
+  
+  return outputBuffer;
+}
+
+/**
  * Glitch/Beat Repeat effect - rhythmic stutters and chaos
  */
 export default function Glitch({ width }) {
@@ -64,97 +166,23 @@ export default function Glitch({ width }) {
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      const regionLength = endSample - startSample;
       
-      // Calculate beat division in samples (assuming 120 BPM for now)
-      const bpm = 120;
-      const beatLength = (60 / bpm) * sampleRate;
-      const divisionLength = Math.floor(beatLength / glitchDivision);
+      // Use the exported processing function
+      const parameters = {
+        division: glitchDivision,
+        probability: glitchProbability,
+        repeats: glitchRepeats,
+        reverse: glitchReverse,
+        pitch: glitchPitch,
+        crush: glitchCrush
+      };
       
-      // Create output buffer
-      const outputBuffer = context.createBuffer(
-        audioBuffer.numberOfChannels,
-        audioBuffer.length,
-        sampleRate
+      const outputBuffer = await processGlitchRegion(
+        audioBuffer,
+        startSample,
+        endSample,
+        parameters
       );
-      
-      // Process each channel
-      for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-        const inputData = audioBuffer.getChannelData(channel);
-        const outputData = outputBuffer.getChannelData(channel);
-        
-        // Copy original audio
-        outputData.set(inputData);
-        
-        // Process region with glitch
-        let position = 0;
-        while (position < regionLength) {
-          const shouldGlitch = Math.random() < glitchProbability;
-          
-          if (shouldGlitch) {
-            // Capture a slice
-            const sliceLength = Math.min(divisionLength, regionLength - position);
-            const slice = new Float32Array(sliceLength);
-            
-            for (let i = 0; i < sliceLength; i++) {
-              slice[i] = inputData[startSample + position + i];
-            }
-            
-            // Apply effects to slice
-            let processedSlice = slice;
-            
-            // Reverse?
-            if (Math.random() < glitchReverse) {
-              processedSlice = new Float32Array(sliceLength);
-              for (let i = 0; i < sliceLength; i++) {
-                processedSlice[i] = slice[sliceLength - 1 - i];
-              }
-            }
-            
-            // Pitch shift?
-            if (glitchPitch !== 0) {
-              const pitchRatio = Math.pow(2, glitchPitch / 12);
-              const pitchedLength = Math.floor(sliceLength / pitchRatio);
-              const tempSlice = new Float32Array(sliceLength);
-              
-              for (let i = 0; i < sliceLength; i++) {
-                const sourceIndex = Math.floor(i * pitchRatio);
-                if (sourceIndex < sliceLength) {
-                  tempSlice[i] = processedSlice[sourceIndex];
-                }
-              }
-              processedSlice = tempSlice;
-            }
-            
-            // Bit crush?
-            if (glitchCrush) {
-              const bits = 4; // Crush to 4-bit
-              const levels = Math.pow(2, bits);
-              for (let i = 0; i < sliceLength; i++) {
-                processedSlice[i] = Math.round(processedSlice[i] * levels) / levels;
-              }
-            }
-            
-            // Repeat the slice
-            for (let repeat = 0; repeat < glitchRepeats; repeat++) {
-              for (let i = 0; i < sliceLength; i++) {
-                const outputIndex = startSample + position + (repeat * sliceLength) + i;
-                if (outputIndex < endSample) {
-                  // Mix with some randomness
-                  const mixAmount = 0.8 + Math.random() * 0.2;
-                  outputData[outputIndex] = processedSlice[i] * mixAmount;
-                }
-              }
-            }
-            
-            // Skip ahead
-            position += sliceLength * glitchRepeats;
-          } else {
-            // No glitch, just move forward
-            position += divisionLength;
-          }
-        }
-      }
       
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
@@ -164,14 +192,7 @@ export default function Glitch({ width }) {
       // Update audio and history
       addToEditHistory(url, 'Apply Glitch', {
         effect: 'glitch',
-        parameters: {
-          division: glitchDivision,
-          probability: glitchProbability,
-          repeats: glitchRepeats,
-          reverse: glitchReverse,
-          pitch: glitchPitch,
-          crush: glitchCrush
-        },
+        parameters,
         region: { start: cutRegion.start, end: cutRegion.end }
       });
       

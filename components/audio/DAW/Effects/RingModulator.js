@@ -9,6 +9,91 @@ import {
 import Knob from '../../../Knob';
 
 /**
+ * Generate oscillator waveform
+ */
+function generateOscillatorWaveform(type, sampleRate, duration, frequency) {
+  const samples = Math.floor(sampleRate * duration);
+  const waveform = new Float32Array(samples);
+  
+  for (let i = 0; i < samples; i++) {
+    const t = (i / sampleRate) * frequency * Math.PI * 2;
+    
+    switch(type) {
+      case 'sine':
+        waveform[i] = Math.sin(t);
+        break;
+        
+      case 'triangle':
+        const normalized = (t / (Math.PI * 2)) % 1;
+        waveform[i] = 4 * Math.abs(normalized - 0.5) - 1;
+        break;
+        
+      case 'square':
+        waveform[i] = Math.sin(t) > 0 ? 1 : -1;
+        break;
+        
+      case 'sawtooth':
+        waveform[i] = 2 * ((t / (Math.PI * 2)) % 1) - 1;
+        break;
+        
+      default:
+        waveform[i] = Math.sin(t);
+    }
+  }
+  
+  return waveform;
+}
+
+/**
+ * Process ring modulation on an audio buffer region
+ * Pure function - no React dependencies
+ */
+export async function processRingModulatorRegion(audioBuffer, startSample, endSample, parameters) {
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const sampleRate = audioBuffer.sampleRate;
+  const regionLength = endSample - startSample;
+  const regionDuration = (endSample - startSample) / sampleRate;
+  
+  // Generate oscillator waveform
+  const oscillatorWaveform = generateOscillatorWaveform(
+    parameters.waveform || 'sine',
+    sampleRate,
+    regionDuration,
+    parameters.frequency || 440
+  );
+  
+  // Create output buffer
+  const outputBuffer = audioContext.createBuffer(
+    audioBuffer.numberOfChannels,
+    audioBuffer.length,
+    sampleRate
+  );
+  
+  // Process each channel
+  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+    const inputData = audioBuffer.getChannelData(channel);
+    const outputData = outputBuffer.getChannelData(channel);
+    
+    // Copy original audio
+    outputData.set(inputData);
+    
+    // Apply ring modulation to region
+    for (let i = 0; i < regionLength; i++) {
+      const sampleIndex = startSample + i;
+      const originalSample = inputData[sampleIndex];
+      
+      // Ring modulation: multiply signal with oscillator
+      const modulatedSample = originalSample * oscillatorWaveform[i] * (parameters.depth || 1);
+      
+      // Mix dry and wet signals
+      outputData[sampleIndex] = (originalSample * (1 - (parameters.mix || 1))) + (modulatedSample * (parameters.mix || 1));
+    }
+  }
+  
+  return outputBuffer;
+}
+
+/**
  * Ring Modulator effect component - multiplies signal with oscillator
  */
 export default function RingModulator({ width }) {
@@ -40,40 +125,6 @@ export default function RingModulator({ width }) {
     }
   }, []);
   
-  // Generate oscillator waveform
-  const generateOscillatorWaveform = (type, sampleRate, duration, frequency) => {
-    const samples = Math.floor(sampleRate * duration);
-    const waveform = new Float32Array(samples);
-    
-    for (let i = 0; i < samples; i++) {
-      const t = (i / sampleRate) * frequency * Math.PI * 2;
-      
-      switch(type) {
-        case 'sine':
-          waveform[i] = Math.sin(t);
-          break;
-          
-        case 'triangle':
-          const normalized = (t / (Math.PI * 2)) % 1;
-          waveform[i] = 4 * Math.abs(normalized - 0.5) - 1;
-          break;
-          
-        case 'square':
-          waveform[i] = Math.sin(t) > 0 ? 1 : -1;
-          break;
-          
-        case 'sawtooth':
-          waveform[i] = 2 * ((t / (Math.PI * 2)) % 1) - 1;
-          break;
-          
-        default:
-          waveform[i] = Math.sin(t);
-      }
-    }
-    
-    return waveform;
-  };
-  
   // Apply ring modulation to selected region
   const applyRingMod = useCallback(async () => {
     if (!cutRegion || !wavesurferRef.current) {
@@ -94,44 +145,21 @@ export default function RingModulator({ width }) {
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      const regionLength = endSample - startSample;
-      const regionDuration = (endSample - startSample) / sampleRate;
       
-      // Generate oscillator waveform
-      const oscillatorWaveform = generateOscillatorWaveform(
-        ringModWaveform,
-        sampleRate,
-        regionDuration,
-        ringModFrequency
+      // Use the exported processing function
+      const parameters = {
+        frequency: ringModFrequency,
+        waveform: ringModWaveform,
+        mix: ringModMix,
+        depth: ringModDepth
+      };
+      
+      const outputBuffer = await processRingModulatorRegion(
+        audioBuffer,
+        startSample,
+        endSample,
+        parameters
       );
-      
-      // Create output buffer
-      const outputBuffer = context.createBuffer(
-        audioBuffer.numberOfChannels,
-        audioBuffer.length,
-        sampleRate
-      );
-      
-      // Process each channel
-      for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-        const inputData = audioBuffer.getChannelData(channel);
-        const outputData = outputBuffer.getChannelData(channel);
-        
-        // Copy original audio
-        outputData.set(inputData);
-        
-        // Apply ring modulation to region
-        for (let i = 0; i < regionLength; i++) {
-          const sampleIndex = startSample + i;
-          const originalSample = inputData[sampleIndex];
-          
-          // Ring modulation: multiply signal with oscillator
-          const modulatedSample = originalSample * oscillatorWaveform[i] * ringModDepth;
-          
-          // Mix dry and wet signals
-          outputData[sampleIndex] = (originalSample * (1 - ringModMix)) + (modulatedSample * ringModMix);
-        }
-      }
       
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
@@ -141,12 +169,7 @@ export default function RingModulator({ width }) {
       // Update audio and history
       addToEditHistory(url, 'Apply Ring Modulator', {
         effect: 'ringmod',
-        parameters: {
-          frequency: ringModFrequency,
-          waveform: ringModWaveform,
-          mix: ringModMix,
-          depth: ringModDepth
-        },
+        parameters,
         region: { start: cutRegion.start, end: cutRegion.end }
       });
       
