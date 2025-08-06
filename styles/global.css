@@ -1088,7 +1088,7 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
 .multitrack-editor-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 710px;
   background-color: #1a1a1a;
   color: #fff;
   overflow: hidden;
@@ -1116,6 +1116,70 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   background-color: #2d2c29;
   border-bottom: 1px solid #444;
   flex-shrink: 0;
+}
+
+/* Toolbar button styles - Better contrast */
+.multitrack-toolbar .btn {
+  background-color: #3a3a3a !important;
+  border-color: #4a4a4a !important;
+  color: #d0d0d0 !important;
+  font-size: 0.875rem;
+  transition: all 0.15s ease;
+}
+
+.multitrack-toolbar .btn:hover:not(:disabled) {
+  background-color: #4a4a4a !important;
+  border-color: #5a5a5a !important;
+  color: #fff !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.multitrack-toolbar .btn:active:not(:disabled) {
+  background-color: #333 !important;
+}
+
+/* Active/toggled state for effects button */
+.multitrack-toolbar .btn-warning {
+  background-color: #b8860b !important;
+  border-color: #daa520 !important;
+  color: #fff !important;
+}
+
+.multitrack-toolbar .btn-warning:hover:not(:disabled) {
+  background-color: #daa520 !important;
+  border-color: #ffd700 !important;
+}
+
+/* Primary action buttons */
+.multitrack-toolbar .btn-primary,
+.multitrack-toolbar .btn-outline-primary {
+  background-color: #4a7c9e !important;
+  border-color: #5a8cae !important;
+  color: #fff !important;
+}
+
+.multitrack-toolbar .btn-outline-primary {
+  background-color: transparent !important;
+  color: #5a8cae !important;
+}
+
+.multitrack-toolbar .btn-outline-primary:hover:not(:disabled) {
+  background-color: #4a7c9e !important;
+  color: #fff !important;
+}
+
+/* Mixdown button special styling */
+.multitrack-toolbar .mixdown-btn {
+  background: linear-gradient(135deg, #4a7c9e 0%, #5a8cae 100%) !important;
+  border-color: #5a8cae !important;
+  color: #fff !important;
+  font-weight: 500;
+}
+
+.multitrack-toolbar .mixdown-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5a8cae 0%, #6a9cbe 100%) !important;
+  border-color: #6a9cbe !important;
+  box-shadow: 0 2px 4px rgba(74, 124, 158, 0.3);
 }
 
 .toolbar-section {
@@ -1234,8 +1298,7 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
 .tracks-sidebar {
   width: 80px;
   min-width: 80px;
-  background-color: #1e1e1e;
-  border-right: 1px solid #3a3a3a;
+  background-color: transparent; /* Let background show through */
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -1313,34 +1376,33 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   pointer-events: none;
 }
 
-/* Tracks Area - Main Container - FIXED WITH SCROLLING */
+/* Add sidebar background via pseudo-element */
+.tracks-layout::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 80px;
+  background-color: #1e1e1e;
+  border-right: 1px solid #3a3a3a;
+  z-index: 0;
+}
+
+/* Ensure sidebar and tracks are above background */
+.tracks-sidebar,
 .tracks-area {
-  flex: 1;
-  overflow-y: auto !important; /* Force vertical scrolling */
-  overflow-x: hidden;
-  background-color: #1a1a1a;
-  padding: 0; /* Remove any padding */
-  margin: 0; /* Remove any margin */
-  min-height: 0; /* Important for flex scrolling to work */
   position: relative;
+  z-index: 1;
 }
 
-/* Ensure the tracks container allows scrolling */
-.tracks-container {
+/* Remove any margin from Bootstrap containers */
+.multitrack-editor-container .row {
   margin: 0 !important;
-  padding: 0 !important;
-  display: block !important; /* Don't use flex here as it might prevent scrolling */
-  min-height: min-content; /* Allow natural height */
 }
 
-/* Make sure tracks layout allows scrolling */
-.tracks-layout {
-  flex: 1;
-  display: flex;
-  overflow: hidden; /* Parent should hide overflow */
-  background-color: #1a1a1a;
-  min-height: 0; /* Critical for nested flex scrolling */
-  position: relative;
+.multitrack-editor-container [class*='col-'] {
+  padding: 0 !important;
 }
 
 /* Individual Track Container - FIXED */
@@ -1626,47 +1688,193 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   height: 100% !important;
 }
 
-/* Empty State */
+/* Empty State - Don't add extra height */
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 200px; /* Reduced from 300px */
+  height: 480px; /* Match tracks area height */
   color: #666;
   font-style: italic;
   text-align: center;
   padding: 2rem;
-  margin: 0; /* No margin to prevent layout issues */
+  margin: 0;
 }
 
-/* Ensure tracks fill the scrollable area naturally */
-.tracks-area > :first-child {
-  min-height: 100%; /* Fill available space but allow growing */
-}
-
-/* Debug: Add a subtle background to see scroll area */
-.tracks-area {
-  background: repeating-linear-gradient(
-    0deg,
-    #1a1a1a,
-    #1a1a1a 120px,
-    #1b1b1b 120px,
-    #1b1b1b 121px
-  ); /* Subtle lines every 120px to show track boundaries */
-}
-
-/* Transport Container */
+/* Transport Container - Simple styling */
 .multitrack-transport-container {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
   border-top: 1px solid #444;
   background-color: #2d2c29;
   padding: 0.5rem;
-  z-index: 100;
+  flex-shrink: 0;
   height: 60px;
+  position: relative;
+}
+
+/* Extend sidebar visual into transport area */
+.multitrack-transport-container::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 80px;
+  background-color: #1e1e1e;
+  border-right: 1px solid #3a3a3a;
+  z-index: 0;
+}
+
+/* Ensure proper transport alignment */
+.multitrack-transport {
+  position: relative;
+  z-index: 1;
+  margin-left: 72px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+/* Fix button cutoff in transport */
+.multitrack-transport-container {
+  display: flex;
+  align-items: center;
+  min-height: 60px;
+  padding: 0.75rem; /* Slightly more padding */
+}
+
+/* Ensure transport buttons aren't cut off */
+.multitrack-transport .btn-group {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+/* Transport button styles - Better contrast */
+.multitrack-transport .btn {
+  background-color: #4a4a4a !important;
+  border-color: #5a5a5a !important;
+  color: #e0e0e0 !important;
+  transition: all 0.2s ease;
+}
+
+.multitrack-transport .btn:hover:not(:disabled) {
+  background-color: #6a6a6a !important;
+  border-color: #7a7a7a !important;
+  color: #fff !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.multitrack-transport .btn:active:not(:disabled) {
+  background-color: #5a5a5a !important;
+  transform: translateY(0);
+}
+
+/* Disabled button state */
+.multitrack-transport .btn:disabled {
+  background-color: #333 !important;
+  border-color: #444 !important;
+  color: #666 !important;
+  opacity: 0.6;
+}
+
+/* Circular play/pause and stop buttons */
+.multitrack-transport .btn-group > .btn:first-child,
+.multitrack-transport .btn-group > .btn:nth-child(2) {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-right: 8px !important; /* Gap between buttons */
+}
+
+/* Play/pause button special states */
+.multitrack-transport .btn-primary {
+  background-color: #4a7c9e !important;
+  border-color: #5a8cae !important;
+}
+
+.multitrack-transport .btn-primary:hover:not(:disabled) {
+  background-color: #5a8cae !important;
+  border-color: #6a9cbe !important;
+}
+
+.multitrack-transport .btn-warning {
+  background-color: #d4a030 !important;
+  border-color: #e4b040 !important;
+  color: #fff !important;
+}
+
+.multitrack-transport .btn-warning:hover:not(:disabled) {
+  background-color: #e4b040 !important;
+  border-color: #f4c050 !important;
+}
+
+/* Secondary buttons (stop, etc) */
+.multitrack-transport .btn-secondary {
+  background-color: #555 !important;
+  border-color: #666 !important;
+}
+
+.multitrack-transport .btn-secondary:hover:not(:disabled) {
+  background-color: #666 !important;
+  border-color: #777 !important;
+}
+
+/* Button group styling */
+.multitrack-transport .btn-group {
+  gap: 0 !important; /* Remove default gap */
+}
+
+/* Progress bar styling */
+.multitrack-transport .progress {
+  background-color: #333;
+  border: 1px solid #444;
+}
+
+.multitrack-transport .progress-bar {
+  background-color: #4a7c9e;
+}
+
+/* Time display */
+.multitrack-transport .time-display {
+  font-family: monospace;
+  font-size: 0.9rem;
+  color: #aaa;
+  min-width: 45px;
+}
+
+/* Volume controls */
+.multitrack-transport .btn-outline-secondary {
+  background-color: transparent !important;
+  border-color: #666 !important;
+  color: #999 !important;
+}
+
+.multitrack-transport .btn-outline-secondary:hover:not(:disabled) {
+  background-color: #444 !important;
+  border-color: #777 !important;
+  color: #fff !important;
+}
+
+.multitrack-transport .btn-danger {
+  background-color: #a04040 !important;
+  border-color: #b05050 !important;
+}
+
+/* Volume slider */
+.multitrack-transport .form-range {
+  accent-color: #4a7c9e;
+}
+
+/* Track info text */
+.multitrack-transport .track-info {
+  font-size: 0.85rem;
+  color: #888 !important;
 }
 
 /* Ensure the row/col structure doesn't break scrolling */
