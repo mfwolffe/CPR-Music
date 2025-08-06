@@ -9,6 +9,100 @@ import {
 import Knob from '../../../Knob';
 
 /**
+ * Process flanger on an audio buffer region
+ * Pure function - no React dependencies
+ */
+export async function processFlangerRegion(audioBuffer, startSample, endSample, parameters) {
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const sampleRate = audioBuffer.sampleRate;
+  const regionLength = endSample - startSample;
+  const regionDuration = (endSample - startSample) / sampleRate;
+  
+  // Create offline context for processing
+  const offlineContext = new OfflineAudioContext(
+    audioBuffer.numberOfChannels,
+    audioBuffer.length,
+    sampleRate
+  );
+  
+  // Create source
+  const source = offlineContext.createBufferSource();
+  source.buffer = audioBuffer;
+  
+  // Create delay node for flanging
+  const delayNode = offlineContext.createDelay(0.02); // Max 20ms delay
+  const feedbackGain = offlineContext.createGain();
+  const wetGain = offlineContext.createGain();
+  const dryGain = offlineContext.createGain();
+  const outputGain = offlineContext.createGain();
+  
+  // Set static parameters
+  feedbackGain.gain.value = parameters.feedback || 0.5;
+  wetGain.gain.value = parameters.mix || 0.5;
+  dryGain.gain.value = 1 - (parameters.mix || 0.5);
+  
+  // Create LFO for modulating delay time
+  const lfo = offlineContext.createOscillator();
+  const lfoGain = offlineContext.createGain();
+  
+  lfo.frequency.value = parameters.rate || 0.5;
+  lfoGain.gain.value = parameters.depth || 0.002; // Depth in seconds
+  
+  // Connect LFO to delay time
+  lfo.connect(lfoGain);
+  lfoGain.connect(delayNode.delayTime);
+  
+  // Set base delay time
+  delayNode.delayTime.value = parameters.delay || 0.005;
+  
+  // Connect audio path
+  source.connect(dryGain);
+  source.connect(delayNode);
+  
+  // Feedback loop
+  delayNode.connect(feedbackGain);
+  feedbackGain.connect(delayNode);
+  
+  // Mix wet and dry
+  delayNode.connect(wetGain);
+  dryGain.connect(outputGain);
+  wetGain.connect(outputGain);
+  
+  outputGain.connect(offlineContext.destination);
+  
+  // Start source and LFO
+  source.start(0);
+  lfo.start(0);
+  
+  // Render
+  const renderedBuffer = await offlineContext.startRendering();
+  
+  // Create output buffer with processed region
+  const outputBuffer = audioContext.createBuffer(
+    audioBuffer.numberOfChannels,
+    audioBuffer.length,
+    sampleRate
+  );
+  
+  // Mix the processed region back
+  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+    const inputData = audioBuffer.getChannelData(channel);
+    const processedData = renderedBuffer.getChannelData(channel);
+    const outputData = outputBuffer.getChannelData(channel);
+    
+    // Copy original audio
+    outputData.set(inputData);
+    
+    // Overwrite with processed region
+    for (let i = 0; i < regionLength; i++) {
+      outputData[startSample + i] = processedData[startSample + i];
+    }
+  }
+  
+  return outputBuffer;
+}
+
+/**
  * Flanger effect component - similar to phaser but with shorter delay times
  */
 export default function Flanger({ width }) {
@@ -62,89 +156,22 @@ export default function Flanger({ width }) {
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      const regionLength = endSample - startSample;
-      const regionDuration = cutRegion.end - cutRegion.start;
       
-      // Create offline context for processing
-      const offlineContext = new OfflineAudioContext(
-        audioBuffer.numberOfChannels,
-        audioBuffer.length,
-        sampleRate
+      // Use the exported processing function
+      const parameters = {
+        rate: flangerRate,
+        depth: flangerDepth,
+        feedback: flangerFeedback,
+        delay: flangerDelay,
+        mix: flangerMix
+      };
+      
+      const outputBuffer = await processFlangerRegion(
+        audioBuffer,
+        startSample,
+        endSample,
+        parameters
       );
-      
-      // Create source
-      const source = offlineContext.createBufferSource();
-      source.buffer = audioBuffer;
-      
-      // Create delay node for flanging
-      const delayNode = offlineContext.createDelay(0.02); // Max 20ms delay
-      const feedbackGain = offlineContext.createGain();
-      const wetGain = offlineContext.createGain();
-      const dryGain = offlineContext.createGain();
-      const outputGain = offlineContext.createGain();
-      
-      // Set static parameters
-      feedbackGain.gain.value = flangerFeedback;
-      wetGain.gain.value = flangerMix;
-      dryGain.gain.value = 1 - flangerMix;
-      
-      // Create LFO for modulating delay time
-      const lfo = offlineContext.createOscillator();
-      const lfoGain = offlineContext.createGain();
-      
-      lfo.frequency.value = flangerRate;
-      lfoGain.gain.value = flangerDepth; // Depth in seconds
-      
-      // Connect LFO to delay time
-      lfo.connect(lfoGain);
-      lfoGain.connect(delayNode.delayTime);
-      
-      // Set base delay time
-      delayNode.delayTime.value = flangerDelay;
-      
-      // Connect audio path
-      source.connect(dryGain);
-      source.connect(delayNode);
-      
-      // Feedback loop
-      delayNode.connect(feedbackGain);
-      feedbackGain.connect(delayNode);
-      
-      // Mix wet and dry
-      delayNode.connect(wetGain);
-      dryGain.connect(outputGain);
-      wetGain.connect(outputGain);
-      
-      outputGain.connect(offlineContext.destination);
-      
-      // Start source and LFO
-      source.start(0);
-      lfo.start(0);
-      
-      // Render
-      const renderedBuffer = await offlineContext.startRendering();
-      
-      // Create output buffer with processed region
-      const outputBuffer = context.createBuffer(
-        audioBuffer.numberOfChannels,
-        audioBuffer.length,
-        sampleRate
-      );
-      
-      // Mix the processed region back
-      for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-        const inputData = audioBuffer.getChannelData(channel);
-        const processedData = renderedBuffer.getChannelData(channel);
-        const outputData = outputBuffer.getChannelData(channel);
-        
-        // Copy original audio
-        outputData.set(inputData);
-        
-        // Overwrite with processed region
-        for (let i = 0; i < regionLength; i++) {
-          outputData[startSample + i] = processedData[startSample + i];
-        }
-      }
       
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
@@ -154,13 +181,7 @@ export default function Flanger({ width }) {
       // Update audio and history
       addToEditHistory(url, 'Apply Flanger', {
         effect: 'flanger',
-        parameters: {
-          rate: flangerRate,
-          depth: flangerDepth,
-          feedback: flangerFeedback,
-          delay: flangerDelay,
-          mix: flangerMix
-        },
+        parameters,
         region: { start: cutRegion.start, end: cutRegion.end }
       });
       

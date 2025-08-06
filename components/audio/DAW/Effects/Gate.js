@@ -9,6 +9,90 @@ import {
 import Knob from '../../../Knob';
 
 /**
+ * Process gate on an audio buffer region
+ * Pure function - no React dependencies
+ */
+export async function processGateRegion(audioBuffer, startSample, endSample, parameters) {
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const sampleRate = audioBuffer.sampleRate;
+  const regionLength = endSample - startSample;
+  
+  // Convert dB to linear
+  const dbToLinear = (db) => Math.pow(10, db / 20);
+  
+  // Gate parameters
+  const thresholdLinear = dbToLinear(parameters.threshold || -40);
+  const rangeLinear = dbToLinear(parameters.range || -60);
+  const attackSamples = Math.floor((parameters.attack || 0.001) * sampleRate);
+  const releaseSamples = Math.floor((parameters.release || 0.1) * sampleRate);
+  const holdSamples = Math.floor((parameters.hold || 0.01) * sampleRate);
+  
+  // Create output buffer
+  const outputBuffer = audioContext.createBuffer(
+    audioBuffer.numberOfChannels,
+    audioBuffer.length,
+    sampleRate
+  );
+  
+  // Process each channel
+  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+    const inputData = audioBuffer.getChannelData(channel);
+    const outputData = outputBuffer.getChannelData(channel);
+    
+    // Copy original audio
+    outputData.set(inputData);
+    
+    // Gate state variables
+    let gateOpen = false;
+    let gateGain = 0;
+    let holdCounter = 0;
+    let envelope = 0;
+    
+    // Envelope follower coefficient
+    const envCoeff = 0.99;
+    
+    // Process region
+    for (let i = 0; i < regionLength; i++) {
+      const sampleIndex = startSample + i;
+      const inputSample = inputData[sampleIndex];
+      
+      // Update envelope
+      const rectified = Math.abs(inputSample);
+      envelope = rectified + (envelope - rectified) * envCoeff;
+      
+      // Gate logic
+      if (envelope > thresholdLinear) {
+        gateOpen = true;
+        holdCounter = holdSamples;
+      } else if (holdCounter > 0) {
+        holdCounter--;
+      } else {
+        gateOpen = false;
+      }
+      
+      // Calculate target gain
+      const targetGain = gateOpen ? 1 : rangeLinear;
+      
+      // Smooth gain changes
+      if (targetGain > gateGain) {
+        // Attack
+        const attackRate = 1 / attackSamples;
+        gateGain = Math.min(targetGain, gateGain + attackRate);
+      } else {
+        // Release
+        const releaseRate = 1 / releaseSamples;
+        gateGain = Math.max(targetGain, gateGain - releaseRate);
+      }
+      
+      // Apply gate
+      outputData[sampleIndex] = inputSample * gateGain;
+    }
+  }
+  
+  return outputBuffer;
+}
+
+/**
  * Gate effect component - cuts audio below threshold
  */
 export default function Gate({ width }) {
@@ -70,76 +154,23 @@ export default function Gate({ width }) {
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      const regionLength = endSample - startSample;
       
-      // Gate parameters
-      const thresholdLinear = dbToLinear(gateThreshold);
-      const rangeLinear = dbToLinear(gateRange);
-      const attackSamples = Math.floor(gateAttack * sampleRate);
-      const releaseSamples = Math.floor(gateRelease * sampleRate);
-      const holdSamples = Math.floor(gateHold * sampleRate);
+      // Use the exported processing function
+      const parameters = {
+        threshold: gateThreshold,
+        ratio: gateRatio,
+        attack: gateAttack,
+        release: gateRelease,
+        hold: gateHold,
+        range: gateRange
+      };
       
-      // Create output buffer
-      const outputBuffer = context.createBuffer(
-        audioBuffer.numberOfChannels,
-        audioBuffer.length,
-        sampleRate
+      const outputBuffer = await processGateRegion(
+        audioBuffer,
+        startSample,
+        endSample,
+        parameters
       );
-      
-      // Process each channel
-      for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-        const inputData = audioBuffer.getChannelData(channel);
-        const outputData = outputBuffer.getChannelData(channel);
-        
-        // Copy original audio
-        outputData.set(inputData);
-        
-        // Gate state variables
-        let gateOpen = false;
-        let gateGain = 0;
-        let holdCounter = 0;
-        let envelope = 0;
-        
-        // Envelope follower coefficient
-        const envCoeff = 0.99;
-        
-        // Process region
-        for (let i = 0; i < regionLength; i++) {
-          const sampleIndex = startSample + i;
-          const inputSample = inputData[sampleIndex];
-          
-          // Update envelope
-          const rectified = Math.abs(inputSample);
-          envelope = rectified + (envelope - rectified) * envCoeff;
-          
-          // Gate logic
-          if (envelope > thresholdLinear) {
-            gateOpen = true;
-            holdCounter = holdSamples;
-          } else if (holdCounter > 0) {
-            holdCounter--;
-          } else {
-            gateOpen = false;
-          }
-          
-          // Calculate target gain
-          const targetGain = gateOpen ? 1 : rangeLinear;
-          
-          // Smooth gain changes
-          if (targetGain > gateGain) {
-            // Attack
-            const attackRate = 1 / attackSamples;
-            gateGain = Math.min(targetGain, gateGain + attackRate);
-          } else {
-            // Release
-            const releaseRate = 1 / releaseSamples;
-            gateGain = Math.max(targetGain, gateGain - releaseRate);
-          }
-          
-          // Apply gate
-          outputData[sampleIndex] = inputSample * gateGain;
-        }
-      }
       
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
@@ -149,14 +180,7 @@ export default function Gate({ width }) {
       // Update audio and history
       addToEditHistory(url, 'Apply Gate', {
         effect: 'gate',
-        parameters: {
-          threshold: gateThreshold,
-          ratio: gateRatio,
-          attack: gateAttack,
-          release: gateRelease,
-          hold: gateHold,
-          range: gateRange
-        },
+        parameters,
         region: { start: cutRegion.start, end: cutRegion.end }
       });
       

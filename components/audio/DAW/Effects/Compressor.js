@@ -9,6 +9,74 @@ import {
 import Knob from '../../../Knob';
 
 /**
+ * Process compressor on an audio buffer region
+ * Pure function - no React dependencies
+ */
+export async function processCompressorRegion(audioBuffer, startSample, endSample, parameters) {
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const sampleRate = audioBuffer.sampleRate;
+  const regionLength = endSample - startSample;
+  
+  // Create offline context for processing
+  const offlineContext = new OfflineAudioContext(
+    audioBuffer.numberOfChannels,
+    audioBuffer.length,
+    sampleRate
+  );
+  
+  // Create nodes
+  const source = offlineContext.createBufferSource();
+  const compressor = offlineContext.createDynamicsCompressor();
+  const makeupGain = offlineContext.createGain();
+  
+  // Configure compressor
+  compressor.threshold.value = parameters.threshold || -24;
+  compressor.ratio.value = parameters.ratio || 4;
+  compressor.attack.value = parameters.attack || 0.003;
+  compressor.release.value = parameters.release || 0.1;
+  compressor.knee.value = parameters.knee || 30;
+  
+  // Apply makeup gain
+  makeupGain.gain.value = Math.pow(10, (parameters.makeup || 0) / 20); // Convert dB to linear
+  
+  // Connect nodes
+  source.connect(compressor);
+  compressor.connect(makeupGain);
+  makeupGain.connect(offlineContext.destination);
+  
+  // Set source buffer and start
+  source.buffer = audioBuffer;
+  source.start(0);
+  
+  // Render
+  const renderedBuffer = await offlineContext.startRendering();
+  
+  // Create output buffer with processed region
+  const outputBuffer = audioContext.createBuffer(
+    audioBuffer.numberOfChannels,
+    audioBuffer.length,
+    sampleRate
+  );
+  
+  // Mix the processed region back
+  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+    const inputData = audioBuffer.getChannelData(channel);
+    const processedData = renderedBuffer.getChannelData(channel);
+    const outputData = outputBuffer.getChannelData(channel);
+    
+    // Copy original audio
+    outputData.set(inputData);
+    
+    // Overwrite with processed region
+    for (let i = 0; i < regionLength; i++) {
+      outputData[startSample + i] = processedData[startSample + i];
+    }
+  }
+  
+  return outputBuffer;
+}
+
+/**
  * Compressor effect component using Web Audio API DynamicsCompressorNode
  */
 export default function Compressor({ width }) {
@@ -64,63 +132,23 @@ export default function Compressor({ width }) {
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      const regionLength = endSample - startSample;
       
-      // Create offline context for processing
-      const offlineContext = new OfflineAudioContext(
-        audioBuffer.numberOfChannels,
-        audioBuffer.length,
-        sampleRate
+      // Use the exported processing function
+      const parameters = {
+        threshold: compressorThreshold,
+        ratio: compressorRatio,
+        attack: compressorAttack,
+        release: compressorRelease,
+        knee: compressorKnee,
+        makeup: compressorMakeup
+      };
+      
+      const outputBuffer = await processCompressorRegion(
+        audioBuffer,
+        startSample,
+        endSample,
+        parameters
       );
-      
-      // Create nodes
-      const source = offlineContext.createBufferSource();
-      const compressor = offlineContext.createDynamicsCompressor();
-      const makeupGain = offlineContext.createGain();
-      
-      // Configure compressor
-      compressor.threshold.value = compressorThreshold;
-      compressor.ratio.value = compressorRatio;
-      compressor.attack.value = compressorAttack;
-      compressor.release.value = compressorRelease;
-      compressor.knee.value = compressorKnee;
-      
-      // Apply makeup gain
-      makeupGain.gain.value = Math.pow(10, compressorMakeup / 20); // Convert dB to linear
-      
-      // Connect nodes
-      source.connect(compressor);
-      compressor.connect(makeupGain);
-      makeupGain.connect(offlineContext.destination);
-      
-      // Set source buffer and start
-      source.buffer = audioBuffer;
-      source.start(0);
-      
-      // Render
-      const renderedBuffer = await offlineContext.startRendering();
-      
-      // Create output buffer with processed region
-      const outputBuffer = context.createBuffer(
-        audioBuffer.numberOfChannels,
-        audioBuffer.length,
-        sampleRate
-      );
-      
-      // Mix the processed region back
-      for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-        const inputData = audioBuffer.getChannelData(channel);
-        const processedData = renderedBuffer.getChannelData(channel);
-        const outputData = outputBuffer.getChannelData(channel);
-        
-        // Copy original audio
-        outputData.set(inputData);
-        
-        // Overwrite with processed region
-        for (let i = 0; i < regionLength; i++) {
-          outputData[startSample + i] = processedData[startSample + i];
-        }
-      }
       
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
@@ -130,14 +158,7 @@ export default function Compressor({ width }) {
       // Update audio and history
       addToEditHistory(url, 'Apply Compressor', {
         effect: 'compressor',
-        parameters: {
-          threshold: compressorThreshold,
-          ratio: compressorRatio,
-          attack: compressorAttack,
-          release: compressorRelease,
-          knee: compressorKnee,
-          makeup: compressorMakeup
-        },
+        parameters,
         region: { start: cutRegion.start, end: cutRegion.end }
       });
       

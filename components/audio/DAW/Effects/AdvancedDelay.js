@@ -9,6 +9,152 @@ import {
 import Knob from '../../../Knob';
 
 /**
+ * Process advanced delay on an audio buffer region
+ * Pure function - no React dependencies
+ */
+export async function processAdvancedDelayRegion(audioBuffer, startSample, endSample, parameters) {
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const sampleRate = audioBuffer.sampleRate;
+  const regionLength = endSample - startSample;
+  
+  // Calculate delay parameters
+  const delaySamples = Math.floor((parameters.time / 1000) * sampleRate);
+  const maxDelayTaps = 10; // Maximum number of delay repetitions
+  
+  // Calculate total output length (original + delay tails)
+  const totalLength = audioBuffer.length + (delaySamples * maxDelayTaps);
+  
+  // Create offline context for processing
+  const offlineContext = new OfflineAudioContext(
+    audioBuffer.numberOfChannels,
+    totalLength,
+    sampleRate
+  );
+  
+  // Create source buffer with extended length
+  const extendedBuffer = offlineContext.createBuffer(
+    audioBuffer.numberOfChannels,
+    totalLength,
+    sampleRate
+  );
+  
+  // Copy original audio to extended buffer
+  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+    const inputData = audioBuffer.getChannelData(channel);
+    const extendedData = extendedBuffer.getChannelData(channel);
+    extendedData.set(inputData);
+  }
+  
+  // Create nodes
+  const source = offlineContext.createBufferSource();
+  source.buffer = extendedBuffer;
+  
+  // Create delay nodes for stereo processing
+  const delayL = offlineContext.createDelay(2);
+  const delayR = offlineContext.createDelay(2);
+  const feedbackGainL = offlineContext.createGain();
+  const feedbackGainR = offlineContext.createGain();
+  const filterL = offlineContext.createBiquadFilter();
+  const filterR = offlineContext.createBiquadFilter();
+  const wetGain = offlineContext.createGain();
+  const dryGain = offlineContext.createGain();
+  const merger = offlineContext.createChannelMerger(2);
+  const splitter = offlineContext.createChannelSplitter(2);
+  
+  // Set parameters
+  delayL.delayTime.value = parameters.time / 1000;
+  delayR.delayTime.value = parameters.time / 1000;
+  feedbackGainL.gain.value = parameters.feedback || 0.5;
+  feedbackGainR.gain.value = parameters.feedback || 0.5;
+  wetGain.gain.value = parameters.mix || 0.5;
+  dryGain.gain.value = 1 - (parameters.mix || 0.5);
+  
+  // Configure filters
+  filterL.type = parameters.filterType || 'lowpass';
+  filterR.type = parameters.filterType || 'lowpass';
+  filterL.frequency.value = parameters.filterFreq || 2000;
+  filterR.frequency.value = parameters.filterFreq || 2000;
+  filterL.Q.value = 1;
+  filterR.Q.value = 1;
+  
+  // Connect nodes
+  source.connect(splitter);
+  source.connect(dryGain);
+  dryGain.connect(offlineContext.destination);
+  
+  if (parameters.pingPong) {
+    // Ping-pong delay routing
+    splitter.connect(delayL, 0);
+    splitter.connect(delayR, 1);
+    
+    delayL.connect(filterL);
+    delayR.connect(filterR);
+    
+    filterL.connect(feedbackGainL);
+    filterR.connect(feedbackGainR);
+    
+    // Cross-feedback for ping-pong
+    feedbackGainL.connect(delayR);
+    feedbackGainR.connect(delayL);
+    
+    filterL.connect(merger, 0, 0);
+    filterR.connect(merger, 0, 1);
+  } else {
+    // Standard stereo delay
+    splitter.connect(delayL, 0);
+    splitter.connect(delayR, 1);
+    
+    delayL.connect(filterL);
+    delayR.connect(filterR);
+    
+    filterL.connect(feedbackGainL);
+    filterR.connect(feedbackGainR);
+    
+    feedbackGainL.connect(delayL);
+    feedbackGainR.connect(delayR);
+    
+    filterL.connect(merger, 0, 0);
+    filterR.connect(merger, 0, 1);
+  }
+  
+  merger.connect(wetGain);
+  wetGain.connect(offlineContext.destination);
+  
+  // Start processing
+  source.start(0);
+  
+  // Render
+  const renderedBuffer = await offlineContext.startRendering();
+  
+  // Create output buffer (trim to original length for now)
+  const outputBuffer = audioContext.createBuffer(
+    audioBuffer.numberOfChannels,
+    audioBuffer.length,
+    sampleRate
+  );
+  
+  // Mix the processed audio
+  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+    const originalData = audioBuffer.getChannelData(channel);
+    const processedData = renderedBuffer.getChannelData(channel);
+    const outputData = outputBuffer.getChannelData(channel);
+    
+    // Copy all audio with processing applied to region
+    for (let i = 0; i < audioBuffer.length; i++) {
+      if (i >= startSample && i < endSample) {
+        // In the selected region, use processed audio
+        outputData[i] = processedData[i];
+      } else {
+        // Outside region, use original
+        outputData[i] = originalData[i];
+      }
+    }
+  }
+  
+  return outputBuffer;
+}
+
+/**
  * Advanced Delay effect component with ping-pong and filtering
  */
 export default function AdvancedDelay({ width }) {
@@ -64,141 +210,23 @@ export default function AdvancedDelay({ width }) {
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      const regionLength = endSample - startSample;
       
-      // Calculate delay parameters
-      const delaySamples = Math.floor((advDelayTime / 1000) * sampleRate);
-      const maxDelayTaps = 10; // Maximum number of delay repetitions
+      // Use the exported processing function
+      const parameters = {
+        time: advDelayTime,
+        feedback: advDelayFeedback,
+        mix: advDelayMix,
+        pingPong: advDelayPingPong,
+        filterFreq: advDelayFilterFreq,
+        filterType: advDelayFilterType
+      };
       
-      // Calculate total output length (original + delay tails)
-      const totalLength = audioBuffer.length + (delaySamples * maxDelayTaps);
-      
-      // Create offline context for processing
-      const offlineContext = new OfflineAudioContext(
-        audioBuffer.numberOfChannels,
-        totalLength,
-        sampleRate
+      const outputBuffer = await processAdvancedDelayRegion(
+        audioBuffer,
+        startSample,
+        endSample,
+        parameters
       );
-      
-      // Create source buffer with extended length
-      const extendedBuffer = offlineContext.createBuffer(
-        audioBuffer.numberOfChannels,
-        totalLength,
-        sampleRate
-      );
-      
-      // Copy original audio to extended buffer
-      for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-        const inputData = audioBuffer.getChannelData(channel);
-        const extendedData = extendedBuffer.getChannelData(channel);
-        extendedData.set(inputData);
-      }
-      
-      // Create nodes
-      const source = offlineContext.createBufferSource();
-      source.buffer = extendedBuffer;
-      
-      // Create delay nodes for stereo processing
-      const delayL = offlineContext.createDelay(2);
-      const delayR = offlineContext.createDelay(2);
-      const feedbackGainL = offlineContext.createGain();
-      const feedbackGainR = offlineContext.createGain();
-      const filterL = offlineContext.createBiquadFilter();
-      const filterR = offlineContext.createBiquadFilter();
-      const wetGain = offlineContext.createGain();
-      const dryGain = offlineContext.createGain();
-      const merger = offlineContext.createChannelMerger(2);
-      const splitter = offlineContext.createChannelSplitter(2);
-      
-      // Set parameters
-      delayL.delayTime.value = advDelayTime / 1000;
-      delayR.delayTime.value = advDelayTime / 1000;
-      feedbackGainL.gain.value = advDelayFeedback;
-      feedbackGainR.gain.value = advDelayFeedback;
-      wetGain.gain.value = advDelayMix;
-      dryGain.gain.value = 1 - advDelayMix;
-      
-      // Configure filters
-      filterL.type = advDelayFilterType;
-      filterR.type = advDelayFilterType;
-      filterL.frequency.value = advDelayFilterFreq;
-      filterR.frequency.value = advDelayFilterFreq;
-      filterL.Q.value = 1;
-      filterR.Q.value = 1;
-      
-      // Connect nodes
-      source.connect(splitter);
-      source.connect(dryGain);
-      dryGain.connect(offlineContext.destination);
-      
-      if (advDelayPingPong) {
-        // Ping-pong delay routing
-        splitter.connect(delayL, 0);
-        splitter.connect(delayR, 1);
-        
-        delayL.connect(filterL);
-        delayR.connect(filterR);
-        
-        filterL.connect(feedbackGainL);
-        filterR.connect(feedbackGainR);
-        
-        // Cross-feedback for ping-pong
-        feedbackGainL.connect(delayR);
-        feedbackGainR.connect(delayL);
-        
-        filterL.connect(merger, 0, 0);
-        filterR.connect(merger, 0, 1);
-      } else {
-        // Standard stereo delay
-        splitter.connect(delayL, 0);
-        splitter.connect(delayR, 1);
-        
-        delayL.connect(filterL);
-        delayR.connect(filterR);
-        
-        filterL.connect(feedbackGainL);
-        filterR.connect(feedbackGainR);
-        
-        feedbackGainL.connect(delayL);
-        feedbackGainR.connect(delayR);
-        
-        filterL.connect(merger, 0, 0);
-        filterR.connect(merger, 0, 1);
-      }
-      
-      merger.connect(wetGain);
-      wetGain.connect(offlineContext.destination);
-      
-      // Start processing
-      source.start(0);
-      
-      // Render
-      const renderedBuffer = await offlineContext.startRendering();
-      
-      // Create output buffer (trim to original length for now)
-      const outputBuffer = context.createBuffer(
-        audioBuffer.numberOfChannels,
-        audioBuffer.length,
-        sampleRate
-      );
-      
-      // Mix the processed audio
-      for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-        const originalData = audioBuffer.getChannelData(channel);
-        const processedData = renderedBuffer.getChannelData(channel);
-        const outputData = outputBuffer.getChannelData(channel);
-        
-        // Copy all audio with processing applied to region
-        for (let i = 0; i < audioBuffer.length; i++) {
-          if (i >= startSample && i < endSample) {
-            // In the selected region, use processed audio
-            outputData[i] = processedData[i];
-          } else {
-            // Outside region, use original
-            outputData[i] = originalData[i];
-          }
-        }
-      }
       
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
@@ -208,14 +236,7 @@ export default function AdvancedDelay({ width }) {
       // Update audio and history
       addToEditHistory(url, 'Apply Advanced Delay', {
         effect: 'advanceddelay',
-        parameters: {
-          time: advDelayTime,
-          feedback: advDelayFeedback,
-          mix: advDelayMix,
-          pingPong: advDelayPingPong,
-          filterFreq: advDelayFilterFreq,
-          filterType: advDelayFilterType
-        },
+        parameters,
         region: { start: cutRegion.start, end: cutRegion.end }
       });
       

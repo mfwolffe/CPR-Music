@@ -9,6 +9,116 @@ import {
 import Knob from '../../../Knob';
 
 /**
+ * Generate LFO waveform
+ */
+function generateLFOWaveform(type, sampleRate, duration, frequency, phase) {
+  const samples = Math.floor(sampleRate * duration);
+  const waveform = new Float32Array(samples);
+  const phaseOffset = (phase / 360) * Math.PI * 2;
+  
+  for (let i = 0; i < samples; i++) {
+    const t = (i / sampleRate) * frequency * Math.PI * 2 + phaseOffset;
+    
+    switch(type) {
+      case 'sine':
+        waveform[i] = Math.sin(t);
+        break;
+        
+      case 'triangle':
+        // Triangle wave formula
+        const normalized = (t / (Math.PI * 2)) % 1;
+        waveform[i] = 4 * Math.abs(normalized - 0.5) - 1;
+        break;
+        
+      case 'square':
+        waveform[i] = Math.sin(t) > 0 ? 1 : -1;
+        break;
+        
+      case 'sawtooth':
+        // Sawtooth wave formula
+        waveform[i] = 2 * ((t / (Math.PI * 2)) % 1) - 1;
+        break;
+        
+      default:
+        waveform[i] = Math.sin(t);
+    }
+  }
+  
+  return waveform;
+}
+
+/**
+ * Process auto-pan on an audio buffer region
+ * Pure function - no React dependencies
+ */
+export async function processAutoPanRegion(audioBuffer, startSample, endSample, parameters) {
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const sampleRate = audioBuffer.sampleRate;
+  const regionLength = endSample - startSample;
+  const regionDuration = (endSample - startSample) / sampleRate;
+  
+  // Generate LFO for panning
+  const lfoWaveform = generateLFOWaveform(
+    parameters.waveform || 'sine',
+    sampleRate,
+    regionDuration,
+    parameters.rate || 1,
+    parameters.phase || 0
+  );
+  
+  // Create output buffer
+  const outputBuffer = audioContext.createBuffer(
+    audioBuffer.numberOfChannels,
+    audioBuffer.length,
+    sampleRate
+  );
+  
+  // Process audio
+  if (audioBuffer.numberOfChannels === 2) {
+    // Stereo processing
+    const leftIn = audioBuffer.getChannelData(0);
+    const rightIn = audioBuffer.getChannelData(1);
+    const leftOut = outputBuffer.getChannelData(0);
+    const rightOut = outputBuffer.getChannelData(1);
+    
+    // Copy original audio
+    leftOut.set(leftIn);
+    rightOut.set(rightIn);
+    
+    // Apply auto-pan to region
+    for (let i = 0; i < regionLength; i++) {
+      const sampleIndex = startSample + i;
+      const lfoValue = lfoWaveform[i] * (parameters.depth || 1);
+      
+      // Calculate pan values (constant power panning)
+      const panValue = (lfoValue + 1) / 2; // Convert from -1...1 to 0...1
+      const leftGain = Math.cos(panValue * Math.PI / 2);
+      const rightGain = Math.sin(panValue * Math.PI / 2);
+      
+      // Mix original signal with panned signal
+      const originalLeft = leftIn[sampleIndex];
+      const originalRight = rightIn[sampleIndex];
+      const monoSignal = (originalLeft + originalRight) / 2;
+      
+      leftOut[sampleIndex] = monoSignal * leftGain;
+      rightOut[sampleIndex] = monoSignal * rightGain;
+    }
+  } else {
+    // Mono to stereo processing
+    const monoIn = audioBuffer.getChannelData(0);
+    const monoOut = outputBuffer.getChannelData(0);
+    
+    // Copy original audio
+    monoOut.set(monoIn);
+    
+    // For mono, we can't pan - just copy the data
+    console.warn('Auto-pan works best with stereo audio. Mono audio will be unchanged.');
+  }
+  
+  return outputBuffer;
+}
+
+/**
  * Auto-Pan effect component using Web Audio API StereoPannerNode
  */
 export default function AutoPan({ width }) {
@@ -40,43 +150,6 @@ export default function AutoPan({ width }) {
     }
   }, []);
   
-  // Generate LFO waveform
-  const generateLFOWaveform = (type, sampleRate, duration, frequency, phase) => {
-    const samples = Math.floor(sampleRate * duration);
-    const waveform = new Float32Array(samples);
-    const phaseOffset = (phase / 360) * Math.PI * 2;
-    
-    for (let i = 0; i < samples; i++) {
-      const t = (i / sampleRate) * frequency * Math.PI * 2 + phaseOffset;
-      
-      switch(type) {
-        case 'sine':
-          waveform[i] = Math.sin(t);
-          break;
-          
-        case 'triangle':
-          // Triangle wave formula
-          const normalized = (t / (Math.PI * 2)) % 1;
-          waveform[i] = 4 * Math.abs(normalized - 0.5) - 1;
-          break;
-          
-        case 'square':
-          waveform[i] = Math.sin(t) > 0 ? 1 : -1;
-          break;
-          
-        case 'sawtooth':
-          // Sawtooth wave formula
-          waveform[i] = 2 * ((t / (Math.PI * 2)) % 1) - 1;
-          break;
-          
-        default:
-          waveform[i] = Math.sin(t);
-      }
-    }
-    
-    return waveform;
-  };
-  
   // Apply auto-pan to selected region
   const applyAutoPan = useCallback(async () => {
     if (!cutRegion || !wavesurferRef.current) {
@@ -97,66 +170,21 @@ export default function AutoPan({ width }) {
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      const regionLength = endSample - startSample;
-      const regionDuration = (endSample - startSample) / sampleRate;
       
-      // Generate LFO for panning
-      const lfoWaveform = generateLFOWaveform(
-        autoPanWaveform,
-        sampleRate,
-        regionDuration,
-        autoPanRate,
-        autoPanPhase
+      // Use the exported processing function
+      const parameters = {
+        rate: autoPanRate,
+        depth: autoPanDepth,
+        waveform: autoPanWaveform,
+        phase: autoPanPhase
+      };
+      
+      const outputBuffer = await processAutoPanRegion(
+        audioBuffer,
+        startSample,
+        endSample,
+        parameters
       );
-      
-      // Create output buffer
-      const outputBuffer = context.createBuffer(
-        audioBuffer.numberOfChannels,
-        audioBuffer.length,
-        sampleRate
-      );
-      
-      // Process audio
-      if (audioBuffer.numberOfChannels === 2) {
-        // Stereo processing
-        const leftIn = audioBuffer.getChannelData(0);
-        const rightIn = audioBuffer.getChannelData(1);
-        const leftOut = outputBuffer.getChannelData(0);
-        const rightOut = outputBuffer.getChannelData(1);
-        
-        // Copy original audio
-        leftOut.set(leftIn);
-        rightOut.set(rightIn);
-        
-        // Apply auto-pan to region
-        for (let i = 0; i < regionLength; i++) {
-          const sampleIndex = startSample + i;
-          const lfoValue = lfoWaveform[i] * autoPanDepth;
-          
-          // Calculate pan values (constant power panning)
-          const panValue = (lfoValue + 1) / 2; // Convert from -1...1 to 0...1
-          const leftGain = Math.cos(panValue * Math.PI / 2);
-          const rightGain = Math.sin(panValue * Math.PI / 2);
-          
-          // Mix original signal with panned signal
-          const originalLeft = leftIn[sampleIndex];
-          const originalRight = rightIn[sampleIndex];
-          const monoSignal = (originalLeft + originalRight) / 2;
-          
-          leftOut[sampleIndex] = monoSignal * leftGain;
-          rightOut[sampleIndex] = monoSignal * rightGain;
-        }
-      } else {
-        // Mono to stereo processing
-        const monoIn = audioBuffer.getChannelData(0);
-        const monoOut = outputBuffer.getChannelData(0);
-        
-        // Copy original audio
-        monoOut.set(monoIn);
-        
-        // For mono, we need to create a stereo output
-        console.warn('Auto-pan works best with stereo audio. Mono audio will be unchanged.');
-      }
       
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
@@ -166,12 +194,7 @@ export default function AutoPan({ width }) {
       // Update audio and history
       addToEditHistory(url, 'Apply Auto-Pan', {
         effect: 'autopan',
-        parameters: {
-          rate: autoPanRate,
-          depth: autoPanDepth,
-          waveform: autoPanWaveform,
-          phase: autoPanPhase
-        },
+        parameters,
         region: { start: cutRegion.start, end: cutRegion.end }
       });
       

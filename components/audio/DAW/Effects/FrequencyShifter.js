@@ -9,6 +9,109 @@ import {
 import Knob from '../../../Knob';
 
 /**
+ * Process frequency shifter on an audio buffer region
+ * Pure function - no React dependencies
+ */
+export async function processFrequencyShifterRegion(audioBuffer, startSample, endSample, parameters) {
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const sampleRate = audioBuffer.sampleRate;
+  const regionLength = endSample - startSample;
+  
+  // Create output buffer
+  const outputBuffer = audioContext.createBuffer(
+    audioBuffer.numberOfChannels,
+    audioBuffer.length,
+    sampleRate
+  );
+  
+  // Process each channel
+  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+    const inputData = audioBuffer.getChannelData(channel);
+    const outputData = outputBuffer.getChannelData(channel);
+    
+    // Copy original audio
+    outputData.set(inputData);
+    
+    // Extract region for processing
+    const regionData = new Float32Array(regionLength);
+    for (let i = 0; i < regionLength; i++) {
+      regionData[i] = inputData[startSample + i];
+    }
+    
+    // Apply frequency shift using single sideband modulation
+    // This is a simplified version - real frequency shifting uses Hilbert transform
+    const shiftedData = new Float32Array(regionLength);
+    const shiftFreq = parameters.amount || 0;
+    
+    // Create oscillators for shifting
+    const cosPhase = new Float32Array(regionLength);
+    const sinPhase = new Float32Array(regionLength);
+    
+    for (let i = 0; i < regionLength; i++) {
+      const t = i / sampleRate;
+      cosPhase[i] = Math.cos(2 * Math.PI * shiftFreq * t);
+      sinPhase[i] = Math.sin(2 * Math.PI * shiftFreq * t);
+    }
+    
+    // Apply Hilbert transform approximation (90-degree phase shift)
+    // This is simplified - a real implementation would use FFT
+    const hilbert = new Float32Array(regionLength);
+    for (let i = 0; i < regionLength; i++) {
+      // Simple delay-based approximation
+      const delay = Math.floor(sampleRate / (4 * Math.abs(shiftFreq || 1)));
+      const delayedIndex = i - delay;
+      if (delayedIndex >= 0) {
+        hilbert[i] = regionData[delayedIndex];
+      }
+    }
+    
+    // Single sideband modulation
+    for (let i = 0; i < regionLength; i++) {
+      if (parameters.direction === 'up' || parameters.direction === 'both') {
+        // Upper sideband (shift up)
+        shiftedData[i] = regionData[i] * cosPhase[i] - hilbert[i] * sinPhase[i];
+      } else {
+        // Lower sideband (shift down)
+        shiftedData[i] = regionData[i] * cosPhase[i] + hilbert[i] * sinPhase[i];
+      }
+      
+      if (parameters.direction === 'both') {
+        // Mix both sidebands for ring mod-like effect
+        const lower = regionData[i] * cosPhase[i] + hilbert[i] * sinPhase[i];
+        shiftedData[i] = (shiftedData[i] + lower) * 0.5;
+      }
+    }
+    
+    // Apply feedback if requested
+    if ((parameters.feedback || 0) > 0) {
+      const feedbackBuffer = new Float32Array(regionLength);
+      const feedbackDelay = Math.floor(sampleRate * 0.1); // 100ms delay
+      
+      for (let i = 0; i < regionLength; i++) {
+        feedbackBuffer[i] = shiftedData[i];
+        
+        if (i >= feedbackDelay) {
+          feedbackBuffer[i] += feedbackBuffer[i - feedbackDelay] * (parameters.feedback || 0);
+        }
+      }
+      
+      for (let i = 0; i < regionLength; i++) {
+        shiftedData[i] = feedbackBuffer[i];
+      }
+    }
+    
+    // Mix dry and wet signals
+    for (let i = 0; i < regionLength; i++) {
+      const drySignal = regionData[i];
+      const wetSignal = shiftedData[i];
+      outputData[startSample + i] = drySignal * (1 - (parameters.mix || 0.5)) + wetSignal * (parameters.mix || 0.5);
+    }
+  }
+  
+  return outputBuffer;
+}
+
+/**
  * Frequency Shifter effect - shifts all frequencies by a fixed amount
  * Unlike pitch shifting, this destroys harmonic relationships for wild effects
  */
@@ -61,98 +164,21 @@ export default function FrequencyShifter({ width }) {
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      const regionLength = endSample - startSample;
       
-      // Create output buffer
-      const outputBuffer = context.createBuffer(
-        audioBuffer.numberOfChannels,
-        audioBuffer.length,
-        sampleRate
+      // Use the exported processing function
+      const parameters = {
+        amount: freqShiftAmount,
+        mix: freqShiftMix,
+        feedback: freqShiftFeedback,
+        direction: freqShiftDirection
+      };
+      
+      const outputBuffer = await processFrequencyShifterRegion(
+        audioBuffer,
+        startSample,
+        endSample,
+        parameters
       );
-      
-      // Process each channel
-      for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-        const inputData = audioBuffer.getChannelData(channel);
-        const outputData = outputBuffer.getChannelData(channel);
-        
-        // Copy original audio
-        outputData.set(inputData);
-        
-        // Extract region for processing
-        const regionData = new Float32Array(regionLength);
-        for (let i = 0; i < regionLength; i++) {
-          regionData[i] = inputData[startSample + i];
-        }
-        
-        // Apply frequency shift using single sideband modulation
-        // This is a simplified version - real frequency shifting uses Hilbert transform
-        const shiftedData = new Float32Array(regionLength);
-        const shiftFreq = freqShiftAmount;
-        
-        // Create oscillators for shifting
-        const cosPhase = new Float32Array(regionLength);
-        const sinPhase = new Float32Array(regionLength);
-        
-        for (let i = 0; i < regionLength; i++) {
-          const t = i / sampleRate;
-          cosPhase[i] = Math.cos(2 * Math.PI * shiftFreq * t);
-          sinPhase[i] = Math.sin(2 * Math.PI * shiftFreq * t);
-        }
-        
-        // Apply Hilbert transform approximation (90-degree phase shift)
-        // This is simplified - a real implementation would use FFT
-        const hilbert = new Float32Array(regionLength);
-        for (let i = 0; i < regionLength; i++) {
-          // Simple delay-based approximation
-          const delay = Math.floor(sampleRate / (4 * Math.abs(shiftFreq)));
-          const delayedIndex = i - delay;
-          if (delayedIndex >= 0) {
-            hilbert[i] = regionData[delayedIndex];
-          }
-        }
-        
-        // Single sideband modulation
-        for (let i = 0; i < regionLength; i++) {
-          if (freqShiftDirection === 'up' || freqShiftDirection === 'both') {
-            // Upper sideband (shift up)
-            shiftedData[i] = regionData[i] * cosPhase[i] - hilbert[i] * sinPhase[i];
-          } else {
-            // Lower sideband (shift down)
-            shiftedData[i] = regionData[i] * cosPhase[i] + hilbert[i] * sinPhase[i];
-          }
-          
-          if (freqShiftDirection === 'both') {
-            // Mix both sidebands for ring mod-like effect
-            const lower = regionData[i] * cosPhase[i] + hilbert[i] * sinPhase[i];
-            shiftedData[i] = (shiftedData[i] + lower) * 0.5;
-          }
-        }
-        
-        // Apply feedback if requested
-        if (freqShiftFeedback > 0) {
-          const feedbackBuffer = new Float32Array(regionLength);
-          const feedbackDelay = Math.floor(sampleRate * 0.1); // 100ms delay
-          
-          for (let i = 0; i < regionLength; i++) {
-            feedbackBuffer[i] = shiftedData[i];
-            
-            if (i >= feedbackDelay) {
-              feedbackBuffer[i] += feedbackBuffer[i - feedbackDelay] * freqShiftFeedback;
-            }
-          }
-          
-          for (let i = 0; i < regionLength; i++) {
-            shiftedData[i] = feedbackBuffer[i];
-          }
-        }
-        
-        // Mix dry and wet signals
-        for (let i = 0; i < regionLength; i++) {
-          const drySignal = regionData[i];
-          const wetSignal = shiftedData[i];
-          outputData[startSample + i] = drySignal * (1 - freqShiftMix) + wetSignal * freqShiftMix;
-        }
-      }
       
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
@@ -162,12 +188,7 @@ export default function FrequencyShifter({ width }) {
       // Update audio and history
       addToEditHistory(url, 'Apply Frequency Shifter', {
         effect: 'frequencyshifter',
-        parameters: {
-          amount: freqShiftAmount,
-          mix: freqShiftMix,
-          feedback: freqShiftFeedback,
-          direction: freqShiftDirection
-        },
+        parameters,
         region: { start: cutRegion.start, end: cutRegion.end }
       });
       

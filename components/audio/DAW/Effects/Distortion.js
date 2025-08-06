@@ -9,6 +9,120 @@ import {
 import Knob from '../../../Knob';
 
 /**
+ * Create distortion curve
+ */
+function makeDistortionCurve(amount, type = 'overdrive') {
+  const samples = 44100;
+  const curve = new Float32Array(samples);
+  const deg = Math.PI / 180;
+  
+  for (let i = 0; i < samples; i++) {
+    const x = (i * 2) / samples - 1;
+    
+    switch(type) {
+      case 'overdrive':
+        // Soft clipping
+        curve[i] = ((3 + amount) * x * 20 * deg) / (Math.PI + amount * Math.abs(x));
+        break;
+        
+      case 'distortion':
+        // Hard clipping
+        curve[i] = Math.sign(x) * Math.min(Math.abs(x) * amount / 10, 1);
+        break;
+        
+      case 'fuzz':
+        // Extreme clipping with harmonics
+        curve[i] = Math.sign(x) * Math.pow(Math.abs(x), 1 / (amount / 10));
+        break;
+        
+      case 'bitcrush':
+        // Quantize to simulate bit reduction
+        const bits = Math.max(1, 16 - amount / 10);
+        const step = 2 / Math.pow(2, bits);
+        curve[i] = Math.round(x / step) * step;
+        break;
+        
+      default:
+        curve[i] = x;
+    }
+  }
+  
+  return curve;
+}
+
+/**
+ * Process distortion on an audio buffer region
+ * Pure function - no React dependencies
+ */
+export async function processDistortionRegion(audioBuffer, startSample, endSample, parameters) {
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const sampleRate = audioBuffer.sampleRate;
+  const regionLength = endSample - startSample;
+  
+  // Create offline context for processing
+  const offlineContext = new OfflineAudioContext(
+    audioBuffer.numberOfChannels,
+    audioBuffer.length,
+    sampleRate
+  );
+  
+  // Create nodes
+  const source = offlineContext.createBufferSource();
+  const waveshaper = offlineContext.createWaveShaper();
+  const toneFilter = offlineContext.createBiquadFilter();
+  const outputGain = offlineContext.createGain();
+  
+  // Configure distortion
+  waveshaper.curve = makeDistortionCurve(parameters.amount || 50, parameters.type || 'overdrive');
+  waveshaper.oversample = '4x';
+  
+  // Configure tone control (low-pass filter)
+  toneFilter.type = 'lowpass';
+  toneFilter.frequency.value = parameters.tone || 5000;
+  toneFilter.Q.value = 0.7;
+  
+  // Set output gain
+  outputGain.gain.value = parameters.outputGain || 0.7;
+  
+  // Connect nodes
+  source.connect(waveshaper);
+  waveshaper.connect(toneFilter);
+  toneFilter.connect(outputGain);
+  outputGain.connect(offlineContext.destination);
+  
+  // Process only the selected region
+  source.buffer = audioBuffer;
+  source.start(0);
+  
+  // Render
+  const renderedBuffer = await offlineContext.startRendering();
+  
+  // Create output buffer with processed region
+  const outputBuffer = audioContext.createBuffer(
+    audioBuffer.numberOfChannels,
+    audioBuffer.length,
+    sampleRate
+  );
+  
+  // Mix the processed region back
+  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+    const inputData = audioBuffer.getChannelData(channel);
+    const processedData = renderedBuffer.getChannelData(channel);
+    const outputData = outputBuffer.getChannelData(channel);
+    
+    // Copy original audio
+    outputData.set(inputData);
+    
+    // Overwrite with processed region
+    for (let i = 0; i < regionLength; i++) {
+      outputData[startSample + i] = processedData[startSample + i];
+    }
+  }
+  
+  return outputBuffer;
+}
+
+/**
  * Distortion effect component using Web Audio API WaveShaperNode
  */
 export default function Distortion({ width }) {
@@ -40,46 +154,6 @@ export default function Distortion({ width }) {
     }
   }, []);
   
-  // Create distortion curve
-  const makeDistortionCurve = (amount, type = 'overdrive') => {
-    const samples = 44100;
-    const curve = new Float32Array(samples);
-    const deg = Math.PI / 180;
-    
-    for (let i = 0; i < samples; i++) {
-      const x = (i * 2) / samples - 1;
-      
-      switch(type) {
-        case 'overdrive':
-          // Soft clipping
-          curve[i] = ((3 + amount) * x * 20 * deg) / (Math.PI + amount * Math.abs(x));
-          break;
-          
-        case 'distortion':
-          // Hard clipping
-          curve[i] = Math.sign(x) * Math.min(Math.abs(x) * amount / 10, 1);
-          break;
-          
-        case 'fuzz':
-          // Extreme clipping with harmonics
-          curve[i] = Math.sign(x) * Math.pow(Math.abs(x), 1 / (amount / 10));
-          break;
-          
-        case 'bitcrush':
-          // Quantize to simulate bit reduction
-          const bits = Math.max(1, 16 - amount / 10);
-          const step = 2 / Math.pow(2, bits);
-          curve[i] = Math.round(x / step) * step;
-          break;
-          
-        default:
-          curve[i] = x;
-      }
-    }
-    
-    return curve;
-  };
-  
   // Apply distortion to selected region
   const applyDistortion = useCallback(async () => {
     if (!cutRegion || !wavesurferRef.current) {
@@ -100,67 +174,21 @@ export default function Distortion({ width }) {
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      const regionLength = endSample - startSample;
       
-      // Create offline context for processing
-      const offlineContext = new OfflineAudioContext(
-        audioBuffer.numberOfChannels,
-        audioBuffer.length,
-        sampleRate
+      // Use the exported processing function
+      const parameters = {
+        amount: distortionAmount,
+        type: distortionType,
+        tone: distortionTone,
+        outputGain: distortionOutputGain
+      };
+      
+      const outputBuffer = await processDistortionRegion(
+        audioBuffer,
+        startSample,
+        endSample,
+        parameters
       );
-      
-      // Create nodes
-      const source = offlineContext.createBufferSource();
-      const waveshaper = offlineContext.createWaveShaper();
-      const toneFilter = offlineContext.createBiquadFilter();
-      const outputGain = offlineContext.createGain();
-      
-      // Configure distortion
-      waveshaper.curve = makeDistortionCurve(distortionAmount, distortionType);
-      waveshaper.oversample = '4x';
-      
-      // Configure tone control (low-pass filter)
-      toneFilter.type = 'lowpass';
-      toneFilter.frequency.value = distortionTone;
-      toneFilter.Q.value = 0.7;
-      
-      // Set output gain
-      outputGain.gain.value = distortionOutputGain;
-      
-      // Connect nodes
-      source.connect(waveshaper);
-      waveshaper.connect(toneFilter);
-      toneFilter.connect(outputGain);
-      outputGain.connect(offlineContext.destination);
-      
-      // Process only the selected region
-      source.buffer = audioBuffer;
-      source.start(0);
-      
-      // Render
-      const renderedBuffer = await offlineContext.startRendering();
-      
-      // Create output buffer with processed region
-      const outputBuffer = context.createBuffer(
-        audioBuffer.numberOfChannels,
-        audioBuffer.length,
-        sampleRate
-      );
-      
-      // Mix the processed region back
-      for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-        const inputData = audioBuffer.getChannelData(channel);
-        const processedData = renderedBuffer.getChannelData(channel);
-        const outputData = outputBuffer.getChannelData(channel);
-        
-        // Copy original audio
-        outputData.set(inputData);
-        
-        // Overwrite with processed region
-        for (let i = 0; i < regionLength; i++) {
-          outputData[startSample + i] = processedData[startSample + i];
-        }
-      }
       
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
@@ -170,12 +198,7 @@ export default function Distortion({ width }) {
       // Update audio and history
       addToEditHistory(url, 'Apply Distortion', {
         effect: 'distortion',
-        parameters: {
-          amount: distortionAmount,
-          type: distortionType,
-          tone: distortionTone,
-          outputGain: distortionOutputGain
-        },
+        parameters,
         region: { start: cutRegion.start, end: cutRegion.end }
       });
       

@@ -9,6 +9,117 @@ import {
 import Knob from '../../../Knob';
 
 /**
+ * Process phaser on an audio buffer region
+ * Pure function - no React dependencies
+ */
+export async function processPhaserRegion(audioBuffer, startSample, endSample, parameters) {
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const sampleRate = audioBuffer.sampleRate;
+  const regionLength = endSample - startSample;
+  
+  // Create offline context for processing
+  const offlineContext = new OfflineAudioContext(
+    audioBuffer.numberOfChannels,
+    audioBuffer.length,
+    sampleRate
+  );
+  
+  // Create source
+  const source = offlineContext.createBufferSource();
+  source.buffer = audioBuffer;
+  
+  // Create dry/wet mix gains
+  const dryGain = offlineContext.createGain();
+  const wetGain = offlineContext.createGain();
+  const outputGain = offlineContext.createGain();
+  
+  dryGain.gain.value = 1 - (parameters.wetMix || 0.5);
+  wetGain.gain.value = parameters.wetMix || 0.5;
+  
+  // Create allpass filters for phaser stages
+  const allpassFilters = [];
+  const stages = parameters.stages || 4;
+  for (let i = 0; i < stages; i++) {
+    const filter = offlineContext.createBiquadFilter();
+    filter.type = 'allpass';
+    allpassFilters.push(filter);
+  }
+  
+  // Create feedback gain
+  const feedbackGain = offlineContext.createGain();
+  feedbackGain.gain.value = parameters.feedback || 0.5;
+  
+  // Connect dry path
+  source.connect(dryGain);
+  dryGain.connect(outputGain);
+  
+  // Connect wet path with allpass filters
+  source.connect(allpassFilters[0]);
+  
+  // Chain allpass filters
+  for (let i = 0; i < allpassFilters.length - 1; i++) {
+    allpassFilters[i].connect(allpassFilters[i + 1]);
+  }
+  
+  // Connect last filter to wet gain and feedback
+  allpassFilters[allpassFilters.length - 1].connect(wetGain);
+  allpassFilters[allpassFilters.length - 1].connect(feedbackGain);
+  feedbackGain.connect(allpassFilters[0]);
+  
+  wetGain.connect(outputGain);
+  outputGain.connect(offlineContext.destination);
+  
+  // Create LFO for modulating filter frequencies
+  const lfo = offlineContext.createOscillator();
+  const lfoGain = offlineContext.createGain();
+  
+  lfo.frequency.value = parameters.rate || 0.5;
+  lfoGain.gain.value = (parameters.depth || 0.7) * 1000; // Depth in Hz
+  
+  lfo.connect(lfoGain);
+  
+  // Connect LFO to all filter frequencies
+  const baseFrequencies = [200, 400, 800, 1600, 3200, 6400];
+  allpassFilters.forEach((filter, index) => {
+    const baseFreq = baseFrequencies[index % baseFrequencies.length];
+    filter.frequency.value = baseFreq;
+    filter.Q.value = 0.5;
+    lfoGain.connect(filter.frequency);
+  });
+  
+  // Start source and LFO
+  source.start(0);
+  lfo.start(0);
+  
+  // Render
+  const renderedBuffer = await offlineContext.startRendering();
+  
+  // Create output buffer with processed region
+  const outputBuffer = audioContext.createBuffer(
+    audioBuffer.numberOfChannels,
+    audioBuffer.length,
+    sampleRate
+  );
+  
+  // Mix the processed region back
+  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+    const inputData = audioBuffer.getChannelData(channel);
+    const processedData = renderedBuffer.getChannelData(channel);
+    const outputData = outputBuffer.getChannelData(channel);
+    
+    // Copy original audio
+    outputData.set(inputData);
+    
+    // Overwrite with processed region
+    for (let i = 0; i < regionLength; i++) {
+      outputData[startSample + i] = processedData[startSample + i];
+    }
+  }
+  
+  return outputBuffer;
+}
+
+/**
  * Phaser effect component using Web Audio API AllPassFilterNodes
  */
 export default function Phaser({ width }) {
@@ -62,105 +173,22 @@ export default function Phaser({ width }) {
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      const regionLength = endSample - startSample;
       
-      // Create offline context for processing
-      const offlineContext = new OfflineAudioContext(
-        audioBuffer.numberOfChannels,
-        audioBuffer.length,
-        sampleRate
+      // Use the exported processing function
+      const parameters = {
+        rate: phaserRate,
+        depth: phaserDepth,
+        feedback: phaserFeedback,
+        stages: phaserStages,
+        wetMix: phaserWetMix
+      };
+      
+      const outputBuffer = await processPhaserRegion(
+        audioBuffer,
+        startSample,
+        endSample,
+        parameters
       );
-      
-      // Create source
-      const source = offlineContext.createBufferSource();
-      source.buffer = audioBuffer;
-      
-      // Create dry/wet mix gains
-      const dryGain = offlineContext.createGain();
-      const wetGain = offlineContext.createGain();
-      const outputGain = offlineContext.createGain();
-      
-      dryGain.gain.value = 1 - phaserWetMix;
-      wetGain.gain.value = phaserWetMix;
-      
-      // Create allpass filters for phaser stages
-      const allpassFilters = [];
-      for (let i = 0; i < phaserStages; i++) {
-        const filter = offlineContext.createBiquadFilter();
-        filter.type = 'allpass';
-        allpassFilters.push(filter);
-      }
-      
-      // Create feedback gain
-      const feedbackGain = offlineContext.createGain();
-      feedbackGain.gain.value = phaserFeedback;
-      
-      // Connect dry path
-      source.connect(dryGain);
-      dryGain.connect(outputGain);
-      
-      // Connect wet path with allpass filters
-      source.connect(allpassFilters[0]);
-      
-      // Chain allpass filters
-      for (let i = 0; i < allpassFilters.length - 1; i++) {
-        allpassFilters[i].connect(allpassFilters[i + 1]);
-      }
-      
-      // Connect last filter to wet gain and feedback
-      allpassFilters[allpassFilters.length - 1].connect(wetGain);
-      allpassFilters[allpassFilters.length - 1].connect(feedbackGain);
-      feedbackGain.connect(allpassFilters[0]);
-      
-      wetGain.connect(outputGain);
-      outputGain.connect(offlineContext.destination);
-      
-      // Create LFO for modulating filter frequencies
-      const lfo = offlineContext.createOscillator();
-      const lfoGain = offlineContext.createGain();
-      
-      lfo.frequency.value = phaserRate;
-      lfoGain.gain.value = phaserDepth * 1000; // Depth in Hz
-      
-      lfo.connect(lfoGain);
-      
-      // Connect LFO to all filter frequencies
-      const baseFrequencies = [200, 400, 800, 1600, 3200, 6400];
-      allpassFilters.forEach((filter, index) => {
-        const baseFreq = baseFrequencies[index % baseFrequencies.length];
-        filter.frequency.value = baseFreq;
-        filter.Q.value = 0.5;
-        lfoGain.connect(filter.frequency);
-      });
-      
-      // Start source and LFO
-      source.start(0);
-      lfo.start(0);
-      
-      // Render
-      const renderedBuffer = await offlineContext.startRendering();
-      
-      // Create output buffer with processed region
-      const outputBuffer = context.createBuffer(
-        audioBuffer.numberOfChannels,
-        audioBuffer.length,
-        sampleRate
-      );
-      
-      // Mix the processed region back
-      for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-        const inputData = audioBuffer.getChannelData(channel);
-        const processedData = renderedBuffer.getChannelData(channel);
-        const outputData = outputBuffer.getChannelData(channel);
-        
-        // Copy original audio
-        outputData.set(inputData);
-        
-        // Overwrite with processed region
-        for (let i = 0; i < regionLength; i++) {
-          outputData[startSample + i] = processedData[startSample + i];
-        }
-      }
       
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
@@ -170,13 +198,7 @@ export default function Phaser({ width }) {
       // Update audio and history
       addToEditHistory(url, 'Apply Phaser', {
         effect: 'phaser',
-        parameters: {
-          rate: phaserRate,
-          depth: phaserDepth,
-          feedback: phaserFeedback,
-          stages: phaserStages,
-          wetMix: phaserWetMix
-        },
+        parameters,
         region: { start: cutRegion.start, end: cutRegion.end }
       });
       
