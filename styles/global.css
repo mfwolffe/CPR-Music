@@ -606,16 +606,17 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   z-index: 1000;
 }
 
-/* Multitrack Editor Styles - Improved Layout */
+/* Multitrack Editor Styles - Sanitized */
 
 /* Main container */
 .multitrack-editor-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 710px; /* Fixed height as requested */
   background-color: #1a1a1a;
   color: #fff;
   overflow: hidden;
+  position: relative;
 }
 
 /* Top Toolbar */
@@ -629,6 +630,7 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   flex-shrink: 0;
 }
 
+/* Toolbar sections */
 .toolbar-section {
   display: flex;
   gap: 0.25rem;
@@ -643,482 +645,7 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   vertical-align: middle;
 }
 
-/* Main Content Area */
-.multitrack-main-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background-color: #1a1a1a;
-}
-
-/* Timeline Container */
-.timeline-container {
-  display: flex;
-  height: 40px;
-  background-color: #2a2a2a;
-  border-bottom: 1px solid #444;
-  flex-shrink: 0;
-}
-
-/* Timeline sidebar spacer - matches tracks sidebar */
-.timeline-sidebar-spacer {
-  width: 80px;
-  min-width: 80px;
-  background-color: #1e1e1e;
-  border-right: 1px solid #3a3a3a;
-}
-
-/* Updated timeline spacer to match new track controls width */
-.timeline-controls-spacer {
-  width: 200px; /* Match track controls width */
-  min-width: 200px;
-  background-color: #232323;
-  border-right: 1px solid #444;
-}
-
-.multitrack-timeline {
-  flex: 1;
-  height: 40px;
-  position: relative;
-  background-color: #1e1e1e;
-  cursor: pointer;
-  user-select: none;
-  overflow: hidden;
-}
-
-.timeline-canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-/* Tracks Layout Container */
-.tracks-layout {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-  min-height: 0;
-  background-color: #1a1a1a; /* Main background for empty space */
-}
-
-/* Tracks Sidebar (Add Track Buttons) - Full height */
-.tracks-sidebar {
-  width: 80px;
-  min-width: 80px;
-  background-color: #1e1e1e;
-  border-right: 1px solid #3a3a3a;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex-shrink: 0;
-  align-items: center;
-  padding-top: 20px; /* Start buttons lower */
-}
-
-/* Tracks Area - Main Container */
-.tracks-area {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  background-color: #1a1a1a;
-  padding-top: 4px; /* Small top padding */
-}
-
-/* Tracks container - stacks tracks naturally */
-.tracks-container {
-  display: flex;
-  flex-direction: column;
-  min-height: 100%;
-}
-
-/* Individual Track Container */
-.track {
-  display: flex;
-  height: 60px; /* Compact height - just enough for controls */
-  border-bottom: 1px solid #333;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  flex-shrink: 0;
-  background-color: #242424; /* Slightly lighter than main background */
-}
-
-.track:hover {
-  background-color: rgba(255, 255, 255, 0.02);
-}
-
-.track-selected {
-  background-color: rgba(146, 206, 132, 0.05) !important;
-}
-
-/* Track Controls (Left Side) - Ultra compact */
-.track-controls {
-  width: 200px;
-  min-width: 200px;
-  padding: 0.25rem 0.5rem; /* Minimal padding */
-  background-color: #232323;
-  border-right: 1px solid #444;
-  display: flex;
-  flex-direction: column;
-  gap: 2px; /* Minimal gap */
-  justify-content: center;
-}
-
-/* Track Header */
-.track-header {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  margin-bottom: 2px;
-}
-
-/* Track name input - smaller */
-.track-name-input {
-  flex: 1;
-  background-color: rgba(255, 255, 255, 0.08) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  color: #fff !important;
-  font-size: 0.7rem;
-  padding: 0.125rem 0.25rem;
-  height: 20px; /* Even smaller */
-  border-radius: 2px;
-  transition: all 0.2s ease;
-}
-
-.track-name-input:focus {
-  background-color: rgba(255, 255, 255, 0.12) !important;
-  border-color: #92ce84 !important;
-  box-shadow: 0 0 0 2px rgba(146, 206, 132, 0.1) !important;
-  outline: none;
-}
-
-/* Track Buttons Container */
-.track-buttons {
-  display: flex;
-  gap: 0.25rem;
-  margin-bottom: 2px;
-}
-
-.track-btn {
-  flex: 1;
-  font-size: 0.65rem;
-  padding: 0.125rem 0.25rem;
-  height: 20px; /* Smaller buttons */
-  border-radius: 2px;
-  transition: all 0.2s ease;
-  line-height: 1;
-}
-
-/* Track Sliders Container */
-.track-sliders {
-  display: flex;
-  flex-direction: column;
-  gap: 2px; /* Minimal gap */
-}
-
-.slider-group {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.slider-group label {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  margin: 0;
-  width: 100%;
-  font-size: 0.65rem; /* Smaller text */
-  color: #999;
-  line-height: 1;
-}
-
-.slider-group label svg {
-  width: 10px;
-  height: 10px;
-  color: #666;
-  flex-shrink: 0;
-}
-
-.slider-group span {
-  flex-shrink: 0;
-  font-size: 0.6rem;
-  color: #888;
-  font-family: monospace;
-  min-width: 20px;
-}
-
-.slider-group label svg {
-  color: #666;
-  flex-shrink: 0;
-}
-
-.slider-group span {
-  flex-shrink: 0;
-  font-size: 0.7rem;
-  color: #888;
-  font-family: monospace;
-}
-
-/* Custom DAW-style Range Sliders - Smaller */
-.track-pan-slider,
-.track-volume-slider {
-  flex: 1;
-  height: 16px; /* Smaller height */
-  -webkit-appearance: none;
-  background: transparent;
-  cursor: pointer;
-  margin: 0;
-}
-
-.track-pan-slider:focus,
-.track-volume-slider:focus {
-  outline: none;
-}
-
-/* Webkit browsers (Chrome, Safari, Edge) */
-.track-pan-slider::-webkit-slider-track,
-.track-volume-slider::-webkit-slider-track {
-  width: 100%;
-  height: 3px; /* Thinner track */
-  background: linear-gradient(to right, #1a1a1a 0%, #2a2a2a 50%, #1a1a1a 100%);
-  border: 1px solid #333;
-  border-radius: 1.5px;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
-}
-
-.track-pan-slider::-webkit-slider-thumb,
-.track-volume-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 12px; /* Smaller thumb */
-  height: 12px;
-  background: linear-gradient(135deg, #b8d4a9 0%, #92ce84 50%, #76b165 100%);
-  border: 1px solid #5a8a4f;
-  border-radius: 50%;
-  cursor: pointer;
-  margin-top: -5px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-  transition: all 0.15s ease;
-}
-
-.track-pan-slider::-webkit-slider-thumb:hover,
-.track-volume-slider::-webkit-slider-thumb:hover {
-  background: linear-gradient(135deg, #c5dfb9 0%, #a2de94 50%, #86c175 100%);
-  transform: scale(1.1);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
-}
-
-.track-pan-slider::-webkit-slider-thumb:active,
-.track-volume-slider::-webkit-slider-thumb:active {
-  background: linear-gradient(135deg, #a8c499 0%, #82be74 50%, #66a155 100%);
-  transform: scale(0.95);
-}
-
-/* Firefox */
-.track-pan-slider::-moz-range-track,
-.track-volume-slider::-moz-range-track {
-  width: 100%;
-  height: 4px;
-  background: linear-gradient(to right, #1a1a1a 0%, #2a2a2a 50%, #1a1a1a 100%);
-  border: 1px solid #333;
-  border-radius: 2px;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
-}
-
-.track-pan-slider::-moz-range-thumb,
-.track-volume-slider::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  background: linear-gradient(135deg, #b8d4a9 0%, #92ce84 50%, #76b165 100%);
-  border: 1px solid #5a8a4f;
-  border-radius: 50%;
-  cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-  transition: all 0.15s ease;
-}
-
-.track-pan-slider::-moz-range-thumb:hover,
-.track-volume-slider::-moz-range-thumb:hover {
-  background: linear-gradient(135deg, #c5dfb9 0%, #a2de94 50%, #86c175 100%);
-  transform: scale(1.1);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
-}
-
-/* Disabled state for sliders */
-.track-pan-slider:disabled,
-.track-volume-slider:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.track-pan-slider:disabled::-webkit-slider-thumb,
-.track-volume-slider:disabled::-webkit-slider-thumb {
-  background: #666;
-  border-color: #444;
-  cursor: not-allowed;
-}
-
-/* Track Waveform Container */
-.track-waveform {
-  flex: 1;
-  background-color: #2a2a2a;
-  overflow: hidden;
-  position: relative;
-  border-left: 1px solid #333;
-  height: 100%; /* Fill track height */
-}
-
-/* Force wavesurfer container to fill parent */
-.track-waveform > div {
-  width: 100% !important;
-  height: 100% !important;
-  position: relative !important;
-}
-
-/* Wavesurfer's wave container */
-.track-waveform wave {
-  height: 100% !important;
-  overflow: hidden !important;
-}
-
-/* Wavesurfer canvas */
-.track-waveform canvas {
-  display: block !important;
-  height: 100% !important;
-}
-
-/* Empty State */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 300px;
-  color: #666;
-  font-style: italic;
-  text-align: center;
-  padding: 2rem;
-}
-
-/* Transport Container */
-.multitrack-transport-container {
-  border-top: 1px solid #444;
-  background-color: #2d2c29;
-  padding: 0.5rem;
-  flex-shrink: 0;
-}
-
-/* Effects Panel */
-.effects-panel {
-  background-color: #232323 !important;
-  border-left: 1px solid #444 !important;
-  height: 100%;
-  overflow-y: auto;
-}
-
-/* Scrollbar Styling */
-.tracks-area::-webkit-scrollbar {
-  width: 10px;
-  background-color: #1a1a1a;
-}
-
-.tracks-area::-webkit-scrollbar-track {
-  background: #1a1a1a;
-  border-left: 1px solid #333;
-}
-
-.tracks-area::-webkit-scrollbar-thumb {
-  background: #444;
-  border-radius: 5px;
-  border: 1px solid #333;
-}
-
-.tracks-area::-webkit-scrollbar-thumb:hover {
-  background: #555;
-}
-
-/* Remove the stretch behavior for few tracks */
-.tracks-area {
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-}
-
-/* Walking waveform specific fix */
-.track-waveform canvas {
-  image-rendering: pixelated; /* Crisp rendering */
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
-}
-
-/* Recording track specific styles */
-.track.recording-track .track-controls {
-  background-color: #2a1a1a;
-}
-
-.track.recording-track .track-waveform {
-  background-color: #1f1a1a;
-}
-
-/* Walking waveform canvas specific */
-.track-waveform canvas[width='3000'] {
-  position: absolute !important;
-  top: 0 !important;
-  left: 0 !important;
-  height: 100% !important;
-  min-width: 100%;
-}
-
-/* Playhead styling */
-#multitrack-playhead {
-  position: absolute;
-  top: 0;
-  width: 2px;
-  height: 100vh;
-  background-color: #ff3030;
-  box-shadow: 0 0 3px rgba(255, 48, 48, 0.8);
-  pointer-events: none;
-  z-index: 1000;
-}
-
-/* Multitrack Editor Styles - Fixed Layout */
-
-/* Main container */
-.multitrack-editor-container {
-  display: flex;
-  flex-direction: column;
-  height: 710px;
-  background-color: #1a1a1a;
-  color: #fff;
-  overflow: hidden;
-  position: relative; /* For absolute positioning context */
-}
-
-/* Adjust the main content to not go under transport */
-.multitrack-main-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background-color: #1a1a1a;
-  min-height: 0;
-  position: relative;
-  margin-bottom: 60px; /* Space for fixed transport */
-}
-
-/* Top Toolbar */
-.multitrack-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.5rem 1rem;
-  background-color: #2d2c29;
-  border-bottom: 1px solid #444;
-  flex-shrink: 0;
-}
-
-/* Toolbar button styles - Better contrast */
+/* Toolbar button styles */
 .multitrack-toolbar .btn {
   background-color: #3a3a3a !important;
   border-color: #4a4a4a !important;
@@ -1182,21 +709,7 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   box-shadow: 0 2px 4px rgba(74, 124, 158, 0.3);
 }
 
-.toolbar-section {
-  display: flex;
-  gap: 0.25rem;
-}
-
-.toolbar-section.ms-auto {
-  margin-left: auto;
-}
-
-.zoom-slider {
-  width: 100px;
-  vertical-align: middle;
-}
-
-/* Main Content Area - Account for transport height */
+/* Main Content Area */
 .multitrack-main-content {
   flex: 1;
   display: flex;
@@ -1205,45 +718,8 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   background-color: #1a1a1a;
   min-height: 0;
   position: relative;
-  padding-bottom: 60px; /* Reserve space for transport controls */
-}
-
-/* Transport Container - Fixed at bottom */
-.multitrack-transport-container {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  border-top: 1px solid #444;
-  background-color: #2d2c29;
-  padding: 0.5rem;
-  z-index: 100; /* Above tracks but below modals */
-  height: 60px; /* Fixed height */
-}
-
-/* Adjust tracks layout to fill available space */
-.tracks-layout {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-  background-color: #1a1a1a;
-  min-height: 0;
-  position: relative;
-  height: 100%; /* Take full height */
-}
-
-/* Ensure tracks area fills space and scrolls */
-.tracks-area {
-  flex: 1;
-  overflow-y: auto !important;
-  overflow-x: hidden;
-  background-color: #1a1a1a;
-  padding: 0;
-  margin: 0;
-  min-height: 0;
-  position: relative;
-  height: 100%; /* Take full height of parent */
-  padding-bottom: 10px; /* Small padding at bottom for last track visibility */
+  margin-bottom: 0 !important;
+  padding-bottom: 60px; /* Space for transport controls */
 }
 
 /* Timeline Container */
@@ -1291,20 +767,37 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   flex: 1;
   display: flex;
   overflow: hidden;
-  background-color: #1a1a1a;
+  background-color: #242424; /* Match track background */
+  min-height: 0;
+  position: relative;
+}
+
+/* Sidebar background pseudo-element */
+.tracks-layout::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 80px;
+  background-color: #1e1e1e;
+  border-right: 1px solid #3a3a3a;
+  z-index: 0;
 }
 
 /* Tracks Sidebar (Add Track Buttons) */
 .tracks-sidebar {
   width: 80px;
   min-width: 80px;
-  background-color: transparent; /* Let background show through */
+  background-color: transparent;
   padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   flex-shrink: 0;
   align-items: center;
+  position: relative;
+  z-index: 1;
 }
 
 /* Add track buttons container */
@@ -1358,57 +851,35 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   transform: scale(1.05);
 }
 
-/* Button divider line */
-.tracks-sidebar::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 3px;
-  height: 100%;
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    #444 10%,
-    #444 90%,
-    transparent 100%
-  );
-  pointer-events: none;
-}
-
-/* Add sidebar background via pseudo-element */
-.tracks-layout::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 80px;
-  background-color: #1e1e1e;
-  border-right: 1px solid #3a3a3a;
-  z-index: 0;
-}
-
-/* Ensure sidebar and tracks are above background */
-.tracks-sidebar,
+/* Tracks Area */
 .tracks-area {
+  flex: 1;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  background-color: #242424; /* Match track background */
+  padding: 0;
+  margin: 0;
+  min-height: 0;
   position: relative;
   z-index: 1;
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: #555 #1a1a1a; /* Firefox */
 }
 
-/* Remove any margin from Bootstrap containers */
-.multitrack-editor-container .row {
+/* Tracks container */
+.tracks-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
   margin: 0 !important;
-}
-
-.multitrack-editor-container [class*='col-'] {
   padding: 0 !important;
+  background-color: #242424;
 }
 
-/* Individual Track Container - FIXED */
+/* Individual Track Container */
 .track {
   display: flex;
-  height: 120px !important; /* Fixed height with !important */
+  height: 120px !important;
   max-height: 120px !important;
   min-height: 120px !important;
   border-bottom: 1px solid #333;
@@ -1416,38 +887,10 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   transition: background-color 0.2s ease;
   background-color: #242424;
   box-sizing: border-box;
-  margin: 0 !important; /* Force no margin */
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
-  padding: 0 !important; /* Force no padding */
-  flex-shrink: 0; /* Prevent shrinking */
-  flex-grow: 0; /* Prevent growing */
-}
-
-/* Additional specificity to override any other styles */
-.tracks-container .track,
-.tracks-area .track,
-.tracks-area > div .track,
-.tracks-area > div > div .track {
   margin: 0 !important;
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
-  height: 120px !important;
-}
-
-/* Make sure no extra margin from first/last child */
-.track:first-child {
-  margin-top: 0 !important;
-}
-
-.track:last-child {
-  margin-bottom: 0 !important;
-  border-bottom: 1px solid #333; /* Keep the border */
-}
-
-/* Force adjacent sibling tracks to have no gap */
-.track + .track {
-  margin-top: 0 !important;
+  padding: 0 !important;
+  flex-shrink: 0;
+  flex-grow: 0;
 }
 
 .track:hover {
@@ -1456,25 +899,24 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
 
 .track-selected {
   background-color: rgba(146, 206, 132, 0.05) !important;
+  box-shadow: inset 0 0 0 2px rgba(146, 206, 132, 0.3) !important;
 }
 
-/* Track selection fix - prevent border from affecting layout */
-.track-selected {
-  background-color: rgba(146, 206, 132, 0.05) !important;
-  box-shadow: inset 0 0 0 2px rgba(146, 206, 132, 0.3) !important; /* Use inset shadow instead of border */
-  border-bottom: 1px solid #333 !important; /* Keep only bottom border */
-}
-
-/* Remove any outline that might affect spacing */
 .track:focus {
   outline: none !important;
 }
 
-/* Ensure tracks don't shift when selected */
-.track {
-  box-sizing: border-box !important;
-  border: 0 !important; /* Remove all borders except bottom */
-  border-bottom: 1px solid #333 !important;
+/* Track Controls */
+.track-controls {
+  width: 200px;
+  min-width: 200px;
+  padding: 0.25rem 0.5rem;
+  background-color: #232323;
+  border-right: 1px solid #444;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
 }
 
 /* Track Header */
@@ -1649,13 +1091,27 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   transition: all 0.15s ease;
 }
 
-/* Track Waveform Container - EXACT HEIGHT */
+/* Disabled state for sliders */
+.track-pan-slider:disabled,
+.track-volume-slider:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.track-pan-slider:disabled::-webkit-slider-thumb,
+.track-volume-slider:disabled::-webkit-slider-thumb {
+  background: #666;
+  border-color: #444;
+  cursor: not-allowed;
+}
+
+/* Track Waveform Container */
 .track-waveform {
   flex: 1;
   background-color: #2a2a2a;
   overflow: hidden;
   position: relative;
-  height: 120px !important; /* Match track height */
+  height: 120px !important;
   max-height: 120px !important;
   min-height: 120px !important;
   box-sizing: border-box;
@@ -1682,34 +1138,77 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   position: relative !important;
   top: 0 !important;
   left: 0 !important;
-  max-height: 120px !important; /* Match track height */
+  max-height: 120px !important;
   display: block !important;
   width: 100% !important;
   height: 100% !important;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
 }
 
-/* Empty State - Don't add extra height */
+/* Walking waveform canvas specific */
+.track-waveform canvas[width='3000'] {
+  position: absolute !important;
+  top: 50% !important;
+  left: 0 !important;
+  transform: translateY(-50%) !important;
+  height: auto !important;
+  max-height: 100px !important;
+  min-width: 100%;
+}
+
+/* Recording track specific styles */
+.track.recording-track .track-controls {
+  background-color: #2a1a1a;
+}
+
+.track.recording-track .track-waveform {
+  background-color: #1f1a1a;
+}
+
+.track-waveform.recording-waveform {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+/* Recording Stop button */
+.track-controls .btn-warning {
+  background-color: #ff9800;
+  border-color: #ff9800;
+  color: #000;
+}
+
+/* Empty State */
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 480px; /* Match tracks area height */
+  flex: 1;
+  min-height: 100%;
   color: #666;
   font-style: italic;
   text-align: center;
   padding: 2rem;
   margin: 0;
+  background-color: #242424;
 }
 
-/* Transport Container - Simple styling */
+/* Transport Container */
 .multitrack-transport-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
   border-top: 1px solid #444;
   background-color: #2d2c29;
-  padding: 0.5rem;
-  flex-shrink: 0;
+  padding: 0.75rem;
+  z-index: 100;
   height: 60px;
-  position: relative;
+  display: flex;
+  align-items: center;
 }
 
 /* Extend sidebar visual into transport area */
@@ -1725,7 +1224,7 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   z-index: 0;
 }
 
-/* Ensure proper transport alignment */
+/* Transport controls */
 .multitrack-transport {
   position: relative;
   z-index: 1;
@@ -1735,22 +1234,7 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   align-items: center;
 }
 
-/* Fix button cutoff in transport */
-.multitrack-transport-container {
-  display: flex;
-  align-items: center;
-  min-height: 60px;
-  padding: 0.75rem; /* Slightly more padding */
-}
-
-/* Ensure transport buttons aren't cut off */
-.multitrack-transport .btn-group {
-  display: flex;
-  align-items: center;
-  height: 100%;
-}
-
-/* Transport button styles - Better contrast */
+/* Transport buttons */
 .multitrack-transport .btn {
   background-color: #4a4a4a !important;
   border-color: #5a5a5a !important;
@@ -1771,7 +1255,6 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   transform: translateY(0);
 }
 
-/* Disabled button state */
 .multitrack-transport .btn:disabled {
   background-color: #333 !important;
   border-color: #444 !important;
@@ -1789,10 +1272,10 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  margin-right: 8px !important; /* Gap between buttons */
+  margin-right: 8px !important;
 }
 
-/* Play/pause button special states */
+/* Transport button variants */
 .multitrack-transport .btn-primary {
   background-color: #4a7c9e !important;
   border-color: #5a8cae !important;
@@ -1814,7 +1297,6 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   border-color: #f4c050 !important;
 }
 
-/* Secondary buttons (stop, etc) */
 .multitrack-transport .btn-secondary {
   background-color: #555 !important;
   border-color: #666 !important;
@@ -1825,30 +1307,6 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   border-color: #777 !important;
 }
 
-/* Button group styling */
-.multitrack-transport .btn-group {
-  gap: 0 !important; /* Remove default gap */
-}
-
-/* Progress bar styling */
-.multitrack-transport .progress {
-  background-color: #333;
-  border: 1px solid #444;
-}
-
-.multitrack-transport .progress-bar {
-  background-color: #4a7c9e;
-}
-
-/* Time display */
-.multitrack-transport .time-display {
-  font-family: monospace;
-  font-size: 0.9rem;
-  color: #aaa;
-  min-width: 45px;
-}
-
-/* Volume controls */
 .multitrack-transport .btn-outline-secondary {
   background-color: transparent !important;
   border-color: #666 !important;
@@ -1866,32 +1324,37 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   border-color: #b05050 !important;
 }
 
-/* Volume slider */
+/* Transport UI elements */
+.multitrack-transport .btn-group {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  gap: 0 !important;
+}
+
+.multitrack-transport .progress {
+  background-color: #333;
+  border: 1px solid #444;
+}
+
+.multitrack-transport .progress-bar {
+  background-color: #4a7c9e;
+}
+
+.multitrack-transport .time-display {
+  font-family: monospace;
+  font-size: 0.9rem;
+  color: #aaa;
+  min-width: 45px;
+}
+
 .multitrack-transport .form-range {
   accent-color: #4a7c9e;
 }
 
-/* Track info text */
 .multitrack-transport .track-info {
   font-size: 0.85rem;
   color: #888 !important;
-}
-
-/* Ensure the row/col structure doesn't break scrolling */
-.multitrack-main-content .row {
-  flex: 1;
-  margin: 0;
-  min-height: 0;
-  height: 100%; /* Take full height */
-}
-
-.multitrack-main-content .col,
-.multitrack-main-content [class*='col-'] {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  padding: 0;
-  height: 100%; /* Take full height */
 }
 
 /* Effects Panel */
@@ -1902,9 +1365,33 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   overflow-y: auto;
 }
 
-/* Scrollbar Styling - Make it more visible */
+/* Bootstrap structure fixes */
+.multitrack-editor-container .row {
+  margin: 0 !important;
+}
+
+.multitrack-editor-container [class*='col-'] {
+  padding: 0 !important;
+}
+
+.multitrack-main-content .row {
+  flex: 1;
+  margin: 0;
+  min-height: 0;
+  display: flex;
+}
+
+.multitrack-main-content .col,
+.multitrack-main-content [class*='col-'] {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+}
+
+/* Scrollbar Styling */
 .tracks-area::-webkit-scrollbar {
-  width: 12px; /* Slightly wider for better visibility */
+  width: 12px;
   background-color: #1a1a1a;
 }
 
@@ -1915,7 +1402,7 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
 }
 
 .tracks-area::-webkit-scrollbar-thumb {
-  background: #555; /* Lighter color for better visibility */
+  background: #555;
   border-radius: 6px;
   border: 1px solid #444;
   box-shadow: inset 0 0 3px rgba(255, 255, 255, 0.1);
@@ -1930,39 +1417,6 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   background: #777;
 }
 
-/* Ensure scrollbar is always visible when needed */
-.tracks-area {
-  scrollbar-width: thin; /* Firefox */
-  scrollbar-color: #555 #1a1a1a; /* Firefox */
-}
-
-/* Recording track specific styles */
-.track.recording-track .track-controls {
-  background-color: #2a1a1a;
-}
-
-.track.recording-track .track-waveform {
-  background-color: #1f1a1a;
-}
-
-/* Walking waveform canvas specific - CENTER VERTICALLY */
-.track-waveform canvas[width='3000'] {
-  position: absolute !important;
-  top: 50% !important; /* Center vertically */
-  left: 0 !important;
-  transform: translateY(-50%) !important; /* Center transform */
-  height: auto !important; /* Let it size naturally */
-  max-height: 100px !important;
-  min-width: 100%;
-}
-
-/* Walking waveform container fix */
-.track-waveform.recording-waveform {
-  display: flex;
-  align-items: center; /* Center content vertically */
-  justify-content: flex-start;
-}
-
 /* Playhead styling */
 #multitrack-playhead {
   position: absolute;
@@ -1975,30 +1429,12 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   z-index: 1000;
 }
 
-/* Additional fixes for vertical spacing issues */
-/* Remove any default gaps from flex containers */
-.tracks-layout .row {
-  gap: 0 !important;
-  row-gap: 0 !important;
-}
-
-.tracks-layout .col,
-.tracks-layout [class*='col-'] {
-  padding: 0 !important;
-}
-
-/* Ensure direct children of tracks-area have no spacing */
+/* Gap removal helpers */
 .tracks-area > * {
   margin: 0 !important;
   padding: 0 !important;
 }
 
-/* If using any wrapper divs inside tracks-area */
-.tracks-area > div > .track {
-  margin: 0 !important;
-}
-
-/* Remove any potential gap from flex containers */
 .tracks-container,
 .tracks-area > div {
   gap: 0 !important;
@@ -2006,336 +1442,7 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   column-gap: 0 !important;
 }
 
-/* AGGRESSIVE GAP REMOVAL */
-/* Force all divs between tracks-area and track to have no spacing */
-.tracks-area div:not(.track):not(.track-controls):not(.track-waveform) {
-  margin: 0 !important;
-  padding: 0 !important;
-  gap: 0 !important;
-}
-
-/* If tracks-container is using flexbox, ensure no gaps */
-.tracks-container {
-  display: block !important; /* Or use flex with no gap */
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-/* Alternative if flex is needed */
-.tracks-container.flex,
-.tracks-area.flex > div {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 0 !important;
-  align-items: stretch !important;
-}
-
-/* React/JSX might add Fragment wrappers - remove their spacing */
-.tracks-area > :not(.track),
-.tracks-container > :not(.track) {
-  margin: 0 !important;
-  padding: 0 !important;
-  height: auto !important;
-  min-height: 0 !important;
-}
-
-/* Disabled state for sliders */
-.track-pan-slider:disabled,
-.track-volume-slider:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Recording Stop button */
-.track-controls .btn-warning {
-  background-color: #ff9800;
-  border-color: #ff9800;
-  color: #000;
-}
-
-/* Main container - Use consistent height */
-.multitrack-editor-container {
-  display: flex;
-  flex-direction: column;
-  height: 100vh; /* Use viewport height, not fixed 710px */
-  background-color: #1a1a1a;
-  color: #fff;
-  overflow: hidden;
-  position: relative;
-}
-
-/* Main content - Remove duplicate spacing */
-.multitrack-main-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background-color: #1a1a1a;
-  min-height: 0;
-  position: relative;
-  /* Remove margin-bottom - we'll use padding-bottom instead */
-  margin-bottom: 0 !important;
-  padding-bottom: 60px; /* Space for transport controls */
-}
-
-/* Transport Container - Keep it fixed but ensure proper spacing */
-.multitrack-transport-container {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  border-top: 1px solid #444;
-  background-color: #2d2c29;
-  padding: 0.5rem;
-  z-index: 100;
-  height: 60px;
-}
-
-/* Tracks area - Ensure it fills all available space */
-.tracks-area {
-  flex: 1;
-  overflow-y: auto !important;
-  overflow-x: hidden;
-  background-color: #1a1a1a;
-  padding: 0;
-  margin: 0;
-  min-height: 0;
-  position: relative;
-  /* Remove the height: 100% as flex: 1 handles this */
-  /* Remove padding-bottom to prevent extra space */
-  padding-bottom: 0 !important;
-}
-
-/* Tracks container - Ensure it expands to fill space */
-.tracks-container {
-  display: flex;
-  flex-direction: column;
-  min-height: 100%; /* Fill the tracks area */
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-/* Empty state - Fill available space */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 100%; /* Fill available space instead of fixed 480px */
-  flex: 1; /* Take remaining space */
-  color: #666;
-  font-style: italic;
-  text-align: center;
-  padding: 2rem;
-  margin: 0;
-}
-
-/* When tracks exist, ensure they stack from top */
-.tracks-area:has(.track) {
-  justify-content: flex-start; /* Stack tracks from top */
-}
-
-/* When tracks area is not full, it should still fill space */
-.tracks-area:not(:has(.track:nth-child(5))) {
-  min-height: 100%;
-}
-
-/* Ensure the tracks layout fills available space */
-.tracks-layout {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-  background-color: #1a1a1a;
-  min-height: 0;
-  position: relative;
-  /* Removed height: 100% to let flex handle it */
-}
-
-/* Make sure Bootstrap rows/cols don't break the layout */
-.multitrack-main-content .row {
-  flex: 1;
-  margin: 0;
-  min-height: 0;
-  /* Remove height: 100% to let flex handle it */
-}
-
-.multitrack-main-content .col,
-.multitrack-main-content [class*='col-'] {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  padding: 0;
-  /* Remove height: 100% to let flex handle it */
-}
-
-/* Alternative approach if the above doesn't work:
-   Make tracks area background match the container */
-.tracks-area {
-  background-color: #242424; /* Match track background */
-}
-
-/* Or add a pseudo-element to fill empty space */
-.tracks-area::after {
-  content: '';
-  flex: 1;
-  background-color: #242424; /* Match track background */
-}
-
-/* Main container - Keep your explicit height */
-.multitrack-editor-container {
-  display: flex;
-  flex-direction: column;
-  height: 710px; /* Keep your explicit height */
-  background-color: #1a1a1a;
-  color: #fff;
-  overflow: hidden;
-  position: relative;
-}
-
-/* Main content - Simplified spacing */
-.multitrack-main-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background-color: #1a1a1a;
-  min-height: 0;
-  position: relative;
-  /* Only use padding-bottom for transport space */
-  margin-bottom: 0 !important;
-  padding-bottom: 60px;
-}
-
-/* Transport Container - Keep fixed at bottom */
-.multitrack-transport-container {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  border-top: 1px solid #444;
-  background-color: #2d2c29;
-  padding: 0.5rem;
-  z-index: 100;
-  height: 60px;
-}
-
-/* Tracks Layout - Ensure it fills available space */
-.tracks-layout {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-  background-color: #242424; /* Match track background to eliminate visual gap */
-  min-height: 0;
-  position: relative;
-}
-
-/* Tracks area - Fill parent and use track background color */
-.tracks-area {
-  flex: 1;
-  overflow-y: auto !important;
-  overflow-x: hidden;
-  background-color: #242424; /* Match track background color */
-  padding: 0;
-  margin: 0;
-  min-height: 0;
-  position: relative;
-}
-
-/* Tracks container - Minimum height to fill parent */
-.tracks-container {
-  display: flex;
-  flex-direction: column;
-  min-height: 100%; /* Fill the tracks area */
-  margin: 0 !important;
-  padding: 0 !important;
-  background-color: #242424; /* Consistent background */
-}
-
-/* Empty state - Fill available space with matching background */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  flex: 1; /* Take all available space */
-  min-height: 100%; /* Fill parent */
-  color: #666;
-  font-style: italic;
-  text-align: center;
-  padding: 2rem;
-  margin: 0;
-  background-color: #242424; /* Match track background */
-}
-
-/* Individual tracks keep their original background */
-.track {
-  display: flex;
-  height: 120px !important;
-  max-height: 120px !important;
-  min-height: 120px !important;
-  border-bottom: 1px solid #333;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  background-color: #242424; /* Explicit track background */
-  box-sizing: border-box;
-  margin: 0 !important;
-  padding: 0 !important;
-  flex-shrink: 0;
-  flex-grow: 0;
-}
-
-/* Ensure Bootstrap structure doesn't break layout */
-.multitrack-main-content .row {
-  flex: 1;
-  margin: 0;
-  min-height: 0;
-  display: flex;
-}
-
-.multitrack-main-content .col,
-.multitrack-main-content [class*='col-'] {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  padding: 0;
-}
-
-/* Timeline container stays as is */
-.timeline-container {
-  display: flex;
-  height: 40px;
-  background-color: #2a2a2a;
-  border-bottom: 1px solid #444;
-  flex-shrink: 0;
-}
-
-/* Ensure sidebar visual consistency */
-.tracks-sidebar {
-  width: 80px;
-  min-width: 80px;
-  background-color: transparent;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex-shrink: 0;
-  align-items: center;
-}
-
-/* Sidebar background pseudo-element adjustment */
-.tracks-layout::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 80px;
-  background-color: #1e1e1e;
-  border-right: 1px solid #3a3a3a;
-  z-index: 0;
-}
-
-/* Optional: Add subtle gradient to empty tracks area for visual continuity */
+/* Optional gradient for empty tracks area */
 .tracks-area:has(.track:last-child:nth-child(-n + 3)) {
   background: linear-gradient(
     to bottom,
@@ -2343,18 +1450,4 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
     #242424 calc(100% - 40px),
     #1a1a1a 100%
   );
-}
-
-/* Ensure waveform containers maintain proper background */
-.track-waveform {
-  flex: 1;
-  background-color: #2a2a2a;
-  overflow: hidden;
-  position: relative;
-  height: 120px !important;
-  max-height: 120px !important;
-  min-height: 120px !important;
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
 }
