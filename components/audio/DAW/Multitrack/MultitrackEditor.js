@@ -14,10 +14,12 @@ import {
   FaFileImport,
   FaDatabase,
   FaMicrophone,
+  FaMusic,
 } from 'react-icons/fa';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import Track from './Track';
 import RecordingTrack from './RecordingTrack';
+import MIDITrack from './MIDITrack';
 import MultitrackTransport from './MultitrackTransport';
 import EffectsPanel from './EffectsPanel';
 import MultitrackTimeline from './MultitrackTimeline';
@@ -102,6 +104,26 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
       audioURL: silentAudioURL,
       isEmpty: true,
     });
+  };
+
+  // Handle adding MIDI track
+  const handleAddMIDITrack = () => {
+    console.log('Adding MIDI track');
+    const newTrack = {
+      name: `MIDI ${tracks.length + 1}`,
+      type: 'midi', // Important: mark this as a MIDI track
+      audioURL: null,
+      volume: 1,
+      pan: 0,
+      muted: false,
+      solo: false,
+      midiData: {
+        notes: [],
+        tempo: 120,
+        instrument: 'simpleSynth',
+      }
+    };
+    addTrack(newTrack);
   };
 
   // Test function to check if tracks are being added
@@ -234,10 +256,19 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                   </Button>
 
                   <Button
+                    onClick={handleAddMIDITrack}
+                    variant="success"
+                    className="add-track-sidebar-btn"
+                    title="Add MIDI track"
+                  >
+                    <FaMusic size={20} />
+                  </Button>
+
+                  <Button
                     onClick={handleAddSampleTrack}
                     variant="outline-secondary"
                     className="add-track-sidebar-btn mt-2"
-                    title="Add empty track"
+                    title="Add empty audio track"
                     size="sm"
                   >
                     <FaPlus size={16} />
@@ -262,12 +293,22 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                     }
 
                     console.log(`Rendering track ${track.id}:`, {
+                      type: track.type,
                       isRecordingTrack: track.isRecordingTrack,
                       track,
                     });
 
-                    // Use RecordingTrack for tracks marked as recording tracks
-                    if (track.isRecordingTrack) {
+                    // Check track type
+                    if (track.type === 'midi') {
+                      return (
+                        <MIDITrack
+                          key={track.id}
+                          track={track}
+                          index={index}
+                          zoomLevel={zoomLevel}
+                        />
+                      );
+                    } else if (track.isRecordingTrack) {
                       return (
                         <RecordingTrack
                           key={track.id}
@@ -276,16 +317,17 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                           zoomLevel={zoomLevel}
                         />
                       );
+                    } else {
+                      // Regular audio track
+                      return (
+                        <Track
+                          key={track.id}
+                          track={track}
+                          index={index}
+                          zoomLevel={zoomLevel}
+                        />
+                      );
                     }
-                    // Use regular Track for all other tracks
-                    return (
-                      <Track
-                        key={track.id}
-                        track={track}
-                        index={index}
-                        zoomLevel={zoomLevel}
-                      />
-                    );
                   })
                 )}
               </div>
