@@ -10,9 +10,9 @@ import {
   FaMusic,
   FaPiano,
   FaWaveSquare,
+  FaDrum,
 } from 'react-icons/fa';
-import { MdPanTool, MdMusicNote } from 'react-icons/md';
-import { GiGrandPiano, GiDrumKit } from 'react-icons/gi';
+import { MdPanTool, MdMusicNote, MdPiano } from 'react-icons/md';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import InstrumentSelector from './InstrumentSelector';
 import { createInstrument } from './instruments/WebAudioInstruments';
@@ -36,11 +36,40 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     setSoloTrackId,
     isPlaying: globalIsPlaying,
     currentTime: globalCurrentTime,
+    registerTrackInstrument,
   } = useMultitrack();
 
-  // Initialize audio context and routing
+  // Initialize audio context and routing WITH DEBUG
   useEffect(() => {
+    console.log('🎛️ MIDITrack: Initializing for track', track.id);
+    
     audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    console.log('🎛️ MIDITrack: Audio context created, state:', audioContextRef.current.state);
+    
+    // Resume audio context on user interaction (for browsers with autoplay policy)
+    const resumeAudio = async () => {
+      if (audioContextRef.current.state === 'suspended') {
+        console.log('🔊 Resuming suspended audio context');
+        try {
+          await audioContextRef.current.resume();
+          console.log('🔊 Audio context resumed, new state:', audioContextRef.current.state);
+        } catch (error) {
+          console.error('❌ Failed to resume audio context:', error);
+        }
+      }
+    };
+    
+    // Try to resume immediately
+    resumeAudio();
+    
+    // Also resume on first user interaction
+    const handleUserInteraction = () => {
+      console.log('👆 User interaction detected, checking audio context');
+      resumeAudio();
+    };
+    
+    document.addEventListener('click', handleUserInteraction);
+    document.addEventListener('keydown', handleUserInteraction);
     
     // Create audio routing chain
     masterGainRef.current = audioContextRef.current.createGain();
@@ -49,9 +78,11 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     // Connect routing
     pannerRef.current.connect(masterGainRef.current);
     masterGainRef.current.connect(audioContextRef.current.destination);
+    console.log('🔌 Audio routing chain created and connected');
     
     // Initialize track with MIDI-specific properties if needed
     if (!track.midiData) {
+      console.log('📝 Initializing MIDI data for track');
       updateTrack(track.id, {
         midiData: {
           notes: [],
@@ -68,26 +99,47 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     
     // Create initial instrument
     const instrumentConfig = track.midiData?.instrument || { type: 'synth', preset: 'default' };
-    instrumentRef.current = createInstrument(
-      audioContextRef.current, 
-      instrumentConfig.type, 
-      instrumentConfig.preset
-    );
-    instrumentRef.current.connect(pannerRef.current);
+    console.log('🎸 Creating instrument:', instrumentConfig);
+    
+    try {
+      instrumentRef.current = createInstrument(
+        audioContextRef.current, 
+        instrumentConfig.type, 
+        instrumentConfig.preset
+      );
+      instrumentRef.current.connect(pannerRef.current);
+      console.log('✅ Instrument created and connected');
+      
+      // Register instrument with context
+      console.log('📋 Registering instrument for track', track.id);
+      registerTrackInstrument(track.id, instrumentRef.current);
+      
+    } catch (error) {
+      console.error('❌ Failed to create instrument:', error);
+    }
     
     return () => {
+      console.log('🧹 Cleaning up track', track.id);
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+      
+      // Unregister on cleanup
+      registerTrackInstrument(track.id, null);
+      
       if (instrumentRef.current) {
         instrumentRef.current.disconnect();
       }
-      if (audioContextRef.current) {
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close();
       }
     };
-  }, []);
+  }, [track.id, registerTrackInstrument, updateTrack]);
 
-  // Update instrument when selection changes
+  // Update instrument when selection changes WITH DEBUG
   useEffect(() => {
     if (!audioContextRef.current || !track.midiData?.instrument) return;
+    
+    console.log('🔄 Instrument changed, recreating:', track.midiData.instrument);
     
     // Disconnect old instrument
     if (instrumentRef.current) {
@@ -97,14 +149,23 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     
     // Create new instrument
     const { type, preset } = track.midiData.instrument;
-    instrumentRef.current = createInstrument(audioContextRef.current, type, preset);
-    instrumentRef.current.connect(pannerRef.current);
-  }, [track.midiData?.instrument]);
+    try {
+      instrumentRef.current = createInstrument(audioContextRef.current, type, preset);
+      instrumentRef.current.connect(pannerRef.current);
+      console.log('✅ New instrument created and connected');
+      
+      // Re-register with context
+      registerTrackInstrument(track.id, instrumentRef.current);
+    } catch (error) {
+      console.error('❌ Failed to create new instrument:', error);
+    }
+  }, [track.midiData?.instrument, track.id, registerTrackInstrument]);
 
   // Update volume
   useEffect(() => {
     if (masterGainRef.current) {
       masterGainRef.current.gain.value = track.muted ? 0 : track.volume;
+      console.log('🔊 Volume updated:', track.muted ? 'MUTED' : track.volume);
     }
   }, [track.volume, track.muted]);
 
@@ -121,9 +182,33 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     if (!instrument) return FaWaveSquare;
     
     switch (instrument.type) {
-      case 'piano': return GiGrandPiano;
-      case 'drums': return GiDrumKit;
+      case 'piano': return MdPiano;
+      case 'drums': return FaDrum;
       default: return FaWaveSquare;
+    }
+  };
+
+  // TEST BUTTON - Direct instrument test
+  const handleTestInstrument = () => {
+    console.log('🧪 TEST BUTTON CLICKED');
+    console.log('🧪 Audio context state:', audioContextRef.current?.state);
+    console.log('🧪 Instrument exists:', !!instrumentRef.current);
+    console.log('🧪 Master gain value:', masterGainRef.current?.gain.value);
+    
+    if (instrumentRef.current && audioContextRef.current) {
+      try {
+        console.log('🎵 Playing test note (Middle C)');
+        instrumentRef.current.playNote(60, 0.8);
+        
+        setTimeout(() => {
+          console.log('🎵 Stopping test note');
+          instrumentRef.current.stopNote(60);
+        }, 500);
+      } catch (error) {
+        console.error('❌ Test failed:', error);
+      }
+    } else {
+      console.error('❌ No instrument or audio context!');
     }
   };
 
@@ -188,6 +273,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
 
   // Handle track click selection
   const handleTrackClick = () => {
+    console.log('🎯 Track clicked, selecting:', track.id);
     setSelectedTrackId(track.id);
   };
 
@@ -461,6 +547,19 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
             Solo
           </Button>
         </div>
+
+        {/* TEST BUTTON - For debugging */}
+        <Button
+          size="sm"
+          variant="outline-info"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleTestInstrument();
+          }}
+          className="track-btn w-100 mt-1"
+        >
+          🧪 Test Sound
+        </Button>
 
         {/* Track Sliders */}
         <div className="track-sliders">

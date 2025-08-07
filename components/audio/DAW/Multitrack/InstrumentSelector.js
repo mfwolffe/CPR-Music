@@ -4,14 +4,14 @@
 import { useState, useEffect } from 'react';
 import { Modal, Button, Card, Row, Col } from 'react-bootstrap';
 import {
-  FaPiano,
-  FaDrum,
-  FaGuitar,
   FaMusic,
   FaWaveSquare,
   FaMicrochip,
+  FaDrum,
+  FaKeyboard,
 } from 'react-icons/fa';
-import { GiGrandPiano, GiDrumKit, GiSynthesizer } from 'react-icons/gi';
+import { MdPiano } from 'react-icons/md';
+import { BsMusicNote, BsSoundwave } from 'react-icons/bs';
 
 const INSTRUMENTS = [
   {
@@ -28,7 +28,7 @@ const INSTRUMENTS = [
     type: 'synth',
     preset: 'bass',
     name: 'Bass Synth',
-    icon: FaGuitar,
+    icon: BsSoundwave,
     color: '#9e4a7c',
     description: 'Deep bass synthesizer'
   },
@@ -37,7 +37,7 @@ const INSTRUMENTS = [
     type: 'synth',
     preset: 'lead',
     name: 'Lead Synth',
-    icon: GiSynthesizer,
+    icon: FaWaveSquare,
     color: '#7c9e4a',
     description: 'Bright lead synthesizer'
   },
@@ -55,7 +55,7 @@ const INSTRUMENTS = [
     type: 'synth',
     preset: 'pluck',
     name: 'Pluck Synth',
-    icon: FaMusic,
+    icon: BsMusicNote,
     color: '#9e7c4a',
     description: 'Plucked string synthesizer'
   },
@@ -64,7 +64,7 @@ const INSTRUMENTS = [
     type: 'piano',
     preset: null,
     name: 'Piano',
-    icon: GiGrandPiano,
+    icon: MdPiano,
     color: '#6a6a6a',
     description: 'Simple acoustic piano'
   },
@@ -73,7 +73,7 @@ const INSTRUMENTS = [
     type: 'drums',
     preset: null,
     name: 'Drum Kit',
-    icon: GiDrumKit,
+    icon: FaDrum,
     color: '#ce6a6a',
     description: '16-pad drum sampler'
   }

@@ -36,6 +36,15 @@ export const MultitrackProvider = ({ children }) => {
 
   // Playback timer
   const playbackTimerRef = useRef(null);
+  
+  // MIDI-specific refs
+  const trackInstrumentsRef = useRef({}); // Store instrument references for each track
+  const midiSchedulerRef = useRef(null); // For future MIDI scheduling
+
+  // Debug: Log when instruments change
+  useEffect(() => {
+    console.log('🎻 Registered instruments:', Object.keys(trackInstrumentsRef.current));
+  }, [tracks]); // Re-log when tracks change
 
   // Update current time during playback
   useEffect(() => {
@@ -46,6 +55,9 @@ export const MultitrackProvider = ({ children }) => {
         if (firstTrack && firstTrack.wavesurferInstance) {
           const time = firstTrack.wavesurferInstance.getCurrentTime();
           setCurrentTime(time);
+        } else {
+          // If no audio tracks, increment time manually for MIDI-only playback
+          setCurrentTime(prev => prev + 0.1);
         }
       }, 100); // Update every 100ms
     } else {
@@ -65,19 +77,30 @@ export const MultitrackProvider = ({ children }) => {
   // Update duration when tracks change
   useEffect(() => {
     // Find the longest duration among all tracks
-    const maxDuration = Math.max(
-      0,
-      ...tracks.map((track) => {
-        if (track.wavesurferInstance) {
-          try {
-            return track.wavesurferInstance.getDuration() || 0;
-          } catch (e) {
-            return 0;
-          }
+    let maxDuration = 0;
+    
+    // Check audio tracks
+    tracks.forEach((track) => {
+      if (track.wavesurferInstance) {
+        try {
+          const trackDuration = track.wavesurferInstance.getDuration() || 0;
+          maxDuration = Math.max(maxDuration, trackDuration);
+        } catch (e) {
+          // Ignore errors
         }
-        return 0;
-      }),
-    );
+      }
+    });
+    
+    // Check MIDI tracks
+    tracks.forEach((track) => {
+      if (track.type === 'midi' && track.midiData?.notes?.length > 0) {
+        const lastNote = track.midiData.notes.reduce((latest, note) => {
+          const noteEnd = note.startTime + note.duration;
+          return noteEnd > latest ? noteEnd : latest;
+        }, 0);
+        maxDuration = Math.max(maxDuration, lastNote);
+      }
+    });
 
     setDuration(maxDuration);
   }, [tracks]);
@@ -88,6 +111,7 @@ export const MultitrackProvider = ({ children }) => {
       const newTrack = {
         id: Date.now(),
         name: trackData.name || `Track ${tracks.length + 1}`,
+        type: trackData.type || 'audio', // 'audio' or 'midi'
         audioURL: trackData.audioURL || null,
         volume: trackData.volume || 1,
         pan: trackData.pan || 0,
@@ -109,6 +133,12 @@ export const MultitrackProvider = ({ children }) => {
 
   const removeTrack = useCallback(
     (trackId) => {
+      // Clean up instrument reference if it's a MIDI track
+      if (trackInstrumentsRef.current[trackId]) {
+        console.log('🗑️ Removing instrument for track:', trackId);
+        delete trackInstrumentsRef.current[trackId];
+      }
+      
       setTracks((prev) => prev.filter((track) => track.id !== trackId));
       if (selectedTrackId === trackId) {
         setSelectedTrackId(null);
@@ -148,6 +178,9 @@ export const MultitrackProvider = ({ children }) => {
         }
       }
     });
+    
+    // Clear instrument references
+    trackInstrumentsRef.current = {};
 
     setTracks([]);
     setSelectedTrackId(null);
@@ -161,7 +194,7 @@ export const MultitrackProvider = ({ children }) => {
   const play = useCallback(() => {
     console.log('MultitrackContext: Playing all tracks');
 
-    // Play all wavesurfer instances
+    // Play all audio tracks (wavesurfer instances)
     tracks.forEach((track) => {
       if (track.wavesurferInstance && !track.muted) {
         // Check if it's solo mode
@@ -176,6 +209,8 @@ export const MultitrackProvider = ({ children }) => {
         }
       }
     });
+    
+    // MIDI tracks will handle their own playback through their components
 
     setIsPlaying(true);
   }, [tracks, soloTrackId]);
@@ -238,6 +273,75 @@ export const MultitrackProvider = ({ children }) => {
     [tracks],
   );
 
+  // MIDI-specific methods
+  const registerTrackInstrument = useCallback((trackId, instrument) => {
+    console.log('📝 Context: registerTrackInstrument called', { trackId, hasInstrument: !!instrument });
+    
+    if (instrument) {
+      trackInstrumentsRef.current[trackId] = instrument;
+      console.log('✅ Instrument registered for track:', trackId);
+      console.log('📊 Total registered instruments:', Object.keys(trackInstrumentsRef.current).length);
+    } else {
+      delete trackInstrumentsRef.current[trackId];
+      console.log('❌ Instrument unregistered for track:', trackId);
+    }
+  }, []);
+
+  const playNoteOnSelectedTrack = useCallback((note, velocity = 0.8) => {
+    console.log('🎵 Context: playNoteOnSelectedTrack called', { 
+      note, 
+      velocity, 
+      selectedTrackId,
+      availableInstruments: Object.keys(trackInstrumentsRef.current),
+      hasInstrumentForTrack: !!trackInstrumentsRef.current[selectedTrackId]
+    });
+    
+    const selectedTrack = tracks.find(t => t.id === selectedTrackId && t.type === 'midi');
+    console.log('🎵 Context: Selected track:', selectedTrack);
+    
+    if (selectedTrack && trackInstrumentsRef.current[selectedTrackId]) {
+      console.log('🎵 Context: Found instrument, checking mute/solo state');
+      
+      // Check if track is muted or if we're in solo mode
+      if (selectedTrack.muted) {
+        console.log('❌ Track is muted');
+        return;
+      }
+      if (soloTrackId && selectedTrack.id !== soloTrackId) {
+        console.log('❌ Track is not soloed');
+        return;
+      }
+      
+      try {
+        console.log('🎵 Context: Calling instrument.playNote()');
+        trackInstrumentsRef.current[selectedTrackId].playNote(note, velocity);
+        console.log('✅ Note played successfully');
+      } catch (error) {
+        console.error('❌ Error playing note:', error);
+      }
+    } else {
+      console.log('❌ No instrument found for track', {
+        hasTrack: !!selectedTrack,
+        hasInstrument: !!trackInstrumentsRef.current[selectedTrackId],
+        trackType: selectedTrack?.type
+      });
+    }
+  }, [selectedTrackId, tracks, soloTrackId]);
+
+  const stopNoteOnSelectedTrack = useCallback((note) => {
+    console.log('🎵 Context: stopNoteOnSelectedTrack called', { note, selectedTrackId });
+    
+    const selectedTrack = tracks.find(t => t.id === selectedTrackId && t.type === 'midi');
+    if (selectedTrack && trackInstrumentsRef.current[selectedTrackId]) {
+      try {
+        trackInstrumentsRef.current[selectedTrackId].stopNote(note);
+        console.log('✅ Note stopped successfully');
+      } catch (error) {
+        console.error('❌ Error stopping note:', error);
+      }
+    }
+  }, [selectedTrackId, tracks]);
+
   const value = {
     // Track state
     tracks,
@@ -270,6 +374,11 @@ export const MultitrackProvider = ({ children }) => {
     // regions and effects
     activeRegion,
     setActiveRegion,
+    
+    // MIDI methods
+    registerTrackInstrument,
+    playNoteOnSelectedTrack,
+    stopNoteOnSelectedTrack,
   };
 
   return (
