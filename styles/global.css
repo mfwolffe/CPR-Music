@@ -1870,3 +1870,684 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   background-color: #9e9e4a;
   color: #fff;
 }
+
+/* Piano Roll Editor Styles */
+.piano-roll-modal .modal-dialog {
+  max-width: 90vw;
+  height: 80vh;
+}
+
+.piano-roll-modal .modal-content {
+  background-color: #1a1a1a;
+  color: #fff;
+  height: 100%;
+}
+
+.piano-roll-header {
+  background-color: #2d2c29;
+  border-bottom: 1px solid #444;
+  padding: 0.75rem 1rem;
+}
+
+.piano-roll-body {
+  background-color: #1a1a1a;
+  display: flex;
+  flex-direction: column;
+  height: calc(100% - 60px);
+}
+
+.piano-roll-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.piano-roll-keyboard-container {
+  width: 120px;
+  min-width: 120px;
+  background-color: #232323;
+  border-right: 1px solid #444;
+  overflow: hidden;
+}
+
+.piano-roll-canvas-container {
+  flex: 1;
+  overflow: auto;
+  background-color: #2a2a2a;
+  position: relative;
+}
+
+/* Custom scrollbar for piano roll */
+.piano-roll-canvas-container::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.piano-roll-canvas-container::-webkit-scrollbar-track {
+  background: #1a1a1a;
+  border: 1px solid #333;
+}
+
+.piano-roll-canvas-container::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 6px;
+}
+
+.piano-roll-canvas-container::-webkit-scrollbar-corner {
+  background: #1a1a1a;
+}
+
+/* Velocity lane */
+.velocity-lane {
+  height: 100px;
+  background-color: #232323;
+  border-top: 1px solid #444;
+  padding: 0.5rem;
+}
+
+/* Tool buttons */
+.piano-roll-header .btn-group .btn {
+  padding: 0.25rem 0.5rem;
+  border-radius: 0;
+}
+
+.piano-roll-header .btn-group .btn:first-child {
+  border-radius: 0.25rem 0 0 0.25rem;
+}
+
+.piano-roll-header .btn-group .btn:last-child {
+  border-radius: 0 0.25rem 0.25rem 0;
+}
+
+/* Piano keyboard styles */
+.piano-key {
+  position: relative;
+  border-bottom: 1px solid #333;
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+}
+
+.piano-key.white {
+  background-color: #f5f5f5;
+  height: 20px;
+}
+
+.piano-key.black {
+  background-color: #2a2a2a;
+  height: 20px;
+  z-index: 1;
+}
+
+.piano-key:hover {
+  background-color: #92ce84 !important;
+}
+
+.piano-key.active {
+  background-color: #b2ee94 !important;
+}
+
+.piano-key-label {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: #666;
+  pointer-events: none;
+}
+
+/* Note colors by instrument type (matching track colors) */
+.midi-note-color-synth {
+  --note-color: #4a7c9e;
+}
+
+.midi-note-color-drums {
+  --note-color: #ce6a6a;
+}
+
+.midi-note-color-piano {
+  --note-color: #9e9e4a;
+}
+
+.midi-note-color-default {
+  --note-color: #92ce84;
+}
+
+/* Piano Roll Editor Styles - UPDATED FOR PROPER SIZING */
+.piano-roll-modal .modal-dialog {
+  max-width: 85vw; /* Reduced from 90vw */
+  width: 85vw;
+  height: 70vh; /* Reduced from 80vh */
+  margin: 1.75rem auto;
+}
+
+.piano-roll-modal .modal-content {
+  background-color: #1a1a1a;
+  color: #fff;
+  height: 70vh; /* Match dialog height */
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.piano-roll-header {
+  background-color: #2d2c29;
+  border-bottom: 1px solid #444;
+  padding: 0.5rem 1rem; /* Reduced padding */
+  flex-shrink: 0;
+}
+
+.piano-roll-body {
+  background-color: #1a1a1a;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  padding: 0 !important;
+}
+
+.piano-roll-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  height: 100%;
+}
+
+.piano-roll-keyboard-container {
+  width: 100px; /* Reduced from 120px */
+  min-width: 100px;
+  background-color: #232323;
+  border-right: 1px solid #444;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.piano-roll-canvas-container {
+  flex: 1;
+  overflow: auto;
+  background-color: #2a2a2a;
+  position: relative;
+}
+
+/* Make the canvas container scrollable */
+.piano-roll-canvas-container > div {
+  min-width: 100%;
+  min-height: 100%;
+}
+
+/* Adjust modal header elements for smaller size */
+.piano-roll-header h5 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.piano-roll-header .btn-sm {
+  padding: 0.2rem 0.4rem;
+  font-size: 0.75rem;
+}
+
+.piano-roll-header .form-range {
+  width: 80px !important; /* Reduced from 100px */
+}
+
+/* Custom scrollbar for piano roll */
+.piano-roll-canvas-container::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.piano-roll-canvas-container::-webkit-scrollbar-track {
+  background: #1a1a1a;
+  border: 1px solid #333;
+}
+
+.piano-roll-canvas-container::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 5px;
+}
+
+.piano-roll-canvas-container::-webkit-scrollbar-corner {
+  background: #1a1a1a;
+}
+
+/* Velocity lane - make it smaller */
+.velocity-lane {
+  height: 60px; /* Reduced from 100px */
+  background-color: #232323;
+  border-top: 1px solid #444;
+  padding: 0.25rem;
+  flex-shrink: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  .piano-roll-modal .modal-dialog {
+    max-width: 95vw;
+    width: 95vw;
+  }
+}
+
+/* Fix the canvas positioning */
+.piano-roll-canvas-container canvas {
+  position: absolute !important;
+  top: 0;
+  left: 0;
+}
+
+/* Pattern Library Modal Styles */
+.pattern-library-modal .modal-dialog {
+  max-width: 600px;
+}
+
+.pattern-library-modal .modal-content {
+  background-color: #1a1a1a;
+  color: #fff;
+}
+
+.pattern-library-modal .modal-header {
+  background-color: #2d2c29;
+  border-bottom: 1px solid #444;
+}
+
+.pattern-library-modal .modal-body {
+  background-color: #1a1a1a;
+}
+
+.pattern-library-modal .modal-footer {
+  background-color: #2d2c29;
+  border-top: 1px solid #444;
+}
+
+/* Pattern list styles */
+.pattern-list .list-group-item {
+  background-color: #252525;
+  border: 1px solid #333;
+  margin-bottom: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.pattern-list .list-group-item:hover {
+  background-color: #2a2a2a;
+  border-color: #444;
+}
+
+.pattern-list .list-group-item.active {
+  background-color: #2d2c29;
+  border-color: #4a7c9e;
+}
+
+/* Pattern preview */
+.pattern-preview {
+  position: relative;
+  background-color: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+/* Pattern color indicator */
+.pattern-color-indicator {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+/* Pattern view mode toggle */
+.pattern-mode-toggle {
+  margin-bottom: 0.5rem;
+}
+
+.pattern-mode-toggle .btn {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+}
+
+/* Pattern clips on timeline */
+.pattern-clip {
+  position: absolute;
+  border: 2px solid;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.pattern-clip:hover {
+  opacity: 0.8;
+}
+
+.pattern-clip-name {
+  position: absolute;
+  top: 2px;
+  left: 5px;
+  font-size: 11px;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Pattern drag ghost */
+.pattern-drag-ghost {
+  position: fixed;
+  pointer-events: none;
+  opacity: 0.7;
+  z-index: 9999;
+  border: 2px solid;
+  border-radius: 4px;
+  padding: 4px 8px;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  font-size: 12px;
+}
+
+/* Step sequencer styles (for future) */
+.step-sequencer {
+  background-color: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 1rem;
+}
+
+.step-sequencer-grid {
+  display: grid;
+  gap: 2px;
+  grid-template-columns: repeat(16, 1fr);
+}
+
+.step-button {
+  aspect-ratio: 1;
+  background-color: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.step-button:hover {
+  background-color: #3a3a3a;
+}
+
+.step-button.active {
+  background-color: #4a7c9e;
+  border-color: #5a8cae;
+}
+
+.step-button.accent {
+  background-color: #ce6a6a;
+  border-color: #de7a7a;
+}
+
+/* Step Sequencer Modal */
+.step-sequencer-modal .modal-dialog {
+  max-width: 1200px;
+}
+
+.step-sequencer-modal .modal-content {
+  background-color: #1a1a1a;
+  color: #fff;
+}
+
+.step-sequencer-modal .modal-header {
+  background-color: #2d2c29;
+  border-bottom: 1px solid #444;
+}
+
+.step-sequencer-modal .modal-body {
+  background-color: #1a1a1a;
+}
+
+.step-sequencer-modal .modal-footer {
+  background-color: #2d2c29;
+  border-top: 1px solid #444;
+}
+
+/* Step sequencer grid */
+.step-sequencer-grid {
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.step-sequencer-grid table {
+  border-collapse: separate;
+  border-spacing: 2px;
+}
+
+.step-button {
+  transition: all 0.1s ease;
+  outline: none;
+  border: none;
+}
+
+.step-button:hover {
+  opacity: 0.8;
+  transform: scale(0.95);
+}
+
+.step-button.active {
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.5);
+}
+
+.step-button.playing {
+  animation: pulse 0.3s ease;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Pattern drag and drop */
+.pattern-draggable {
+  cursor: grab;
+  transition: transform 0.2s ease;
+}
+
+.pattern-draggable:active {
+  cursor: grabbing;
+}
+
+.pattern-draggable:hover {
+  transform: translateY(-2px);
+}
+
+/* Pattern drop zone indicator */
+.pattern-drop-zone {
+  position: relative;
+}
+
+.pattern-drop-zone.drag-over::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: rgba(74, 124, 158, 0.2);
+  border: 2px dashed #4a7c9e;
+  pointer-events: none;
+}
+
+/* Pattern clip styles */
+.pattern-clip {
+  user-select: none;
+}
+
+.pattern-clip-handle {
+  cursor: ew-resize;
+}
+
+.pattern-clip-body {
+  cursor: move;
+}
+
+/* Pattern library enhancements */
+.pattern-library-item {
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.pattern-library-item.dragging {
+  opacity: 0.5;
+}
+
+.pattern-grip {
+  cursor: grab;
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+
+.pattern-library-item:hover .pattern-grip {
+  opacity: 1;
+}
+
+/* Pattern preview visualization */
+.pattern-preview-note {
+  position: absolute;
+  background-color: currentColor;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+/* Copy/paste indicators */
+.pattern-copied {
+  position: relative;
+}
+
+.pattern-copied::after {
+  content: 'Copied!';
+  position: absolute;
+  top: -20px;
+  right: 0;
+  background-color: #4a7c9e;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  animation: fadeInOut 1s ease;
+  pointer-events: none;
+}
+
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+}
+
+/* Enhanced MIDI track pattern view */
+.midi-track-display.pattern-mode {
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 50px,
+    rgba(255, 255, 255, 0.03) 50px,
+    rgba(255, 255, 255, 0.03) 51px
+  );
+}
+
+/* Pattern edit mode */
+.pattern-edit-indicator {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  background-color: #ff6a6a;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: bold;
+  animation: blink 1s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Improved pattern colors with better contrast */
+.pattern-color-1 {
+  background-color: #4a7c9e;
+}
+.pattern-color-2 {
+  background-color: #9e4a7c;
+}
+.pattern-color-3 {
+  background-color: #7c9e4a;
+}
+.pattern-color-4 {
+  background-color: #9e7c4a;
+}
+.pattern-color-5 {
+  background-color: #4a9e7c;
+}
+.pattern-color-6 {
+  background-color: #7c4a9e;
+}
+.pattern-color-7 {
+  background-color: #ce6a6a;
+}
+.pattern-color-8 {
+  background-color: #6ace6a;
+}
+
+/* Pattern context menu (future feature) */
+.pattern-context-menu {
+  position: fixed;
+  background-color: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+}
+
+.pattern-context-menu li {
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.pattern-context-menu li:hover {
+  background-color: #3a3a3a;
+}
+
+.pattern-context-menu li.separator {
+  border-top: 1px solid #444;
+  padding: 0;
+  margin: 4px 0;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+  .step-sequencer-modal .modal-dialog {
+    max-width: 95vw;
+  }
+
+  .step-sequencer-grid {
+    font-size: 0.75rem;
+  }
+
+  .step-button {
+    min-width: 20px;
+    min-height: 20px;
+  }
+}

@@ -15,6 +15,7 @@ import {
   FaDatabase,
   FaMicrophone,
   FaMusic,
+  FaKeyboard,
 } from 'react-icons/fa';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import Track from './Track';
@@ -25,18 +26,71 @@ import EffectsPanel from './EffectsPanel';
 import MultitrackTimeline from './MultitrackTimeline';
 import TakesImportModal from './TakesImportModal';
 import MultitrackMixdown from './MultitrackMixdown';
+import MIDIInputManager from './MIDIInputManager';
+import MIDIDeviceSelector from './MIDIDeviceSelector';
+
+// Create singleton MIDI manager
+const midiInputManager = new MIDIInputManager();
 
 export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   console.log('MultitrackEditor rendering');
 
-  const { tracks = [], addTrack } = useMultitrack(); // Default to empty array
+  const { tracks = [], addTrack, selectedTrackId } = useMultitrack();
   const [showEffectsPanel, setShowEffectsPanel] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(100);
   const [showTakesModal, setShowTakesModal] = useState(false);
+  const [showMIDIDeviceSelector, setShowMIDIDeviceSelector] = useState(false);
+  const [connectedMIDIDevice, setConnectedMIDIDevice] = useState(null);
+  const [midiActivity, setMidiActivity] = useState(false);
   const fileInputRef = useRef(null);
+  
+  // Store MIDI handler ref to avoid recreating
+  const midiHandlerRef = useRef(null);
 
   // Use takes from props if provided, otherwise use empty array
   const availableTakes = propTakes;
+
+  // Initialize MIDI manager on mount
+  useEffect(() => {
+    midiInputManager.initialize().then(success => {
+      if (success) {
+        console.log('🎹 MIDI Manager initialized successfully');
+      }
+    });
+  }, []);
+
+  // Global MIDI handler - routes to recording tracks or selected track
+  const handleGlobalMIDI = (message) => {
+    console.log('🎹 Global MIDI message:', message);
+    
+    // Flash activity indicator
+    setMidiActivity(true);
+    setTimeout(() => setMidiActivity(false), 100);
+    
+    // Find if any MIDI track is recording
+    const recordingTrack = tracks.find(t => t.type === 'midi' && t.isRecording);
+    
+    if (recordingTrack) {
+      // Route to recording track
+      console.log('📍 Routing MIDI to recording track:', recordingTrack.id);
+      // The track component will handle recording through its own recorder
+    } else {
+      // Route to selected track for live playing
+      const selectedTrack = tracks.find(t => t.id === selectedTrackId && t.type === 'midi');
+      if (selectedTrack) {
+        console.log('📍 Routing MIDI to selected track:', selectedTrack.id);
+        // The track will handle live playback
+      }
+    }
+    
+    // Broadcast the MIDI message for any track to pick up
+    window.dispatchEvent(new CustomEvent('midiMessage', { detail: message }));
+  };
+
+  // Store the handler ref
+  useEffect(() => {
+    midiHandlerRef.current = handleGlobalMIDI;
+  }, [tracks, selectedTrackId]);
 
   // Generate silent audio for empty tracks
   const generateSilentAudio = () => {
@@ -48,65 +102,61 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
     const view = new DataView(buffer);
 
     // WAV header
-    const writeString = (offset, str) => {
-      for (let i = 0; i < str.length; i++) {
-        view.setUint8(offset + i, str.charCodeAt(i));
+    const writeString = (offset, string) => {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
       }
     };
 
-    // RIFF header
     writeString(0, 'RIFF');
     view.setUint32(4, 36 + numSamples * 2, true);
     writeString(8, 'WAVE');
-
-    // fmt chunk
     writeString(12, 'fmt ');
-    view.setUint32(16, 16, true); // chunk size
-    view.setUint16(20, 1, true); // PCM
-    view.setUint16(22, 1, true); // mono
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
     view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * 2, true); // byte rate
-    view.setUint16(32, 2, true); // block align
-    view.setUint16(34, 16, true); // bits per sample
-
-    // data chunk
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
     writeString(36, 'data');
     view.setUint32(40, numSamples * 2, true);
 
-    // Fill with silence (zeros)
-    for (let i = 44; i < buffer.byteLength; i += 2) {
-      view.setInt16(i, 0, true);
-    }
+    // Write silence (all zeros)
+    // No need to explicitly write zeros as ArrayBuffer is initialized with zeros
 
     const blob = new Blob([buffer], { type: 'audio/wav' });
     return URL.createObjectURL(blob);
   };
 
-  // Handle adding a new empty track for recording
+  // Track management functions
   const handleAddRecordingTrack = () => {
     console.log('Adding recording track');
     const newTrack = {
       name: `Recording ${tracks.length + 1}`,
-      audioURL: null,
-      isEmpty: true,
       isRecordingTrack: true,
+      audioURL: null,
+      volume: 1,
+      pan: 0,
+      muted: false,
+      solo: false,
     };
-    console.log('Creating recording track with properties:', newTrack);
     addTrack(newTrack);
   };
 
-  // Handle adding track with sample audio
   const handleAddSampleTrack = () => {
-    console.log('Adding track with silent audio');
-    const silentAudioURL = generateSilentAudio();
-    addTrack({
+    console.log('Adding sample track');
+    const newTrack = {
       name: `Track ${tracks.length + 1}`,
-      audioURL: silentAudioURL,
-      isEmpty: true,
-    });
+      audioURL: generateSilentAudio(),
+      volume: 1,
+      pan: 0,
+      muted: false,
+      solo: false,
+    };
+    addTrack(newTrack);
   };
 
-  // Handle adding MIDI track
   const handleAddMIDITrack = () => {
     console.log('Adding MIDI track');
     const newTrack = {
@@ -120,10 +170,41 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
       midiData: {
         notes: [],
         tempo: 120,
-        instrument: 'simpleSynth',
+        instrument: {
+          id: 'synth-default',
+          type: 'synth',
+          preset: 'default',
+          name: 'Basic Synth'
+        }
       }
     };
     addTrack(newTrack);
+  };
+
+  // Handle MIDI device selection
+  const handleMIDIDeviceSelect = (deviceId) => {
+    console.log('🎹 Selecting MIDI device:', deviceId);
+    
+    // Disconnect previous device if any
+    if (connectedMIDIDevice) {
+      midiInputManager.disconnectInput(connectedMIDIDevice);
+    }
+    
+    // Connect new device
+    if (deviceId) {
+      const success = midiInputManager.connectInput(deviceId, (message) => {
+        if (midiHandlerRef.current) {
+          midiHandlerRef.current(message);
+        }
+      });
+      
+      if (success) {
+        setConnectedMIDIDevice(deviceId);
+        console.log('✅ MIDI device connected');
+      } else {
+        console.error('❌ Failed to connect MIDI device');
+      }
+    }
   };
 
   // Test function to check if tracks are being added
@@ -205,6 +286,25 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
             onClick={() => fileInputRef.current?.click()}
           >
             <FaFileImport /> Import File
+          </Button>
+
+          {/* MIDI Device Setup Button */}
+          <Button
+            size="sm"
+            variant={connectedMIDIDevice ? 'success' : 'outline-secondary'}
+            onClick={() => setShowMIDIDeviceSelector(true)}
+            className="position-relative"
+          >
+            <FaKeyboard /> 
+            {connectedMIDIDevice ? ' MIDI Connected' : ' MIDI Setup'}
+            {midiActivity && (
+              <span 
+                className="position-absolute top-0 start-100 translate-middle p-1 bg-success border border-light rounded-circle"
+                style={{ width: '8px', height: '8px' }}
+              >
+                <span className="visually-hidden">MIDI activity</span>
+              </span>
+            )}
           </Button>
 
           {/* MIXDOWN BUTTON */}
@@ -353,6 +453,15 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
         show={showTakesModal}
         onHide={() => setShowTakesModal(false)}
         takes={availableTakes}
+      />
+      
+      {/* MIDI Device Selector Modal */}
+      <MIDIDeviceSelector
+        show={showMIDIDeviceSelector}
+        onHide={() => setShowMIDIDeviceSelector(false)}
+        midiInputManager={midiInputManager}
+        currentDevice={connectedMIDIDevice}
+        onDeviceSelect={handleMIDIDeviceSelect}
       />
     </div>
   );

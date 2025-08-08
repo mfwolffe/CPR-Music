@@ -1,8 +1,6 @@
 // components/audio/DAW/Multitrack/MIDIInputManager.js
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-
 /**
  * MIDIInputManager - Handles Web MIDI API connections and routing
  * Singleton pattern to ensure only one instance manages MIDI devices
@@ -237,3 +235,6 @@ class MIDIInputManager {
     this.sendMessage(deviceId, noteOff);
   }
 }
+
+// IMPORTANT: Export the class as default
+export default MIDIInputManager;
