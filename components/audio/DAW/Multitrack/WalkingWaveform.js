@@ -7,7 +7,7 @@ export default function WalkingWaveform({
   mediaStream,
   isRecording,
   trackId,
-  height = 100, // Default to 100px
+  height = 120, // Match track height
   color = '#ff6b6b',
   backgroundColor = '#2a2a2a',
 }) {
@@ -53,6 +53,7 @@ export default function WalkingWaveform({
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
       const width = canvas.width;
+      const canvasHeight = canvas.height;
 
       // Initialize recording start time
       startTimeRef.current = Date.now();
@@ -60,7 +61,7 @@ export default function WalkingWaveform({
 
       // Clear canvas
       ctx.fillStyle = backgroundColor;
-      ctx.fillRect(0, 0, width, height);
+      ctx.fillRect(0, 0, width, canvasHeight);
 
       let frameCount = 0;
 
@@ -106,9 +107,10 @@ export default function WalkingWaveform({
         if (currentBar < width / (barWidth + barSpacing)) {
           const x = currentBar * (barWidth + barSpacing);
 
-          // Draw centered waveform bars
-          const barHeight = amplitude * (height - 20); // Leave margin top and bottom
-          const y = (height - barHeight) / 2; // Center vertically
+          // Calculate bar height and center it vertically
+          const maxBarHeight = canvasHeight * 0.8; // Use 80% of canvas height
+          const barHeight = amplitude * maxBarHeight;
+          const y = (canvasHeight - barHeight) / 2; // Center vertically
 
           ctx.fillStyle = color;
           ctx.fillRect(x, y, barWidth, barHeight);
@@ -144,14 +146,16 @@ export default function WalkingWaveform({
     <canvas
       ref={canvasRef}
       width={3000} // Match track width for scrolling
-      height={100} // Fixed height matching track container
+      height={height} // Use the height prop
       style={{
         display: 'block',
+        position: 'absolute',
+        top: '50%',
+        left: 0,
+        transform: 'translateY(-50%)',
         backgroundColor,
         width: '3000px',
-        height: '100%', // Fill parent height
-        minHeight: '100px',
-        maxHeight: '100px',
+        height: `${height}px`,
       }}
     />
   );
