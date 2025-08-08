@@ -2594,3 +2594,14 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   min-height: 120px !important;
   max-height: 120px !important;
 }
+
+/* Remove the max-height constraint on walking waveform canvas */
+.track-waveform canvas[width='3000'] {
+  position: absolute !important;
+  top: 50% !important;
+  left: 0 !important;
+  transform: translateY(-50%) !important;
+  height: auto !important;
+  max-height: none !important; /* Remove the 100px limit */
+  min-width: 100%;
+}

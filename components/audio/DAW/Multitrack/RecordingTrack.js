@@ -221,7 +221,7 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
               mediaStream={mediaStream}
               isRecording={isRecording}
               trackId={track.id}
-              height={60}
+              height={120}
               color="#ff6b6b"
             />
           </>
