@@ -89,8 +89,29 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     pannerRef.current.connect(audioContextRef.current.destination);
 
     return () => {
+      try {
+        registerTrackInstrument(track.id, null);
+      } catch {}
       if (instrumentRef.current) {
-        instrumentRef.current.dispose();
+        try {
+          instrumentRef.current.stopAllNotes?.();
+        } catch {}
+        try {
+          instrumentRef.current.dispose?.();
+        } catch {}
+        instrumentRef.current = null;
+      }
+      try {
+        pannerRef.current?.disconnect?.();
+      } catch {}
+      try {
+        masterGainRef.current?.disconnect?.();
+      } catch {}
+      const ctx = audioContextRef.current;
+      if (ctx && typeof ctx.close === 'function') {
+        try {
+          ctx.close();
+        } catch {}
       }
     };
   }, []);
@@ -100,7 +121,12 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     if (track.midiData?.instrument && audioContextRef.current) {
       // Dispose old instrument
       if (instrumentRef.current) {
-        instrumentRef.current.dispose();
+        try {
+          instrumentRef.current.stopAllNotes?.();
+        } catch {}
+        try {
+          instrumentRef.current.dispose?.();
+        } catch {}
       }
 
       // Create new instrument
@@ -137,72 +163,183 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     }
   }, [track.pan]);
 
-  // Handle playback with pattern support
+  // Keep preview canvas bitmap in sync with container size (and HiDPI)
   useEffect(() => {
-    if (!track.midiData || !instrumentRef.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const parent = canvas.parentElement;
+    if (!parent) return;
 
-    // Get notes to play based on view mode
-    let notesToPlay = [];
+    const resize = () => {
+      const rect = parent.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const displayW = Math.max(1, Math.floor(rect.width));
+      const displayH = Math.max(1, Math.floor(rect.height));
+
+      const targetW = Math.floor(displayW * dpr);
+      const targetH = Math.floor(displayH * dpr);
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        const ctx = canvas.getContext('2d');
+        // reset before resize to avoid compounding transforms
+        if (ctx) ctx.setTransform(1, 0, 0, 1, 0, 0);
+        canvas.width = targetW;
+        canvas.height = targetH;
+        if (ctx && dpr !== 1) {
+          // Draw using CSS pixels thereafter
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+      }
+    };
+
+    resize();
+    const ro = 'ResizeObserver' in window ? new ResizeObserver(resize) : null;
+    ro?.observe(parent);
+    window.addEventListener('resize', resize);
+
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', resize);
+    };
+  }, []);
+
+  // --- Lookahead MIDI scheduler (prevents stuck notes) ---
+  const currentTimeRef = useRef(0);
+  const isPlayingRef = useRef(false);
+  const notesRef = useRef([]);
+  const tempoRef = useRef(120);
+  const mutedRef = useRef(false);
+  const soloOkRef = useRef(true);
+  const lastScheduledTimeRef = useRef(0);
+  const playingNotesRef = useRef(new Map()); // key: `${note.note}:${note.startTime}` -> { onId, offId, endSec }
+  const schedulerIdRef = useRef(null);
+
+  // Keep lightweight refs up to date
+  useEffect(() => {
+    currentTimeRef.current = globalCurrentTime;
+  }, [globalCurrentTime]);
+  useEffect(() => {
+    isPlayingRef.current = globalIsPlaying;
+  }, [globalIsPlaying]);
+  useEffect(() => {
+    tempoRef.current = track.midiData?.tempo || 120;
+  }, [track.midiData?.tempo]);
+  useEffect(() => {
+    mutedRef.current = !!track.muted;
+  }, [track.muted]);
+  useEffect(() => {
+    soloOkRef.current = !soloTrackId || soloTrackId === track.id;
+  }, [soloTrackId, track.id]);
+
+  // Flatten notes according to view mode
+  useEffect(() => {
+    if (!track.midiData) {
+      notesRef.current = [];
+      return;
+    }
     if (viewMode === 'patterns') {
-      notesToPlay = resolvePatternArrangement(track);
+      notesRef.current = resolvePatternArrangement(track) || [];
     } else {
-      notesToPlay = track.midiData.notes || [];
+      notesRef.current = track.midiData.notes || [];
+    }
+  }, [track.midiData, viewMode]);
+
+  // Helper to fully stop/clear everything
+  const hardResetPlayback = () => {
+    // stop instrument voices
+    try {
+      instrumentRef.current?.stopAllNotes?.();
+    } catch {}
+    // clear pending timeouts
+    for (const { onId, offId } of playingNotesRef.current.values()) {
+      if (onId) clearTimeout(onId);
+      if (offId) clearTimeout(offId);
+    }
+    playingNotesRef.current.clear();
+  };
+
+  // Start/stop the periodic scheduler based on play state & routing
+  useEffect(() => {
+    if (!instrumentRef.current) return; // no instrument yet
+
+    // Always clear any prior interval
+    if (schedulerIdRef.current) {
+      clearInterval(schedulerIdRef.current);
+      schedulerIdRef.current = null;
     }
 
-    // Clear previously scheduled notes
-    scheduledNotesRef.current.forEach((timeoutId) => {
-      clearTimeout(timeoutId);
-    });
-    scheduledNotesRef.current = [];
+    // If not actively audible, perform a hard reset and bail
+    if (!isPlayingRef.current || mutedRef.current || !soloOkRef.current) {
+      hardResetPlayback();
+      lastScheduledTimeRef.current = currentTimeRef.current;
+      return;
+    }
 
-    if (globalIsPlaying && !track.muted) {
-      if (soloTrackId && track.id !== soloTrackId) return;
+    const lookaheadSec = 0.1; // how far ahead to schedule
+    const tickMs = 30; // scheduler tick
 
-      const tempo = track.midiData?.tempo || 120;
+    const tick = () => {
+      const nowSec = currentTimeRef.current;
+      const tempo = tempoRef.current || 120;
       const secPerBeat = 60 / tempo;
 
-      // Schedule all notes that should play (convert beats -> seconds)
-      const upcomingNotes = notesToPlay.filter((note) => {
-        const startSec = note.startTime * secPerBeat;
-        const endSec = (note.startTime + note.duration) * secPerBeat;
-        return startSec >= globalCurrentTime || endSec > globalCurrentTime;
-      });
-
-      upcomingNotes.forEach((note) => {
-        const startSec = note.startTime * secPerBeat;
-        const durationSec = note.duration * secPerBeat;
-        const delay = Math.max(0, startSec - globalCurrentTime);
-
-        const noteOnTimeout = setTimeout(() => {
-          instrumentRef.current.playNote(
-            note.note,
-            (note.velocity ?? 100) / 127,
-          );
-        }, delay * 1000);
-
-        const noteOffTimeout = setTimeout(
-          () => {
-            instrumentRef.current.stopNote(note.note);
-          },
-          (delay + durationSec) * 1000,
-        );
-
-        scheduledNotesRef.current.push(noteOnTimeout, noteOffTimeout);
-      });
-    } else {
-      // Stop all notes when playback stops
-      if (instrumentRef.current) {
-        instrumentRef.current.stopAllNotes();
+      // Detect seeks (large jumps or backwards)
+      const last = lastScheduledTimeRef.current;
+      if (nowSec < last - 0.05 || nowSec - last > 0.5) {
+        hardResetPlayback();
+        lastScheduledTimeRef.current = nowSec;
       }
+
+      const windowStart = lastScheduledTimeRef.current;
+      const windowEnd = nowSec + lookaheadSec;
+
+      // Schedule notes whose starts fall inside [windowStart, windowEnd)
+      const notes = notesRef.current || [];
+      for (const n of notes) {
+        const startSec = n.startTime * secPerBeat;
+        const endSec = (n.startTime + n.duration) * secPerBeat;
+        if (startSec >= windowStart && startSec < windowEnd) {
+          const key = `${n.note}:${n.startTime}`;
+          if (!playingNotesRef.current.has(key)) {
+            const delayOn = Math.max(0, startSec - nowSec);
+            const onId = setTimeout(() => {
+              instrumentRef.current?.playNote?.(
+                n.note,
+                (n.velocity ?? 100) / 127,
+              );
+            }, delayOn * 1000);
+
+            const delayOff = Math.max(0, endSec - nowSec);
+            const offId = setTimeout(() => {
+              instrumentRef.current?.stopNote?.(n.note);
+              playingNotesRef.current.delete(key);
+            }, delayOff * 1000);
+
+            playingNotesRef.current.set(key, { onId, offId, endSec });
+          }
+        }
+      }
+
+      // Advance the window
+      lastScheduledTimeRef.current = windowEnd;
+    };
+
+    schedulerIdRef.current = setInterval(tick, tickMs);
+
+    return () => {
+      if (schedulerIdRef.current) {
+        clearInterval(schedulerIdRef.current);
+        schedulerIdRef.current = null;
+      }
+    };
+  }, [globalIsPlaying, track.muted, soloTrackId, track.id]);
+
+  // On stop, ensure everything is silenced
+  useEffect(() => {
+    if (!globalIsPlaying) {
+      hardResetPlayback();
+      lastScheduledTimeRef.current = currentTimeRef.current;
     }
-  }, [
-    globalIsPlaying,
-    globalCurrentTime,
-    track.muted,
-    soloTrackId,
-    track.midiData,
-    viewMode,
-  ]);
+  }, [globalIsPlaying]);
 
   // Convert current notes to a pattern
   const convertNotesToPattern = () => {
@@ -382,7 +519,9 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    const { width, height } = canvas;
+    const rect = canvas.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
 
     // Clear canvas
     ctx.fillStyle = '#1f2a1f';
@@ -733,13 +872,10 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
         >
           <canvas
             ref={canvasRef}
-            width={800}
-            height={240}
             style={{
               width: '100%',
               height: '100%',
               display: 'block',
-              objectFit: 'contain',
             }}
           />
           {isRecording && <div className="midi-recording-indicator">REC</div>}

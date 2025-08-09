@@ -35,7 +35,14 @@ const midiInputManager = new MIDIInputManager();
 export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   console.log('MultitrackEditor rendering');
 
-  const { tracks = [], addTrack, selectedTrackId } = useMultitrack();
+  const {
+    tracks = [],
+    addTrack,
+    selectedTrackId,
+    activeRegion,
+    deleteRegion,
+    exciseRegion,
+  } = useMultitrack();
   const [showEffectsPanel, setShowEffectsPanel] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(100);
   const [showTakesModal, setShowTakesModal] = useState(false);
@@ -44,7 +51,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   const [midiActivity, setMidiActivity] = useState(false);
   const [showPiano, setShowPiano] = useState(false); // New state for piano visibility
   const fileInputRef = useRef(null);
-  
+
   // Store MIDI handler ref to avoid recreating
   const midiHandlerRef = useRef(null);
 
@@ -53,7 +60,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
 
   // Initialize MIDI manager on mount
   useEffect(() => {
-    midiInputManager.initialize().then(success => {
+    midiInputManager.initialize().then((success) => {
       if (success) {
         console.log('🎹 MIDI Manager initialized successfully');
       }
@@ -63,27 +70,31 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   // Global MIDI handler - routes to recording tracks or selected track
   const handleGlobalMIDI = (message) => {
     console.log('🎹 Global MIDI message:', message);
-    
+
     // Flash activity indicator
     setMidiActivity(true);
     setTimeout(() => setMidiActivity(false), 100);
-    
+
     // Find if any MIDI track is recording
-    const recordingTrack = tracks.find(t => t.type === 'midi' && t.isRecording);
-    
+    const recordingTrack = tracks.find(
+      (t) => t.type === 'midi' && t.isRecording,
+    );
+
     if (recordingTrack) {
       // Route to recording track
       console.log('📍 Routing MIDI to recording track:', recordingTrack.id);
       // The track component will handle recording through its own recorder
     } else {
       // Route to selected track for live playing
-      const selectedTrack = tracks.find(t => t.id === selectedTrackId && t.type === 'midi');
+      const selectedTrack = tracks.find(
+        (t) => t.id === selectedTrackId && t.type === 'midi',
+      );
       if (selectedTrack) {
         console.log('📍 Routing MIDI to selected track:', selectedTrack.id);
         // The track will handle live playback
       }
     }
-    
+
     // Broadcast the MIDI message for any track to pick up
     window.dispatchEvent(new CustomEvent('midiMessage', { detail: message }));
   };
@@ -100,7 +111,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
     const duration = 1; // 1 second of silence
     const length = sampleRate * duration;
     const audioBuffer = new AudioContext().createBuffer(2, length, sampleRate);
-    
+
     // Convert to WAV format
     const wav = audioBufferToWav(audioBuffer);
     const blob = new Blob([wav], { type: 'audio/wav' });
@@ -151,9 +162,9 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
           id: 'synth-default',
           type: 'synth',
           preset: 'default',
-          name: 'Basic Synth'
-        }
-      }
+          name: 'Basic Synth',
+        },
+      },
     };
     addTrack(newTrack);
   };
@@ -161,12 +172,12 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   // Handle MIDI device selection
   const handleMIDIDeviceSelect = (deviceId) => {
     console.log('🎹 Selecting MIDI device:', deviceId);
-    
+
     // Disconnect previous device if any
     if (connectedMIDIDevice) {
       midiInputManager.disconnectInput(connectedMIDIDevice);
     }
-    
+
     // Connect new device
     if (deviceId) {
       const success = midiInputManager.connectInput(deviceId, (message) => {
@@ -174,7 +185,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
           midiHandlerRef.current(message);
         }
       });
-      
+
       if (success) {
         setConnectedMIDIDevice(deviceId);
         console.log('✅ MIDI device connected');
@@ -211,9 +222,19 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   };
 
   return (
-    <div className={`multitrack-editor-container ${showPiano ? 'piano-visible' : ''}`}>
+    <div
+      className={`multitrack-editor-container ${showPiano ? 'piano-visible' : ''}`}
+    >
       {/* Top Toolbar - Effects and Edit Actions */}
       <div className="multitrack-toolbar">
+        <div className="toolbar-section">
+          <Button size="sm" variant="outline-light" disabled>
+            <FaUndo /> Undo
+          </Button>
+          <Button size="sm" variant="outline-light" disabled>
+            <FaRedo /> Redo
+          </Button>
+        </div>
         <div className="toolbar-section">
           <Button size="sm" variant="outline-light" disabled>
             <FaCut /> Cut
@@ -224,20 +245,31 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
           <Button size="sm" variant="outline-light" disabled>
             <FaPaste /> Paste
           </Button>
-          <Button size="sm" variant="outline-light" disabled>
+          <Button
+            size="sm"
+            variant={activeRegion ? 'danger' : 'outline-light'}
+            disabled={!activeRegion}
+            onClick={() => deleteRegion(activeRegion)}
+            title={
+              activeRegion
+                ? 'Delete selection (ripple)'
+                : 'Select a region to enable'
+            }
+          >
             <FaTrash /> Delete
           </Button>
-        </div>
-
-        <div className="toolbar-section">
-          <Button size="sm" variant="outline-light" disabled>
-            <FaUndo /> Undo
+          <Button
+            size="sm"
+            variant={activeRegion ? 'warning' : 'outline-light'}
+            disabled={!activeRegion}
+            onClick={() => exciseRegion(activeRegion)}
+            title={
+              activeRegion ? 'Keep only selection' : 'Select a region to enable'
+            }
+          >
+            <FaCut /> Excise
           </Button>
-          <Button size="sm" variant="outline-light" disabled>
-            <FaRedo /> Redo
-          </Button>
         </div>
-
         <div className="toolbar-section">
           <Button
             size="sm"
@@ -272,10 +304,10 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
             onClick={() => setShowMIDIDeviceSelector(true)}
             className="position-relative"
           >
-            <FaKeyboard /> 
+            <FaKeyboard />
             {connectedMIDIDevice ? ' MIDI Connected' : ' MIDI Setup'}
             {midiActivity && (
-              <span 
+              <span
                 className="position-absolute top-0 start-100 translate-middle p-1 bg-success border border-light rounded-circle"
                 style={{ width: '8px', height: '8px' }}
               >
@@ -422,7 +454,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
 
       {/* Bottom Section - Piano and Transport Controls */}
       <div className="multitrack-bottom-section">
-        <MultitrackTransport 
+        <MultitrackTransport
           showPiano={showPiano}
           setShowPiano={setShowPiano}
         />
@@ -434,7 +466,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
         onHide={() => setShowTakesModal(false)}
         takes={availableTakes}
       />
-      
+
       {/* MIDI Device Selector Modal */}
       <MIDIDeviceSelector
         show={showMIDIDeviceSelector}
@@ -453,13 +485,13 @@ function audioBufferToWav(buffer) {
   const arrayBuffer = new ArrayBuffer(length);
   const view = new DataView(arrayBuffer);
   const sampleRate = buffer.sampleRate;
-  
+
   const writeString = (offset, string) => {
     for (let i = 0; i < string.length; i++) {
       view.setUint8(offset + i, string.charCodeAt(i));
     }
   };
-  
+
   // Write WAV header
   writeString(0, 'RIFF');
   view.setUint32(4, length - 8, true);
@@ -474,17 +506,17 @@ function audioBufferToWav(buffer) {
   view.setUint16(34, 16, true);
   writeString(36, 'data');
   view.setUint32(40, length - 44, true);
-  
+
   // Write audio data
   let offset = 44;
   for (let i = 0; i < buffer.length; i++) {
     for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
       const sample = buffer.getChannelData(channel)[i];
-      const value = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+      const value = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
       view.setInt16(offset, value, true);
       offset += 2;
     }
   }
-  
+
   return arrayBuffer;
 }
