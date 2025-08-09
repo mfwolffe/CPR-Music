@@ -1,52 +1,56 @@
+// components/audio/DAW/Effects/Tremolo.js
 'use client';
 
 import { useCallback, useRef, useEffect } from 'react';
 import { Container, Row, Col, Button, Dropdown, Form } from 'react-bootstrap';
-import { 
-  useAudio, 
-  useEffects 
-} from '../../../../contexts/DAWProvider';
+import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
 
 /**
  * Generate LFO waveform for tremolo
  */
-function generateLFOWaveform(type, sampleRate, duration, frequency, phase, depth) {
-  const samples = Math.floor(sampleRate * duration);
-  const waveform = new Float32Array(samples);
+function generateLFOWaveform(
+  type,
+  sampleRate,
+  lengthSamples,
+  frequency,
+  phase,
+  depth,
+) {
+  const waveform = new Float32Array(lengthSamples);
   const phaseOffset = (phase / 360) * Math.PI * 2;
-  
-  for (let i = 0; i < samples; i++) {
+
+  for (let i = 0; i < lengthSamples; i++) {
     const t = (i / sampleRate) * frequency * Math.PI * 2 + phaseOffset;
     let modValue;
-    
-    switch(type) {
+
+    switch (type) {
       case 'sine':
         modValue = Math.sin(t);
         break;
-        
+
       case 'triangle':
         const normalized = (t / (Math.PI * 2)) % 1;
         modValue = 4 * Math.abs(normalized - 0.5) - 1;
         break;
-        
+
       case 'square':
         modValue = Math.sin(t) > 0 ? 1 : -1;
         break;
-        
+
       case 'sawtooth':
         modValue = 2 * ((t / (Math.PI * 2)) % 1) - 1;
         break;
-        
+
       default:
         modValue = Math.sin(t);
     }
-    
+
     // Convert to amplitude modulation (0 to 1 range)
     // depth controls how deep the modulation goes
-    waveform[i] = 1 - (depth * (1 - modValue) / 2);
+    waveform[i] = 1 - (depth * (1 - modValue)) / 2;
   }
-  
+
   return waveform;
 }
 
@@ -54,44 +58,51 @@ function generateLFOWaveform(type, sampleRate, duration, frequency, phase, depth
  * Process tremolo on an audio buffer region
  * Pure function - no React dependencies
  */
-export async function processTremoloRegion(audioBuffer, startSample, endSample, parameters) {
+export async function processTremoloRegion(
+  audioBuffer,
+  startSample,
+  endSample,
+  parameters,
+) {
   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
   const sampleRate = audioBuffer.sampleRate;
   const regionLength = endSample - startSample;
-  const regionDuration = (endSample - startSample) / sampleRate;
-  
-  // Generate LFO for tremolo
+
+  // Generate LFO for tremolo using exact sample count
   const lfoWaveform = generateLFOWaveform(
     parameters.waveform || 'sine',
     sampleRate,
-    regionDuration,
+    regionLength,
     parameters.rate || 5,
     parameters.phase || 0,
-    parameters.depth || 0.5
+    parameters.depth || 0.5,
   );
-  
+
   // Create output buffer
   const outputBuffer = audioContext.createBuffer(
     audioBuffer.numberOfChannels,
     audioBuffer.length,
-    sampleRate
+    sampleRate,
   );
-  
+
   // Process each channel
   for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
     const inputData = audioBuffer.getChannelData(channel);
     const outputData = outputBuffer.getChannelData(channel);
-    
+
     // Copy original audio
     outputData.set(inputData);
-    
+
     // Apply tremolo to region
     for (let i = 0; i < regionLength; i++) {
       const sampleIndex = startSample + i;
-      outputData[sampleIndex] = inputData[sampleIndex] * lfoWaveform[i];
+      if (i < lfoWaveform.length) {
+        // Safety check
+        outputData[sampleIndex] = inputData[sampleIndex] * lfoWaveform[i];
+      }
     }
   }
-  
+
   return outputBuffer;
 }
 
@@ -99,13 +110,8 @@ export async function processTremoloRegion(audioBuffer, startSample, endSample, 
  * Tremolo effect component - amplitude modulation
  */
 export default function Tremolo({ width }) {
-  const {
-    audioRef,
-    wavesurferRef,
-    addToEditHistory,
-    audioURL
-  } = useAudio();
-  
+  const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+
   const {
     tremoloRate,
     setTremoloRate,
@@ -115,85 +121,94 @@ export default function Tremolo({ width }) {
     setTremoloWaveform,
     tremoloPhase,
     setTremoloPhase,
-    cutRegion
+    cutRegion,
   } = useEffects();
-  
+
   const audioContextRef = useRef(null);
-  
+
   // Initialize audio context
   useEffect(() => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      audioContextRef.current = new (window.AudioContext ||
+        window.webkitAudioContext)();
     }
   }, []);
-  
+
   // Apply tremolo to selected region
   const applyTremolo = useCallback(async () => {
     if (!cutRegion || !wavesurferRef.current) {
       alert('Please select a region first');
       return;
     }
-    
+
     try {
       const wavesurfer = wavesurferRef.current;
       const context = audioContextRef.current;
-      
+
       // Get the audio buffer
       const response = await fetch(audioURL);
       const arrayBuffer = await response.arrayBuffer();
       const audioBuffer = await context.decodeAudioData(arrayBuffer);
-      
+
       // Calculate sample positions
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      
+
       // Use the exported processing function
       const parameters = {
         rate: tremoloRate,
         depth: tremoloDepth,
         waveform: tremoloWaveform,
-        phase: tremoloPhase
+        phase: tremoloPhase,
       };
-      
+
       const outputBuffer = await processTremoloRegion(
         audioBuffer,
         startSample,
         endSample,
-        parameters
+        parameters,
       );
-      
+
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
       const blob = new Blob([wav], { type: 'audio/wav' });
       const url = URL.createObjectURL(blob);
-      
+
       // Update audio and history
       addToEditHistory(url, 'Apply Tremolo', {
         effect: 'tremolo',
         parameters,
-        region: { start: cutRegion.start, end: cutRegion.end }
+        region: { start: cutRegion.start, end: cutRegion.end },
       });
-      
+
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
-      
     } catch (error) {
       console.error('Error applying tremolo:', error);
       alert('Error applying tremolo. Please try again.');
     }
-  }, [audioURL, addToEditHistory, wavesurferRef, tremoloRate, tremoloDepth, tremoloWaveform, tremoloPhase, cutRegion]);
-  
+  }, [
+    audioURL,
+    addToEditHistory,
+    wavesurferRef,
+    tremoloRate,
+    tremoloDepth,
+    tremoloWaveform,
+    tremoloPhase,
+    cutRegion,
+  ]);
+
   const waveformTypes = [
     { key: 'sine', name: 'Sine' },
     { key: 'triangle', name: 'Triangle' },
     { key: 'square', name: 'Square' },
-    { key: 'sawtooth', name: 'Sawtooth' }
+    { key: 'sawtooth', name: 'Sawtooth' },
   ];
-  
+
   return (
     <Container fluid className="p-2">
       <Row className="text-center align-items-end">
@@ -204,15 +219,12 @@ export default function Tremolo({ width }) {
             onSelect={(eventKey) => setTremoloWaveform(eventKey)}
             size="sm"
           >
-            <Dropdown.Toggle
-              variant="secondary"
-              size="sm"
-              className="w-100"
-            >
-              {waveformTypes.find(t => t.key === tremoloWaveform)?.name || 'Sine'}
+            <Dropdown.Toggle variant="secondary" size="sm" className="w-100">
+              {waveformTypes.find((t) => t.key === tremoloWaveform)?.name ||
+                'Sine'}
             </Dropdown.Toggle>
             <Dropdown.Menu className="bg-daw-toolbars">
-              {waveformTypes.map(type => (
+              {waveformTypes.map((type) => (
                 <Dropdown.Item
                   key={type.key}
                   eventKey={type.key}
@@ -224,7 +236,7 @@ export default function Tremolo({ width }) {
             </Dropdown.Menu>
           </Dropdown>
         </Col>
-        
+
         {/* Knobs */}
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
@@ -239,7 +251,7 @@ export default function Tremolo({ width }) {
             color="#e75b5c"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={tremoloDepth}
@@ -252,7 +264,7 @@ export default function Tremolo({ width }) {
             color="#7bafd4"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={tremoloPhase}
@@ -266,14 +278,10 @@ export default function Tremolo({ width }) {
             color="#cbb677"
           />
         </Col>
-        
+
         {/* Apply Button */}
         <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
-          <Button
-            size="sm"
-            className="w-100"
-            onClick={applyTremolo}
-          >
+          <Button size="sm" className="w-100" onClick={applyTremolo}>
             Apply to Region
           </Button>
         </Col>

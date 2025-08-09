@@ -2,58 +2,60 @@
 
 import { useCallback, useRef, useEffect } from 'react';
 import { Container, Row, Col, Button, Dropdown, Form } from 'react-bootstrap';
-import { 
-  useAudio, 
-  useEffects 
-} from '../../../../contexts/DAWProvider';
+import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
 
 /**
  * Process glitch/beat repeat on an audio buffer region
  * Pure function - no React dependencies
  */
-export async function processGlitchRegion(audioBuffer, startSample, endSample, parameters) {
+export async function processGlitchRegion(
+  audioBuffer,
+  startSample,
+  endSample,
+  parameters,
+) {
   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
   const sampleRate = audioBuffer.sampleRate;
   const regionLength = endSample - startSample;
-  
+
   // Calculate beat division in samples (assuming 120 BPM for now)
   const bpm = 120;
   const beatLength = (60 / bpm) * sampleRate;
   const divisionLength = Math.floor(beatLength / (parameters.division || 16));
-  
+
   // Create output buffer
   const outputBuffer = audioContext.createBuffer(
     audioBuffer.numberOfChannels,
     audioBuffer.length,
-    sampleRate
+    sampleRate,
   );
-  
+
   // Process each channel
   for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
     const inputData = audioBuffer.getChannelData(channel);
     const outputData = outputBuffer.getChannelData(channel);
-    
+
     // Copy original audio
     outputData.set(inputData);
-    
+
     // Process region with glitch
     let position = 0;
     while (position < regionLength) {
       const shouldGlitch = Math.random() < (parameters.probability || 0.3);
-      
+
       if (shouldGlitch) {
         // Capture a slice
         const sliceLength = Math.min(divisionLength, regionLength - position);
         const slice = new Float32Array(sliceLength);
-        
+
         for (let i = 0; i < sliceLength; i++) {
           slice[i] = inputData[startSample + position + i];
         }
-        
+
         // Apply effects to slice
         let processedSlice = slice;
-        
+
         // Reverse?
         if (Math.random() < (parameters.reverse || 0)) {
           processedSlice = new Float32Array(sliceLength);
@@ -61,22 +63,24 @@ export async function processGlitchRegion(audioBuffer, startSample, endSample, p
             processedSlice[i] = slice[sliceLength - 1 - i];
           }
         }
-        
+
         // Pitch shift?
-        if (parameters.pitch !== 0) {
+        if ((parameters.pitch || 0) !== 0) {
           const pitchRatio = Math.pow(2, (parameters.pitch || 0) / 12);
           const pitchedLength = Math.floor(sliceLength / pitchRatio);
-          const tempSlice = new Float32Array(sliceLength);
-          
-          for (let i = 0; i < sliceLength; i++) {
+          const tempSlice = new Float32Array(pitchedLength);
+
+          for (let i = 0; i < pitchedLength; i++) {
             const sourceIndex = Math.floor(i * pitchRatio);
             if (sourceIndex < sliceLength) {
               tempSlice[i] = processedSlice[sourceIndex];
+            } else {
+              tempSlice[i] = 0;
             }
           }
           processedSlice = tempSlice;
         }
-        
+
         // Bit crush?
         if (parameters.crush) {
           const bits = 4; // Crush to 4-bit
@@ -85,19 +89,22 @@ export async function processGlitchRegion(audioBuffer, startSample, endSample, p
             processedSlice[i] = Math.round(processedSlice[i] * levels) / levels;
           }
         }
-        
-        // Repeat the slice
+
+        // Repeat the slice (blend with dry)
+        const writeLen = Math.min(processedSlice.length, sliceLength);
         for (let repeat = 0; repeat < (parameters.repeats || 1); repeat++) {
-          for (let i = 0; i < sliceLength; i++) {
-            const outputIndex = startSample + position + (repeat * sliceLength) + i;
+          for (let i = 0; i < writeLen; i++) {
+            const outputIndex =
+              startSample + position + repeat * sliceLength + i;
             if (outputIndex < endSample) {
-              // Mix with some randomness
-              const mixAmount = 0.8 + Math.random() * 0.2;
-              outputData[outputIndex] = processedSlice[i] * mixAmount;
+              const mixAmount = 0.8 + Math.random() * 0.2; // 80–100% wet
+              const dry = outputData[outputIndex];
+              const wet = processedSlice[i];
+              outputData[outputIndex] = dry * (1 - mixAmount) + wet * mixAmount;
             }
           }
         }
-        
+
         // Skip ahead
         position += sliceLength * (parameters.repeats || 1);
       } else {
@@ -106,7 +113,7 @@ export async function processGlitchRegion(audioBuffer, startSample, endSample, p
       }
     }
   }
-  
+
   return outputBuffer;
 }
 
@@ -114,13 +121,8 @@ export async function processGlitchRegion(audioBuffer, startSample, endSample, p
  * Glitch/Beat Repeat effect - rhythmic stutters and chaos
  */
 export default function Glitch({ width }) {
-  const {
-    audioRef,
-    wavesurferRef,
-    addToEditHistory,
-    audioURL
-  } = useAudio();
-  
+  const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+
   const {
     glitchDivision,
     setGlitchDivision,
@@ -134,39 +136,40 @@ export default function Glitch({ width }) {
     setGlitchPitch,
     glitchCrush,
     setGlitchCrush,
-    cutRegion
+    cutRegion,
   } = useEffects();
-  
+
   const audioContextRef = useRef(null);
-  
+
   // Initialize audio context
   useEffect(() => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      audioContextRef.current = new (window.AudioContext ||
+        window.webkitAudioContext)();
     }
   }, []);
-  
+
   // Apply glitch effect to selected region
   const applyGlitch = useCallback(async () => {
     if (!cutRegion || !wavesurferRef.current) {
       alert('Please select a region first');
       return;
     }
-    
+
     try {
       const wavesurfer = wavesurferRef.current;
       const context = audioContextRef.current;
-      
+
       // Get the audio buffer
       const response = await fetch(audioURL);
       const arrayBuffer = await response.arrayBuffer();
       const audioBuffer = await context.decodeAudioData(arrayBuffer);
-      
+
       // Calculate sample positions
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      
+
       // Use the exported processing function
       const parameters = {
         division: glitchDivision,
@@ -174,48 +177,58 @@ export default function Glitch({ width }) {
         repeats: glitchRepeats,
         reverse: glitchReverse,
         pitch: glitchPitch,
-        crush: glitchCrush
+        crush: glitchCrush,
       };
-      
+
       const outputBuffer = await processGlitchRegion(
         audioBuffer,
         startSample,
         endSample,
-        parameters
+        parameters,
       );
-      
+
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
       const blob = new Blob([wav], { type: 'audio/wav' });
       const url = URL.createObjectURL(blob);
-      
+
       // Update audio and history
       addToEditHistory(url, 'Apply Glitch', {
         effect: 'glitch',
         parameters,
-        region: { start: cutRegion.start, end: cutRegion.end }
+        region: { start: cutRegion.start, end: cutRegion.end },
       });
-      
+
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
-      
     } catch (error) {
       console.error('Error applying glitch:', error);
       alert('Error applying glitch. Please try again.');
     }
-  }, [audioURL, addToEditHistory, wavesurferRef, glitchDivision, glitchProbability, glitchRepeats, glitchReverse, glitchPitch, glitchCrush, cutRegion]);
-  
+  }, [
+    audioURL,
+    addToEditHistory,
+    wavesurferRef,
+    glitchDivision,
+    glitchProbability,
+    glitchRepeats,
+    glitchReverse,
+    glitchPitch,
+    glitchCrush,
+    cutRegion,
+  ]);
+
   const divisionOptions = [
     { value: 4, label: '1/4' },
     { value: 8, label: '1/8' },
     { value: 16, label: '1/16' },
     { value: 32, label: '1/32' },
-    { value: 64, label: '1/64' }
+    { value: 64, label: '1/64' },
   ];
-  
+
   return (
     <Container fluid className="p-2">
       <Row className="text-center align-items-end">
@@ -227,25 +240,27 @@ export default function Glitch({ width }) {
             value={glitchDivision}
             onChange={(e) => setGlitchDivision(Number(e.target.value))}
           >
-            {divisionOptions.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            {divisionOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
             ))}
           </Form.Select>
         </Col>
-        
+
         {/* Bit Crush toggle */}
         <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
           <Form.Label className="text-white small mb-1">Bit Crush</Form.Label>
           <Form.Check
             type="switch"
             id="crush-switch"
-            label={glitchCrush ? "On" : "Off"}
+            label={glitchCrush ? 'On' : 'Off'}
             checked={glitchCrush}
             onChange={(e) => setGlitchCrush(e.target.checked)}
             className="text-white"
           />
         </Col>
-        
+
         {/* Knobs */}
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
@@ -259,7 +274,7 @@ export default function Glitch({ width }) {
             color="#e75b5c"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={glitchRepeats}
@@ -273,7 +288,7 @@ export default function Glitch({ width }) {
             color="#7bafd4"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={glitchReverse}
@@ -286,7 +301,7 @@ export default function Glitch({ width }) {
             color="#cbb677"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={glitchPitch}
@@ -300,14 +315,10 @@ export default function Glitch({ width }) {
             color="#92ce84"
           />
         </Col>
-        
+
         {/* Apply Button */}
         <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
-          <Button
-            size="sm"
-            className="w-100"
-            onClick={applyGlitch}
-          >
+          <Button size="sm" className="w-100" onClick={applyGlitch}>
             Apply to Region
           </Button>
         </Col>

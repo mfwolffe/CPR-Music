@@ -1,65 +1,68 @@
+// components/audio/DAW/Effects/Gate.js
 'use client';
 
 import { useCallback, useRef, useEffect } from 'react';
 import { Container, Row, Col, Button } from 'react-bootstrap';
-import { 
-  useAudio, 
-  useEffects 
-} from '../../../../contexts/DAWProvider';
+import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
 
 /**
  * Process gate on an audio buffer region
  * Pure function - no React dependencies
  */
-export async function processGateRegion(audioBuffer, startSample, endSample, parameters) {
+export async function processGateRegion(
+  audioBuffer,
+  startSample,
+  endSample,
+  parameters,
+) {
   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
   const sampleRate = audioBuffer.sampleRate;
   const regionLength = endSample - startSample;
-  
+
   // Convert dB to linear
   const dbToLinear = (db) => Math.pow(10, db / 20);
-  
+
   // Gate parameters
   const thresholdLinear = dbToLinear(parameters.threshold || -40);
   const rangeLinear = dbToLinear(parameters.range || -60);
   const attackSamples = Math.floor((parameters.attack || 0.001) * sampleRate);
   const releaseSamples = Math.floor((parameters.release || 0.1) * sampleRate);
   const holdSamples = Math.floor((parameters.hold || 0.01) * sampleRate);
-  
+
   // Create output buffer
   const outputBuffer = audioContext.createBuffer(
     audioBuffer.numberOfChannels,
     audioBuffer.length,
-    sampleRate
+    sampleRate,
   );
-  
+
   // Process each channel
   for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
     const inputData = audioBuffer.getChannelData(channel);
     const outputData = outputBuffer.getChannelData(channel);
-    
+
     // Copy original audio
     outputData.set(inputData);
-    
+
     // Gate state variables
     let gateOpen = false;
     let gateGain = 0;
     let holdCounter = 0;
     let envelope = 0;
-    
+
     // Envelope follower coefficient
     const envCoeff = 0.99;
-    
+
     // Process region
     for (let i = 0; i < regionLength; i++) {
       const sampleIndex = startSample + i;
       const inputSample = inputData[sampleIndex];
-      
+
       // Update envelope
       const rectified = Math.abs(inputSample);
       envelope = rectified + (envelope - rectified) * envCoeff;
-      
+
       // Gate logic
       if (envelope > thresholdLinear) {
         gateOpen = true;
@@ -69,10 +72,10 @@ export async function processGateRegion(audioBuffer, startSample, endSample, par
       } else {
         gateOpen = false;
       }
-      
+
       // Calculate target gain
       const targetGain = gateOpen ? 1 : rangeLinear;
-      
+
       // Smooth gain changes
       if (targetGain > gateGain) {
         // Attack
@@ -83,12 +86,12 @@ export async function processGateRegion(audioBuffer, startSample, endSample, par
         const releaseRate = 1 / releaseSamples;
         gateGain = Math.max(targetGain, gateGain - releaseRate);
       }
-      
+
       // Apply gate
       outputData[sampleIndex] = inputSample * gateGain;
     }
   }
-  
+
   return outputBuffer;
 }
 
@@ -96,18 +99,11 @@ export async function processGateRegion(audioBuffer, startSample, endSample, par
  * Gate effect component - cuts audio below threshold
  */
 export default function Gate({ width }) {
-  const {
-    audioRef,
-    wavesurferRef,
-    addToEditHistory,
-    audioURL
-  } = useAudio();
-  
+  const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+
   const {
     gateThreshold,
     setGateThreshold,
-    gateRatio,
-    setGateRatio,
     gateAttack,
     setGateAttack,
     gateRelease,
@@ -116,86 +112,89 @@ export default function Gate({ width }) {
     setGateHold,
     gateRange,
     setGateRange,
-    cutRegion
+    cutRegion,
   } = useEffects();
-  
+
   const audioContextRef = useRef(null);
-  
+
   // Initialize audio context
   useEffect(() => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      audioContextRef.current = new (window.AudioContext ||
+        window.webkitAudioContext)();
     }
   }, []);
-  
-  // Convert dB to linear
-  const dbToLinear = (db) => Math.pow(10, db / 20);
-  
-  // Convert linear to dB
-  const linearToDb = (linear) => 20 * Math.log10(Math.max(0.00001, linear));
-  
+
   // Apply gate to selected region
   const applyGate = useCallback(async () => {
     if (!cutRegion || !wavesurferRef.current) {
       alert('Please select a region first');
       return;
     }
-    
+
     try {
       const wavesurfer = wavesurferRef.current;
       const context = audioContextRef.current;
-      
+
       // Get the audio buffer
       const response = await fetch(audioURL);
       const arrayBuffer = await response.arrayBuffer();
       const audioBuffer = await context.decodeAudioData(arrayBuffer);
-      
+
       // Calculate sample positions
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      
+
       // Use the exported processing function
       const parameters = {
         threshold: gateThreshold,
-        ratio: gateRatio,
         attack: gateAttack,
         release: gateRelease,
         hold: gateHold,
-        range: gateRange
+        range: gateRange,
       };
-      
+
       const outputBuffer = await processGateRegion(
         audioBuffer,
         startSample,
         endSample,
-        parameters
+        parameters,
       );
-      
+
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
       const blob = new Blob([wav], { type: 'audio/wav' });
       const url = URL.createObjectURL(blob);
-      
+
       // Update audio and history
       addToEditHistory(url, 'Apply Gate', {
         effect: 'gate',
         parameters,
-        region: { start: cutRegion.start, end: cutRegion.end }
+        region: { start: cutRegion.start, end: cutRegion.end },
       });
-      
+
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
-      
     } catch (error) {
       console.error('Error applying gate:', error);
       alert('Error applying gate. Please try again.');
     }
-  }, [audioURL, addToEditHistory, wavesurferRef, gateThreshold, gateRatio, gateAttack, gateRelease, gateHold, gateRange, cutRegion]);
-  
+  }, [
+    audioURL,
+    addToEditHistory,
+    wavesurferRef,
+    gateThreshold,
+    gateAttack,
+    gateRelease,
+    gateHold,
+    gateRange,
+    cutRegion,
+  ]);
+
   return (
     <Container fluid className="p-2">
       <Row className="text-center align-items-end">
@@ -211,7 +210,7 @@ export default function Gate({ width }) {
             color="#e75b5c"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={gateRange}
@@ -224,7 +223,7 @@ export default function Gate({ width }) {
             color="#7bafd4"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={gateAttack * 1000}
@@ -238,7 +237,7 @@ export default function Gate({ width }) {
             color="#92ce84"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={gateHold * 1000}
@@ -251,7 +250,7 @@ export default function Gate({ width }) {
             color="#cbb677"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={gateRelease * 1000}
@@ -264,14 +263,10 @@ export default function Gate({ width }) {
             color="#92ceaa"
           />
         </Col>
-        
+
         {/* Apply Button */}
         <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
-          <Button
-            size="sm"
-            className="w-100"
-            onClick={applyGate}
-          >
+          <Button size="sm" className="w-100" onClick={applyGate}>
             Apply to Region
           </Button>
         </Col>

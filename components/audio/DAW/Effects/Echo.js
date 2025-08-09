@@ -1,96 +1,117 @@
+// components/audio/DAW/Effects/Echo.js
 'use client';
 
 import { useCallback, useRef, useEffect } from 'react';
 import { Container, Row, Col, Button } from 'react-bootstrap';
-import { 
-  useAudio, 
-  useEffects 
-} from '../../../../contexts/DAWProvider';
+import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
 
 /**
  * Process echo on an audio buffer region
  * Pure function - no React dependencies
  */
-export async function processEchoRegion(audioBuffer, startSample, endSample, parameters) {
+export async function processEchoRegion(
+  audioBuffer,
+  startSample,
+  endSample,
+  parameters,
+) {
   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
   const sampleRate = audioBuffer.sampleRate;
   const regionLength = endSample - startSample;
-  
+
   // Calculate delay parameters
   const delaySamples = Math.floor((parameters.delay / 1000) * sampleRate);
   const feedback = parameters.feedback || 0.5;
   const inputGain = parameters.inputGain || 1;
   const outputGain = parameters.outputGain || 1;
-  
+
   // Calculate total length with echo tail
   const maxEchoes = 20; // Limit echo repeats
-  const totalLength = audioBuffer.length + (delaySamples * maxEchoes);
-  
+  const tailLength = delaySamples * maxEchoes;
+  const totalLength = audioBuffer.length + tailLength;
+
   // Create offline context for processing
   const offlineContext = new OfflineAudioContext(
     audioBuffer.numberOfChannels,
     totalLength,
-    sampleRate
+    sampleRate,
   );
-  
+
   // Create nodes
   const source = offlineContext.createBufferSource();
   const inputGainNode = offlineContext.createGain();
-  const delayNode = offlineContext.createDelay(Math.max(2, parameters.delay / 1000));
+  const delayNode = offlineContext.createDelay(
+    Math.max(2, parameters.delay / 1000),
+  );
   const feedbackGainNode = offlineContext.createGain();
   const outputGainNode = offlineContext.createGain();
-  
+
   // Set parameters
   inputGainNode.gain.value = inputGain;
   delayNode.delayTime.value = parameters.delay / 1000;
   feedbackGainNode.gain.value = feedback;
   outputGainNode.gain.value = outputGain;
-  
+
   // Connect nodes
   source.connect(inputGainNode);
   inputGainNode.connect(delayNode);
   inputGainNode.connect(outputGainNode); // Dry signal
-  
+
   // Feedback loop
   delayNode.connect(feedbackGainNode);
   feedbackGainNode.connect(delayNode);
-  
+
   // Wet signal to output
   delayNode.connect(outputGainNode);
   outputGainNode.connect(offlineContext.destination);
-  
+
   // Set source buffer and start
   source.buffer = audioBuffer;
   source.start(0);
-  
+
   // Render
   const renderedBuffer = await offlineContext.startRendering();
-  
-  // Create output buffer with proper length
+
+  // Create output buffer with proper length including tail
+  const outputLength = audioBuffer.length + tailLength;
   const outputBuffer = audioContext.createBuffer(
     audioBuffer.numberOfChannels,
-    audioBuffer.length,
-    sampleRate
+    outputLength,
+    sampleRate,
   );
-  
-  // Mix the processed region back
+
+  // Mix the processed region back with tail handling
   for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
     const inputData = audioBuffer.getChannelData(channel);
     const processedData = renderedBuffer.getChannelData(channel);
     const outputData = outputBuffer.getChannelData(channel);
-    
-    // Copy original audio
-    outputData.set(inputData);
-    
-    // Apply echo only to the selected region
-    for (let i = startSample; i < endSample; i++) {
-      if (i < processedData.length) {
+
+    // Copy audio before the region
+    for (let i = 0; i < startSample; i++) {
+      outputData[i] = inputData[i];
+    }
+
+    // Copy processed region including its tail
+    for (
+      let i = startSample;
+      i < startSample + regionLength + tailLength;
+      i++
+    ) {
+      if (i < outputLength && i < processedData.length) {
         outputData[i] = processedData[i];
       }
     }
+
+    // Copy audio after the region, shifted by tail length
+    for (let i = endSample; i < inputData.length; i++) {
+      const outputIndex = i + tailLength;
+      if (outputIndex < outputLength) {
+        outputData[outputIndex] = inputData[i];
+      }
+    }
   }
-  
+
   return outputBuffer;
 }
 
@@ -99,13 +120,8 @@ export async function processEchoRegion(audioBuffer, startSample, endSample, par
  * Implements a simple echo/delay effect with feedback
  */
 export default function Echo({ width }) {
-  const {
-    audioRef,
-    wavesurferRef,
-    addToEditHistory,
-    audioURL
-  } = useAudio();
-  
+  const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+
   const {
     inGain,
     setInGain,
@@ -115,78 +131,87 @@ export default function Echo({ width }) {
     setDelay,
     decay,
     setDecay,
-    cutRegion
+    cutRegion,
   } = useEffects();
-  
+
   const audioContextRef = useRef(null);
-  
+
   // Initialize audio context
   useEffect(() => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      audioContextRef.current = new (window.AudioContext ||
+        window.webkitAudioContext)();
     }
   }, []);
-  
+
   // Apply echo to selected region
   const applyEcho = useCallback(async () => {
     if (!cutRegion || !wavesurferRef.current) {
       alert('Please select a region first');
       return;
     }
-    
+
     try {
       const wavesurfer = wavesurferRef.current;
       const context = audioContextRef.current;
-      
+
       // Get the audio buffer
       const response = await fetch(audioURL);
       const arrayBuffer = await response.arrayBuffer();
       const audioBuffer = await context.decodeAudioData(arrayBuffer);
-      
+
       // Calculate sample positions
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      
+
       // Use the exported processing function
       const parameters = {
         delay: delay,
         feedback: decay,
         inputGain: inGain,
-        outputGain: outGain
+        outputGain: outGain,
       };
-      
+
       const outputBuffer = await processEchoRegion(
         audioBuffer,
         startSample,
         endSample,
-        parameters
+        parameters,
       );
-      
+
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
       const blob = new Blob([wav], { type: 'audio/wav' });
       const url = URL.createObjectURL(blob);
-      
+
       // Update audio and history
       addToEditHistory(url, 'Apply Echo', {
         effect: 'echo',
         parameters,
-        region: { start: cutRegion.start, end: cutRegion.end }
+        region: { start: cutRegion.start, end: cutRegion.end },
       });
-      
+
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
-      
     } catch (error) {
       console.error('Error applying echo:', error);
       alert('Error applying echo. Please try again.');
     }
-  }, [audioURL, addToEditHistory, wavesurferRef, inGain, outGain, delay, decay, cutRegion]);
-  
+  }, [
+    audioURL,
+    addToEditHistory,
+    wavesurferRef,
+    inGain,
+    outGain,
+    delay,
+    decay,
+    cutRegion,
+  ]);
+
   return (
     <Container fluid className="p-2">
       <Row className="text-center align-items-end">
@@ -202,7 +227,7 @@ export default function Echo({ width }) {
             color="#92ce84"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={outGain}
@@ -215,7 +240,7 @@ export default function Echo({ width }) {
             color="#92ce84"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={delay}
@@ -226,30 +251,26 @@ export default function Echo({ width }) {
             label="Delay Time"
             displayValue={`${delay.toFixed(0)}ms`}
             size={45}
-            color="#7bafd4"
+            color="#e75b5c"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={decay}
             onChange={setDecay}
-            min={0.1}
-            max={1}
+            min={0}
+            max={0.99}
             label="Feedback"
             displayValue={`${Math.round(decay * 100)}%`}
             size={45}
             color="#cbb677"
           />
         </Col>
-        
+
         {/* Apply Button */}
         <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
-          <Button
-            size="sm"
-            className="w-100"
-            onClick={applyEcho}
-          >
+          <Button size="sm" className="w-100" onClick={applyEcho}>
             Apply to Region
           </Button>
         </Col>

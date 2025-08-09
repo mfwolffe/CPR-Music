@@ -2,32 +2,34 @@
 
 import { useCallback, useRef, useEffect } from 'react';
 import { Container, Row, Col, Button } from 'react-bootstrap';
-import { 
-  useAudio, 
-  useEffects 
-} from '../../../../contexts/DAWProvider';
+import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
 
 /**
  * Process auto-wah on an audio buffer region
  * Pure function - no React dependencies
  */
-export async function processAutoWahRegion(audioBuffer, startSample, endSample, parameters) {
+export async function processAutoWahRegion(
+  audioBuffer,
+  startSample,
+  endSample,
+  parameters,
+) {
   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
   const sampleRate = audioBuffer.sampleRate;
   const regionLength = endSample - startSample;
-  
+
   // Calculate envelope follower
   const calculateEnvelope = (audioData, attack, release) => {
     const envelope = new Float32Array(audioData.length);
     let envValue = 0;
-    
+
     const attackCoeff = Math.exp(-1 / (attack * sampleRate));
     const releaseCoeff = Math.exp(-1 / (release * sampleRate));
-    
+
     for (let i = 0; i < audioData.length; i++) {
       const rectified = Math.abs(audioData[i]);
-      
+
       if (rectified > envValue) {
         // Attack
         envValue = rectified + (envValue - rectified) * attackCoeff;
@@ -35,78 +37,94 @@ export async function processAutoWahRegion(audioBuffer, startSample, endSample, 
         // Release
         envValue = rectified + (envValue - rectified) * releaseCoeff;
       }
-      
+
       envelope[i] = envValue;
     }
-    
+
     return envelope;
   };
-  
+
   // Create output buffer
   const outputBuffer = audioContext.createBuffer(
     audioBuffer.numberOfChannels,
     audioBuffer.length,
-    sampleRate
+    sampleRate,
   );
-  
+
   // Process each channel
   for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
     const inputData = audioBuffer.getChannelData(channel);
     const outputData = outputBuffer.getChannelData(channel);
-    
+
     // Copy original audio
     outputData.set(inputData);
-    
+
     // Extract region for processing
     const regionData = new Float32Array(regionLength);
     for (let i = 0; i < regionLength; i++) {
       regionData[i] = inputData[startSample + i];
     }
-    
+
     // Calculate envelope
-    const envelope = calculateEnvelope(regionData, parameters.attack || 0.01, parameters.release || 0.1);
-    
+    const envelope = calculateEnvelope(
+      regionData,
+      parameters.attack || 0.01,
+      parameters.release || 0.1,
+    );
+
     // Create offline context for filtering
     const offlineContext = new OfflineAudioContext(1, regionLength, sampleRate);
-    const sourceBuffer = offlineContext.createBuffer(1, regionLength, sampleRate);
+    const sourceBuffer = offlineContext.createBuffer(
+      1,
+      regionLength,
+      sampleRate,
+    );
     sourceBuffer.getChannelData(0).set(regionData);
-    
+
     const source = offlineContext.createBufferSource();
     const filter = offlineContext.createBiquadFilter();
-    
+
     source.buffer = sourceBuffer;
     filter.type = 'bandpass';
     filter.Q.value = parameters.q || 5;
-    
+
     // Set up automation for filter frequency based on envelope
-    const currentTime = offlineContext.currentTime;
-    filter.frequency.setValueAtTime(parameters.frequency || 500, currentTime);
-    
-    // Create automation points
+    const baseFreq = parameters.frequency || 500;
+    const range = parameters.range || 2000;
+    const sensitivity = parameters.sensitivity || 0.5;
+
+    // Initialize value and then ramp forward in small steps
+    let lastTime = offlineContext.currentTime;
+    let lastFreq = baseFreq;
+    filter.frequency.setValueAtTime(lastFreq, lastTime);
+
     const automationRate = 128; // samples per automation point
+    const stepSec = automationRate / sampleRate;
+
     for (let i = 0; i < regionLength; i += automationRate) {
-      const envValue = envelope[i] * (parameters.sensitivity || 0.5);
-      const freq = (parameters.frequency || 500) + (envValue * (parameters.range || 2000));
-      const clampedFreq = Math.max(20, Math.min(20000, freq));
-      const time = currentTime + (i / sampleRate);
-      
-      filter.frequency.linearRampToValueAtTime(clampedFreq, time);
+      const envValue = envelope[i] * sensitivity;
+      const target = Math.max(20, Math.min(20000, baseFreq + envValue * range));
+      const time = lastTime + stepSec;
+      const t1 = Math.max(time, lastTime + 1e-4); // ensure strictly increasing
+      filter.frequency.linearRampToValueAtTime(target, t1);
+      lastTime = t1;
+      lastFreq = target;
     }
-    
+
     // Connect and render
     source.connect(filter);
     filter.connect(offlineContext.destination);
     source.start(0);
-    
+
     const renderedBuffer = await offlineContext.startRendering();
     const processedData = renderedBuffer.getChannelData(0);
-    
+
     // Copy processed region back
     for (let i = 0; i < regionLength; i++) {
       outputData[startSample + i] = processedData[i];
     }
   }
-  
+
   return outputBuffer;
 }
 
@@ -114,13 +132,8 @@ export async function processAutoWahRegion(audioBuffer, startSample, endSample, 
  * Auto-Wah effect component - envelope-controlled filter
  */
 export default function AutoWah({ width }) {
-  const {
-    audioRef,
-    wavesurferRef,
-    addToEditHistory,
-    audioURL
-  } = useAudio();
-  
+  const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+
   const {
     autoWahSensitivity,
     setAutoWahSensitivity,
@@ -134,39 +147,40 @@ export default function AutoWah({ width }) {
     setAutoWahAttack,
     autoWahRelease,
     setAutoWahRelease,
-    cutRegion
+    cutRegion,
   } = useEffects();
-  
+
   const audioContextRef = useRef(null);
-  
+
   // Initialize audio context
   useEffect(() => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      audioContextRef.current = new (window.AudioContext ||
+        window.webkitAudioContext)();
     }
   }, []);
-  
+
   // Apply auto-wah to selected region
   const applyAutoWah = useCallback(async () => {
     if (!cutRegion || !wavesurferRef.current) {
       alert('Please select a region first');
       return;
     }
-    
+
     try {
       const wavesurfer = wavesurferRef.current;
       const context = audioContextRef.current;
-      
+
       // Get the audio buffer
       const response = await fetch(audioURL);
       const arrayBuffer = await response.arrayBuffer();
       const audioBuffer = await context.decodeAudioData(arrayBuffer);
-      
+
       // Calculate sample positions
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      
+
       // Use the exported processing function
       const parameters = {
         sensitivity: autoWahSensitivity,
@@ -174,40 +188,50 @@ export default function AutoWah({ width }) {
         range: autoWahRange,
         q: autoWahQ,
         attack: autoWahAttack,
-        release: autoWahRelease
+        release: autoWahRelease,
       };
-      
+
       const outputBuffer = await processAutoWahRegion(
         audioBuffer,
         startSample,
         endSample,
-        parameters
+        parameters,
       );
-      
+
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
       const blob = new Blob([wav], { type: 'audio/wav' });
       const url = URL.createObjectURL(blob);
-      
+
       // Update audio and history
       addToEditHistory(url, 'Apply Auto-Wah', {
         effect: 'autowah',
         parameters,
-        region: { start: cutRegion.start, end: cutRegion.end }
+        region: { start: cutRegion.start, end: cutRegion.end },
       });
-      
+
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
-      
     } catch (error) {
       console.error('Error applying auto-wah:', error);
       alert('Error applying auto-wah. Please try again.');
     }
-  }, [audioURL, addToEditHistory, wavesurferRef, autoWahSensitivity, autoWahFrequency, autoWahRange, autoWahQ, autoWahAttack, autoWahRelease, cutRegion]);
-  
+  }, [
+    audioURL,
+    addToEditHistory,
+    wavesurferRef,
+    autoWahSensitivity,
+    autoWahFrequency,
+    autoWahRange,
+    autoWahQ,
+    autoWahAttack,
+    autoWahRelease,
+    cutRegion,
+  ]);
+
   return (
     <Container fluid className="p-2">
       <Row className="text-center align-items-end">
@@ -223,7 +247,7 @@ export default function AutoWah({ width }) {
             color="#e75b5c"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={autoWahFrequency}
@@ -232,12 +256,16 @@ export default function AutoWah({ width }) {
             max={2000}
             step={10}
             label="Base Freq"
-            displayValue={autoWahFrequency >= 1000 ? `${(autoWahFrequency/1000).toFixed(1)}k` : `${autoWahFrequency}Hz`}
+            displayValue={
+              autoWahFrequency >= 1000
+                ? `${(autoWahFrequency / 1000).toFixed(1)}k`
+                : `${autoWahFrequency}Hz`
+            }
             size={45}
             color="#7bafd4"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={autoWahRange}
@@ -246,12 +274,16 @@ export default function AutoWah({ width }) {
             max={5000}
             step={50}
             label="Range"
-            displayValue={autoWahRange >= 1000 ? `${(autoWahRange/1000).toFixed(1)}k` : `${autoWahRange}Hz`}
+            displayValue={
+              autoWahRange >= 1000
+                ? `${(autoWahRange / 1000).toFixed(1)}k`
+                : `${autoWahRange}Hz`
+            }
             size={45}
             color="#92ce84"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={autoWahQ}
@@ -265,7 +297,7 @@ export default function AutoWah({ width }) {
             color="#cbb677"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={autoWahAttack * 1000}
@@ -278,7 +310,7 @@ export default function AutoWah({ width }) {
             color="#92ceaa"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={autoWahRelease * 1000}
@@ -291,14 +323,10 @@ export default function AutoWah({ width }) {
             color="#92ceaa"
           />
         </Col>
-        
+
         {/* Apply Button */}
         <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
-          <Button
-            size="sm"
-            className="w-100"
-            onClick={applyAutoWah}
-          >
+          <Button size="sm" className="w-100" onClick={applyAutoWah}>
             Apply to Region
           </Button>
         </Col>

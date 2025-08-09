@@ -2,10 +2,7 @@
 
 import { useCallback, useRef, useEffect } from 'react';
 import { Container, Row, Col, Button, Dropdown, Form } from 'react-bootstrap';
-import { 
-  useAudio, 
-  useEffects 
-} from '../../../../contexts/DAWProvider';
+import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
 
 /**
@@ -15,35 +12,35 @@ function generateLFOWaveform(type, sampleRate, duration, frequency, phase) {
   const samples = Math.floor(sampleRate * duration);
   const waveform = new Float32Array(samples);
   const phaseOffset = (phase / 360) * Math.PI * 2;
-  
+
   for (let i = 0; i < samples; i++) {
     const t = (i / sampleRate) * frequency * Math.PI * 2 + phaseOffset;
-    
-    switch(type) {
+
+    switch (type) {
       case 'sine':
         waveform[i] = Math.sin(t);
         break;
-        
+
       case 'triangle':
         // Triangle wave formula
         const normalized = (t / (Math.PI * 2)) % 1;
         waveform[i] = 4 * Math.abs(normalized - 0.5) - 1;
         break;
-        
+
       case 'square':
         waveform[i] = Math.sin(t) > 0 ? 1 : -1;
         break;
-        
+
       case 'sawtooth':
         // Sawtooth wave formula
         waveform[i] = 2 * ((t / (Math.PI * 2)) % 1) - 1;
         break;
-        
+
       default:
         waveform[i] = Math.sin(t);
     }
   }
-  
+
   return waveform;
 }
 
@@ -51,28 +48,33 @@ function generateLFOWaveform(type, sampleRate, duration, frequency, phase) {
  * Process auto-pan on an audio buffer region
  * Pure function - no React dependencies
  */
-export async function processAutoPanRegion(audioBuffer, startSample, endSample, parameters) {
+export async function processAutoPanRegion(
+  audioBuffer,
+  startSample,
+  endSample,
+  parameters,
+) {
   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
   const sampleRate = audioBuffer.sampleRate;
   const regionLength = endSample - startSample;
   const regionDuration = (endSample - startSample) / sampleRate;
-  
+
   // Generate LFO for panning
   const lfoWaveform = generateLFOWaveform(
     parameters.waveform || 'sine',
     sampleRate,
     regionDuration,
     parameters.rate || 1,
-    parameters.phase || 0
+    parameters.phase || 0,
   );
-  
+
   // Create output buffer
   const outputBuffer = audioContext.createBuffer(
     audioBuffer.numberOfChannels,
     audioBuffer.length,
-    sampleRate
+    sampleRate,
   );
-  
+
   // Process audio
   if (audioBuffer.numberOfChannels === 2) {
     // Stereo processing
@@ -80,41 +82,42 @@ export async function processAutoPanRegion(audioBuffer, startSample, endSample, 
     const rightIn = audioBuffer.getChannelData(1);
     const leftOut = outputBuffer.getChannelData(0);
     const rightOut = outputBuffer.getChannelData(1);
-    
+
     // Copy original audio
     leftOut.set(leftIn);
     rightOut.set(rightIn);
-    
+
     // Apply auto-pan to region
     for (let i = 0; i < regionLength; i++) {
       const sampleIndex = startSample + i;
       const lfoValue = lfoWaveform[i] * (parameters.depth || 1);
-      
+
       // Calculate pan values (constant power panning)
       const panValue = (lfoValue + 1) / 2; // Convert from -1...1 to 0...1
-      const leftGain = Math.cos(panValue * Math.PI / 2);
-      const rightGain = Math.sin(panValue * Math.PI / 2);
-      
-      // Mix original signal with panned signal
+      const leftGain = Math.cos((panValue * Math.PI) / 2);
+      const rightGain = Math.sin((panValue * Math.PI) / 2);
+
       const originalLeft = leftIn[sampleIndex];
       const originalRight = rightIn[sampleIndex];
-      const monoSignal = (originalLeft + originalRight) / 2;
-      
-      leftOut[sampleIndex] = monoSignal * leftGain;
-      rightOut[sampleIndex] = monoSignal * rightGain;
+
+      // Preserve stereo information: scale each channel instead of collapsing to mono
+      leftOut[sampleIndex] = originalLeft * leftGain;
+      rightOut[sampleIndex] = originalRight * rightGain;
     }
   } else {
     // Mono to stereo processing
     const monoIn = audioBuffer.getChannelData(0);
     const monoOut = outputBuffer.getChannelData(0);
-    
+
     // Copy original audio
     monoOut.set(monoIn);
-    
+
     // For mono, we can't pan - just copy the data
-    console.warn('Auto-pan works best with stereo audio. Mono audio will be unchanged.');
+    console.warn(
+      'Auto-pan works best with stereo audio. Mono audio will be unchanged.',
+    );
   }
-  
+
   return outputBuffer;
 }
 
@@ -122,13 +125,8 @@ export async function processAutoPanRegion(audioBuffer, startSample, endSample, 
  * Auto-Pan effect component using Web Audio API StereoPannerNode
  */
 export default function AutoPan({ width }) {
-  const {
-    audioRef,
-    wavesurferRef,
-    addToEditHistory,
-    audioURL
-  } = useAudio();
-  
+  const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+
   const {
     autoPanRate,
     setAutoPanRate,
@@ -138,85 +136,94 @@ export default function AutoPan({ width }) {
     setAutoPanWaveform,
     autoPanPhase,
     setAutoPanPhase,
-    cutRegion
+    cutRegion,
   } = useEffects();
-  
+
   const audioContextRef = useRef(null);
-  
+
   // Initialize audio context
   useEffect(() => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      audioContextRef.current = new (window.AudioContext ||
+        window.webkitAudioContext)();
     }
   }, []);
-  
+
   // Apply auto-pan to selected region
   const applyAutoPan = useCallback(async () => {
     if (!cutRegion || !wavesurferRef.current) {
       alert('Please select a region first');
       return;
     }
-    
+
     try {
       const wavesurfer = wavesurferRef.current;
       const context = audioContextRef.current;
-      
+
       // Get the audio buffer
       const response = await fetch(audioURL);
       const arrayBuffer = await response.arrayBuffer();
       const audioBuffer = await context.decodeAudioData(arrayBuffer);
-      
+
       // Calculate sample positions
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      
+
       // Use the exported processing function
       const parameters = {
         rate: autoPanRate,
         depth: autoPanDepth,
         waveform: autoPanWaveform,
-        phase: autoPanPhase
+        phase: autoPanPhase,
       };
-      
+
       const outputBuffer = await processAutoPanRegion(
         audioBuffer,
         startSample,
         endSample,
-        parameters
+        parameters,
       );
-      
+
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
       const blob = new Blob([wav], { type: 'audio/wav' });
       const url = URL.createObjectURL(blob);
-      
+
       // Update audio and history
       addToEditHistory(url, 'Apply Auto-Pan', {
         effect: 'autopan',
         parameters,
-        region: { start: cutRegion.start, end: cutRegion.end }
+        region: { start: cutRegion.start, end: cutRegion.end },
       });
-      
+
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
-      
     } catch (error) {
       console.error('Error applying auto-pan:', error);
       alert('Error applying auto-pan. Please try again.');
     }
-  }, [audioURL, addToEditHistory, wavesurferRef, autoPanRate, autoPanDepth, autoPanWaveform, autoPanPhase, cutRegion]);
-  
+  }, [
+    audioURL,
+    addToEditHistory,
+    wavesurferRef,
+    autoPanRate,
+    autoPanDepth,
+    autoPanWaveform,
+    autoPanPhase,
+    cutRegion,
+  ]);
+
   const waveformTypes = [
     { key: 'sine', name: 'Sine' },
     { key: 'triangle', name: 'Triangle' },
     { key: 'square', name: 'Square' },
-    { key: 'sawtooth', name: 'Sawtooth' }
+    { key: 'sawtooth', name: 'Sawtooth' },
   ];
-  
+
   return (
     <Container fluid className="p-2">
       <Row className="text-center align-items-end">
@@ -227,15 +234,12 @@ export default function AutoPan({ width }) {
             onSelect={(eventKey) => setAutoPanWaveform(eventKey)}
             size="sm"
           >
-            <Dropdown.Toggle
-              variant="secondary"
-              size="sm"
-              className="w-100"
-            >
-              {waveformTypes.find(t => t.key === autoPanWaveform)?.name || 'Sine'}
+            <Dropdown.Toggle variant="secondary" size="sm" className="w-100">
+              {waveformTypes.find((t) => t.key === autoPanWaveform)?.name ||
+                'Sine'}
             </Dropdown.Toggle>
             <Dropdown.Menu className="bg-daw-toolbars">
-              {waveformTypes.map(type => (
+              {waveformTypes.map((type) => (
                 <Dropdown.Item
                   key={type.key}
                   eventKey={type.key}
@@ -247,7 +251,7 @@ export default function AutoPan({ width }) {
             </Dropdown.Menu>
           </Dropdown>
         </Col>
-        
+
         {/* Knobs */}
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
@@ -262,7 +266,7 @@ export default function AutoPan({ width }) {
             color="#e75b5c"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={autoPanDepth}
@@ -275,7 +279,7 @@ export default function AutoPan({ width }) {
             color="#7bafd4"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={autoPanPhase}
@@ -289,14 +293,10 @@ export default function AutoPan({ width }) {
             color="#cbb677"
           />
         </Col>
-        
+
         {/* Apply Button */}
         <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
-          <Button
-            size="sm"
-            className="w-100"
-            onClick={applyAutoPan}
-          >
+          <Button size="sm" className="w-100" onClick={applyAutoPan}>
             Apply to Region
           </Button>
         </Col>

@@ -1,100 +1,114 @@
+// components/audio/DAW/Effects/StereoWidener.js
 'use client';
 
 import { useCallback, useRef, useEffect } from 'react';
 import { Container, Row, Col, Button, Form } from 'react-bootstrap';
-import { 
-  useAudio, 
-  useEffects 
-} from '../../../../contexts/DAWProvider';
+import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
 
 /**
  * Process stereo widener on an audio buffer region
  * Pure function - no React dependencies
  */
-export async function processStereoWidenerRegion(audioBuffer, startSample, endSample, parameters) {
+export async function processStereoWidenerRegion(
+  audioBuffer,
+  startSample,
+  endSample,
+  parameters,
+) {
   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
   const sampleRate = audioBuffer.sampleRate;
   const regionLength = endSample - startSample;
-  
+
   // Check if audio is stereo
   if (audioBuffer.numberOfChannels < 2) {
     throw new Error('Stereo widener requires stereo audio');
   }
-  
+
   // Haas delay in samples
   const delaySamples = Math.floor((parameters.delay / 1000) * sampleRate);
-  
+
   // Create output buffer
   const outputBuffer = audioContext.createBuffer(
     2, // Ensure stereo
     audioBuffer.length,
-    sampleRate
+    sampleRate,
   );
-  
+
   // Get channel data
   const leftIn = audioBuffer.getChannelData(0);
   const rightIn = audioBuffer.getChannelData(1);
   const leftOut = outputBuffer.getChannelData(0);
   const rightOut = outputBuffer.getChannelData(1);
-  
+
   // Copy original audio
   leftOut.set(leftIn);
   rightOut.set(rightIn);
-  
+
+  // Initialize bass mono filter state for each channel
+  let bassStateLeft = 0;
+  let bassStateRight = 0;
+  let bassMid = 0;
+
+  // Calculate filter coefficients for bass mono
+  const fc = parameters.bassFreq || 200; // Hz
+  const dt = 1 / sampleRate;
+  const RC = 1 / (2 * Math.PI * fc);
+  const alpha = dt / (RC + dt);
+
   // Process region with M/S (Mid/Side) technique
   for (let i = 0; i < regionLength; i++) {
     const sampleIndex = startSample + i;
-    
+
     if (sampleIndex < audioBuffer.length) {
       // Convert L/R to M/S
       const mid = (leftIn[sampleIndex] + rightIn[sampleIndex]) * 0.5;
       const side = (leftIn[sampleIndex] - rightIn[sampleIndex]) * 0.5;
-      
+
       // Apply width adjustment to side signal
       const wideSide = side * (parameters.width || 1.5);
-      
+
       // Convert back to L/R
       let newLeft = mid + wideSide;
       let newRight = mid - wideSide;
-      
+
       // Apply Haas effect (slight delay to one channel)
-      if (i + delaySamples < regionLength) {
-        const delayedIndex = sampleIndex + delaySamples;
-        if (delayedIndex < audioBuffer.length) {
-          // Add delayed signal to create width
-          newRight = newRight * 0.8 + leftIn[delayedIndex] * 0.2;
+      if (parameters.delay > 0 && i >= delaySamples) {
+        const delayedIndex = sampleIndex - delaySamples;
+        if (delayedIndex >= 0) {
+          // Classic Haas: delay right channel
+          newRight = rightIn[delayedIndex] * 0.8 + newRight * 0.2;
         }
       }
-      
+
       // Bass mono retention (keep low frequencies centered)
       if (parameters.bassRetain) {
-        // Simple low-pass filter coefficient
-        const cutoff = (parameters.bassFreq || 200) / sampleRate;
-        const rc = 1.0 / (cutoff * 2 * Math.PI);
-        const dt = 1.0 / sampleRate;
-        const alpha = dt / (rc + dt);
-        
-        // Extract bass content (very simple filter)
-        const bassContent = mid * alpha;
+        // One-pole low-pass filter on left channel
+        bassStateLeft += alpha * (newLeft - bassStateLeft);
+
+        // One-pole low-pass filter on right channel
+        bassStateRight += alpha * (newRight - bassStateRight);
+
+        // One-pole low-pass filter on mid signal
+        bassMid += alpha * (mid - bassMid);
+
+        // Mix filtered bass back to center
         const bassRatio = 0.8; // How much bass to keep mono
-        
-        newLeft = newLeft * (1 - bassRatio) + bassContent * bassRatio;
-        newRight = newRight * (1 - bassRatio) + bassContent * bassRatio;
+
+        // Remove filtered bass from L/R and add centered bass
+        newLeft = newLeft - bassStateLeft + bassMid;
+        newRight = newRight - bassStateRight + bassMid;
       }
-      
-      // Normalize to prevent clipping
-      const maxValue = Math.max(Math.abs(newLeft), Math.abs(newRight));
-      if (maxValue > 1) {
-        newLeft /= maxValue;
-        newRight /= maxValue;
-      }
-      
+
+      // Soft limiting to prevent clipping
+      newLeft = Math.tanh(newLeft * 0.8) / 0.8;
+      newRight = Math.tanh(newRight * 0.8) / 0.8;
+
       leftOut[sampleIndex] = newLeft;
       rightOut[sampleIndex] = newRight;
     }
   }
-  
+
   return outputBuffer;
 }
 
@@ -102,13 +116,8 @@ export async function processStereoWidenerRegion(audioBuffer, startSample, endSa
  * Stereo Widener effect component using Haas effect and M/S processing
  */
 export default function StereoWidener({ width }) {
-  const {
-    audioRef,
-    wavesurferRef,
-    addToEditHistory,
-    audioURL
-  } = useAudio();
-  
+  const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+
   const {
     stereoWidenerWidth,
     setStereoWidenerWidth,
@@ -118,84 +127,95 @@ export default function StereoWidener({ width }) {
     setStereoWidenerBassRetain,
     stereoWidenerBassFreq,
     setStereoWidenerBassFreq,
-    cutRegion
+    cutRegion,
   } = useEffects();
-  
+
   const audioContextRef = useRef(null);
-  
+
   // Initialize audio context
   useEffect(() => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      audioContextRef.current = new (window.AudioContext ||
+        window.webkitAudioContext)();
     }
   }, []);
-  
+
   // Apply stereo widening to selected region
   const applyStereoWidener = useCallback(async () => {
     if (!cutRegion || !wavesurferRef.current) {
       alert('Please select a region first');
       return;
     }
-    
+
     try {
       const wavesurfer = wavesurferRef.current;
       const context = audioContextRef.current;
-      
+
       // Get the audio buffer
       const response = await fetch(audioURL);
       const arrayBuffer = await response.arrayBuffer();
       const audioBuffer = await context.decodeAudioData(arrayBuffer);
-      
+
       // Check if audio is stereo
       if (audioBuffer.numberOfChannels < 2) {
-        alert('Stereo widener requires stereo audio. Please convert to stereo first.');
+        alert(
+          'Stereo widener requires stereo audio. Please convert to stereo first.',
+        );
         return;
       }
-      
+
       // Calculate sample positions
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      
+
       // Use the exported processing function
       const parameters = {
         width: stereoWidenerWidth,
         delay: stereoWidenerDelay,
         bassRetain: stereoWidenerBassRetain,
-        bassFreq: stereoWidenerBassFreq
+        bassFreq: stereoWidenerBassFreq,
       };
-      
+
       const outputBuffer = await processStereoWidenerRegion(
         audioBuffer,
         startSample,
         endSample,
-        parameters
+        parameters,
       );
-      
+
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
       const blob = new Blob([wav], { type: 'audio/wav' });
       const url = URL.createObjectURL(blob);
-      
+
       // Update audio and history
       addToEditHistory(url, 'Apply Stereo Widener', {
         effect: 'stereowidener',
         parameters,
-        region: { start: cutRegion.start, end: cutRegion.end }
+        region: { start: cutRegion.start, end: cutRegion.end },
       });
-      
+
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
-      
     } catch (error) {
       console.error('Error applying stereo widener:', error);
       alert('Error applying stereo widener. Please try again.');
     }
-  }, [audioURL, addToEditHistory, wavesurferRef, stereoWidenerWidth, stereoWidenerDelay, stereoWidenerBassRetain, stereoWidenerBassFreq, cutRegion]);
-  
+  }, [
+    audioURL,
+    addToEditHistory,
+    wavesurferRef,
+    stereoWidenerWidth,
+    stereoWidenerDelay,
+    stereoWidenerBassRetain,
+    stereoWidenerBassFreq,
+    cutRegion,
+  ]);
+
   return (
     <Container fluid className="p-2">
       <Row className="text-center align-items-end">
@@ -205,13 +225,13 @@ export default function StereoWidener({ width }) {
           <Form.Check
             type="switch"
             id="bassmono-switch"
-            label={stereoWidenerBassRetain ? "On" : "Off"}
+            label={stereoWidenerBassRetain ? 'On' : 'Off'}
             checked={stereoWidenerBassRetain}
             onChange={(e) => setStereoWidenerBassRetain(e.target.checked)}
             className="text-white"
           />
         </Col>
-        
+
         {/* Knobs */}
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
@@ -225,7 +245,7 @@ export default function StereoWidener({ width }) {
             color="#e75b5c"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={stereoWidenerDelay}
@@ -239,7 +259,7 @@ export default function StereoWidener({ width }) {
             color="#7bafd4"
           />
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
             value={stereoWidenerBassFreq}
@@ -254,14 +274,10 @@ export default function StereoWidener({ width }) {
             disabled={!stereoWidenerBassRetain}
           />
         </Col>
-        
+
         {/* Apply Button */}
         <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
-          <Button
-            size="sm"
-            className="w-100"
-            onClick={applyStereoWidener}
-          >
+          <Button size="sm" className="w-100" onClick={applyStereoWidener}>
             Apply to Region
           </Button>
         </Col>
