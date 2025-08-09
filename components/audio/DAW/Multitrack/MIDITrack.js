@@ -26,11 +26,11 @@ import MIDIRecorder from './MIDIRecorder';
 import PatternLibrary from './PatternLibrary';
 import PianoRollEditor from './PianoRollEditor';
 import StepSequencer from './StepSequencer';
-import { 
-  drawPatternClips, 
+import {
+  drawPatternClips,
   resolvePatternArrangement,
   handlePatternClick,
-  addPatternToArrangement 
+  addPatternToArrangement,
 } from './PatternClipRenderer';
 
 export default function MIDITrack({ track, index, zoomLevel = 100 }) {
@@ -45,16 +45,15 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
   const [draggedPattern, setDraggedPattern] = useState(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [editingPatternId, setEditingPatternId] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isCountingIn, setIsCountingIn] = useState(false);
+  const [countInBeat, setCountInBeat] = useState(0);
+  const [controlTab, setControlTab] = useState('vol'); // 'vol' or 'pan'
   const scheduledNotesRef = useRef([]);
   const audioContextRef = useRef(null);
   const instrumentRef = useRef(null);
   const masterGainRef = useRef(null);
   const pannerRef = useRef(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isCountingIn, setIsCountingIn] = useState(false);
-  const [countInBeat, setCountInBeat] = useState(0);
-  const midiRecorderRef = useRef(null);
-  const containerRef = useRef(null);
 
   const {
     updateTrack,
@@ -66,55 +65,49 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     isPlaying: globalIsPlaying,
     currentTime: globalCurrentTime,
     registerTrackInstrument,
+    playNoteOnSelectedTrack,
+    stopNoteOnSelectedTrack,
   } = useMultitrack();
 
-  // Initialize the MIDI recorder
+  const InstrumentIcon = getInstrumentIcon();
+
+  // Initialize audio nodes
   useEffect(() => {
-    if (!midiRecorderRef.current) {
-      midiRecorderRef.current = new MIDIRecorder();
-    }
+    audioContextRef.current = new (window.AudioContext ||
+      window.webkitAudioContext)();
+
+    // Create gain node for volume control
+    masterGainRef.current = audioContextRef.current.createGain();
+    masterGainRef.current.gain.value = track.volume || 0.75;
+
+    // Create panner node
+    pannerRef.current = audioContextRef.current.createStereoPanner();
+    pannerRef.current.pan.value = track.pan || 0;
+
+    // Connect nodes
+    masterGainRef.current.connect(pannerRef.current);
+    pannerRef.current.connect(audioContextRef.current.destination);
 
     return () => {
-      if (midiRecorderRef.current) {
-        midiRecorderRef.current.cleanup();
+      if (instrumentRef.current) {
+        instrumentRef.current.dispose();
       }
     };
   }, []);
 
-  // Initialize Audio Context and Instrument
+  // Create/update instrument when it changes
   useEffect(() => {
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext ||
-        window.webkitAudioContext)();
-    }
-
-    // Create audio nodes
-    if (!masterGainRef.current) {
-      masterGainRef.current = audioContextRef.current.createGain();
-      masterGainRef.current.connect(audioContextRef.current.destination);
-      masterGainRef.current.gain.value = track.volume || 0.75;
-    }
-
-    if (!pannerRef.current) {
-      pannerRef.current = audioContextRef.current.createStereoPanner();
-      pannerRef.current.connect(masterGainRef.current);
-      pannerRef.current.pan.value = track.pan || 0;
-    }
-
-    // Create instrument
-    const instrumentType = track.midiData?.instrument || {
-      type: 'synth',
-      name: 'Basic Synth',
-      color: '#4a7c9e',
-    };
-
-    if (!instrumentRef.current || instrumentRef.current.type !== instrumentType.type) {
+    if (track.midiData?.instrument && audioContextRef.current) {
+      // Dispose old instrument
       if (instrumentRef.current) {
-        instrumentRef.current.disconnect();
+        instrumentRef.current.dispose();
       }
 
+      // Create new instrument
+      const instrumentType = track.midiData.instrument;
       instrumentRef.current = createInstrument(
         audioContextRef.current,
+        masterGainRef.current,
         instrumentType.type,
       );
       instrumentRef.current.connect(pannerRef.current);
@@ -122,7 +115,13 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       // Register with multitrack context
       registerTrackInstrument(track.id, instrumentRef.current);
     }
-  }, [track.id, track.volume, track.pan, track.midiData?.instrument, registerTrackInstrument]);
+  }, [track.id, track.midiData?.instrument, registerTrackInstrument]);
+
+  useEffect(() => {
+    return () => {
+      registerTrackInstrument(track.id, null);
+    };
+  }, [track.id, registerTrackInstrument]);
 
   // Update volume
   useEffect(() => {
@@ -159,26 +158,33 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     if (globalIsPlaying && !track.muted) {
       if (soloTrackId && track.id !== soloTrackId) return;
 
-      // Schedule all notes that should play
+      const tempo = track.midiData?.tempo || 120;
+      const secPerBeat = 60 / tempo;
+
+      // Schedule all notes that should play (convert beats -> seconds)
       const upcomingNotes = notesToPlay.filter((note) => {
-        const noteEndTime = note.startTime + note.duration;
-        return note.startTime >= globalCurrentTime || noteEndTime > globalCurrentTime;
+        const startSec = note.startTime * secPerBeat;
+        const endSec = (note.startTime + note.duration) * secPerBeat;
+        return startSec >= globalCurrentTime || endSec > globalCurrentTime;
       });
 
       upcomingNotes.forEach((note) => {
-        const delay = Math.max(0, note.startTime - globalCurrentTime);
+        const startSec = note.startTime * secPerBeat;
+        const durationSec = note.duration * secPerBeat;
+        const delay = Math.max(0, startSec - globalCurrentTime);
 
-        // Schedule note on
         const noteOnTimeout = setTimeout(() => {
-          instrumentRef.current.playNote(note.note, note.velocity / 127);
+          instrumentRef.current.playNote(
+            note.note,
+            (note.velocity ?? 100) / 127,
+          );
         }, delay * 1000);
 
-        // Schedule note off
         const noteOffTimeout = setTimeout(
           () => {
             instrumentRef.current.stopNote(note.note);
           },
-          (delay + note.duration) * 1000,
+          (delay + durationSec) * 1000,
         );
 
         scheduledNotesRef.current.push(noteOnTimeout, noteOffTimeout);
@@ -206,7 +212,9 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     }
 
     // Find the length of the notes
-    const maxTime = Math.max(...track.midiData.notes.map(n => n.startTime + n.duration));
+    const maxTime = Math.max(
+      ...track.midiData.notes.map((n) => n.startTime + n.duration),
+    );
     const bars = Math.ceil(maxTime / 4); // Assuming 4/4 time
 
     const newPattern = {
@@ -214,7 +222,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       name: `${track.name} Pattern`,
       length: bars,
       notes: [...track.midiData.notes],
-      color: '#4a7c9e'
+      color: '#4a7c9e',
     };
 
     // Add pattern to track
@@ -226,11 +234,11 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
           {
             patternId: newPattern.id,
             startTime: 0,
-            repeatCount: 1
-          }
+            repeatCount: 1,
+          },
         ],
-        notes: [] // Clear notes as they're now in the pattern
-      }
+        notes: [], // Clear notes as they're now in the pattern
+      },
     });
 
     setViewMode('patterns');
@@ -241,264 +249,134 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     updateTrack(track.id, {
       midiData: {
         ...track.midiData,
-        patterns: [...(track.midiData.patterns || []), pattern]
-      }
+        patterns: [...(track.midiData.patterns || []), pattern],
+      },
     });
   };
 
   const handleUpdatePattern = (patternId, updates) => {
     const patterns = track.midiData.patterns || [];
-    const updatedPatterns = patterns.map(p => 
-      p.id === patternId ? { ...p, ...updates } : p
+    const updatedPatterns = patterns.map((p) =>
+      p.id === patternId ? { ...p, ...updates } : p,
     );
-    
     updateTrack(track.id, {
       midiData: {
         ...track.midiData,
-        patterns: updatedPatterns
-      }
+        patterns: updatedPatterns,
+      },
     });
   };
 
   const handleDeletePattern = (patternId) => {
-    const patterns = (track.midiData.patterns || []).filter(p => p.id !== patternId);
-    const arrangement = (track.midiData.arrangement || []).filter(a => a.patternId !== patternId);
-    
+    const patterns = (track.midiData.patterns || []).filter(
+      (p) => p.id !== patternId,
+    );
+    const arrangement = (track.midiData.arrangement || []).filter(
+      (a) => a.patternId !== patternId,
+    );
     updateTrack(track.id, {
       midiData: {
         ...track.midiData,
         patterns,
-        arrangement
-      }
+        arrangement,
+      },
     });
   };
 
-  const handleSelectPattern = (pattern) => {
-    setSelectedPattern(pattern);
-    setShowPatternLibrary(false);
+  const handlePatternDrop = (e) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+
+    if (!draggedPattern || !canvasRef.current) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+
+    // Calculate drop position in beats (assuming 50px per beat)
+    const dropBeat = Math.round(x / 50);
+
+    addPatternToArrangement(
+      track,
+      draggedPattern.id,
+      dropBeat,
+      1,
+      (updatedTrack) => {
+        updateTrack(track.id, updatedTrack);
+      },
+    );
+
+    setDraggedPattern(null);
   };
 
-  // Canvas mouse events for pattern editing
+  // Handle canvas click for pattern mode
   const handleCanvasClick = (e) => {
-    if (viewMode !== 'patterns') return;
-    
+    if (viewMode !== 'patterns' || !track.midiData.arrangement) return;
+
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const pixelsPerBeat = rect.width / 16;
-    
-    const clickResult = handlePatternClick(x, y, track, pixelsPerBeat, 0);
-    if (clickResult) {
-      // Double-click to edit pattern
-      if (e.detail === 2) {
-        setEditingPatternId(clickResult.pattern.id);
-        setShowPianoRoll(true);
-      }
+
+    const clickedClip = handlePatternClick(
+      x,
+      track.midiData.arrangement,
+      track.midiData.patterns || [],
+    );
+
+    if (clickedClip) {
+      setEditingPatternId(clickedClip.patternId);
+      setShowStepSequencer(true);
     }
   };
 
-  // Drag and drop handlers
-  const handleDragStart = (e, pattern) => {
-    setDraggedPattern(pattern);
-    e.dataTransfer.effectAllowed = 'copy';
-    e.dataTransfer.setData('pattern', JSON.stringify(pattern));
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-    setIsDraggingOver(true);
-  };
-
-  const handleDragLeave = (e) => {
-    setIsDraggingOver(false);
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDraggingOver(false);
-    
-    const patternData = e.dataTransfer.getData('pattern');
-    if (!patternData) return;
-    
-    const pattern = JSON.parse(patternData);
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const pixelsPerBeat = rect.width / 16;
-    const startTime = (x / pixelsPerBeat);
-    
-    addPatternToArrangement(track, pattern.id, startTime, updateTrack);
-  };
-
-  // Menu actions
-  const handleMenuAction = (action) => {
-    switch (action) {
-      case 'edit-piano-roll':
-        setShowPianoRoll(true);
-        break;
-      case 'open-step-sequencer':
-        setShowStepSequencer(true);
-        break;
-      case 'select-instrument':
-        setShowInstrumentSelector(true);
-        break;
-      case 'delete':
-        removeTrack(track.id);
-        break;
-      case 'duplicate':
-        // TODO: Implement track duplication
-        console.log('Duplicate track:', track.id);
-        break;
-      case 'clear':
-        updateTrack(track.id, {
-          midiData: { ...track.midiData, notes: [] },
-        });
-        break;
-      case 'generate-pattern':
-        generateTestPattern();
-        break;
-      case 'convert-to-pattern':
-        convertNotesToPattern();
-        break;
-      case 'show-patterns':
-        setShowPatternLibrary(true);
-        break;
+  // Instrument icon helper
+  function getInstrumentIcon() {
+    const instrumentType = track.midiData?.instrument?.type;
+    switch (instrumentType) {
+      case 'piano':
+        return FaPiano;
+      case 'synth':
+        return FaWaveSquare;
+      case 'drums':
+        return FaDrum;
+      default:
+        return FaMusic;
     }
-  };
-
-  // Generate test patterns based on instrument type
-  const generateTestPattern = () => {
-    const instrument = track.midiData?.instrument;
-    let testNotes = [];
-
-    if (instrument?.type === 'drums') {
-      // Drum pattern
-      const pattern = [
-        { note: 36, beats: [0, 2] }, // Kick on 1 and 3
-        { note: 38, beats: [1, 3] }, // Snare on 2 and 4
-        { note: 42, beats: [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5] }, // Hi-hat 8ths
-      ];
-
-      pattern.forEach(({ note, beats }) => {
-        beats.forEach((beat) => {
-          testNotes.push({
-            note,
-            velocity: 100,
-            startTime: beat,
-            duration: 0.1,
-            id: `drum-${note}-${beat}-${Date.now()}`,
-          });
-        });
-      });
-    } else {
-      // Melodic pattern
-      const scale = [60, 62, 64, 65, 67, 69, 71, 72]; // C major scale
-
-      for (let i = 0; i < 16; i++) {
-        testNotes.push({
-          note: scale[Math.floor(Math.random() * scale.length)],
-          velocity: 80 + Math.floor(Math.random() * 40),
-          startTime: i * 0.25, // 16th notes
-          duration: 0.2,
-          id: `test-${i}-${Date.now()}`,
-        });
-      }
-    }
-
-    updateTrack(track.id, {
-      midiData: { ...track.midiData, notes: testNotes },
-    });
-  };
+  }
 
   // Handle instrument selection
   const handleInstrumentSelect = (instrument) => {
     updateTrack(track.id, {
-      midiData: { ...track.midiData, instrument },
+      midiData: {
+        ...track.midiData,
+        instrument,
+      },
     });
     setShowInstrumentSelector(false);
   };
 
-  // Handle piano roll save
-  const handlePianoRollSave = (notes) => {
-    if (editingPatternId) {
-      // Update pattern notes
-      const patterns = track.midiData.patterns || [];
-      const updatedPatterns = patterns.map(p => 
-        p.id === editingPatternId ? { ...p, notes } : p
-      );
-      
-      updateTrack(track.id, {
-        midiData: {
-          ...track.midiData,
-          patterns: updatedPatterns
-        }
-      });
-      setEditingPatternId(null);
-    } else {
-      // Update track notes
-      updateTrack(track.id, {
-        midiData: { ...track.midiData, notes },
-      });
+  // Generate test pattern for development
+  const generateTestPattern = () => {
+    const notes = [];
+    const scale = [60, 62, 64, 65, 67, 69, 71, 72]; // C major scale
+    for (let i = 0; i < 16; i++) {
+      if (Math.random() > 0.5) {
+        notes.push({
+          note: scale[Math.floor(Math.random() * scale.length)],
+          velocity: 80,
+          startTime: i * 0.25,
+          duration: 0.25,
+        });
+      }
     }
-  };
-
-  // Handle recording state changes
-  const handleRecordingComplete = (recordedNotes) => {
-    updateTrack(track.id, {
-      midiData: {
-        ...track.midiData,
-        notes: [...(track.midiData.notes || []), ...recordedNotes],
-      },
+    handleCreatePattern({
+      id: `pattern-${Date.now()}`,
+      name: 'Test Pattern',
+      length: 4,
+      notes,
+      color: `#${Math.floor(Math.random() * 16777215).toString(16)}`,
     });
-    setIsRecording(false);
   };
 
-  // Handle name change
-  const handleNameChange = (e) => {
-    updateTrack(track.id, { name: e.target.value });
-  };
-
-  // Handle track click selection
-  const handleTrackClick = () => {
-    setSelectedTrackId(track.id);
-  };
-
-  // Handle volume change
-  const handleVolumeChange = (e) => {
-    updateTrack(track.id, { volume: parseFloat(e.target.value) });
-  };
-
-  // Handle pan change
-  const handlePanChange = (e) => {
-    updateTrack(track.id, { pan: parseFloat(e.target.value) });
-  };
-
-  // Handle mute
-  const handleMute = () => {
-    updateTrack(track.id, { muted: !track.muted });
-  };
-
-  // Handle solo
-  const handleSolo = () => {
-    setSoloTrackId(soloTrackId === track.id ? null : track.id);
-  };
-
-  // Get instrument icon
-  const getInstrumentIcon = () => {
-    const instrumentType = track.midiData?.instrument?.type || 'synth';
-    switch (instrumentType) {
-      case 'piano':
-        return MdPiano;
-      case 'drums':
-        return FaDrum;
-      case 'bass':
-      case 'synth':
-      default:
-        return FaWaveSquare;
-    }
-  };
-
-  // Draw MIDI notes on canvas with pattern support
+  // Draw the preview (notes or patterns)
   useEffect(() => {
     if (!canvasRef.current || !track.midiData) return;
 
@@ -507,159 +385,177 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     const { width, height } = canvas;
 
     // Clear canvas
-    ctx.fillStyle = '#2a2a2a';
+    ctx.fillStyle = '#1f2a1f';
     ctx.fillRect(0, 0, width, height);
 
-    // Draw grid lines
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1;
-
-    // Vertical grid (beats)
-    for (let i = 0; i < width; i += width / 16) {
-      ctx.beginPath();
-      ctx.moveTo(i, 0);
-      ctx.lineTo(i, height);
-      ctx.stroke();
-    }
-
-    // Draw content based on view mode
     if (viewMode === 'patterns') {
       // Draw pattern clips
-      const pixelsPerBeat = width / 16; // 16 beats visible
-      drawPatternClips(ctx, track, width, height, pixelsPerBeat, 0);
-      
-      // Show instructions if no arrangement
-      if (!track.midiData.arrangement || track.midiData.arrangement.length === 0) {
-        ctx.fillStyle = '#666';
-        ctx.font = '14px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('Drag patterns here from the Pattern Library', width / 2, height / 2);
-      }
-      
-      // Show drag over indicator
-      if (isDraggingOver) {
-        ctx.fillStyle = 'rgba(74, 124, 158, 0.2)';
-        ctx.fillRect(0, 0, width, height);
-        ctx.strokeStyle = '#4a7c9e';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
-        ctx.strokeRect(2, 2, width - 4, height - 4);
-        ctx.setLineDash([]);
-      }
+      drawPatternClips(
+        ctx,
+        track.midiData.arrangement || [],
+        track.midiData.patterns || [],
+        width,
+        height,
+        zoomLevel,
+      );
     } else {
-      // Original note drawing code
-      if (track.midiData.notes && track.midiData.notes.length > 0) {
-        const instrumentColor = track.midiData.instrument?.color || '#92ce84';
-        ctx.fillStyle = instrumentColor;
-
-        track.midiData.notes.forEach((note) => {
-          const x = (note.startTime / 4) * width; // Assuming 4 bars view
-          const y = height - ((note.note - 21) / 88) * height; // Piano range
-          const w = (note.duration / 4) * width;
-          const h = height / 88; // Height per note
-
-          ctx.fillRect(x, y - h / 2, w, h);
-          ctx.strokeStyle = instrumentColor + 'aa';
-          ctx.strokeRect(x, y - h / 2, w, h);
-        });
-      } else {
-        // Show empty state
+      // Draw piano roll preview
+      const notes = track.midiData.notes || [];
+      if (notes.length === 0) {
         ctx.fillStyle = '#666';
-        ctx.font = '14px sans-serif';
+        ctx.font = '12px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText('Double-click to open Piano Roll', width / 2, height / 2);
+        ctx.fillText('Double-click to add notes', width / 2, height / 2);
+        return;
+      }
+
+      // Compute content-aware time window
+      const allNotes = track.midiData.notes || [];
+      const lastBeat = allNotes.length
+        ? Math.max(...allNotes.map((n) => n.startTime + n.duration))
+        : 16;
+      const firstBeat = allNotes.length
+        ? Math.min(...allNotes.map((n) => n.startTime))
+        : 0;
+      // Keep a minimum window so very short clips still show structure
+      const beatsVisible = Math.max(16, lastBeat - firstBeat || 16);
+      const pixelsPerBeat = width / beatsVisible;
+
+      // Draw grid
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 0.5;
+
+      // Vertical grid (beats)
+      for (let beat = 0; beat <= beatsVisible; beat++) {
+        const x = (beat / beatsVisible) * width;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+
+      // Draw notes
+      const instrumentColor = track.midiData.instrument?.color || '#92ce84';
+
+      // Compute dynamic pitch range with bounds to MIDI (A0..C8)
+      const minPitch = Math.max(
+        21,
+        Math.min(...allNotes.map((n) => n.note)) - 1,
+      );
+      const maxPitch = Math.min(
+        108,
+        Math.max(...allNotes.map((n) => n.note)) + 1,
+      );
+      const noteRange = { min: minPitch, max: maxPitch };
+      const lanes = Math.max(1, noteRange.max - noteRange.min + 1);
+      const laneHeight = height / lanes;
+
+      // Draw horizontal grid lines for octaves
+      ctx.strokeStyle = '#444';
+      for (let note = noteRange.min; note <= noteRange.max; note += 12) {
+        const y = height - ((note - noteRange.min) / lanes) * height;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+
+      const sortedNotes = [...allNotes].sort(
+        (a, b) => a.startTime - b.startTime,
+      );
+
+      // Draw each note
+      sortedNotes.forEach((note) => {
+        // Skip notes outside the computed pitch range
+        if (note.note < noteRange.min || note.note > noteRange.max) return;
+
+        // Calculate note position
+        const x = (note.startTime - firstBeat) * pixelsPerBeat;
+        const y = height - (note.note - noteRange.min + 1) * laneHeight;
+
+        // Calculate width with proper duration scaling
+        const noteWidth = Math.max(2, note.duration * pixelsPerBeat);
+
+        // Clip note width if it extends beyond canvas
+        const visibleWidth = Math.min(noteWidth, width - x);
+
+        if (visibleWidth <= 0) return; // Skip if completely outside
+
+        // Note body
+        ctx.fillStyle = instrumentColor;
+        ctx.fillRect(x, y, visibleWidth, laneHeight - 1);
+
+        // Note border
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, visibleWidth, laneHeight - 1);
+
+        // Velocity shading
+        const velocityAlpha = note.velocity / 127;
+        ctx.fillStyle = `rgba(255, 255, 255, ${velocityAlpha * 0.3})`;
+        ctx.fillRect(x, y, visibleWidth, laneHeight - 1);
+      });
+
+      // Draw playhead if playing
+      if (globalIsPlaying) {
+        const tempo = track.midiData?.tempo || 120;
+        const secPerBeat = 60 / tempo;
+        const currentBeat = globalCurrentTime / secPerBeat;
+        const playheadX = ((currentBeat - firstBeat) / beatsVisible) * width;
+        ctx.strokeStyle = '#ff3030';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(playheadX, 0);
+        ctx.lineTo(playheadX, height);
+        ctx.stroke();
       }
     }
+  }, [
+    track.midiData,
+    viewMode,
+    zoomLevel,
+    globalCurrentTime,
+    globalIsPlaying,
+    track.midiData?.notes,
+    track.midiData?.patterns,
+    track.midiData?.arrangement,
+  ]);
 
-    // Draw playhead if playing
-    if (globalIsPlaying && globalCurrentTime > 0) {
-      const playheadX = (globalCurrentTime / 4) * width; // Assuming 4 bars = 4 seconds at 120bpm
-      ctx.strokeStyle = '#ff3030';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(playheadX, 0);
-      ctx.lineTo(playheadX, height);
-      ctx.stroke();
-    }
-  }, [track.midiData, zoomLevel, globalIsPlaying, globalCurrentTime, viewMode, isDraggingOver]);
+  // Handle volume change
+  const handleVolumeChange = (e) => {
+    e.stopPropagation();
+    updateTrack(track.id, { volume: e.target.value / 100 });
+  };
 
-  const InstrumentIcon = getInstrumentIcon();
+  // Handle pan change
+  const handlePanChange = (e) => {
+    e.stopPropagation();
+    updateTrack(track.id, { pan: e.target.value / 100 });
+  };
 
   return (
     <div
-      ref={containerRef}
-      className={`track midi-track ${selectedTrackId === track.id ? 'track-selected' : ''}`}
-      onClick={handleTrackClick}
+      className={`track midi-track ${
+        selectedTrackId === track.id ? 'track-selected' : ''
+      } ${track.muted ? 'track-muted' : ''} ${
+        soloTrackId === track.id ? 'track-solo' : ''
+      }`}
+      onClick={() => setSelectedTrackId(track.id)}
     >
-      {/* Track Controls */}
       <div className="track-controls">
-        {/* Track Header */}
         <div className="track-header">
-          <Form.Control
-            type="text"
-            value={track.name}
-            onChange={handleNameChange}
-            className="track-name-input"
-            onClick={(e) => e.stopPropagation()}
-          />
-          <Dropdown onClick={(e) => e.stopPropagation()}>
-            <Dropdown.Toggle
-              as={Button}
-              variant="link"
-              className="track-menu-btn"
-              size="sm"
-            >
-              ⋮
-            </Dropdown.Toggle>
-            <Dropdown.Menu>
-              <Dropdown.Item onClick={() => handleMenuAction('edit-piano-roll')}>
-                <FaPencilAlt className="me-2" size={12} />
-                Edit in Piano Roll
-              </Dropdown.Item>
-              {track.midiData?.instrument?.type === 'drums' && (
-                <Dropdown.Item onClick={() => handleMenuAction('open-step-sequencer')}>
-                  <FaTh className="me-2" size={12} />
-                  Step Sequencer
-                </Dropdown.Item>
-              )}
-              <Dropdown.Divider />
-              <Dropdown.Item
-                onClick={() => handleMenuAction('select-instrument')}
-              >
-                <InstrumentIcon size={16} className="me-2" /> Change Instrument
-              </Dropdown.Item>
-              <Dropdown.Divider />
-              <Dropdown.Item onClick={() => handleMenuAction('show-patterns')}>
-                <FaThLarge className="me-2" size={12} />
-                Pattern Library
-              </Dropdown.Item>
-              {track.midiData?.notes?.length > 0 && viewMode === 'notes' && (
-                <Dropdown.Item onClick={() => handleMenuAction('convert-to-pattern')}>
-                  <FaThLarge className="me-2" size={12} />
-                  Convert to Pattern
-                </Dropdown.Item>
-              )}
-              <Dropdown.Divider />
-              <Dropdown.Item
-                onClick={() => handleMenuAction('generate-pattern')}
-              >
-                <FaMusic className="me-2" /> Generate Test Pattern
-              </Dropdown.Item>
-              <Dropdown.Item onClick={() => handleMenuAction('clear')}>
-                Clear Notes
-              </Dropdown.Item>
-              <Dropdown.Divider />
-              <Dropdown.Item onClick={() => handleMenuAction('duplicate')}>
-                Duplicate Track
-              </Dropdown.Item>
-              <Dropdown.Item
-                onClick={() => handleMenuAction('delete')}
-                className="text-danger"
-              >
-                <FaTrash className="me-2" /> Delete Track
-              </Dropdown.Item>
-            </Dropdown.Menu>
-          </Dropdown>
+          <span className="track-name">{track.name}</span>
+          <Button
+            variant="link"
+            size="sm"
+            className="p-0 text-danger"
+            onClick={(e) => {
+              e.stopPropagation();
+              removeTrack(track.id);
+            }}
+          >
+            <FaTrash />
+          </Button>
         </div>
 
         {/* Instrument Display */}
@@ -670,136 +566,196 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
             setShowInstrumentSelector(true);
           }}
         >
-          <InstrumentIcon size={14} />
-          <span>{track.midiData?.instrument?.name || 'Basic Synth'}</span>
+          <InstrumentIcon />
+          <span>{track.midiData?.instrument?.name || 'Select Instrument'}</span>
         </div>
 
         {/* View Mode Toggle */}
-        <ButtonGroup size="sm" className="w-100 mb-1">
+        <ButtonGroup className="w-100 mb-2">
           <Button
-            variant={viewMode === 'notes' ? 'primary' : 'outline-secondary'}
-            onClick={() => setViewMode('notes')}
             size="sm"
+            variant={viewMode === 'notes' ? 'primary' : 'outline-primary'}
+            onClick={() => setViewMode('notes')}
           >
-            Notes
+            <MdMusicNote /> Notes
           </Button>
           <Button
-            variant={viewMode === 'patterns' ? 'primary' : 'outline-secondary'}
-            onClick={() => setViewMode('patterns')}
             size="sm"
+            variant={viewMode === 'patterns' ? 'primary' : 'outline-primary'}
+            onClick={() => setViewMode('patterns')}
           >
-            Patterns
+            <FaThLarge /> Patterns
           </Button>
         </ButtonGroup>
 
-        {/* Pattern Library Button */}
-        <Button
-          size="sm"
-          variant="outline-primary"
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowPatternLibrary(true);
-          }}
-          className="w-100 mb-1"
-        >
-          <FaThLarge size={12} /> Patterns ({track.midiData?.patterns?.length || 0})
-        </Button>
+        {/* Pattern Controls */}
+        {viewMode === 'patterns' && (
+          <>
+            <Button
+              size="sm"
+              variant="outline-primary"
+              className="w-100 mb-2"
+              onClick={() => setShowPatternLibrary(true)}
+            >
+              Pattern Library
+            </Button>
+            {track.midiData?.notes?.length > 0 && (
+              <Button
+                size="sm"
+                variant="outline-success"
+                className="w-100 mb-2"
+                onClick={convertNotesToPattern}
+              >
+                Convert to Pattern
+              </Button>
+            )}
+          </>
+        )}
 
         {/* Track Buttons */}
         <div className="track-buttons">
           <Button
+            variant={track.muted ? 'danger' : 'outline-secondary'}
             size="sm"
-            variant={track.muted ? 'danger' : 'secondary'}
             onClick={(e) => {
               e.stopPropagation();
-              handleMute();
+              updateTrack(track.id, { muted: !track.muted });
             }}
-            className="track-btn"
+            title={track.muted ? 'Unmute' : 'Mute'}
           >
-            {track.muted ? <FaVolumeMute /> : <FaVolumeUp />} Mute
+            {track.muted ? <FaVolumeMute /> : <FaVolumeUp />}
           </Button>
           <Button
+            variant={soloTrackId === track.id ? 'warning' : 'outline-secondary'}
             size="sm"
-            variant={soloTrackId === track.id ? 'warning' : 'secondary'}
             onClick={(e) => {
               e.stopPropagation();
-              handleSolo();
+              setSoloTrackId(soloTrackId === track.id ? null : track.id);
             }}
-            className="track-btn"
+            title="Solo"
           >
-            Solo
+            S
           </Button>
           <Button
+            variant={isRecording ? 'danger' : 'outline-danger'}
             size="sm"
-            variant={isRecording ? 'danger' : 'secondary'}
             onClick={(e) => {
               e.stopPropagation();
               setIsRecording(!isRecording);
+              updateTrack(track.id, { isRecording: !isRecording });
             }}
-            className="track-btn"
+            title={isRecording ? 'Stop Recording' : 'Record'}
           >
-            {isRecording ? <FaStop /> : <FaCircle />} Rec
+            {isRecording ? <FaStop /> : <FaCircle />}
           </Button>
         </div>
 
-        {/* Volume Control */}
-        <div className="track-control">
-          <Form.Label className="track-control-label">Volume</Form.Label>
-          <Form.Range
-            min="0"
-            max="1"
-            step="0.01"
-            value={track.volume || 0.75}
-            onChange={handleVolumeChange}
-            className="volume-slider"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
+        {/* Compact Vol/Pan switch */}
+        <ButtonGroup size="sm" className="control-tabs mb-1">
+          <Button
+            variant={controlTab === 'vol' ? 'secondary' : 'outline-secondary'}
+            onClick={(e) => {
+              e.stopPropagation();
+              setControlTab('vol');
+            }}
+          >
+            Vol
+          </Button>
+          <Button
+            variant={controlTab === 'pan' ? 'secondary' : 'outline-secondary'}
+            onClick={(e) => {
+              e.stopPropagation();
+              setControlTab('pan');
+            }}
+          >
+            Pan
+          </Button>
+        </ButtonGroup>
 
-        {/* Pan Control */}
-        <div className="track-control">
-          <Form.Label className="track-control-label">
-            <MdPanTool size={14} /> Pan
-          </Form.Label>
-          <Form.Range
-            min="-1"
-            max="1"
-            step="0.01"
-            value={track.pan || 0}
-            onChange={handlePanChange}
-            className="pan-slider"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
+        {controlTab === 'vol' ? (
+          <div className="track-control">
+            <label className="track-control-label">
+              <FaVolumeUp /> Volume
+              <span className="track-control-value">
+                {Math.round(track.volume * 100)}%
+              </span>
+            </label>
+            <Form.Range
+              className="track-volume-slider"
+              min="0"
+              max="100"
+              value={track.volume * 100}
+              onChange={handleVolumeChange}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        ) : (
+          <div className="track-control">
+            <label className="track-control-label">
+              <MdPanTool /> Pan
+              <span className="track-control-value">
+                {track.pan === 0
+                  ? 'C'
+                  : track.pan > 0
+                    ? `${Math.round(track.pan * 100)}R`
+                    : `${Math.round(Math.abs(track.pan * 100))}L`}
+              </span>
+            </label>
+            <Form.Range
+              className="track-pan-slider"
+              min="-100"
+              max="100"
+              value={track.pan * 100}
+              onChange={handlePanChange}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )}
       </div>
 
-      {/* Track Waveform/MIDI Display */}
-      <div
-        className="track-waveform midi-track-display"
-        onDoubleClick={() => viewMode === 'notes' && setShowPianoRoll(true)}
-        onClick={handleCanvasClick}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <canvas
-          ref={canvasRef}
-          width={800}
-          height={120}
-          style={{ width: '100%', height: '100%' }}
-        />
-        <div className="midi-indicator">
-          <MdMusicNote size={10} />
-          <span>
-            {viewMode === 'patterns' 
-              ? `${track.midiData?.patterns?.length || 0} patterns`
-              : `${track.midiData?.notes?.length || 0} notes`
+      <div className="track-waveform">
+        <div
+          className="midi-track-display"
+          onDoubleClick={() => {
+            if (viewMode === 'notes') {
+              setShowPianoRoll(true);
+            } else {
+              setShowStepSequencer(true);
             }
-          </span>
+          }}
+          onClick={handleCanvasClick}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDraggingOver(true);
+          }}
+          onDragLeave={() => setIsDraggingOver(false)}
+          onDrop={handlePatternDrop}
+        >
+          <canvas
+            ref={canvasRef}
+            width={800}
+            height={240}
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'block',
+              objectFit: 'contain',
+            }}
+          />
+          {isRecording && <div className="midi-recording-indicator">REC</div>}
+          {isCountingIn && (
+            <div className="count-in-indicator">{countInBeat}</div>
+          )}
+          <div className="midi-indicator">
+            <MdMusicNote /> MIDI
+          </div>
+          {track.midiData?.tempo && (
+            <div className="midi-tempo-display">{track.midiData.tempo} BPM</div>
+          )}
         </div>
       </div>
 
-      {/* Instrument Selector Modal */}
+      {/* Modals */}
       {showInstrumentSelector && (
         <InstrumentSelector
           show={showInstrumentSelector}
@@ -809,61 +765,94 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
         />
       )}
 
-      {/* Piano Roll Editor Modal */}
       {showPianoRoll && (
         <PianoRollEditor
           show={showPianoRoll}
-          onHide={() => {
+          onHide={() => setShowPianoRoll(false)}
+          notes={track.midiData?.notes || []}
+          onSave={(updatedNotes) => {
+            updateTrack(track.id, {
+              midiData: {
+                ...track.midiData,
+                notes: updatedNotes,
+              },
+            });
             setShowPianoRoll(false);
-            setEditingPatternId(null);
           }}
-          notes={editingPatternId 
-            ? track.midiData?.patterns?.find(p => p.id === editingPatternId)?.notes || []
-            : track.midiData?.notes || []
-          }
-          onSave={handlePianoRollSave}
-          instrument={track.midiData?.instrument}
-          trackName={editingPatternId 
-            ? track.midiData?.patterns?.find(p => p.id === editingPatternId)?.name || 'Pattern'
-            : track.name
-          }
+          instrument={instrumentRef.current}
+          trackName={track.name}
+          tempo={track.midiData?.tempo || 120}
+          isPlaying={globalIsPlaying}
+          currentTime={globalCurrentTime}
         />
       )}
 
-      {/* Pattern Library Modal with drag support */}
-      <PatternLibrary
-        show={showPatternLibrary}
-        onHide={() => setShowPatternLibrary(false)}
-        patterns={track.midiData?.patterns || []}
-        onCreatePattern={handleCreatePattern}
-        onUpdatePattern={handleUpdatePattern}
-        onDeletePattern={handleDeletePattern}
-        onSelectPattern={handleSelectPattern}
-        onDragStart={handleDragStart}
-        enableDrag={true}
-      />
-
-      {/* Step Sequencer Modal */}
       {showStepSequencer && (
         <StepSequencer
           show={showStepSequencer}
-          onHide={() => setShowStepSequencer(false)}
-          instrument={track.midiData?.instrument}
-          onSave={(pattern) => {
-            handleCreatePattern(pattern);
+          onHide={() => {
             setShowStepSequencer(false);
+            setEditingPatternId(null);
           }}
+          pattern={
+            editingPatternId
+              ? track.midiData.patterns?.find((p) => p.id === editingPatternId)
+              : null
+          }
+          onSave={(pattern) => {
+            if (editingPatternId) {
+              handleUpdatePattern(editingPatternId, pattern);
+            } else {
+              handleCreatePattern(pattern);
+            }
+            setShowStepSequencer(false);
+            setEditingPatternId(null);
+          }}
+          instrument={instrumentRef.current}
+        />
+      )}
+
+      {showPatternLibrary && (
+        <PatternLibrary
+          show={showPatternLibrary}
+          onHide={() => setShowPatternLibrary(false)}
+          patterns={track.midiData.patterns || []}
+          onPatternSelect={(pattern) => {
+            setDraggedPattern(pattern);
+            setShowPatternLibrary(false);
+          }}
+          onPatternCreate={handleCreatePattern}
+          onPatternUpdate={handleUpdatePattern}
+          onPatternDelete={handleDeletePattern}
+          onGenerateTestPattern={generateTestPattern}
         />
       )}
 
       {/* MIDI Recorder Component */}
       {isRecording && (
         <MIDIRecorder
+          track={track}
           isRecording={isRecording}
-          isCountingIn={isCountingIn}
-          countInBeat={countInBeat}
-          onRecordingComplete={handleRecordingComplete}
-          onCountInUpdate={(beat) => setCountInBeat(beat)}
+          onRecordingComplete={(notes) => {
+            if (notes.length > 0) {
+              updateTrack(track.id, {
+                midiData: {
+                  ...track.midiData,
+                  notes: [...(track.midiData.notes || []), ...notes],
+                },
+              });
+            }
+            setIsRecording(false);
+            updateTrack(track.id, { isRecording: false });
+          }}
+          audioContext={audioContextRef.current}
+          onCountIn={(beat) => {
+            setIsCountingIn(true);
+            setCountInBeat(beat);
+            if (beat === 0) {
+              setTimeout(() => setIsCountingIn(false), 500);
+            }
+          }}
         />
       )}
     </div>

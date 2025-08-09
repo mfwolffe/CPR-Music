@@ -42,6 +42,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   const [showMIDIDeviceSelector, setShowMIDIDeviceSelector] = useState(false);
   const [connectedMIDIDevice, setConnectedMIDIDevice] = useState(null);
   const [midiActivity, setMidiActivity] = useState(false);
+  const [showPiano, setShowPiano] = useState(false); // New state for piano visibility
   const fileInputRef = useRef(null);
   
   // Store MIDI handler ref to avoid recreating
@@ -97,41 +98,17 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
     // Create a proper silent audio blob
     const sampleRate = 44100;
     const duration = 1; // 1 second of silence
-    const numSamples = sampleRate * duration;
-    const buffer = new ArrayBuffer(44 + numSamples * 2);
-    const view = new DataView(buffer);
-
-    // WAV header
-    const writeString = (offset, string) => {
-      for (let i = 0; i < string.length; i++) {
-        view.setUint8(offset + i, string.charCodeAt(i));
-      }
-    };
-
-    writeString(0, 'RIFF');
-    view.setUint32(4, 36 + numSamples * 2, true);
-    writeString(8, 'WAVE');
-    writeString(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, 1, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * 2, true);
-    view.setUint16(32, 2, true);
-    view.setUint16(34, 16, true);
-    writeString(36, 'data');
-    view.setUint32(40, numSamples * 2, true);
-
-    // Write silence (all zeros)
-    // No need to explicitly write zeros as ArrayBuffer is initialized with zeros
-
-    const blob = new Blob([buffer], { type: 'audio/wav' });
+    const length = sampleRate * duration;
+    const audioBuffer = new AudioContext().createBuffer(2, length, sampleRate);
+    
+    // Convert to WAV format
+    const wav = audioBufferToWav(audioBuffer);
+    const blob = new Blob([wav], { type: 'audio/wav' });
     return URL.createObjectURL(blob);
   };
 
-  // Track management functions
+  // Add recording track handler
   const handleAddRecordingTrack = () => {
-    console.log('Adding recording track');
     const newTrack = {
       name: `Recording ${tracks.length + 1}`,
       isRecordingTrack: true,
@@ -144,8 +121,8 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
     addTrack(newTrack);
   };
 
+  // Add empty sample track
   const handleAddSampleTrack = () => {
-    console.log('Adding sample track');
     const newTrack = {
       name: `Track ${tracks.length + 1}`,
       audioURL: generateSilentAudio(),
@@ -157,8 +134,8 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
     addTrack(newTrack);
   };
 
+  // Add MIDI track
   const handleAddMIDITrack = () => {
-    console.log('Adding MIDI track');
     const newTrack = {
       name: `MIDI ${tracks.length + 1}`,
       type: 'midi', // Important: mark this as a MIDI track
@@ -234,7 +211,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   };
 
   return (
-    <div className="multitrack-editor-container">
+    <div className={`multitrack-editor-container ${showPiano ? 'piano-visible' : ''}`}>
       {/* Top Toolbar - Effects and Edit Actions */}
       <div className="multitrack-toolbar">
         <div className="toolbar-section">
@@ -443,9 +420,12 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
         </Row>
       </div>
 
-      {/* Bottom Transport Controls */}
-      <div className="multitrack-transport-container">
-        <MultitrackTransport />
+      {/* Bottom Section - Piano and Transport Controls */}
+      <div className="multitrack-bottom-section">
+        <MultitrackTransport 
+          showPiano={showPiano}
+          setShowPiano={setShowPiano}
+        />
       </div>
 
       {/* Takes Import Modal */}
@@ -465,4 +445,46 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
       />
     </div>
   );
+}
+
+// Helper function to convert AudioBuffer to WAV
+function audioBufferToWav(buffer) {
+  const length = buffer.length * buffer.numberOfChannels * 2 + 44;
+  const arrayBuffer = new ArrayBuffer(length);
+  const view = new DataView(arrayBuffer);
+  const sampleRate = buffer.sampleRate;
+  
+  const writeString = (offset, string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+  
+  // Write WAV header
+  writeString(0, 'RIFF');
+  view.setUint32(4, length - 8, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, buffer.numberOfChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * buffer.numberOfChannels * 2, true);
+  view.setUint16(32, buffer.numberOfChannels * 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, 'data');
+  view.setUint32(40, length - 44, true);
+  
+  // Write audio data
+  let offset = 44;
+  for (let i = 0; i < buffer.length; i++) {
+    for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+      const sample = buffer.getChannelData(channel)[i];
+      const value = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+      view.setInt16(offset, value, true);
+      offset += 2;
+    }
+  }
+  
+  return arrayBuffer;
 }

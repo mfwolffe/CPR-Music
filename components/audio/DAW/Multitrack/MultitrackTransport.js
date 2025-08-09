@@ -136,100 +136,17 @@ export default function MultitrackTransport() {
       } : null
     });
   }, [selectedTrackId, selectedMidiTrack]);
-
-  return (
-    <div className="multitrack-transport-wrapper">
-      <div className="multitrack-transport d-flex align-items-center gap-3">
-        {/* Transport Controls */}
-        <ButtonGroup>
-          <Button
-            size="sm"
-            variant={isPlaying ? 'warning' : 'primary'}
-            onClick={isPlaying ? pause : play}
-            disabled={tracks.length === 0}
-          >
-            {isPlaying ? <FaPause /> : <FaPlay />}
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={stop}
-            disabled={tracks.length === 0}
-          >
-            <FaStop />
-          </Button>
-        </ButtonGroup>
-
-        {/* Progress Bar */}
-        <div className="flex-grow-1 d-flex align-items-center gap-2">
-          <span className="time-display">{formatTime(currentTime)}</span>
-          <div
-            className="progress flex-grow-1"
-            style={{ height: '6px', cursor: 'pointer' }}
-            onClick={handleSeek}
-          >
-            <div
-              className="progress-bar"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <span className="time-display">{formatTime(duration)}</span>
-        </div>
-
-        {/* Metronome */}
-        <Metronome tempo={120} />
-
-        {/* Piano Toggle */}
-        <Button
-          size="sm"
-          variant={showPiano ? 'primary' : 'outline-secondary'}
-          onClick={() => {
-            console.log('🎹 Piano toggle clicked');
-            setShowPiano(!showPiano);
-          }}
-          title={selectedMidiTrack ? `Virtual piano for ${selectedMidiTrack.name}` : 'Select a MIDI track first'}
-          disabled={!selectedMidiTrack}
-        >
-          <MdPiano /> Piano
-        </Button>
-
-        {/* Master Volume */}
-        <div className="d-flex align-items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline-secondary"
-            onClick={() => setIsMuted(!isMuted)}
-          >
-            {isMuted ? <FaVolumeMute /> : <FaVolumeUp />}
-          </Button>
-          <input
-            type="range"
-            className="form-range"
-            style={{ width: '100px' }}
-            min="0"
-            max="1"
-            step="0.01"
-            value={isMuted ? 0 : masterVolume}
-            onChange={(e) => setMasterVolume(parseFloat(e.target.value))}
-          />
-        </div>
-
-        {/* Track Info */}
-        <div className="track-info">
-          <small className="text-muted">
-            {tracks.length} track{tracks.length !== 1 ? 's' : ''}
-          </small>
-        </div>
-      </div>
-      
-      {/* Piano Keyboard (collapsible) */}
-      {showPiano && selectedMidiTrack && (
-        <div className="piano-keyboard-section mt-2 p-2 bg-dark rounded border border-secondary">
-          <div className="d-flex justify-content-between align-items-center mb-2">
-            <small className="text-muted">
+return (
+  <>
+    {/* Piano Keyboard Section - Outside and above transport */}
+    {showPiano && selectedMidiTrack && (
+      <div className="piano-keyboard-section">
+        <div className="piano-keyboard-wrapper">
+          <div className="piano-keyboard-info">
+            <small>
               Playing on: <strong>{selectedMidiTrack.name}</strong>
             </small>
-            <small className="text-muted">
+            <small>
               Click keys to play • Computer keyboard support coming in Phase 4
             </small>
           </div>
@@ -242,7 +159,92 @@ export default function MultitrackTransport() {
             onNoteClick={handlePianoNote}
           />
         </div>
-      )}
+      </div>
+    )}
+    
+    {/* Transport Controls */}
+    <div className="multitrack-transport d-flex align-items-center gap-3">
+      {/* Transport Controls */}
+      <ButtonGroup>
+        <Button
+          size="sm"
+          variant={isPlaying ? 'warning' : 'primary'}
+          onClick={isPlaying ? pause : play}
+          disabled={tracks.length === 0}
+        >
+          {isPlaying ? <FaPause /> : <FaPlay />}
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={stop}
+          disabled={tracks.length === 0}
+        >
+          <FaStop />
+        </Button>
+      </ButtonGroup>
+
+      {/* Progress Bar */}
+      <div className="flex-grow-1 d-flex align-items-center gap-2">
+        <span className="time-display">{formatTime(currentTime)}</span>
+        <div
+          className="progress flex-grow-1"
+          style={{ height: '6px', cursor: 'pointer' }}
+          onClick={handleSeek}
+        >
+          <div
+            className="progress-bar"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <span className="time-display">{formatTime(duration)}</span>
+      </div>
+
+      {/* Metronome */}
+      <Metronome tempo={120} />
+
+      {/* Piano Toggle */}
+      <Button
+        size="sm"
+        variant={showPiano ? 'primary' : 'outline-secondary'}
+        onClick={() => {
+          console.log('🎹 Piano toggle clicked');
+          setShowPiano(!showPiano);
+        }}
+        title={selectedMidiTrack ? `Virtual piano for ${selectedMidiTrack.name}` : 'Select a MIDI track first'}
+        disabled={!selectedMidiTrack}
+      >
+        <MdPiano /> Piano
+      </Button>
+
+      {/* Master Volume */}
+      <div className="d-flex align-items-center gap-2">
+        <Button
+          size="sm"
+          variant="outline-secondary"
+          onClick={() => setIsMuted(!isMuted)}
+        >
+          {isMuted ? <FaVolumeMute /> : <FaVolumeUp />}
+        </Button>
+        <input
+          type="range"
+          className="form-range"
+          style={{ width: '100px' }}
+          min="0"
+          max="1"
+          step="0.01"
+          value={isMuted ? 0 : masterVolume}
+          onChange={(e) => setMasterVolume(parseFloat(e.target.value))}
+        />
+      </div>
+
+      {/* Track Info */}
+      <div className="track-info">
+        <small className="text-muted">
+          {tracks.length} track{tracks.length !== 1 ? 's' : ''}
+        </small>
+      </div>
     </div>
-  );
+  </>
+);
 }

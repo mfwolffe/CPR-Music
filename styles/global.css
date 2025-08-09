@@ -2605,3 +2605,467 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   max-height: none !important; /* Remove the 100px limit */
   min-width: 100%;
 }
+
+/* Piano Keyboard Section - Sibelius-style layout */
+
+/* Remove the transport-container fixed positioning to allow stacking */
+.multitrack-transport-container {
+  position: relative !important; /* Changed from fixed */
+  bottom: auto !important;
+  left: 0;
+  right: 0;
+  border-top: 1px solid #444;
+  background-color: #2d2c29;
+  padding: 0.75rem;
+  z-index: 100;
+  height: 60px;
+  display: flex;
+  align-items: center;
+}
+
+/* New wrapper for transport + piano */
+.multitrack-bottom-section {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Piano keyboard section - above transport */
+.piano-keyboard-section {
+  background-color: #3a3f45 !important; /* Lighter blue-grey */
+  border-top: 1px solid #555;
+  border-bottom: 1px solid #444;
+  padding: 1rem 0 !important;
+  margin: 0 !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+  transition: all 0.3s ease;
+}
+
+/* Piano keyboard container centered */
+.piano-keyboard-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 900px; /* Limit piano width */
+  margin: 0 auto;
+}
+
+/* Piano info bar */
+.piano-keyboard-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 0 1rem;
+  color: #bbb;
+  font-size: 0.85rem;
+}
+
+.piano-keyboard-info strong {
+  color: #92ce84;
+}
+
+/* Piano keyboard canvas container */
+.piano-keyboard-container {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  padding: 0 1rem;
+}
+
+.piano-keyboard-container canvas {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  background-color: #1a1a1a;
+}
+
+/* Extend sidebar visual through piano section */
+.piano-keyboard-section::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 80px;
+  background-color: #2a2f35;
+  border-right: 1px solid #4a4a4a;
+  z-index: 0;
+}
+
+/* Make sure piano content is above the sidebar extension */
+.piano-keyboard-wrapper {
+  position: relative;
+  z-index: 1;
+}
+
+/* Adjust main content area to account for piano when visible */
+.multitrack-editor-container.piano-visible {
+  height: calc(
+    100vh - 200px
+  ) !important; /* Subtract piano + transport height */
+}
+
+/* Smooth transitions */
+.multitrack-editor-container {
+  transition: height 0.3s ease;
+}
+
+/* Piano toggle button active state */
+.multitrack-transport .btn-primary {
+  background-color: #4a7c9e !important;
+  border-color: #5a8cae !important;
+  box-shadow: 0 0 4px rgba(146, 206, 132, 0.5);
+}
+
+/* Optional: Add a subtle gradient to the piano section */
+.piano-keyboard-section {
+  background: linear-gradient(
+    to bottom,
+    #3f444a 0%,
+    #3a3f45 50%,
+    #353a40 100%
+  ) !important;
+}
+
+/* MIDI Track Double Height Complete Fix */
+
+/* First, we need to override the base track height for MIDI tracks */
+.track.midi-track {
+  height: 160px !important; /* Override the 120px !important from base styles */
+  max-height: 160px !important;
+  min-height: 160px !important;
+  display: flex;
+  align-items: stretch;
+}
+
+/* MIDI track controls - ensure they use full height */
+.track.midi-track .track-controls {
+  width: 220px;
+  min-width: 220px;
+  padding: 0.75rem;
+  justify-content: flex-start;
+  height: 100%;
+  max-height: none;
+}
+
+/* Override ALL track-waveform constraints for MIDI tracks */
+.track.midi-track .track-waveform {
+  height: 160px !important; /* Override the 120px !important */
+  min-height: 160px !important;
+  max-height: 160px !important;
+  flex: 1;
+  display: block;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Remove canvas positioning that centers it */
+.track.midi-track .track-waveform canvas {
+  position: static !important; /* Override absolute positioning */
+  top: auto !important;
+  left: auto !important;
+  transform: none !important; /* Remove the translateY centering */
+  width: 100% !important;
+  height: 160px !important; /* Force full height */
+  max-height: none !important;
+  display: block !important;
+}
+
+/* MIDI track display wrapper */
+.track.midi-track .midi-track-display {
+  width: 100%;
+  height: 160px !important;
+  position: relative;
+  cursor: pointer;
+  display: block;
+}
+
+/* Space out MIDI controls properly */
+.track.midi-track .track-header {
+  margin-bottom: 0.5rem;
+}
+
+.track.midi-track .instrument-display {
+  margin-bottom: 0.5rem;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+}
+
+.track.midi-track .btn-group {
+  margin-bottom: 0.5rem;
+}
+
+.track.midi-track .track-buttons {
+  margin-bottom: 0.5rem;
+}
+
+.track.midi-track .track-control {
+  margin-bottom: 0.5rem;
+}
+
+.track.midi-track .track-control:last-child {
+  margin-bottom: 0;
+}
+
+/* Track control labels */
+.track-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.track-control-label {
+  font-size: 0.7rem;
+  color: #888;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Pattern Library button */
+.track.midi-track .btn-outline-primary {
+  font-size: 0.75rem;
+  padding: 0.3rem 0.6rem;
+}
+
+/* MIDI indicator */
+.track.midi-track .midi-indicator {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  color: #92ce84;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Visual separation */
+.track.midi-track + .track {
+  border-top: 1px solid #444;
+}
+
+/* Background for MIDI tracks */
+.track.midi-track .track-waveform {
+  background-color: #1f2a1f;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 39px,
+    rgba(255, 255, 255, 0.02) 39px,
+    rgba(255, 255, 255, 0.02) 40px
+  );
+}
+
+/* Instrument display */
+.track.midi-track .instrument-display {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0.05)
+  );
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.track.midi-track .instrument-display:hover {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.12),
+    rgba(255, 255, 255, 0.08)
+  );
+  border-color: rgba(146, 206, 132, 0.3);
+}
+
+/* View mode buttons */
+.track.midi-track .btn-group.w-100 {
+  height: 32px;
+}
+
+.track.midi-track .btn-group .btn {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+}
+
+/* Double-click hint */
+.track.midi-track .midi-track-display::after {
+  content: 'Double-click to edit';
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  font-size: 0.65rem;
+  color: #666;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.track.midi-track .midi-track-display:hover::after {
+  opacity: 1;
+}
+
+.piano-roll-keyboard-container {
+  width: 100px !important;
+  min-width: 100px !important;
+  background-color: #232323;
+  border-right: 1px solid #444;
+  overflow: hidden;
+  flex-shrink: 0;
+  position: relative;
+  height: 100%;
+}
+
+.piano-roll-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  height: 100%;
+  min-height: 0; /* Important for flex children */
+}
+
+.piano-roll-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  padding: 0 !important;
+  min-height: 0; /* Important for flex children */
+}
+
+:root {
+  --track-slot-height: 120px;
+}
+
+/* Double-height MIDI track (two slots) – final override */
+.track.midi-track {
+  height: calc(var(--track-slot-height) * 2) !important;
+  min-height: calc(var(--track-slot-height) * 2) !important;
+  max-height: calc(var(--track-slot-height) * 2) !important;
+}
+
+.track.midi-track .track-waveform,
+.track.midi-track .midi-track-display {
+  height: calc(var(--track-slot-height) * 2) !important;
+  min-height: calc(var(--track-slot-height) * 2) !important;
+  max-height: calc(var(--track-slot-height) * 2) !important;
+}
+
+/* Ensure MIDI canvas fully fills and isn't centered/offset */
+.track.midi-track .track-waveform canvas {
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+  transform: none !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+* Double-height MIDI track (240px = 2 slots) */ .track.midi-track {
+  height: 240px !important;
+  max-height: 240px !important;
+  min-height: 240px !important;
+}
+
+.track.midi-track .track-controls {
+  height: 240px !important;
+  min-height: 240px !important;
+  max-height: 240px !important;
+}
+
+.track.midi-track .track-waveform {
+  height: 240px !important;
+  min-height: 240px !important;
+  max-height: 240px !important;
+}
+
+.track.midi-track .track-waveform canvas {
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+  transform: none !important;
+  width: 100% !important;
+  height: 240px !important;
+  max-height: none !important;
+  display: block !important;
+}
+
+.track.midi-track .midi-track-display {
+  height: 240px !important;
+  min-height: 240px !important;
+  max-height: 240px !important;
+}
+
+/* Compact control tab buttons */
+.track.midi-track .control-tabs {
+  margin-bottom: 0.25rem;
+}
+
+.track.midi-track .control-tabs .btn {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.4rem;
+  height: 20px;
+}
+
+.track.midi-track {
+  height: 240px !important;
+  max-height: 240px !important;
+  min-height: 240px !important;
+}
+
+.track.midi-track .track-controls {
+  height: 240px !important;
+  min-height: 240px !important;
+  max-height: 240px !important;
+}
+
+.track.midi-track .track-waveform {
+  height: 240px !important;
+  min-height: 240px !important;
+  max-height: 240px !important;
+}
+
+.track.midi-track .track-waveform canvas {
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+  transform: none !important;
+  width: 100% !important;
+  height: 240px !important;
+  max-height: none !important;
+  display: block !important;
+}
+
+.track.midi-track .midi-track-display {
+  height: 240px !important;
+  min-height: 240px !important;
+  max-height: 240px !important;
+}
+
+/* Compact control tab buttons */
+.track.midi-track .control-tabs {
+  margin-bottom: 0.25rem;
+}
+
+.track.midi-track .control-tabs .btn {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.4rem;
+  height: 20px;
+}
