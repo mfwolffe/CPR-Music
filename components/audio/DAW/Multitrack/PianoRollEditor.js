@@ -345,6 +345,7 @@ export default function PianoRollEditor({
             style={{
               overflow: 'auto',
               position: 'relative',
+              minHeight: '600px',
             }}
           >
             <PianoRollCanvas

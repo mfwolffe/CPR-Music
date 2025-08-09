@@ -57,21 +57,23 @@ export default function PianoRollCanvas({
 
   // Helper functions with bounds checking
   const pixelToTime = (x) => {
-    return Math.max(0, (x + (scrollOffset?.x || 0)) / pixelsPerBeat);
+    // x is relative to the canvas content; the scroll container provides visual offset.
+    return Math.max(0, x / pixelsPerBeat);
   };
 
   const timeToPixel = (time) => {
-    return time * pixelsPerBeat - (scrollOffset?.x || 0);
+    // Draw in absolute coordinates; do not subtract scroll here.
+    return time * pixelsPerBeat;
   };
 
   const pixelToNote = (y) => {
-    const note =
-      MAX_NOTE - Math.floor((y + (scrollOffset?.y || 0)) / noteHeight);
+    // y is relative to the canvas content; do not add scroll here.
+    const note = MAX_NOTE - Math.floor(y / noteHeight);
     return Math.max(MIN_NOTE, Math.min(MAX_NOTE, note));
   };
 
   const noteToPixel = (note) => {
-    return (MAX_NOTE - note) * noteHeight - (scrollOffset?.y || 0);
+    return (MAX_NOTE - note) * noteHeight;
   };
 
   const snapToGrid = (time) => {
@@ -144,7 +146,7 @@ export default function PianoRollCanvas({
         ctx.stroke();
       }
     },
-    [actualCanvasSize, scrollOffset, zoom, pixelsPerBeat, noteHeight],
+    [actualCanvasSize, pixelsPerBeat, noteHeight],
   );
 
   // Draw notes
@@ -192,8 +194,6 @@ export default function PianoRollCanvas({
       notes,
       selectedNotes,
       actualCanvasSize,
-      scrollOffset,
-      zoom,
       instrument,
       pixelsPerBeat,
       noteHeight,
@@ -241,7 +241,7 @@ export default function PianoRollCanvas({
       ctx.lineTo(x, actualCanvasSize.height);
       ctx.stroke();
     },
-    [isPlaying, currentTime, actualCanvasSize, scrollOffset, zoom, tempo],
+    [isPlaying, currentTime, actualCanvasSize, tempo],
   );
 
   // Main draw function with error handling
@@ -282,8 +282,6 @@ export default function PianoRollCanvas({
     mouseState,
     currentTool,
     isPlaying,
-    scrollOffset,
-    zoom,
     drawGrid,
     drawNotes,
     drawSelectionBox,
