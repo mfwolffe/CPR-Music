@@ -342,6 +342,34 @@ export const MultitrackProvider = ({ children }) => {
     [selectedTrackId, tracks, soloTrackId],
   );
 
+  const addNoteToSelectedTrack = useCallback(
+    (note, velocity01, startBeat, durationBeats) => {
+      if (!selectedTrackId) return;
+      setTracks((prev) =>
+        prev.map((t) => {
+          if (t.id !== selectedTrackId || t.type !== 'midi') return t;
+          const notes = Array.isArray(t.midiData?.notes)
+            ? t.midiData.notes
+            : [];
+          const newNote = {
+            note,
+            velocity: Math.max(
+              1,
+              Math.min(127, Math.round((velocity01 ?? 0.8) * 127)),
+            ),
+            startTime: startBeat,
+            duration: durationBeats,
+          };
+          return {
+            ...t,
+            midiData: { ...(t.midiData || {}), notes: [...notes, newNote] },
+          };
+        }),
+      );
+    },
+    [selectedTrackId, setTracks],
+  );
+
   const stopNoteOnSelectedTrack = useCallback(
     (note) => {
       console.log('🎵 Context: stopNoteOnSelectedTrack called', {
@@ -702,6 +730,7 @@ export const MultitrackProvider = ({ children }) => {
     registerTrackInstrument,
     playNoteOnSelectedTrack,
     stopNoteOnSelectedTrack,
+    addNoteToSelectedTrack,
   };
 
   return (

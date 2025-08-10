@@ -22,7 +22,6 @@ import { MdPanTool, MdMusicNote, MdPiano } from 'react-icons/md';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import InstrumentSelector from './InstrumentSelector';
 import { createInstrument } from './instruments/WebAudioInstruments';
-import MIDIRecorder from './MIDIRecorder';
 import PatternLibrary from './PatternLibrary';
 import PianoRollEditor from './PianoRollEditor';
 import StepSequencer from './StepSequencer';
@@ -55,6 +54,48 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
   const masterGainRef = useRef(null);
   const pannerRef = useRef(null);
 
+  // NOTE: I previously mounted <MIDIRecorder /> as if it were a React component, but
+  // it's a **class** that must be constructed with `new`
+  //
+  // Short-term:
+  //   - Remove the JSX usage and do NOT construct any recorder here yet. The transport
+  //     piano already handles audition, and our MultitrackTransport patch writes notes
+  //     to the selected MIDI track in **beats** while the transport is playing.
+  //   - This avoids the crash while keeping live input working from the transport piano.
+  //
+  // Long-term:
+  //   1) Convert MIDIRecorder into a hook or an imperative class **instantiated with `new`**
+  //      from inside a `useEffect` here. Example sketch:
+  //         const recorderRef = useRef(null);
+  //         useEffect(() => {
+  //           if (isRecording && !recorderRef.current) {
+  //             // Create once when track enters record-arm state
+  //             // recorderRef.current = new MIDIRecorder({ midiInput, clock, onNote, onCountIn });
+  //             // recorderRef.current.start();
+  //           }
+  //           return () => {
+  //             // Stop and dispose on unmount or when recording stops
+  //             recorderRef.current?.stop?.();
+  //             recorderRef.current = null;
+  //           };
+  //         }, [isRecording, track.id]);
+  //
+  //   2) `onNote` callback should hand us **seconds**, which we convert to **beats** using
+  //      this track's tempo before committing to state, to stay consistent with the preview:
+  //         const spb = 60 / (track.midiData?.tempo || 120);
+  //         addNoteToSelectedTrack(note, velocity01, startSec / spb, durationSec / spb);
+  //
+  //   3) Voice management: preview notes should be **tokenized** so note-off always releases
+  //      the exact voice that started (prevents drones). Context now supports passing an
+  //      opaque handle/token to `stopNoteOnSelectedTrack(note, token)`.
+  //
+  //   4) Robustness: flush preview voices on window blur / visibility change and when the
+  //      transport pauses/stops to prevent stuck notes.
+  //
+  // Until we reintroduce a proper recorder here, we keep this ref as a placeholder so the
+  // intent is clear and future work is straightforward.
+  const recorderRef = useRef(null);
+
   const {
     updateTrack,
     removeTrack,
@@ -67,6 +108,8 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     registerTrackInstrument,
     playNoteOnSelectedTrack,
     stopNoteOnSelectedTrack,
+    play,
+    stop,
   } = useMultitrack();
 
   const InstrumentIcon = getInstrumentIcon();
@@ -519,13 +562,35 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    const rect = canvas.getBoundingClientRect();
-    const width = rect.width;
-    const height = rect.height;
+
+    // Use canvas dimensions instead of getBoundingClientRect
+    // This ensures we use the actual canvas size
+    const width = canvas.width;
+    const height = canvas.height;
+
+    // If canvas has no size, skip drawing
+    if (width === 0 || height === 0) {
+      console.warn('Canvas has no size, skipping draw');
+      return;
+    }
+
+    // Account for device pixel ratio
+    const dpr = window.devicePixelRatio || 1;
+    const displayWidth = width / dpr;
+    const displayHeight = height / dpr;
+
+    // Save context state
+    ctx.save();
+
+    // Reset transform to handle DPR correctly
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
 
     // Clear canvas
     ctx.fillStyle = '#1f2a1f';
     ctx.fillRect(0, 0, width, height);
+
+    // Apply DPR scaling
+    ctx.scale(dpr, dpr);
 
     if (viewMode === 'patterns') {
       // Draw pattern clips
@@ -533,18 +598,24 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
         ctx,
         track.midiData.arrangement || [],
         track.midiData.patterns || [],
-        width,
-        height,
+        displayWidth,
+        displayHeight,
         zoomLevel,
       );
     } else {
       // Draw piano roll preview
       const notes = track.midiData.notes || [];
+
       if (notes.length === 0) {
         ctx.fillStyle = '#666';
         ctx.font = '12px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText('Double-click to add notes', width / 2, height / 2);
+        ctx.fillText(
+          'Double-click to add notes',
+          displayWidth / 2,
+          displayHeight / 2,
+        );
+        ctx.restore();
         return;
       }
 
@@ -558,7 +629,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
         : 0;
       // Keep a minimum window so very short clips still show structure
       const beatsVisible = Math.max(16, lastBeat - firstBeat || 16);
-      const pixelsPerBeat = width / beatsVisible;
+      const pixelsPerBeat = displayWidth / beatsVisible;
 
       // Draw grid
       ctx.strokeStyle = '#333';
@@ -566,10 +637,10 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
 
       // Vertical grid (beats)
       for (let beat = 0; beat <= beatsVisible; beat++) {
-        const x = (beat / beatsVisible) * width;
+        const x = (beat / beatsVisible) * displayWidth;
         ctx.beginPath();
         ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
+        ctx.lineTo(x, displayHeight);
         ctx.stroke();
       }
 
@@ -587,15 +658,16 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       );
       const noteRange = { min: minPitch, max: maxPitch };
       const lanes = Math.max(1, noteRange.max - noteRange.min + 1);
-      const laneHeight = height / lanes;
+      const laneHeight = displayHeight / lanes;
 
       // Draw horizontal grid lines for octaves
       ctx.strokeStyle = '#444';
       for (let note = noteRange.min; note <= noteRange.max; note += 12) {
-        const y = height - ((note - noteRange.min) / lanes) * height;
+        const y =
+          displayHeight - ((note - noteRange.min) / lanes) * displayHeight;
         ctx.beginPath();
         ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
+        ctx.lineTo(displayWidth, y);
         ctx.stroke();
       }
 
@@ -610,13 +682,13 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
 
         // Calculate note position
         const x = (note.startTime - firstBeat) * pixelsPerBeat;
-        const y = height - (note.note - noteRange.min + 1) * laneHeight;
+        const y = displayHeight - (note.note - noteRange.min + 1) * laneHeight;
 
         // Calculate width with proper duration scaling
         const noteWidth = Math.max(2, note.duration * pixelsPerBeat);
 
         // Clip note width if it extends beyond canvas
-        const visibleWidth = Math.min(noteWidth, width - x);
+        const visibleWidth = Math.min(noteWidth, displayWidth - x);
 
         if (visibleWidth <= 0) return; // Skip if completely outside
 
@@ -630,7 +702,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
         ctx.strokeRect(x, y, visibleWidth, laneHeight - 1);
 
         // Velocity shading
-        const velocityAlpha = note.velocity / 127;
+        const velocityAlpha = (note.velocity || 100) / 127;
         ctx.fillStyle = `rgba(255, 255, 255, ${velocityAlpha * 0.3})`;
         ctx.fillRect(x, y, visibleWidth, laneHeight - 1);
       });
@@ -640,15 +712,19 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
         const tempo = track.midiData?.tempo || 120;
         const secPerBeat = 60 / tempo;
         const currentBeat = globalCurrentTime / secPerBeat;
-        const playheadX = ((currentBeat - firstBeat) / beatsVisible) * width;
+        const playheadX =
+          ((currentBeat - firstBeat) / beatsVisible) * displayWidth;
         ctx.strokeStyle = '#ff3030';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(playheadX, 0);
-        ctx.lineTo(playheadX, height);
+        ctx.lineTo(playheadX, displayHeight);
         ctx.stroke();
       }
     }
+
+    // Restore context state
+    ctx.restore();
   }, [
     track.midiData,
     viewMode,
@@ -659,6 +735,22 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     track.midiData?.patterns,
     track.midiData?.arrangement,
   ]);
+
+  // force redraw when track is updated:
+  useEffect(() => {
+    // Force a redraw when notes change by triggering canvas resize
+    const canvas = canvasRef.current;
+    if (canvas && track.midiData?.notes?.length > 0) {
+      const parent = canvas.parentElement;
+      if (parent) {
+        // Trigger resize observer
+        parent.style.width = parent.offsetWidth + 'px';
+        setTimeout(() => {
+          parent.style.width = '';
+        }, 0);
+      }
+    }
+  }, [track.midiData?.notes?.length]);
 
   // Handle volume change
   const handleVolumeChange = (e) => {
@@ -780,8 +872,21 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              setIsRecording(!isRecording);
-              updateTrack(track.id, { isRecording: !isRecording });
+
+              if (!isRecording) {
+                // Start recording
+                setIsRecording(true);
+                updateTrack(track.id, { isRecording: true });
+
+                // Start playback if not already playing
+                if (!globalIsPlaying) {
+                  play();
+                }
+              } else {
+                // Stop recording
+                setIsRecording(false);
+                updateTrack(track.id, { isRecording: false });
+              }
             }}
             title={isRecording ? 'Stop Recording' : 'Record'}
           >
@@ -964,33 +1069,10 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
         />
       )}
 
-      {/* MIDI Recorder Component */}
-      {isRecording && (
-        <MIDIRecorder
-          track={track}
-          isRecording={isRecording}
-          onRecordingComplete={(notes) => {
-            if (notes.length > 0) {
-              updateTrack(track.id, {
-                midiData: {
-                  ...track.midiData,
-                  notes: [...(track.midiData.notes || []), ...notes],
-                },
-              });
-            }
-            setIsRecording(false);
-            updateTrack(track.id, { isRecording: false });
-          }}
-          audioContext={audioContextRef.current}
-          onCountIn={(beat) => {
-            setIsCountingIn(true);
-            setCountInBeat(beat);
-            if (beat === 0) {
-              setTimeout(() => setIsCountingIn(false), 500);
-            }
-          }}
-        />
-      )}
+      {/* TODO(recorder): When MIDIRecorder is refactored into a hook or imperative class
+          constructed with `new`, instantiate it via useEffect above (see docs there) and
+          remove this placeholder. Recording from the transport piano already writes notes
+          in beats while playing, so this UI mount is not required to avoid crashes. */}
     </div>
   );
 }

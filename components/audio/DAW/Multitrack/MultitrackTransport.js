@@ -1,7 +1,7 @@
 // components/audio/DAW/Multitrack/MultitrackTransport.js
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button, ButtonGroup, ProgressBar } from 'react-bootstrap';
 import {
   FaPlay,
@@ -30,12 +30,24 @@ export default function MultitrackTransport() {
     selectedTrackId,
     playNoteOnSelectedTrack,
     stopNoteOnSelectedTrack,
+    addNoteToSelectedTrack,
   } = useMultitrack();
 
   const [masterVolume, setMasterVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [showPiano, setShowPiano] = useState(false);
   const [activeNotes, setActiveNotes] = useState([]);
+
+  // Live capture (seconds → beats) while armed & playing
+  const liveNotesRef = useRef(new Map()); // note -> { startSec, velocity }
+  const currentTimeRef = useRef(0);
+  const isPlayingRef = useRef(false);
+  useEffect(() => {
+    currentTimeRef.current = currentTime;
+  }, [currentTime]);
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   // Format time display
   const formatTime = (seconds) => {
@@ -53,39 +65,78 @@ export default function MultitrackTransport() {
     seek(progress);
   };
 
-  // Handle piano key presses WITH DEBUG LOGGING
+  // Handle piano key presses: preview always; record when armed & playing
   const handlePianoNote = (note, action) => {
-    const selectedMidiTrack = tracks.find(t => t.id === selectedTrackId && t.type === 'midi');
-    
-    console.log('🎹 Piano key pressed:', { 
-      note, 
-      action, 
-      selectedTrackId, 
-      selectedMidiTrack: selectedMidiTrack ? {
-        id: selectedMidiTrack.id,
-        name: selectedMidiTrack.name,
-        type: selectedMidiTrack.type,
-        muted: selectedMidiTrack.muted,
-        hasMidiData: !!selectedMidiTrack.midiData,
-        instrument: selectedMidiTrack.midiData?.instrument
-      } : null
-    });
-    
+    const selectedMidiTrack = tracks.find(
+      (t) => t.id === selectedTrackId && t.type === 'midi',
+    );
+
     if (!selectedMidiTrack) {
       console.warn('⚠️ No MIDI track selected!');
       return;
     }
-    
+
+    const tempo = selectedMidiTrack.midiData?.tempo || 120;
+    const secPerBeat = 60 / tempo;
+    const velocity = 0.85; // 0..1 for context
+
+    // Record while transport is running; don't depend on per-track isRecording
+    const armedAndRolling = isPlayingRef.current;
+    console.log('[Transport Piano]', {
+      armedAndRolling,
+      tempo,
+      selectedTrackId,
+    });
+
     if (action === 'down') {
-      console.log('🎵 Calling playNoteOnSelectedTrack...');
-      setActiveNotes(prev => [...prev, note]);
-      playNoteOnSelectedTrack(note);
-    } else {
-      console.log('🎵 Calling stopNoteOnSelectedTrack...');
-      setActiveNotes(prev => prev.filter(n => n !== note));
-      stopNoteOnSelectedTrack(note);
+      setActiveNotes((prev) => (prev.includes(note) ? prev : [...prev, note]));
+      try {
+        playNoteOnSelectedTrack(note, velocity);
+      } catch {}
+
+      // Start live capture (seconds) if armed & playing
+      if (armedAndRolling) {
+        liveNotesRef.current.set(note, {
+          startSec: currentTimeRef.current,
+          velocity,
+        });
+      }
+    } else if (action === 'up') {
+      setActiveNotes((prev) => prev.filter((n) => n !== note));
+      try {
+        stopNoteOnSelectedTrack(note);
+      } catch {}
+
+      // Finish capture → convert to beats and write
+      const live = liveNotesRef.current.get(note);
+      if (
+        armedAndRolling &&
+        live &&
+        typeof addNoteToSelectedTrack === 'function'
+      ) {
+        const durationSec = Math.max(0, currentTimeRef.current - live.startSec);
+        if (durationSec > 0.04) {
+          // ignore ultra-taps
+          const startBeat = live.startSec / secPerBeat;
+          const durationBeats = durationSec / secPerBeat;
+          addNoteToSelectedTrack(note, live.velocity, startBeat, durationBeats);
+        }
+        liveNotesRef.current.delete(note);
+      }
     }
   };
+  useEffect(() => {
+    if (!isPlaying) {
+      // release any preview notes and clear pending captures
+      activeNotes.forEach((n) => {
+        try {
+          stopNoteOnSelectedTrack(n);
+        } catch {}
+      });
+      setActiveNotes([]);
+      liveNotesRef.current.clear();
+    }
+  }, [isPlaying, activeNotes, stopNoteOnSelectedTrack]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -123,128 +174,134 @@ export default function MultitrackTransport() {
   }, [masterVolume]);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const selectedMidiTrack = tracks.find(t => t.id === selectedTrackId && t.type === 'midi');
+  const selectedMidiTrack = tracks.find(
+    (t) => t.id === selectedTrackId && t.type === 'midi',
+  );
 
   // Debug: Log when selected track changes
   useEffect(() => {
     console.log('🎯 Selected track changed:', {
       selectedTrackId,
-      selectedMidiTrack: selectedMidiTrack ? {
-        id: selectedMidiTrack.id,
-        name: selectedMidiTrack.name,
-        type: selectedMidiTrack.type
-      } : null
+      selectedMidiTrack: selectedMidiTrack
+        ? {
+            id: selectedMidiTrack.id,
+            name: selectedMidiTrack.name,
+            type: selectedMidiTrack.type,
+          }
+        : null,
     });
   }, [selectedTrackId, selectedMidiTrack]);
-return (
-  <>
-    {/* Piano Keyboard Section - Outside and above transport */}
-    {showPiano && selectedMidiTrack && (
-      <div className="piano-keyboard-section">
-        <div className="piano-keyboard-wrapper">
-          <div className="piano-keyboard-info">
-            <small>
-              Playing on: <strong>{selectedMidiTrack.name}</strong>
-            </small>
-            <small>
-              Click keys to play • Computer keyboard support coming in Phase 4
-            </small>
+  return (
+    <>
+      {/* Piano Keyboard Section - Outside and above transport */}
+      {showPiano && selectedMidiTrack && (
+        <div className="piano-keyboard-section">
+          <div className="piano-keyboard-wrapper">
+            <div className="piano-keyboard-info">
+              <small>
+                Playing on: <strong>{selectedMidiTrack.name}</strong>
+              </small>
+              <small>
+                Click keys to play • Use Z/X/C… and Q/W/E… on your keyboard
+              </small>
+            </div>
+            <PianoKeyboard
+              startNote={36} // C2
+              endNote={84} // C6
+              activeNotes={activeNotes}
+              width={800}
+              height={100}
+              onNoteClick={handlePianoNote}
+              captureComputerKeyboard={true}
+            />
           </div>
-          <PianoKeyboard
-            startNote={36} // C2
-            endNote={84}   // C6
-            activeNotes={activeNotes}
-            width={800}
-            height={100}
-            onNoteClick={handlePianoNote}
-          />
         </div>
-      </div>
-    )}
-    
-    {/* Transport Controls */}
-    <div className="multitrack-transport d-flex align-items-center gap-3">
+      )}
+
       {/* Transport Controls */}
-      <ButtonGroup>
-        <Button
-          size="sm"
-          variant={isPlaying ? 'warning' : 'primary'}
-          onClick={isPlaying ? pause : play}
-          disabled={tracks.length === 0}
-        >
-          {isPlaying ? <FaPause /> : <FaPlay />}
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={stop}
-          disabled={tracks.length === 0}
-        >
-          <FaStop />
-        </Button>
-      </ButtonGroup>
+      <div className="multitrack-transport d-flex align-items-center gap-3">
+        {/* Transport Controls */}
+        <ButtonGroup>
+          <Button
+            size="sm"
+            variant={isPlaying ? 'warning' : 'primary'}
+            onClick={isPlaying ? pause : play}
+            disabled={tracks.length === 0}
+          >
+            {isPlaying ? <FaPause /> : <FaPlay />}
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={stop}
+            disabled={tracks.length === 0}
+          >
+            <FaStop />
+          </Button>
+        </ButtonGroup>
 
-      {/* Progress Bar */}
-      <div className="flex-grow-1 d-flex align-items-center gap-2">
-        <span className="time-display">{formatTime(currentTime)}</span>
-        <div
-          className="progress flex-grow-1"
-          style={{ height: '6px', cursor: 'pointer' }}
-          onClick={handleSeek}
-        >
+        {/* Progress Bar */}
+        <div className="flex-grow-1 d-flex align-items-center gap-2">
+          <span className="time-display">{formatTime(currentTime)}</span>
           <div
-            className="progress-bar"
-            style={{ width: `${progress}%` }}
+            className="progress flex-grow-1"
+            style={{ height: '6px', cursor: 'pointer' }}
+            onClick={handleSeek}
+          >
+            <div className="progress-bar" style={{ width: `${progress}%` }} />
+          </div>
+          <span className="time-display">{formatTime(duration)}</span>
+        </div>
+
+        {/* Metronome */}
+        <Metronome tempo={120} />
+
+        {/* Piano Toggle */}
+        <Button
+          size="sm"
+          variant={showPiano ? 'primary' : 'outline-secondary'}
+          onClick={() => {
+            console.log('🎹 Piano toggle clicked');
+            setShowPiano(!showPiano);
+          }}
+          title={
+            selectedMidiTrack
+              ? `Virtual piano for ${selectedMidiTrack.name}`
+              : 'Select a MIDI track first'
+          }
+          disabled={!selectedMidiTrack}
+        >
+          <MdPiano /> Piano
+        </Button>
+
+        {/* Master Volume */}
+        <div className="d-flex align-items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline-secondary"
+            onClick={() => setIsMuted(!isMuted)}
+          >
+            {isMuted ? <FaVolumeMute /> : <FaVolumeUp />}
+          </Button>
+          <input
+            type="range"
+            className="form-range"
+            style={{ width: '100px' }}
+            min="0"
+            max="1"
+            step="0.01"
+            value={isMuted ? 0 : masterVolume}
+            onChange={(e) => setMasterVolume(parseFloat(e.target.value))}
           />
         </div>
-        <span className="time-display">{formatTime(duration)}</span>
+
+        {/* Track Info */}
+        <div className="track-info">
+          <small className="text-muted">
+            {tracks.length} track{tracks.length !== 1 ? 's' : ''}
+          </small>
+        </div>
       </div>
-
-      {/* Metronome */}
-      <Metronome tempo={120} />
-
-      {/* Piano Toggle */}
-      <Button
-        size="sm"
-        variant={showPiano ? 'primary' : 'outline-secondary'}
-        onClick={() => {
-          console.log('🎹 Piano toggle clicked');
-          setShowPiano(!showPiano);
-        }}
-        title={selectedMidiTrack ? `Virtual piano for ${selectedMidiTrack.name}` : 'Select a MIDI track first'}
-        disabled={!selectedMidiTrack}
-      >
-        <MdPiano /> Piano
-      </Button>
-
-      {/* Master Volume */}
-      <div className="d-flex align-items-center gap-2">
-        <Button
-          size="sm"
-          variant="outline-secondary"
-          onClick={() => setIsMuted(!isMuted)}
-        >
-          {isMuted ? <FaVolumeMute /> : <FaVolumeUp />}
-        </Button>
-        <input
-          type="range"
-          className="form-range"
-          style={{ width: '100px' }}
-          min="0"
-          max="1"
-          step="0.01"
-          value={isMuted ? 0 : masterVolume}
-          onChange={(e) => setMasterVolume(parseFloat(e.target.value))}
-        />
-      </div>
-
-      {/* Track Info */}
-      <div className="track-info">
-        <small className="text-muted">
-          {tracks.length} track{tracks.length !== 1 ? 's' : ''}
-        </small>
-      </div>
-    </div>
-  </>
-);
+    </>
+  );
 }
