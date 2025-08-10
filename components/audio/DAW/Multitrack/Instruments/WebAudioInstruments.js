@@ -1,4 +1,8 @@
 // components/audio/DAW/Multitrack/instruments/WebAudioInstruments.js
+
+/**
+ * playNote returns a handle (voice object); stopNote accepts either a handle (to stop one voice) or a time (to stop all voices for the note).
+ */
 'use client';
 
 /**
@@ -10,7 +14,8 @@
 class BaseInstrument {
   constructor(audioContext) {
     this.audioContext = audioContext; // Use provided context
-    this.activeNotes = new Map(); // Track active notes for polyphony
+    // Map<midiNote, Set<Voice>>; each Voice is an object with nodes/params
+    this.activeNotes = new Map();
     this.output = audioContext.createGain();
     this.output.gain.value = 0.8;
   }
@@ -32,9 +37,11 @@ class BaseInstrument {
     throw new Error('stopNote must be implemented');
   }
 
-  stopAllNotes() {
-    this.activeNotes.forEach((note, midiNote) => {
-      this.stopNote(midiNote);
+  stopAllNotes(time = this.audioContext.currentTime) {
+    this.activeNotes.forEach((voices, midiNote) => {
+      if (!voices) return;
+      // Stop all voices for this note at the given time
+      this.stopNote(midiNote, time);
     });
   }
 
@@ -111,10 +118,7 @@ export class SubtractiveSynth extends BaseInstrument {
   }
 
   playNote(midiNote, velocity = 1, time = this.audioContext.currentTime) {
-    // Stop any existing instance of this note
-    if (this.activeNotes.has(midiNote)) {
-      this.stopNote(midiNote, time);
-    }
+    // Support overlapping voices of the same note; no auto-stop here
 
     const frequency = 440 * Math.pow(2, (midiNote - 69) / 12);
 
@@ -157,42 +161,54 @@ export class SubtractiveSynth extends BaseInstrument {
     osc1.start(time);
     osc2.start(time);
 
-    // Store note data for later
-    this.activeNotes.set(midiNote, {
+    const voice = {
       oscillators: [osc1, osc2],
       envelope,
       filter,
       sustainLevel,
       startTime: time,
-    });
+      release: this.config.release,
+    };
+    let set = this.activeNotes.get(midiNote);
+    if (!set) {
+      set = new Set();
+      this.activeNotes.set(midiNote, set);
+    }
+    set.add(voice);
+    return voice; // handle
   }
 
-  stopNote(midiNote, time = this.audioContext.currentTime) {
-    const note = this.activeNotes.get(midiNote);
-    if (!note) return;
+  stopNote(midiNote, handleOrTime = this.audioContext.currentTime) {
+    const voices = this.activeNotes.get(midiNote);
+    if (!voices || voices.size === 0) return;
 
-    const { oscillators, envelope } = note;
+    const stopVoice = (voice, when) => {
+      const { oscillators, envelope, release = this.config.release } = voice;
+      envelope.gain.cancelScheduledValues(when);
+      envelope.gain.setValueAtTime(envelope.gain.value, when);
+      envelope.gain.exponentialRampToValueAtTime(0.001, when + release);
+      oscillators.forEach((osc) => {
+        try {
+          osc.stop(when + release);
+        } catch {}
+      });
+      setTimeout(
+        () => {
+          voices.delete(voice);
+          if (voices.size === 0) this.activeNotes.delete(midiNote);
+        },
+        (release + 0.1) * 1000,
+      );
+    };
 
-    // Apply release
-    envelope.gain.cancelScheduledValues(time);
-    envelope.gain.setValueAtTime(envelope.gain.value, time);
-    envelope.gain.exponentialRampToValueAtTime(
-      0.001,
-      time + this.config.release,
-    );
-
-    // Stop oscillators after release
-    oscillators.forEach((osc) => {
-      osc.stop(time + this.config.release);
-    });
-
-    // Clean up
-    setTimeout(
-      () => {
-        this.activeNotes.delete(midiNote);
-      },
-      (this.config.release + 0.1) * 1000,
-    );
+    if (typeof handleOrTime === 'object' && handleOrTime) {
+      // Treat as a handle → stop just this voice now
+      stopVoice(handleOrTime, this.audioContext.currentTime);
+    } else {
+      // Treat as a time number → stop all voices for this note at that time
+      const when = Number(handleOrTime) || this.audioContext.currentTime;
+      Array.from(voices).forEach((v) => stopVoice(v, when));
+    }
   }
 }
 
@@ -424,8 +440,8 @@ export class DrumSampler extends BaseInstrument {
     noise.stop(time + 0.5);
   }
 
-  stopNote(midiNote, time = this.audioContext.currentTime) {
-    // Drums don't sustain, so nothing to do here
+  stopNote(midiNote, _handleOrTime = this.audioContext.currentTime) {
+    // Drums are one‑shots; nothing to release.
   }
 }
 
@@ -485,40 +501,47 @@ export class SimplePiano extends BaseInstrument {
     // Start all oscillators
     oscillators.forEach((osc) => osc.start(time));
 
-    // Store for stop
-    this.activeNotes.set(midiNote, {
-      oscillators,
-      gainNodes,
-      startTime: time,
-      release,
-    });
+    const voice = { oscillators, gainNodes, startTime: time, release };
+    let set = this.activeNotes.get(midiNote);
+    if (!set) {
+      set = new Set();
+      this.activeNotes.set(midiNote, set);
+    }
+    set.add(voice);
+    return voice; // handle
   }
 
-  stopNote(midiNote, time = this.audioContext.currentTime) {
-    const note = this.activeNotes.get(midiNote);
-    if (!note) return;
+  stopNote(midiNote, handleOrTime = this.audioContext.currentTime) {
+    const voices = this.activeNotes.get(midiNote);
+    if (!voices || voices.size === 0) return;
 
-    const { oscillators, gainNodes, release } = note;
+    const stopVoice = (voice, when) => {
+      const { oscillators, gainNodes, release } = voice;
+      gainNodes.forEach((gain) => {
+        gain.gain.cancelScheduledValues(when);
+        gain.gain.setValueAtTime(gain.gain.value, when);
+        gain.gain.exponentialRampToValueAtTime(0.001, when + release);
+      });
+      oscillators.forEach((osc) => {
+        try {
+          osc.stop(when + release);
+        } catch {}
+      });
+      setTimeout(
+        () => {
+          voices.delete(voice);
+          if (voices.size === 0) this.activeNotes.delete(midiNote);
+        },
+        (release + 0.1) * 1000,
+      );
+    };
 
-    // Apply release
-    gainNodes.forEach((gain) => {
-      gain.gain.cancelScheduledValues(time);
-      gain.gain.setValueAtTime(gain.gain.value, time);
-      gain.gain.exponentialRampToValueAtTime(0.001, time + release);
-    });
-
-    // Stop oscillators
-    oscillators.forEach((osc) => {
-      osc.stop(time + release);
-    });
-
-    // Clean up
-    setTimeout(
-      () => {
-        this.activeNotes.delete(midiNote);
-      },
-      (release + 0.1) * 1000,
-    );
+    if (typeof handleOrTime === 'object' && handleOrTime) {
+      stopVoice(handleOrTime, this.audioContext.currentTime);
+    } else {
+      const when = Number(handleOrTime) || this.audioContext.currentTime;
+      Array.from(voices).forEach((v) => stopVoice(v, when));
+    }
   }
 }
 

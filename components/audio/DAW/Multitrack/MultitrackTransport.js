@@ -18,7 +18,10 @@ import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import Metronome from './Metronome';
 import PianoKeyboard from './PianoKeyboard';
 
-export default function MultitrackTransport() {
+export default function MultitrackTransport({
+  showPiano: showPianoProp,
+  setShowPiano: setShowPianoProp,
+}) {
   const {
     play,
     pause,
@@ -36,9 +39,14 @@ export default function MultitrackTransport() {
 
   const [masterVolume, setMasterVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
-  const [showPiano, setShowPiano] = useState(false);
+  const [showPianoState, setShowPianoState] = useState(false);
+  const showPiano = showPianoProp ?? showPianoState;
+  const setShowPiano = setShowPianoProp ?? setShowPianoState;
   const [activeNotes, setActiveNotes] = useState([]);
   const previewTokensRef = useRef(new Map()); // note -> token
+
+  // Ref to track previous isPlaying state for edge-triggered cleanup
+  const prevIsPlayingRef = useRef(isPlaying);
 
   const activeNotesRef = useRef(new Set());
   useEffect(() => {
@@ -88,7 +96,7 @@ export default function MultitrackTransport() {
     const velocity = 0.85; // 0..1 for context
 
     // Record while transport is running; don't depend on per-track isRecording
-    const armedAndRolling = isPlayingRef.current;
+    const armedAndRolling = isPlayingRef.current || showPiano;
     console.log('[Transport Piano]', {
       armedAndRolling,
       tempo,
@@ -149,8 +157,11 @@ export default function MultitrackTransport() {
     }
   };
   useEffect(() => {
-    if (!isPlaying) {
-      // Release any preview notes and clear pending captures (snapshot to avoid re-running)
+    const wasPlaying = prevIsPlayingRef.current;
+    prevIsPlayingRef.current = isPlaying;
+
+    // Only clear when we actually transition from playing to stopped
+    if (wasPlaying && !isPlaying) {
       const snapshot = Array.from(activeNotesRef.current);
       snapshot.forEach((n) => {
         const t = previewTokensRef.current.get(n);

@@ -451,12 +451,10 @@ export const MultitrackProvider = ({ children }) => {
           const instrument = trackInstrumentsRef.current[selectedTrackId];
           if (!instrument || typeof instrument.stopNote !== 'function') return;
           const audioContext = audioContextManager.getContext();
-          // Prefer stopNote(note, handle) ONLY when we actually have a handle; otherwise call single-arg
-          if (token != null && instrument.stopNote.length >= 2) {
-            instrument.stopNote(note, token);
-          } else {
-            instrument.stopNote(note, audioContext.currentTime);
-          }
+          // Always provide a second arg: token if available, otherwise current time.
+          // Extra args are safe in JS; this guarantees preview handles are used when supported.
+          const secondArg = token ?? audioContext.currentTime;
+          instrument.stopNote(note, secondArg);
           console.log('✅ Note stopped successfully', { token });
         } catch (error) {
           console.error('❌ Error stopping note:', error);

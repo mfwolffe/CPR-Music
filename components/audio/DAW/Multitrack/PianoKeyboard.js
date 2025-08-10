@@ -55,6 +55,8 @@ export default function PianoKeyboard({
   const isActiveRef = useRef(false); // only capture keys while hovered/focused
   const downCodesRef = useRef(new Set());
   const codeToNoteRef = useRef(new Map());
+  const blurTimeoutRef = useRef(null);
+  const visibilityTimeoutRef = useRef(null);
 
   // Pointer-mode guard (prevents double firing from mouse & pointer)
   const usingPointerRef = useRef(false);
@@ -74,6 +76,20 @@ export default function PianoKeyboard({
     return { x: clientX * scaleX, y: clientY * scaleY };
   }
 
+  // Refs for stable listeners
+  const onNoteClickRef = useRef(onNoteClick);
+  const startNoteRef = useRef(startNote);
+  const endNoteRef = useRef(endNote);
+
+  useEffect(() => {
+    onNoteClickRef.current = onNoteClick;
+  }, [onNoteClick]);
+
+  useEffect(() => {
+    startNoteRef.current = startNote;
+    endNoteRef.current = endNote;
+  }, [startNote, endNote]);
+
   // Computer keyboard → note on/off (optional)
   useEffect(() => {
     if (!captureComputerKeyboard) return;
@@ -81,8 +97,7 @@ export default function PianoKeyboard({
     const handleKeyDown = (e) => {
       const isBracket = e.code === 'BracketLeft' || e.code === 'BracketRight';
 
-      // For octave shift, allow even if not hovered/focused
-      if (!isBracket && !isActiveRef.current) return; // only when hovered/focused for note keys
+      // Allow capture even if not hovered/focused when captureComputerKeyboard is true
       if (e.repeat && !isBracket) return;
 
       // Octave shift: [ lowers, ] raises
@@ -90,6 +105,8 @@ export default function PianoKeyboard({
         e.preventDefault();
         e.stopPropagation();
         const delta = e.code === 'BracketLeft' ? -1 : 1;
+        const startNote = startNoteRef.current;
+        const endNote = endNoteRef.current;
         const base0 = startNote - (startNote % 12);
         const maxOffset = 24; // highest mapped key (KeyI)
         const minShift = Math.ceil((startNote - base0) / 12);
@@ -106,6 +123,8 @@ export default function PianoKeyboard({
       if (offset === undefined) return;
       e.preventDefault();
       e.stopPropagation();
+      const startNote = startNoteRef.current;
+      const endNote = endNoteRef.current;
       const base =
         startNote - (startNote % 12) + 12 * (octaveShiftRef.current || 0);
       const note = base + offset;
@@ -113,7 +132,13 @@ export default function PianoKeyboard({
       if (downCodesRef.current.has(e.code)) return; // already down
       downCodesRef.current.add(e.code);
       codeToNoteRef.current.set(e.code, note);
-      onNoteClick?.(note, 'down');
+      // Log diagnostic for keydown
+      console.log('[PianoKeyboard] keydown', {
+        code: e.code,
+        note,
+        t: performance.now(),
+      });
+      onNoteClickRef.current?.(note, 'down');
     };
 
     const handleKeyUp = (e) => {
@@ -126,15 +151,24 @@ export default function PianoKeyboard({
       downCodesRef.current.delete(e.code);
       const note = codeToNoteRef.current.get(e.code);
       codeToNoteRef.current.delete(e.code);
-      if (note != null) onNoteClick?.(note, 'up');
+      if (note != null) {
+        // Log diagnostic for keyup
+        console.log('[PianoKeyboard] keyup', {
+          code: e.code,
+          note,
+          t: performance.now(),
+        });
+        onNoteClickRef.current?.(note, 'up');
+      }
     };
 
-    const flushAll = () => {
+    const flushAll = (reason = 'unspecified') => {
+      console.log('[PianoKeyboard] flushAll', { reason, t: performance.now() });
       for (const code of Array.from(downCodesRef.current)) {
         const note = codeToNoteRef.current.get(code);
         if (note != null) {
           try {
-            onNoteClick?.(note, 'up');
+            onNoteClickRef.current?.(note, 'up');
           } catch {}
         }
       }
@@ -142,21 +176,51 @@ export default function PianoKeyboard({
       codeToNoteRef.current.clear();
     };
 
+    // Debounced blur/focus handling for spurious blur events (e.g., rrweb/Sentry Replay)
+    const handleWindowBlur = () => {
+      // rrweb/Sentry can cause transient blurs; wait longer before flushing.
+      if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current);
+      blurTimeoutRef.current = setTimeout(() => {
+        if (!document.hasFocus()) {
+          flushAll('window-blur');
+        }
+      }, 600);
+    };
+
+    const handleWindowFocus = () => {
+      if (blurTimeoutRef.current) {
+        clearTimeout(blurTimeoutRef.current);
+        blurTimeoutRef.current = null;
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-    window.addEventListener('blur', flushAll);
+    window.addEventListener('blur', handleWindowBlur);
+    window.addEventListener('focus', handleWindowFocus);
     const visHandler = () => {
-      if (document.hidden) flushAll();
+      if (visibilityTimeoutRef.current)
+        clearTimeout(visibilityTimeoutRef.current);
+      if (document.hidden) {
+        visibilityTimeoutRef.current = setTimeout(() => {
+          if (document.hidden) flushAll('visibility-hidden');
+        }, 600);
+      } else {
+        visibilityTimeoutRef.current = null;
+      }
     };
     document.addEventListener('visibilitychange', visHandler);
     return () => {
-      flushAll();
+      flushAll('unmount');
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
-      window.removeEventListener('blur', flushAll);
+      window.removeEventListener('blur', handleWindowBlur);
+      window.removeEventListener('focus', handleWindowFocus);
       document.removeEventListener('visibilitychange', visHandler);
+      if (visibilityTimeoutRef.current)
+        clearTimeout(visibilityTimeoutRef.current);
     };
-  }, [captureComputerKeyboard, startNote, endNote, onNoteClick]);
+  }, [captureComputerKeyboard]);
 
   // Piano key layout
   const blackKeyPattern = [1, 3, 6, 8, 10]; // C#, D#, F#, G#, A#
@@ -375,7 +439,9 @@ export default function PianoKeyboard({
     <div
       className="piano-keyboard-container"
       ref={containerRef}
-      tabIndex={0}
+      tabIndex={-1}
+      data-rrweb-ignore
+      data-sentry-replay-ignore
       onMouseEnter={() => {
         isActiveRef.current = true;
       }}

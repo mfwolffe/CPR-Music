@@ -516,7 +516,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
         const y = displayHeight - (note.note - noteRange.min + 1) * laneHeight;
 
         // Calculate width with proper duration scaling
-        const noteWidth = Math.max(2, note.duration * pixelsPerBeat);
+        const noteWidth = Math.max(1, note.duration * pixelsPerBeat);
 
         // Clip note width if it extends beyond canvas
         const visibleWidth = Math.min(noteWidth, displayWidth - x);
