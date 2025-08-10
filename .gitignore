@@ -47,4 +47,4 @@ yarn-error.log*
 .tool-versions
 
 # vscode things
-vscode/settings.json
+.vscode/settings.json
