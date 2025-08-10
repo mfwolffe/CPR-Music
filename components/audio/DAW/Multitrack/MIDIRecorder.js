@@ -1,40 +1,36 @@
-// components/audio/DAW/Multitrack/MIDIRecorder.js
+// components/audio/DAW/Multitrack/ImprovedMIDIRecorder.js
 'use client';
 
+import audioContextManager from './AudioContextManager';
+
 /**
- * MIDIRecorder - Records MIDI input with precise timing
+ * Improved MIDI Recorder with accurate timing
  */
-export default class MIDIRecorder {
-  constructor() {
+export default class ImprovedMIDIRecorder {
+  constructor(options = {}) {
     this.isRecording = false;
     this.isCountingIn = false;
     this.recordedNotes = [];
     this.activeNotes = new Map(); // Track currently pressed notes
     this.startTime = 0;
-    this.countInBeats = 4;
-    this.tempo = 120;
-    this.quantize = null; // null = no quantization, or grid size (1/16, 1/8, etc)
-    this.overdub = false;
-    this.listeners = new Map();
+    this.countInBeats = options.countInBeats || 4;
+    this.tempo = options.tempo || 120;
+    this.quantize = options.quantize || null;
+    this.overdub = options.overdub || false;
+    this.onNoteCallback = options.onNote || null;
+    this.onCountInCallback = options.onCountIn || null;
+    this.onStartCallback = options.onStart || null;
+    this.onStopCallback = options.onStop || null;
+
+    // Use audio context time for accurate timing
+    this.audioContext = audioContextManager.getContext();
   }
 
   // Start recording
-  startRecording(options = {}) {
-    const {
-      countIn = true,
-      countInBeats = 4,
-      tempo = 120,
-      quantize = null,
-      overdub = false,
-      existingNotes = []
-    } = options;
+  start(options = {}) {
+    const { countIn = true, existingNotes = [] } = options;
 
-    this.tempo = tempo;
-    this.quantize = quantize;
-    this.overdub = overdub;
-    this.countInBeats = countInBeats;
-
-    if (overdub && existingNotes) {
+    if (this.overdub && existingNotes) {
       this.recordedNotes = [...existingNotes];
     } else {
       this.recordedNotes = [];
@@ -50,51 +46,82 @@ export default class MIDIRecorder {
   // Count-in before recording
   startCountIn() {
     this.isCountingIn = true;
-    const beatDuration = 60000 / this.tempo; // ms per beat
+    const beatDuration = 60 / this.tempo; // seconds per beat
     let currentBeat = 0;
 
-    this.notify('countIn', { beat: currentBeat + 1, total: this.countInBeats });
+    if (this.onCountInCallback) {
+      this.onCountInCallback({
+        beat: currentBeat + 1,
+        total: this.countInBeats,
+      });
+    }
 
-    const countInInterval = setInterval(() => {
-      currentBeat++;
-      
-      if (currentBeat >= this.countInBeats) {
-        clearInterval(countInInterval);
-        this.isCountingIn = false;
-        this.startActualRecording();
-      } else {
-        this.notify('countIn', { beat: currentBeat + 1, total: this.countInBeats });
-      }
-    }, beatDuration);
+    const countInStartTime = this.audioContext.currentTime;
+
+    // Schedule count-in beats using audio context timing
+    for (let i = 1; i <= this.countInBeats; i++) {
+      const beatTime = countInStartTime + (i - 1) * beatDuration;
+
+      audioContextManager.scheduleAtTime(() => {
+        if (i < this.countInBeats) {
+          if (this.onCountInCallback) {
+            this.onCountInCallback({ beat: i + 1, total: this.countInBeats });
+          }
+        } else {
+          // Last beat - start recording
+          this.isCountingIn = false;
+          this.startActualRecording();
+        }
+      }, beatTime);
+    }
   }
 
   // Start actual recording
   startActualRecording() {
     this.isRecording = true;
-    this.startTime = performance.now();
+    this.startTime = this.audioContext.currentTime;
     this.activeNotes.clear();
-    this.notify('recordingStarted', { time: this.startTime });
+
+    if (this.onStartCallback) {
+      this.onStartCallback({ time: this.startTime });
+    }
   }
 
   // Stop recording
-  stopRecording() {
-    if (!this.isRecording) return [];
+  stop() {
+    if (!this.isRecording) return this.recordedNotes;
 
     this.isRecording = false;
-    
-    // Stop any notes that are still held
     const endTime = this.getCurrentTime();
+
+    // Stop any notes that are still held
     this.activeNotes.forEach((note, noteNumber) => {
       note.duration = endTime - note.startTime;
       note.wasHeldAtStop = true;
+      this.recordedNotes.push({
+        note: noteNumber,
+        velocity: note.velocity,
+        startTime: note.startTime,
+        duration: note.duration,
+        wasHeldAtStop: true,
+      });
     });
 
-    this.notify('recordingStopped', { 
-      notes: this.recordedNotes,
-      duration: endTime 
-    });
+    this.activeNotes.clear();
+
+    if (this.onStopCallback) {
+      this.onStopCallback({
+        notes: this.recordedNotes,
+        duration: endTime,
+      });
+    }
 
     return this.recordedNotes;
+  }
+
+  // Get current time in seconds relative to recording start
+  getCurrentTime() {
+    return this.audioContext.currentTime - this.startTime;
   }
 
   // Handle incoming MIDI messages
@@ -112,134 +139,105 @@ export default class MIDIRecorder {
           this.handleNoteOff(message.note, currentTime);
         }
         break;
-        
+
       case 'noteoff':
         this.handleNoteOff(message.note, currentTime);
-        break;
-        
-      case 'cc':
-        this.handleControlChange(message.controller, message.value, currentTime);
-        break;
-        
-      case 'pitchbend':
-        this.handlePitchBend(message.value, currentTime);
         break;
     }
   }
 
   // Handle note on
   handleNoteOn(noteNumber, velocity, time) {
-    // Check if this note is already playing (shouldn't happen but just in case)
+    // Check if this note is already playing
     if (this.activeNotes.has(noteNumber)) {
       this.handleNoteOff(noteNumber, time);
     }
 
-    // Apply quantization to start time if enabled
-    const quantizedTime = this.quantize ? 
-      this.quantizeTime(time) : time;
+    // Convert MIDI velocity (0-127) to normalized (0-1)
+    const normalizedVelocity = velocity / 127;
 
-    const note = {
-      id: `recorded-${Date.now()}-${noteNumber}`,
-      note: noteNumber,
-      velocity,
+    // Apply quantization if enabled
+    const quantizedTime = this.quantize ? this.quantizeTime(time) : time;
+
+    // Store active note
+    this.activeNotes.set(noteNumber, {
       startTime: quantizedTime,
-      duration: null, // Will be set on note off
-      recorded: true
-    };
+      velocity: normalizedVelocity,
+      originalStartTime: time,
+    });
 
-    this.recordedNotes.push(note);
-    this.activeNotes.set(noteNumber, note);
-
-    this.notify('noteRecorded', { note, action: 'start' });
+    // Notify callback for live playback
+    if (this.onNoteCallback) {
+      this.onNoteCallback({
+        type: 'noteon',
+        note: noteNumber,
+        velocity: normalizedVelocity,
+        time: quantizedTime,
+      });
+    }
   }
 
   // Handle note off
   handleNoteOff(noteNumber, time) {
     const activeNote = this.activeNotes.get(noteNumber);
-    if (!activeNote) return; // Note wasn't being tracked
+    if (!activeNote) return;
 
-    // Calculate duration
-    const duration = time - activeNote.startTime;
-    
-    // Apply minimum note length
-    activeNote.duration = Math.max(duration, 0.05); // Minimum 50ms
+    const duration = time - activeNote.originalStartTime;
 
-    // Apply quantization to duration if enabled
-    if (this.quantize) {
-      activeNote.duration = this.quantizeDuration(activeNote.duration);
+    // Only record notes with meaningful duration
+    if (duration > 0.01) {
+      this.recordedNotes.push({
+        note: noteNumber,
+        velocity: activeNote.velocity,
+        startTime: activeNote.startTime,
+        duration: this.quantize ? this.quantizeDuration(duration) : duration,
+      });
     }
 
     this.activeNotes.delete(noteNumber);
-    this.notify('noteRecorded', { note: activeNote, action: 'complete' });
+
+    // Notify callback
+    if (this.onNoteCallback) {
+      this.onNoteCallback({
+        type: 'noteoff',
+        note: noteNumber,
+        time: time,
+      });
+    }
   }
 
-  // Handle control changes (for future use)
-  handleControlChange(controller, value, time) {
-    // Could record automation data here
-    this.notify('ccRecorded', { controller, value, time });
-  }
-
-  // Handle pitch bend (for future use)
-  handlePitchBend(value, time) {
-    // Could record pitch bend automation
-    this.notify('pitchBendRecorded', { value, time });
-  }
-
-  // Get current recording time in seconds
-  getCurrentTime() {
-    return (performance.now() - this.startTime) / 1000;
-  }
-
-  // Quantize time to grid
+  // Quantize time to nearest grid division
   quantizeTime(time) {
     if (!this.quantize) return time;
-    
-    const gridSize = this.quantize; // e.g., 1/16 = 0.0625
+
+    const beatLength = 60 / this.tempo;
+    const gridSize = beatLength * this.quantize; // e.g., 1/16 note
     return Math.round(time / gridSize) * gridSize;
   }
 
   // Quantize duration
   quantizeDuration(duration) {
     if (!this.quantize) return duration;
-    
-    const gridSize = this.quantize;
+
+    const beatLength = 60 / this.tempo;
+    const gridSize = beatLength * this.quantize;
     const quantized = Math.round(duration / gridSize) * gridSize;
-    return Math.max(quantized, gridSize); // At least one grid unit
+    return Math.max(gridSize, quantized); // Minimum one grid unit
   }
 
-  // Event notification system
-  addListener(event, callback) {
-    if (!this.listeners.has(event)) {
-      this.listeners.set(event, new Set());
-    }
-    this.listeners.get(event).add(callback);
-  }
-
-  removeListener(event, callback) {
-    if (this.listeners.has(event)) {
-      this.listeners.get(event).delete(callback);
-    }
-  }
-
-  notify(event, data) {
-    if (this.listeners.has(event)) {
-      this.listeners.get(event).forEach(callback => {
-        callback(data);
-      });
-    }
-  }
-
-  // Utility methods
-  isActive() {
-    return this.isRecording || this.isCountingIn;
-  }
-
-  getRecordedNotes() {
-    return [...this.recordedNotes];
-  }
-
-  clearRecording() {
+  // Clear all recorded notes
+  clear() {
     this.recordedNotes = [];
     this.activeNotes.clear();
+  }
+
+  // Get recording state
+  getState() {
+    return {
+      isRecording: this.isRecording,
+      isCountingIn: this.isCountingIn,
+      noteCount: this.recordedNotes.length,
+      activeNotes: this.activeNotes.size,
+    };
   }
 }

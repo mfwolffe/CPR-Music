@@ -18,6 +18,8 @@ import {
   FaThLarge,
   FaTh,
 } from 'react-icons/fa';
+import { useMIDITrackAudio } from './hooks/useMidiTrackAudio';
+import MIDIInputManager from './MIDIInputManager';
 import { MdPanTool, MdMusicNote, MdPiano } from 'react-icons/md';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import InstrumentSelector from './InstrumentSelector';
@@ -44,15 +46,16 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
   const [draggedPattern, setDraggedPattern] = useState(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [editingPatternId, setEditingPatternId] = useState(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isCountingIn, setIsCountingIn] = useState(false);
-  const [countInBeat, setCountInBeat] = useState(0);
+
+  // const [isRecording, setIsRecording] = useState(false);
+  // const [isCountingIn, setIsCountingIn] = useState(false);
+  // const [countInBeat, setCountInBeat] = useState(0);
   const [controlTab, setControlTab] = useState('vol'); // 'vol' or 'pan'
-  const scheduledNotesRef = useRef([]);
-  const audioContextRef = useRef(null);
-  const instrumentRef = useRef(null);
-  const masterGainRef = useRef(null);
-  const pannerRef = useRef(null);
+  // const scheduledNotesRef = useRef([]);
+  // const audioContextRef = useRef(null);
+  // const instrumentRef = useRef(null);
+  // const masterGainRef = useRef(null);
+  // const pannerRef = useRef(null);
 
   // NOTE: I previously mounted <MIDIRecorder /> as if it were a React component, but
   // it's a **class** that must be constructed with `new`
@@ -110,101 +113,53 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     stopNoteOnSelectedTrack,
     play,
     stop,
+    setTracks,
   } = useMultitrack();
+
+  const {
+    isRecording,
+    isCountingIn,
+    countInBeat,
+    playNote,
+    stopNote,
+    startRecording,
+    stopRecording,
+    handleMIDIInput,
+    instrumentRef,
+  } = useMIDITrackAudio(
+    track,
+    globalIsPlaying,
+    globalCurrentTime,
+    registerTrackInstrument,
+  );
 
   const InstrumentIcon = getInstrumentIcon();
 
-  // Initialize audio nodes
   useEffect(() => {
-    audioContextRef.current = new (window.AudioContext ||
-      window.webkitAudioContext)();
-
-    // Create gain node for volume control
-    masterGainRef.current = audioContextRef.current.createGain();
-    masterGainRef.current.gain.value = track.volume || 0.75;
-
-    // Create panner node
-    pannerRef.current = audioContextRef.current.createStereoPanner();
-    pannerRef.current.pan.value = track.pan || 0;
-
-    // Connect nodes
-    masterGainRef.current.connect(pannerRef.current);
-    pannerRef.current.connect(audioContextRef.current.destination);
-
+    if (instrumentRef.current) {
+      registerTrackInstrument(track.id, instrumentRef.current);
+    }
     return () => {
       try {
         registerTrackInstrument(track.id, null);
       } catch {}
-      if (instrumentRef.current) {
-        try {
-          instrumentRef.current.stopAllNotes?.();
-        } catch {}
-        try {
-          instrumentRef.current.dispose?.();
-        } catch {}
-        instrumentRef.current = null;
-      }
-      try {
-        pannerRef.current?.disconnect?.();
-      } catch {}
-      try {
-        masterGainRef.current?.disconnect?.();
-      } catch {}
-      const ctx = audioContextRef.current;
-      if (ctx && typeof ctx.close === 'function') {
-        try {
-          ctx.close();
-        } catch {}
-      }
     };
-  }, []);
+  }, [track.id, registerTrackInstrument, instrumentRef]);
 
-  // Create/update instrument when it changes
   useEffect(() => {
-    if (track.midiData?.instrument && audioContextRef.current) {
-      // Dispose old instrument
-      if (instrumentRef.current) {
-        try {
-          instrumentRef.current.stopAllNotes?.();
-        } catch {}
-        try {
-          instrumentRef.current.dispose?.();
-        } catch {}
-      }
+    if (track.id === selectedTrackId && track.armed) {
+      const handleGlobalMIDI = (message) => {
+        handleMIDIInput(message);
+      };
 
-      // Create new instrument
-      const instrumentType = track.midiData.instrument;
-      instrumentRef.current = createInstrument(
-        audioContextRef.current,
-        masterGainRef.current,
-        instrumentType.type,
-      );
-      instrumentRef.current.connect(pannerRef.current);
+      // Subscribe to MIDI input manager
+      midiInputManager.addListener('message', handleGlobalMIDI);
 
-      // Register with multitrack context
-      registerTrackInstrument(track.id, instrumentRef.current);
+      return () => {
+        midiInputManager.removeListener('message', handleGlobalMIDI);
+      };
     }
-  }, [track.id, track.midiData?.instrument, registerTrackInstrument]);
-
-  useEffect(() => {
-    return () => {
-      registerTrackInstrument(track.id, null);
-    };
-  }, [track.id, registerTrackInstrument]);
-
-  // Update volume
-  useEffect(() => {
-    if (masterGainRef.current) {
-      masterGainRef.current.gain.value = track.volume || 0.75;
-    }
-  }, [track.volume]);
-
-  // Update pan
-  useEffect(() => {
-    if (pannerRef.current) {
-      pannerRef.current.pan.value = track.pan || 0;
-    }
-  }, [track.pan]);
+  }, [track.id, selectedTrackId, track.armed, handleMIDIInput]);
 
   // Keep preview canvas bitmap in sync with container size (and HiDPI)
   useEffect(() => {
@@ -245,144 +200,40 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     };
   }, []);
 
-  // --- Lookahead MIDI scheduler (prevents stuck notes) ---
-  const currentTimeRef = useRef(0);
-  const isPlayingRef = useRef(false);
-  const notesRef = useRef([]);
-  const tempoRef = useRef(120);
-  const mutedRef = useRef(false);
-  const soloOkRef = useRef(true);
-  const lastScheduledTimeRef = useRef(0);
-  const playingNotesRef = useRef(new Map()); // key: `${note.note}:${note.startTime}` -> { onId, offId, endSec }
-  const schedulerIdRef = useRef(null);
-
-  // Keep lightweight refs up to date
-  useEffect(() => {
-    currentTimeRef.current = globalCurrentTime;
-  }, [globalCurrentTime]);
-  useEffect(() => {
-    isPlayingRef.current = globalIsPlaying;
-  }, [globalIsPlaying]);
-  useEffect(() => {
-    tempoRef.current = track.midiData?.tempo || 120;
-  }, [track.midiData?.tempo]);
-  useEffect(() => {
-    mutedRef.current = !!track.muted;
-  }, [track.muted]);
-  useEffect(() => {
-    soloOkRef.current = !soloTrackId || soloTrackId === track.id;
-  }, [soloTrackId, track.id]);
-
-  // Flatten notes according to view mode
-  useEffect(() => {
-    if (!track.midiData) {
-      notesRef.current = [];
-      return;
-    }
-    if (viewMode === 'patterns') {
-      notesRef.current = resolvePatternArrangement(track) || [];
+  const handleRecord = () => {
+    if (isRecording) {
+      // Stop the recorder; the onNotesRecorded callback already committed notes
+      stopRecording();
+      updateTrack(track.id, { isRecording: false });
     } else {
-      notesRef.current = track.midiData.notes || [];
+      startRecording({
+        countIn: true,
+        overdub: false,
+        onNotesRecorded: (notes) => {
+          // Append to the latest state to avoid clobbering live-captured notes
+          setTracks((prev) =>
+            prev.map((t) =>
+              t.id === track.id
+                ? {
+                    ...t,
+                    midiData: {
+                      ...t.midiData,
+                      notes: [
+                        ...(Array.isArray(t.midiData?.notes)
+                          ? t.midiData.notes
+                          : []),
+                        ...notes,
+                      ],
+                    },
+                  }
+                : t,
+            ),
+          );
+        },
+      });
+      updateTrack(track.id, { isRecording: true });
     }
-  }, [track.midiData, viewMode]);
-
-  // Helper to fully stop/clear everything
-  const hardResetPlayback = () => {
-    // stop instrument voices
-    try {
-      instrumentRef.current?.stopAllNotes?.();
-    } catch {}
-    // clear pending timeouts
-    for (const { onId, offId } of playingNotesRef.current.values()) {
-      if (onId) clearTimeout(onId);
-      if (offId) clearTimeout(offId);
-    }
-    playingNotesRef.current.clear();
   };
-
-  // Start/stop the periodic scheduler based on play state & routing
-  useEffect(() => {
-    if (!instrumentRef.current) return; // no instrument yet
-
-    // Always clear any prior interval
-    if (schedulerIdRef.current) {
-      clearInterval(schedulerIdRef.current);
-      schedulerIdRef.current = null;
-    }
-
-    // If not actively audible, perform a hard reset and bail
-    if (!isPlayingRef.current || mutedRef.current || !soloOkRef.current) {
-      hardResetPlayback();
-      lastScheduledTimeRef.current = currentTimeRef.current;
-      return;
-    }
-
-    const lookaheadSec = 0.1; // how far ahead to schedule
-    const tickMs = 30; // scheduler tick
-
-    const tick = () => {
-      const nowSec = currentTimeRef.current;
-      const tempo = tempoRef.current || 120;
-      const secPerBeat = 60 / tempo;
-
-      // Detect seeks (large jumps or backwards)
-      const last = lastScheduledTimeRef.current;
-      if (nowSec < last - 0.05 || nowSec - last > 0.5) {
-        hardResetPlayback();
-        lastScheduledTimeRef.current = nowSec;
-      }
-
-      const windowStart = lastScheduledTimeRef.current;
-      const windowEnd = nowSec + lookaheadSec;
-
-      // Schedule notes whose starts fall inside [windowStart, windowEnd)
-      const notes = notesRef.current || [];
-      for (const n of notes) {
-        const startSec = n.startTime * secPerBeat;
-        const endSec = (n.startTime + n.duration) * secPerBeat;
-        if (startSec >= windowStart && startSec < windowEnd) {
-          const key = `${n.note}:${n.startTime}`;
-          if (!playingNotesRef.current.has(key)) {
-            const delayOn = Math.max(0, startSec - nowSec);
-            const onId = setTimeout(() => {
-              instrumentRef.current?.playNote?.(
-                n.note,
-                (n.velocity ?? 100) / 127,
-              );
-            }, delayOn * 1000);
-
-            const delayOff = Math.max(0, endSec - nowSec);
-            const offId = setTimeout(() => {
-              instrumentRef.current?.stopNote?.(n.note);
-              playingNotesRef.current.delete(key);
-            }, delayOff * 1000);
-
-            playingNotesRef.current.set(key, { onId, offId, endSec });
-          }
-        }
-      }
-
-      // Advance the window
-      lastScheduledTimeRef.current = windowEnd;
-    };
-
-    schedulerIdRef.current = setInterval(tick, tickMs);
-
-    return () => {
-      if (schedulerIdRef.current) {
-        clearInterval(schedulerIdRef.current);
-        schedulerIdRef.current = null;
-      }
-    };
-  }, [globalIsPlaying, track.muted, soloTrackId, track.id]);
-
-  // On stop, ensure everything is silenced
-  useEffect(() => {
-    if (!globalIsPlaying) {
-      hardResetPlayback();
-      lastScheduledTimeRef.current = currentTimeRef.current;
-    }
-  }, [globalIsPlaying]);
 
   // Convert current notes to a pattern
   const convertNotesToPattern = () => {
@@ -406,60 +257,45 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     };
 
     // Add pattern to track
-    updateTrack(track.id, {
+    updateTrack(track.id, (t) => ({
       midiData: {
-        ...track.midiData,
-        patterns: [...(track.midiData.patterns || []), newPattern],
+        patterns: [...(t.midiData?.patterns || []), newPattern],
         arrangement: [
-          {
-            patternId: newPattern.id,
-            startTime: 0,
-            repeatCount: 1,
-          },
+          { patternId: newPattern.id, startTime: 0, repeatCount: 1 },
         ],
-        notes: [], // Clear notes as they're now in the pattern
+        notes: [],
       },
-    });
-
-    setViewMode('patterns');
+    }));
   };
 
   // Pattern management functions
   const handleCreatePattern = (pattern) => {
-    updateTrack(track.id, {
+    updateTrack(track.id, (t) => ({
       midiData: {
-        ...track.midiData,
-        patterns: [...(track.midiData.patterns || []), pattern],
+        patterns: [...(t.midiData?.patterns || []), pattern],
       },
-    });
+    }));
   };
 
   const handleUpdatePattern = (patternId, updates) => {
-    const patterns = track.midiData.patterns || [];
-    const updatedPatterns = patterns.map((p) =>
-      p.id === patternId ? { ...p, ...updates } : p,
-    );
-    updateTrack(track.id, {
-      midiData: {
-        ...track.midiData,
-        patterns: updatedPatterns,
-      },
+    updateTrack(track.id, (t) => {
+      const patterns = t.midiData?.patterns || [];
+      const updatedPatterns = patterns.map((p) =>
+        p.id === patternId ? { ...p, ...updates } : p,
+      );
+      return { midiData: { patterns: updatedPatterns } };
     });
   };
 
   const handleDeletePattern = (patternId) => {
-    const patterns = (track.midiData.patterns || []).filter(
-      (p) => p.id !== patternId,
-    );
-    const arrangement = (track.midiData.arrangement || []).filter(
-      (a) => a.patternId !== patternId,
-    );
-    updateTrack(track.id, {
-      midiData: {
-        ...track.midiData,
-        patterns,
-        arrangement,
-      },
+    updateTrack(track.id, (t) => {
+      const patterns = (t.midiData?.patterns || []).filter(
+        (p) => p.id !== patternId,
+      );
+      const arrangement = (t.midiData?.arrangement || []).filter(
+        (a) => a.patternId !== patternId,
+      );
+      return { midiData: { patterns, arrangement } };
     });
   };
 
@@ -524,12 +360,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
 
   // Handle instrument selection
   const handleInstrumentSelect = (instrument) => {
-    updateTrack(track.id, {
-      midiData: {
-        ...track.midiData,
-        instrument,
-      },
-    });
+    updateTrack(track.id, { midiData: { instrument } });
     setShowInstrumentSelector(false);
   };
 
@@ -850,7 +681,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              updateTrack(track.id, { muted: !track.muted });
+              updateTrack(track.id, (t) => ({ muted: !t.muted }));
             }}
             title={track.muted ? 'Unmute' : 'Mute'}
           >
@@ -872,21 +703,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
-
-              if (!isRecording) {
-                // Start recording
-                setIsRecording(true);
-                updateTrack(track.id, { isRecording: true });
-
-                // Start playback if not already playing
-                if (!globalIsPlaying) {
-                  play();
-                }
-              } else {
-                // Stop recording
-                setIsRecording(false);
-                updateTrack(track.id, { isRecording: false });
-              }
+              handleRecord();
             }}
             title={isRecording ? 'Stop Recording' : 'Record'}
           >
@@ -1012,12 +829,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
           onHide={() => setShowPianoRoll(false)}
           notes={track.midiData?.notes || []}
           onSave={(updatedNotes) => {
-            updateTrack(track.id, {
-              midiData: {
-                ...track.midiData,
-                notes: updatedNotes,
-              },
-            });
+            updateTrack(track.id, { midiData: { notes: updatedNotes } });
             setShowPianoRoll(false);
           }}
           instrument={instrumentRef.current}

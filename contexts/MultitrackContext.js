@@ -9,6 +9,7 @@ import {
   useRef,
   useEffect,
 } from 'react';
+import audioContextManager from '../components/audio/DAW/Multitrack/AudioContextManager';
 
 const MultitrackContext = createContext();
 
@@ -94,14 +95,16 @@ export const MultitrackProvider = ({ children }) => {
       }
     });
 
-    // Check MIDI tracks
+    // Check MIDI tracks (convert beats → seconds using track tempo)
     tracks.forEach((track) => {
       if (track.type === 'midi' && track.midiData?.notes?.length > 0) {
-        const lastNote = track.midiData.notes.reduce((latest, note) => {
-          const noteEnd = note.startTime + note.duration;
+        const lastBeat = track.midiData.notes.reduce((latest, note) => {
+          const noteEnd = note.startTime + note.duration; // beats
           return noteEnd > latest ? noteEnd : latest;
         }, 0);
-        maxDuration = Math.max(maxDuration, lastNote);
+        const tempo = track.midiData?.tempo || 120;
+        const seconds = lastBeat * (60 / tempo);
+        maxDuration = Math.max(maxDuration, seconds);
       }
     });
 
@@ -139,6 +142,9 @@ export const MultitrackProvider = ({ children }) => {
       // Clean up instrument reference if it's a MIDI track
       if (trackInstrumentsRef.current[trackId]) {
         console.log('🗑️ Removing instrument for track:', trackId);
+        const instrument = trackInstrumentsRef.current[trackId];
+        instrument.stopAllNotes?.();
+        instrument.dispose?.();
         delete trackInstrumentsRef.current[trackId];
       }
 
@@ -153,16 +159,60 @@ export const MultitrackProvider = ({ children }) => {
     [selectedTrackId, soloTrackId],
   );
 
-  const updateTrack = useCallback((trackId, updates) => {
+  /**
+   * Update a single track by id.
+   *
+   * Usage:
+   *   updateTrack(id, { muted: true });
+   *   updateTrack(id, (t) => ({ muted: !t.muted }));
+   *   updateTrack(id, { midiData: { tempo: 140 } }); // merges tempo without clobbering notes
+   *   updateTrack(id, { midiData: newMidi }, { mergeMidiData: false }); // replace midiData wholesale
+   *
+   * - Accepts either a plain updates object or a function (track) => updates.
+   * - By default, performs a shallow merge AND a safe nested merge for `midiData`
+   *   so you don't accidentally clobber notes/tempo when touching only one field.
+   * - Pass { mergeMidiData: false } to replace midiData wholesale.
+   */
+  const updateTrack = useCallback((trackId, updatesOrFn, options = {}) => {
+    const { mergeMidiData = true } = options;
+    let wavesurferChanged = false;
+
     setTracks((prev) =>
-      prev.map((track) =>
-        track.id === trackId ? { ...track, ...updates } : track,
-      ),
+      prev.map((track) => {
+        if (track.id !== trackId) return track;
+
+        const updates =
+          typeof updatesOrFn === 'function'
+            ? updatesOrFn(track)
+            : updatesOrFn || {};
+
+        // Start with a shallow merge
+        let next = { ...track, ...updates };
+
+        // Optionally deep-merge midiData to avoid clobbering nested fields
+        if (
+          mergeMidiData &&
+          (updates?.midiData !== undefined || track.midiData !== undefined)
+        ) {
+          next.midiData = {
+            ...(track.midiData || {}),
+            ...(updates?.midiData || {}),
+          };
+        }
+
+        if (
+          updates &&
+          Object.prototype.hasOwnProperty.call(updates, 'wavesurferInstance')
+        ) {
+          wavesurferChanged = true;
+        }
+
+        return next;
+      }),
     );
 
-    // If wavesurferInstance was updated, trigger a duration recalculation
-    if (updates.wavesurferInstance) {
-      // Force a re-render to update duration
+    if (wavesurferChanged) {
+      // Force a re-render to update duration after wavesurfer instance changes
       setTimeout(() => {
         setTracks((prev) => [...prev]);
       }, 100);
@@ -182,6 +232,13 @@ export const MultitrackProvider = ({ children }) => {
       }
     });
 
+    // Clean up instruments properly
+    Object.values(trackInstrumentsRef.current).forEach((instrument) => {
+      if (instrument) {
+        instrument.stopAllNotes?.();
+        instrument.dispose?.();
+      }
+    });
     // Clear instrument references
     trackInstrumentsRef.current = {};
 
@@ -317,19 +374,26 @@ export const MultitrackProvider = ({ children }) => {
         // Check if track is muted or if we're in solo mode
         if (selectedTrack.muted) {
           console.log('❌ Track is muted');
-          return;
+          return null;
         }
         if (soloTrackId && selectedTrack.id !== soloTrackId) {
           console.log('❌ Track is not soloed');
-          return;
+          return null;
         }
 
         try {
           console.log('🎵 Context: Calling instrument.playNote()');
-          trackInstrumentsRef.current[selectedTrackId].playNote(note, velocity);
-          console.log('✅ Note played successfully');
+          const audioContext = audioContextManager.getContext();
+          const handle = trackInstrumentsRef.current[selectedTrackId].playNote(
+            note,
+            velocity,
+            audioContext.currentTime,
+          );
+          console.log('✅ Note played successfully', { handle });
+          return handle ?? null;
         } catch (error) {
           console.error('❌ Error playing note:', error);
+          return null;
         }
       } else {
         console.log('❌ No instrument found for track', {
@@ -337,6 +401,7 @@ export const MultitrackProvider = ({ children }) => {
           hasInstrument: !!trackInstrumentsRef.current[selectedTrackId],
           trackType: selectedTrack?.type,
         });
+        return null;
       }
     },
     [selectedTrackId, tracks, soloTrackId],
@@ -371,9 +436,10 @@ export const MultitrackProvider = ({ children }) => {
   );
 
   const stopNoteOnSelectedTrack = useCallback(
-    (note) => {
+    (note, token = null) => {
       console.log('🎵 Context: stopNoteOnSelectedTrack called', {
         note,
+        token,
         selectedTrackId,
       });
 
@@ -382,8 +448,16 @@ export const MultitrackProvider = ({ children }) => {
       );
       if (selectedTrack && trackInstrumentsRef.current[selectedTrackId]) {
         try {
-          trackInstrumentsRef.current[selectedTrackId].stopNote(note);
-          console.log('✅ Note stopped successfully');
+          const instrument = trackInstrumentsRef.current[selectedTrackId];
+          if (!instrument || typeof instrument.stopNote !== 'function') return;
+          const audioContext = audioContextManager.getContext();
+          // Prefer stopNote(note, handle) ONLY when we actually have a handle; otherwise call single-arg
+          if (token != null && instrument.stopNote.length >= 2) {
+            instrument.stopNote(note, token);
+          } else {
+            instrument.stopNote(note, audioContext.currentTime);
+          }
+          console.log('✅ Note stopped successfully', { token });
         } catch (error) {
           console.error('❌ Error stopping note:', error);
         }

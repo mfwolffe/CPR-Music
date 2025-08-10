@@ -3,13 +3,13 @@
 
 /**
  * Collection of Web Audio instruments for MIDI playback
- * Each instrument implements play/stop methods and can be configured
+ * Updated to accept external AudioContext for better performance
  */
 
 // Base instrument class
 class BaseInstrument {
   constructor(audioContext) {
-    this.audioContext = audioContext;
+    this.audioContext = audioContext; // Use provided context
     this.activeNotes = new Map(); // Track active notes for polyphony
     this.output = audioContext.createGain();
     this.output.gain.value = 0.8;
@@ -37,13 +37,18 @@ class BaseInstrument {
       this.stopNote(midiNote);
     });
   }
+
+  dispose() {
+    this.stopAllNotes();
+    this.disconnect();
+  }
 }
 
 // Simple Subtractive Synthesizer
 export class SubtractiveSynth extends BaseInstrument {
   constructor(audioContext, preset = 'default') {
     super(audioContext);
-    
+
     // Preset configurations
     this.presets = {
       default: {
@@ -95,9 +100,9 @@ export class SubtractiveSynth extends BaseInstrument {
         sustain: 0.0,
         release: 0.5,
         detune: 0,
-      }
+      },
     };
-    
+
     this.setPreset(preset);
   }
 
@@ -112,7 +117,7 @@ export class SubtractiveSynth extends BaseInstrument {
     }
 
     const frequency = 440 * Math.pow(2, (midiNote - 69) / 12);
-    
+
     // Create oscillators (2 for detune effect)
     const osc1 = this.audioContext.createOscillator();
     const osc2 = this.audioContext.createOscillator();
@@ -158,7 +163,7 @@ export class SubtractiveSynth extends BaseInstrument {
       envelope,
       filter,
       sustainLevel,
-      startTime: time
+      startTime: time,
     });
   }
 
@@ -167,21 +172,27 @@ export class SubtractiveSynth extends BaseInstrument {
     if (!note) return;
 
     const { oscillators, envelope } = note;
-    
+
     // Apply release
     envelope.gain.cancelScheduledValues(time);
     envelope.gain.setValueAtTime(envelope.gain.value, time);
-    envelope.gain.exponentialRampToValueAtTime(0.001, time + this.config.release);
+    envelope.gain.exponentialRampToValueAtTime(
+      0.001,
+      time + this.config.release,
+    );
 
     // Stop oscillators after release
-    oscillators.forEach(osc => {
+    oscillators.forEach((osc) => {
       osc.stop(time + this.config.release);
     });
 
     // Clean up
-    setTimeout(() => {
-      this.activeNotes.delete(midiNote);
-    }, (this.config.release + 0.1) * 1000);
+    setTimeout(
+      () => {
+        this.activeNotes.delete(midiNote);
+      },
+      (this.config.release + 0.1) * 1000,
+    );
   }
 }
 
@@ -197,12 +208,12 @@ export class DrumSampler extends BaseInstrument {
     // For now, we'll use synthesis instead of samples
     // In a real implementation, you'd load actual drum samples
     this.kitConfig = {
-      36: { name: 'kick', type: 'kick' },      // C1
-      38: { name: 'snare', type: 'snare' },    // D1
-      42: { name: 'hihat', type: 'hihat' },    // F#1
+      36: { name: 'kick', type: 'kick' }, // C1
+      38: { name: 'snare', type: 'snare' }, // D1
+      42: { name: 'hihat', type: 'hihat' }, // F#1
       46: { name: 'openhat', type: 'openhat' }, // A#1
-      49: { name: 'crash', type: 'crash' },    // C#2
-      51: { name: 'ride', type: 'ride' },      // D#2
+      49: { name: 'crash', type: 'crash' }, // C#2
+      51: { name: 'ride', type: 'ride' }, // D#2
     };
   }
 
@@ -235,16 +246,16 @@ export class DrumSampler extends BaseInstrument {
   playKick(velocity, time) {
     const osc = this.audioContext.createOscillator();
     const gain = this.audioContext.createGain();
-    
+
     osc.frequency.setValueAtTime(60, time);
     osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.5);
-    
+
     gain.gain.setValueAtTime(velocity, time);
     gain.gain.exponentialRampToValueAtTime(0.01, time + 0.5);
-    
+
     osc.connect(gain);
     gain.connect(this.output);
-    
+
     osc.start(time);
     osc.stop(time + 0.5);
   }
@@ -256,32 +267,36 @@ export class DrumSampler extends BaseInstrument {
     osc.frequency.value = 200;
     oscGain.gain.setValueAtTime(velocity * 0.5, time);
     oscGain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
-    
+
     // Noise component
     const noise = this.audioContext.createBufferSource();
-    const noiseBuffer = this.audioContext.createBuffer(1, 4096, this.audioContext.sampleRate);
+    const noiseBuffer = this.audioContext.createBuffer(
+      1,
+      4096,
+      this.audioContext.sampleRate,
+    );
     const data = noiseBuffer.getChannelData(0);
     for (let i = 0; i < 4096; i++) {
       data[i] = Math.random() * 2 - 1;
     }
     noise.buffer = noiseBuffer;
-    
-    const noiseGain = this.audioContext.createGain();
+
     const noiseFilter = this.audioContext.createBiquadFilter();
     noiseFilter.type = 'highpass';
-    noiseFilter.frequency.value = 3000;
-    
+    noiseFilter.frequency.value = 2000;
+
+    const noiseGain = this.audioContext.createGain();
     noiseGain.gain.setValueAtTime(velocity * 0.5, time);
     noiseGain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
-    
+
     // Connect
     osc.connect(oscGain);
     oscGain.connect(this.output);
     noise.connect(noiseFilter);
     noiseFilter.connect(noiseGain);
     noiseGain.connect(this.output);
-    
-    // Play
+
+    // Start
     osc.start(time);
     osc.stop(time + 0.2);
     noise.start(time);
@@ -290,76 +305,90 @@ export class DrumSampler extends BaseInstrument {
 
   playHihat(velocity, time) {
     const noise = this.audioContext.createBufferSource();
-    const noiseBuffer = this.audioContext.createBuffer(1, 4096, this.audioContext.sampleRate);
+    const noiseBuffer = this.audioContext.createBuffer(
+      1,
+      4096,
+      this.audioContext.sampleRate,
+    );
     const data = noiseBuffer.getChannelData(0);
     for (let i = 0; i < 4096; i++) {
       data[i] = Math.random() * 2 - 1;
     }
     noise.buffer = noiseBuffer;
-    
+
     const filter = this.audioContext.createBiquadFilter();
     filter.type = 'highpass';
     filter.frequency.value = 8000;
-    
+    filter.Q.value = 1;
+
     const gain = this.audioContext.createGain();
-    gain.gain.setValueAtTime(velocity * 0.3, time);
+    gain.gain.setValueAtTime(velocity * 0.5, time);
     gain.gain.exponentialRampToValueAtTime(0.01, time + 0.05);
-    
+
     noise.connect(filter);
     filter.connect(gain);
     gain.connect(this.output);
-    
+
     noise.start(time);
     noise.stop(time + 0.05);
   }
 
   playOpenhat(velocity, time) {
     const noise = this.audioContext.createBufferSource();
-    const noiseBuffer = this.audioContext.createBuffer(1, 16384, this.audioContext.sampleRate);
+    const noiseBuffer = this.audioContext.createBuffer(
+      1,
+      8192,
+      this.audioContext.sampleRate,
+    );
     const data = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < 16384; i++) {
+    for (let i = 0; i < 8192; i++) {
       data[i] = Math.random() * 2 - 1;
     }
     noise.buffer = noiseBuffer;
-    
+
     const filter = this.audioContext.createBiquadFilter();
     filter.type = 'highpass';
     filter.frequency.value = 5000;
-    
+    filter.Q.value = 0.5;
+
     const gain = this.audioContext.createGain();
-    gain.gain.setValueAtTime(velocity * 0.3, time);
+    gain.gain.setValueAtTime(velocity * 0.4, time);
     gain.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
-    
+
     noise.connect(filter);
     filter.connect(gain);
     gain.connect(this.output);
-    
+
     noise.start(time);
     noise.stop(time + 0.3);
   }
 
   playCrash(velocity, time) {
     const noise = this.audioContext.createBufferSource();
-    const noiseBuffer = this.audioContext.createBuffer(1, 32768, this.audioContext.sampleRate);
+    const noiseBuffer = this.audioContext.createBuffer(
+      1,
+      32768,
+      this.audioContext.sampleRate,
+    );
     const data = noiseBuffer.getChannelData(0);
     for (let i = 0; i < 32768; i++) {
       data[i] = Math.random() * 2 - 1;
     }
     noise.buffer = noiseBuffer;
-    
+
     const filter = this.audioContext.createBiquadFilter();
     filter.type = 'highpass';
     filter.frequency.value = 3000;
     filter.Q.value = 0.5;
-    
+
     const gain = this.audioContext.createGain();
     gain.gain.setValueAtTime(velocity * 0.5, time);
     gain.gain.exponentialRampToValueAtTime(0.01, time + 2);
-    
+
     noise.connect(filter);
     filter.connect(gain);
     gain.connect(this.output);
-    
+
     noise.start(time);
     noise.stop(time + 2);
   }
@@ -367,26 +396,30 @@ export class DrumSampler extends BaseInstrument {
   playRide(velocity, time) {
     // Similar to crash but shorter and brighter
     const noise = this.audioContext.createBufferSource();
-    const noiseBuffer = this.audioContext.createBuffer(1, 16384, this.audioContext.sampleRate);
+    const noiseBuffer = this.audioContext.createBuffer(
+      1,
+      16384,
+      this.audioContext.sampleRate,
+    );
     const data = noiseBuffer.getChannelData(0);
     for (let i = 0; i < 16384; i++) {
       data[i] = Math.random() * 2 - 1;
     }
     noise.buffer = noiseBuffer;
-    
+
     const filter = this.audioContext.createBiquadFilter();
     filter.type = 'bandpass';
     filter.frequency.value = 8000;
     filter.Q.value = 2;
-    
+
     const gain = this.audioContext.createGain();
     gain.gain.setValueAtTime(velocity * 0.3, time);
     gain.gain.exponentialRampToValueAtTime(0.01, time + 0.5);
-    
+
     noise.connect(filter);
     filter.connect(gain);
     gain.connect(this.output);
-    
+
     noise.start(time);
     noise.stop(time + 0.5);
   }
@@ -404,86 +437,92 @@ export class SimplePiano extends BaseInstrument {
 
   playNote(midiNote, velocity = 1, time = this.audioContext.currentTime) {
     const frequency = 440 * Math.pow(2, (midiNote - 69) / 12);
-    
+
     // Create multiple harmonics for piano-like sound
     const harmonics = [1, 2, 3, 4, 5, 6];
     const amplitudes = [1, 0.5, 0.25, 0.125, 0.0625, 0.03125];
-    
+
     const oscillators = [];
     const gainNodes = [];
-    
+
     harmonics.forEach((harmonic, i) => {
       const osc = this.audioContext.createOscillator();
       const gain = this.audioContext.createGain();
-      
+
       osc.frequency.value = frequency * harmonic;
       osc.type = 'sine';
-      
+
       // Slightly detune higher harmonics for richness
       if (harmonic > 1) {
         osc.detune.value = (Math.random() - 0.5) * 5 * harmonic;
       }
-      
+
       gain.gain.value = 0;
-      
+
       osc.connect(gain);
       gain.connect(this.output);
-      
+
       oscillators.push(osc);
       gainNodes.push(gain);
     });
-    
+
     // Piano-like envelope
     const attack = 0.002;
     const decay = 0.5;
     const sustain = 0.2;
     const release = 1.5;
-    
+
     gainNodes.forEach((gain, i) => {
       const amp = velocity * amplitudes[i] * 0.2;
       gain.gain.setValueAtTime(0, time);
       gain.gain.linearRampToValueAtTime(amp, time + attack);
-      gain.gain.exponentialRampToValueAtTime(amp * sustain + 0.001, time + attack + decay);
+      gain.gain.exponentialRampToValueAtTime(
+        amp * sustain + 0.001,
+        time + attack + decay,
+      );
     });
-    
+
     // Start all oscillators
-    oscillators.forEach(osc => osc.start(time));
-    
+    oscillators.forEach((osc) => osc.start(time));
+
     // Store for stop
     this.activeNotes.set(midiNote, {
       oscillators,
       gainNodes,
       startTime: time,
-      release
+      release,
     });
   }
 
   stopNote(midiNote, time = this.audioContext.currentTime) {
     const note = this.activeNotes.get(midiNote);
     if (!note) return;
-    
+
     const { oscillators, gainNodes, release } = note;
-    
+
     // Apply release
-    gainNodes.forEach(gain => {
+    gainNodes.forEach((gain) => {
       gain.gain.cancelScheduledValues(time);
       gain.gain.setValueAtTime(gain.gain.value, time);
       gain.gain.exponentialRampToValueAtTime(0.001, time + release);
     });
-    
+
     // Stop oscillators
-    oscillators.forEach(osc => {
+    oscillators.forEach((osc) => {
       osc.stop(time + release);
     });
-    
+
     // Clean up
-    setTimeout(() => {
-      this.activeNotes.delete(midiNote);
-    }, (release + 0.1) * 1000);
+    setTimeout(
+      () => {
+        this.activeNotes.delete(midiNote);
+      },
+      (release + 0.1) * 1000,
+    );
   }
 }
 
-// Export instrument factory
+// Export instrument factory - Updated to accept external AudioContext
 export function createInstrument(audioContext, type, preset) {
   switch (type) {
     case 'synth':

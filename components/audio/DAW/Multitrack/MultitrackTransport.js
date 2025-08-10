@@ -1,7 +1,8 @@
-// components/audio/DAW/Multitrack/MultitrackTransport.js
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+// Sentinel used when instruments don't return a preview handle
+const NO_TOKEN = Symbol('no_token');
 import { Button, ButtonGroup, ProgressBar } from 'react-bootstrap';
 import {
   FaPlay,
@@ -37,6 +38,12 @@ export default function MultitrackTransport() {
   const [isMuted, setIsMuted] = useState(false);
   const [showPiano, setShowPiano] = useState(false);
   const [activeNotes, setActiveNotes] = useState([]);
+  const previewTokensRef = useRef(new Map()); // note -> token
+
+  const activeNotesRef = useRef(new Set());
+  useEffect(() => {
+    activeNotesRef.current = new Set(activeNotes);
+  }, [activeNotes]);
 
   // Live capture (seconds → beats) while armed & playing
   const liveNotesRef = useRef(new Map()); // note -> { startSec, velocity }
@@ -89,23 +96,37 @@ export default function MultitrackTransport() {
     });
 
     if (action === 'down') {
+      // Ensure UI highlight updates reliably without stale closure
       setActiveNotes((prev) => (prev.includes(note) ? prev : [...prev, note]));
-      try {
-        playNoteOnSelectedTrack(note, velocity);
-      } catch {}
 
-      // Start live capture (seconds) if armed & playing
+      // Prevent double-attacks by guarding on existing preview token
+      if (!previewTokensRef.current.has(note)) {
+        try {
+          const token = playNoteOnSelectedTrack(note, velocity);
+          previewTokensRef.current.set(note, token ?? NO_TOKEN);
+        } catch {}
+      }
+
+      // Start live capture (seconds + high-res wall clock) if armed & playing
       if (armedAndRolling) {
         liveNotesRef.current.set(note, {
           startSec: currentTimeRef.current,
+          startWall: performance.now(),
           velocity,
         });
       }
     } else if (action === 'up') {
-      setActiveNotes((prev) => prev.filter((n) => n !== note));
+      const stored = previewTokensRef.current.get(note);
       try {
-        stopNoteOnSelectedTrack(note);
+        if (stored && stored !== NO_TOKEN) {
+          stopNoteOnSelectedTrack(note, stored);
+        } else {
+          // No handle from instrument → use single-arg stop to ensure a gate-off
+          stopNoteOnSelectedTrack(note);
+        }
       } catch {}
+      previewTokensRef.current.delete(note);
+      setActiveNotes((prev) => prev.filter((n) => n !== note));
 
       // Finish capture → convert to beats and write
       const live = liveNotesRef.current.get(note);
@@ -114,7 +135,9 @@ export default function MultitrackTransport() {
         live &&
         typeof addNoteToSelectedTrack === 'function'
       ) {
-        const durationSec = Math.max(0, currentTimeRef.current - live.startSec);
+        const durationSec = live.startWall
+          ? Math.max(0, (performance.now() - live.startWall) / 1000)
+          : Math.max(0, currentTimeRef.current - live.startSec);
         if (durationSec > 0.04) {
           // ignore ultra-taps
           const startBeat = live.startSec / secPerBeat;
@@ -127,16 +150,23 @@ export default function MultitrackTransport() {
   };
   useEffect(() => {
     if (!isPlaying) {
-      // release any preview notes and clear pending captures
-      activeNotes.forEach((n) => {
+      // Release any preview notes and clear pending captures (snapshot to avoid re-running)
+      const snapshot = Array.from(activeNotesRef.current);
+      snapshot.forEach((n) => {
+        const t = previewTokensRef.current.get(n);
         try {
-          stopNoteOnSelectedTrack(n);
+          if (t && t !== NO_TOKEN) {
+            stopNoteOnSelectedTrack(n, t);
+          } else {
+            stopNoteOnSelectedTrack(n);
+          }
         } catch {}
       });
+      previewTokensRef.current.clear();
       setActiveNotes([]);
       liveNotesRef.current.clear();
     }
-  }, [isPlaying, activeNotes, stopNoteOnSelectedTrack]);
+  }, [isPlaying, stopNoteOnSelectedTrack]);
 
   // Keyboard shortcuts
   useEffect(() => {
