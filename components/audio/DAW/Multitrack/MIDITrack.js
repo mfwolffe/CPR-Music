@@ -9,7 +9,6 @@ import {
   FaVolumeMute,
   FaVolumeUp,
   FaMusic,
-  FaPiano,
   FaWaveSquare,
   FaDrum,
   FaCircle,
@@ -348,7 +347,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     const instrumentType = track.midiData?.instrument?.type;
     switch (instrumentType) {
       case 'piano':
-        return FaPiano;
+        return MdPiano;
       case 'synth':
         return FaWaveSquare;
       case 'drums':

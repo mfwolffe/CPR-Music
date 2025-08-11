@@ -221,22 +221,28 @@ export class DrumSampler extends BaseInstrument {
   }
 
   async loadDefaultKit() {
-    // For now, we'll use synthesis instead of samples
-    // In a real implementation, you'd load actual drum samples
-    this.kitConfig = {
-      36: { name: 'kick', type: 'kick' }, // C1
-      38: { name: 'snare', type: 'snare' }, // D1
-      42: { name: 'hihat', type: 'hihat' }, // F#1
-      46: { name: 'openhat', type: 'openhat' }, // A#1
-      49: { name: 'crash', type: 'crash' }, // C#2
-      51: { name: 'ride', type: 'ride' }, // D#2
+    // Define the drum mapping for white keys
+    // We'll map based on pitch class (C, D, E, F, G, A, B)
+    this.drumMapping = {
+      0: { name: 'kick', type: 'kick' }, // C (any octave)
+      2: { name: 'snare', type: 'snare' }, // D
+      4: { name: 'hihat', type: 'hihat' }, // E
+      5: { name: 'openhat', type: 'openhat' }, // F
+      7: { name: 'crash', type: 'crash' }, // G
+      9: { name: 'ride', type: 'ride' }, // A
+      11: { name: 'kick', type: 'kick' }, // B (duplicate kick)
     };
   }
 
   playNote(midiNote, velocity = 1, time = this.audioContext.currentTime) {
-    const drumConfig = this.kitConfig[midiNote];
-    if (!drumConfig) return; // Not a mapped drum note
+    // Get the note class (0-11) regardless of octave
+    const noteClass = midiNote % 12;
 
+    // Check if this note class maps to a drum
+    const drumConfig = this.drumMapping[noteClass];
+    if (!drumConfig) return; // Not a white key
+
+    // Play the corresponding drum sound
     switch (drumConfig.type) {
       case 'kick':
         this.playKick(velocity, time);

@@ -145,7 +145,7 @@ export default class ImprovedNoteScheduler {
             this.instrument.playNote(
               note.note,
               note.velocity || 0.8,
-              this.audioContext.currentTime,
+              noteOnTime,
             );
           }
         }, noteOnTime);
@@ -153,7 +153,7 @@ export default class ImprovedNoteScheduler {
         // Schedule note off
         audioContextManager.scheduleAtTime(() => {
           if (this.isPlaying) {
-            this.instrument.stopNote(note.note, this.audioContext.currentTime);
+            this.instrument.stopNote(note.note, noteOffTime);
           }
           // Remove from scheduled notes
           this.scheduledNotes.delete(noteKey);

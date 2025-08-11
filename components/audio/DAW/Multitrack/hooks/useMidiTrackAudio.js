@@ -74,38 +74,112 @@ export function useMIDITrackAudio(
     }
   }, [track.pan]);
 
-  // Create/update instrument
+  // Create/update instrument (robust connection + fallbacks)
   useEffect(() => {
+    let disposed = false;
     const audioContext = audioContextManager.getContext();
 
-    if (track.midiData?.instrument) {
-      // Dispose old instrument
+    const setup = async () => {
+      if (!track.midiData?.instrument) {
+        registerTrackInstrument(track.id, null);
+        return;
+      }
+
+      // Dispose previous instrument
       if (instrumentRef.current) {
-        instrumentRef.current.stopAllNotes?.();
-        instrumentRef.current.dispose?.();
+        try {
+          instrumentRef.current.stopAllNotes?.();
+          instrumentRef.current.dispose?.();
+        } catch {}
       }
 
-      // Create new instrument
-      const { type, preset } = track.midiData.instrument;
-      instrumentRef.current = createInstrument(audioContext, type, preset);
-      instrumentRef.current.connect(masterGainRef.current);
-
-      // Register the new instrument with the context
-      registerTrackInstrument(track.id, instrumentRef.current);
-
-      // Create new scheduler with the instrument
-      if (schedulerRef.current) {
-        schedulerRef.current.stop();
-      }
-      schedulerRef.current = new ImprovedNoteScheduler(instrumentRef.current, {
-        tempo: track.midiData?.tempo || 120,
+      const { type, preset, name, id } = track.midiData.instrument || {};
+      console.log('🎹 Creating instrument', {
+        trackId: track.id,
+        type,
+        preset,
+        name,
+        id,
       });
 
-      // Update notes on the scheduler
-      schedulerRef.current.setNotes(track.midiData?.notes || []);
-    }
+      let inst = null;
+      try {
+        inst = createInstrument(audioContext, type, preset);
+      } catch (e) {
+        console.warn(
+          'Instrument factory threw; falling back to Basic Synth',
+          e,
+        );
+      }
 
+      // Await readiness for async/sampler instruments
+      if (inst?.ready && typeof inst.ready.then === 'function') {
+        try {
+          await inst.ready;
+        } catch (e) {
+          console.warn('Instrument ready() failed; will try fallback', e);
+        }
+      }
+
+      // Fallback if unsupported or missing playNote
+      if (!inst || typeof inst.playNote !== 'function') {
+        console.warn(
+          '⚠️ Unsupported instrument type/preset; using Basic Synth instead',
+          { type, preset },
+        );
+        try {
+          inst = createInstrument(audioContext, 'synth', 'default');
+        } catch (e) {
+          console.error('Fallback Basic Synth creation failed', e);
+        }
+      }
+
+      if (disposed) return;
+      instrumentRef.current = inst;
+
+      // Robust connection to the track chain
+      let connected = false;
+      try {
+        if (inst && typeof inst.connect === 'function') {
+          inst.connect(masterGainRef.current);
+          connected = true;
+        } else if (inst?.output?.connect) {
+          inst.output.connect(masterGainRef.current);
+          connected = true;
+        } else if (inst?.node?.connect) {
+          inst.node.connect(masterGainRef.current);
+          connected = true;
+        }
+      } catch (e) {
+        console.error('Instrument connect failed', e);
+      }
+      if (!connected) {
+        console.warn(
+          'Instrument has no connect()/output; audio may be silent',
+          inst,
+        );
+      } else {
+        console.log('✅ Instrument connected to track chain');
+      }
+
+      // Register the instrument for preview via context
+      registerTrackInstrument(track.id, inst);
+
+      // Rebuild scheduler for this instrument
+      if (schedulerRef.current) {
+        try {
+          schedulerRef.current.stop();
+        } catch {}
+      }
+      schedulerRef.current = new ImprovedNoteScheduler(inst, {
+        tempo: track.midiData?.tempo || 120,
+      });
+      schedulerRef.current.setNotes(track.midiData?.notes || []);
+    };
+
+    setup();
     return () => {
+      disposed = true;
       registerTrackInstrument(track.id, null);
     };
   }, [
@@ -163,8 +237,12 @@ export function useMIDITrackAudio(
   const playNote = useCallback((note, velocity = 0.8) => {
     if (instrumentRef.current) {
       const audioContext = audioContextManager.getContext();
-      instrumentRef.current.playNote(note, velocity, audioContext.currentTime);
-      return { note, time: audioContext.currentTime }; // Return token for stop
+      // Prefer the instrument's own handle/token if it returns one
+      return instrumentRef.current.playNote(
+        note,
+        velocity,
+        audioContext.currentTime,
+      );
     }
     return null;
   }, []);
@@ -173,7 +251,8 @@ export function useMIDITrackAudio(
   const stopNote = useCallback((note, token = null) => {
     if (instrumentRef.current) {
       const audioContext = audioContextManager.getContext();
-      instrumentRef.current.stopNote(note, audioContext.currentTime);
+      const secondArg = token ?? audioContext.currentTime; // handle-or-time
+      instrumentRef.current.stopNote(note, secondArg);
     }
   }, []);
 
