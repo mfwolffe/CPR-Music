@@ -153,7 +153,8 @@ export class SubtractiveSynth extends BaseInstrument {
     const sustainLevel = velocity * this.config.sustain * 0.3;
     const peakLevel = velocity * 0.3;
 
-    envelope.gain.setValueAtTime(0, time);
+    // Start just above 0 so micro‑notes don’t step upward at release
+    envelope.gain.setValueAtTime(0.0001, time);
     envelope.gain.linearRampToValueAtTime(peakLevel, attackTime);
     envelope.gain.exponentialRampToValueAtTime(sustainLevel + 0.001, decayTime);
 
@@ -912,7 +913,7 @@ export class SimplePiano extends BaseInstrument {
 
     gainNodes.forEach((gain, i) => {
       const amp = velocity * amplitudes[i] * 0.2;
-      gain.gain.setValueAtTime(0, time);
+      gain.gain.setValueAtTime(0.0001, time);
       gain.gain.linearRampToValueAtTime(amp, time + attack);
       gain.gain.exponentialRampToValueAtTime(
         amp * sustain + 0.001,
