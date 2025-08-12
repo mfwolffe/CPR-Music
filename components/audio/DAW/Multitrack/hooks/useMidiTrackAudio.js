@@ -26,6 +26,7 @@ export function useMIDITrackAudio(
   const masterGainRef = useRef(null);
   const pannerRef = useRef(null);
   const lastPlayStateRef = useRef(false);
+  const noteLastPlayedRef = useRef(new Map()); // note -> timestamp
 
   // Initialize audio nodes
   useEffect(() => {
@@ -234,17 +235,22 @@ export function useMIDITrackAudio(
   ]);
 
   // Play a single note (for preview/audition)
-  const playNote = useCallback((note, velocity = 0.8) => {
-    if (instrumentRef.current) {
-      const audioContext = audioContextManager.getContext();
-      // Prefer the instrument's own handle/token if it returns one
-      return instrumentRef.current.playNote(
-        note,
-        velocity,
-        audioContext.currentTime,
-      );
+  const playNote = useCallback((note, velocity = 1, time) => {
+    if (!instrumentRef.current) return;
+
+    // Simple debounce - ignore if same note was just played
+    const now = Date.now();
+    const lastPlayed = noteLastPlayedRef.current.get(note) || 0;
+    if (now - lastPlayed < 20) {
+      // 20ms debounce window
+      console.log('Debouncing duplicate note:', note);
+      return;
     }
-    return null;
+    noteLastPlayedRef.current.set(note, now);
+
+    // Rest of playNote implementation...
+    const secondArg = time != null ? time : audioContext.currentTime;
+    instrumentRef.current.playNote(note, velocity, secondArg);
   }, []);
 
   // Stop a single note
