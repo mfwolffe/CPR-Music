@@ -21,7 +21,7 @@ const INSTRUMENTS = [
     name: 'Basic Synth',
     icon: FaWaveSquare,
     color: '#4a7c9e',
-    description: 'Classic subtractive synthesizer'
+    description: 'Classic subtractive synthesizer',
   },
   {
     id: 'synth-bass',
@@ -30,7 +30,7 @@ const INSTRUMENTS = [
     name: 'Bass Synth',
     icon: BsSoundwave,
     color: '#9e4a7c',
-    description: 'Deep bass synthesizer'
+    description: 'Deep bass synthesizer',
   },
   {
     id: 'synth-lead',
@@ -39,7 +39,7 @@ const INSTRUMENTS = [
     name: 'Lead Synth',
     icon: FaWaveSquare,
     color: '#7c9e4a',
-    description: 'Bright lead synthesizer'
+    description: 'Bright lead synthesizer',
   },
   {
     id: 'synth-pad',
@@ -48,7 +48,7 @@ const INSTRUMENTS = [
     name: 'Pad Synth',
     icon: FaMicrochip,
     color: '#4a9e7c',
-    description: 'Lush pad synthesizer'
+    description: 'Lush pad synthesizer',
   },
   {
     id: 'synth-pluck',
@@ -57,7 +57,7 @@ const INSTRUMENTS = [
     name: 'Pluck Synth',
     icon: BsMusicNote,
     color: '#9e7c4a',
-    description: 'Plucked string synthesizer'
+    description: 'Plucked string synthesizer',
   },
   {
     id: 'piano',
@@ -66,7 +66,7 @@ const INSTRUMENTS = [
     name: 'Piano',
     icon: MdPiano,
     color: '#6a6a6a',
-    description: 'Simple acoustic piano'
+    description: 'Simple acoustic piano',
   },
   {
     id: 'drums',
@@ -75,16 +75,32 @@ const INSTRUMENTS = [
     name: 'Drum Kit',
     icon: FaDrum,
     color: '#ce6a6a',
-    description: '16-pad drum sampler'
-  }
+    description: '16-pad drum sampler',
+  },
+  {
+    id: 'wuulf',
+    type: 'wuulf',
+    preset: null,
+    name: 'WUULF',
+    icon: BsSoundwave,
+    color: '#9b59b6',
+    description: 'Ethereal time-warping synthesizer',
+  },
 ];
 
-export default function InstrumentSelector({ show, onHide, onSelect, currentInstrument }) {
-  const [selectedInstrument, setSelectedInstrument] = useState(currentInstrument || 'synth-default');
+export default function InstrumentSelector({
+  show,
+  onHide,
+  onSelect,
+  currentInstrument,
+}) {
+  const [selectedInstrument, setSelectedInstrument] = useState(
+    currentInstrument || 'synth-default',
+  );
   const [previewNote, setPreviewNote] = useState(null);
 
   const handleSelect = () => {
-    const instrument = INSTRUMENTS.find(i => i.id === selectedInstrument);
+    const instrument = INSTRUMENTS.find((i) => i.id === selectedInstrument);
     if (instrument) {
       onSelect(instrument);
       onHide();
@@ -92,7 +108,7 @@ export default function InstrumentSelector({ show, onHide, onSelect, currentInst
   };
 
   const handlePreview = (instrumentId) => {
-    const instrument = INSTRUMENTS.find(i => i.id === instrumentId);
+    const instrument = INSTRUMENTS.find((i) => i.id === instrumentId);
     if (instrument) {
       // Trigger a preview note
       // This would be handled by the parent component
@@ -107,33 +123,35 @@ export default function InstrumentSelector({ show, onHide, onSelect, currentInst
       <Modal.Header closeButton className="bg-dark text-white">
         <Modal.Title>Select Instrument</Modal.Title>
       </Modal.Header>
-      
+
       <Modal.Body className="bg-dark">
         <Row>
           {INSTRUMENTS.map((instrument) => {
             const Icon = instrument.icon;
             const isSelected = selectedInstrument === instrument.id;
-            
+
             return (
               <Col key={instrument.id} md={4} className="mb-3">
-                <Card 
+                <Card
                   className={`instrument-card ${isSelected ? 'selected' : ''}`}
                   style={{
-                    backgroundColor: isSelected ? instrument.color + '33' : '#2a2a2a',
+                    backgroundColor: isSelected
+                      ? instrument.color + '33'
+                      : '#2a2a2a',
                     borderColor: isSelected ? instrument.color : '#444',
                     cursor: 'pointer',
-                    transition: 'all 0.2s ease'
+                    transition: 'all 0.2s ease',
                   }}
                   onClick={() => setSelectedInstrument(instrument.id)}
                   onDoubleClick={() => handlePreview(instrument.id)}
                 >
                   <Card.Body className="text-center">
-                    <Icon 
-                      size={48} 
-                      style={{ 
+                    <Icon
+                      size={48}
+                      style={{
                         color: isSelected ? instrument.color : '#666',
-                        marginBottom: '0.5rem'
-                      }} 
+                        marginBottom: '0.5rem',
+                      }}
                     />
                     <h6 style={{ color: isSelected ? '#fff' : '#aaa' }}>
                       {instrument.name}
@@ -147,25 +165,28 @@ export default function InstrumentSelector({ show, onHide, onSelect, currentInst
             );
           })}
         </Row>
-        
+
         <div className="mt-3 text-muted text-center">
           <small>Double-click to preview • Click to select</small>
         </div>
       </Modal.Body>
-      
+
       <Modal.Footer className="bg-dark">
         <Button variant="secondary" onClick={onHide}>
           Cancel
         </Button>
-        <Button 
-          variant="primary" 
+        <Button
+          variant="primary"
           onClick={handleSelect}
-          style={{ 
-            backgroundColor: INSTRUMENTS.find(i => i.id === selectedInstrument)?.color,
-            borderColor: INSTRUMENTS.find(i => i.id === selectedInstrument)?.color
+          style={{
+            backgroundColor: INSTRUMENTS.find(
+              (i) => i.id === selectedInstrument,
+            )?.color,
+            borderColor: INSTRUMENTS.find((i) => i.id === selectedInstrument)
+              ?.color,
           }}
         >
-          Select {INSTRUMENTS.find(i => i.id === selectedInstrument)?.name}
+          Select {INSTRUMENTS.find((i) => i.id === selectedInstrument)?.name}
         </Button>
       </Modal.Footer>
     </Modal>
