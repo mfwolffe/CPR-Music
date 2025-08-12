@@ -86,6 +86,33 @@ const INSTRUMENTS = [
     color: '#9b59b6',
     description: 'Ethereal time-warping synthesizer',
   },
+  {
+    id: 'wuulf2',
+    type: 'wuulf2',
+    preset: null,
+    name: 'WUULF 2',
+    icon: BsSoundwave,
+    color: '#aa77beff',
+    description: 'Ethereal time-warping synthesizer. Revision 2.',
+  },
+  {
+    id: 'strings',
+    type: 'strings',
+    preset: null,
+    name: 'String Ensemble',
+    icon: FaMusic,
+    color: '#8b4513', // Warm brown like wood
+    description: 'Lush orchestral string section',
+  },
+  {
+    id: 'brass',
+    type: 'brass',
+    preset: null,
+    name: 'Brass Section',
+    icon: FaMusic,
+    color: '#FFD700', // Gold
+    description: 'Powerful orchestral brass',
+  },
 ];
 
 export default function InstrumentSelector({
