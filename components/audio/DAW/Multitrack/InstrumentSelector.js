@@ -131,6 +131,15 @@ const INSTRUMENTS = [
     color: '#FFD700', // Gold
     description: 'Powerful orchestral brass',
   },
+  {
+    id: 'theremin',
+    type: 'theremin',
+    preset: null,
+    name: 'Theremin',
+    icon: BsSoundwave,
+    color: '#FF6B6B',
+    description: 'Classic electronic instrument with portamento',
+  },
 ];
 
 export default function InstrumentSelector({

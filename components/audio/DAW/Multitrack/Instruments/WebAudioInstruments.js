@@ -2730,6 +2730,319 @@ export class ReedOrgan extends BaseInstrument {
   }
 }
 
+// Theremin Synthesizer
+export class Theremin extends BaseInstrument {
+  constructor(audioContext) {
+    super(audioContext);
+
+    // Theremin characteristics
+    this.portamentoTime = 0.1; // Glide between notes
+    this.vibratoRate = 5; // Hz
+    this.vibratoDepth = 15; // Cents
+
+    // Create vibrato LFO
+    this.vibratoLFO = audioContext.createOscillator();
+    this.vibratoLFO.frequency.value = this.vibratoRate;
+    this.vibratoLFO.type = 'sine';
+    this.vibratoGain = audioContext.createGain();
+    this.vibratoGain.gain.value = this.vibratoDepth;
+    this.vibratoLFO.connect(this.vibratoGain);
+    this.vibratoLFO.start();
+
+    // Create tremolo for amplitude modulation
+    this.tremoloLFO = audioContext.createOscillator();
+    this.tremoloLFO.frequency.value = 4;
+    this.tremoloLFO.type = 'sine';
+    this.tremoloGain = audioContext.createGain();
+    this.tremoloGain.gain.value = 0.1; // Subtle tremolo
+    this.tremoloLFO.connect(this.tremoloGain);
+    this.tremoloLFO.start();
+
+    // Master filter for tone shaping
+    this.toneFilter = audioContext.createBiquadFilter();
+    this.toneFilter.type = 'lowpass';
+    this.toneFilter.frequency.value = 3000;
+    this.toneFilter.Q.value = 2;
+
+    // Add some resonance for character
+    this.resonanceFilter = audioContext.createBiquadFilter();
+    this.resonanceFilter.type = 'peaking';
+    this.resonanceFilter.frequency.value = 1500;
+    this.resonanceFilter.Q.value = 5;
+    this.resonanceFilter.gain.value = 3;
+
+    // Reverb for that ethereal quality
+    this.reverb = this.createThereminReverb();
+
+    // Signal routing
+    this.dryGain = audioContext.createGain();
+    this.dryGain.gain.value = 0.6;
+    this.wetGain = audioContext.createGain();
+    this.wetGain.gain.value = 0.4;
+
+    this.output.connect(this.toneFilter);
+    this.toneFilter.connect(this.resonanceFilter);
+    this.resonanceFilter.connect(this.dryGain);
+    this.resonanceFilter.connect(this.reverb);
+    this.reverb.connect(this.wetGain);
+
+    // Final output with tremolo
+    this.finalOutput = audioContext.createGain();
+    this.finalOutput.gain.value = 0.8;
+
+    this.dryGain.connect(this.finalOutput);
+    this.wetGain.connect(this.finalOutput);
+
+    // Connect tremolo to final output gain
+    this.tremoloGain.connect(this.finalOutput.gain);
+
+    // Track current playing voice for portamento
+    this.currentVoice = null;
+    this.lastFrequency = 0;
+  }
+
+  connect(destination) {
+    this.finalOutput.connect(destination);
+  }
+
+  disconnect() {
+    this.finalOutput.disconnect();
+  }
+
+  createThereminReverb() {
+    const convolver = this.audioContext.createConvolver();
+    const length = this.audioContext.sampleRate * 2;
+    const impulse = this.audioContext.createBuffer(
+      2,
+      length,
+      this.audioContext.sampleRate,
+    );
+
+    for (let channel = 0; channel < 2; channel++) {
+      const channelData = impulse.getChannelData(channel);
+      for (let i = 0; i < length; i++) {
+        // Smooth, ethereal reverb
+        const decay = Math.pow(1 - i / length, 1.5);
+        channelData[i] = (Math.random() * 2 - 1) * decay * 0.5;
+      }
+    }
+
+    convolver.buffer = impulse;
+    return convolver;
+  }
+
+  playNote(midiNote, velocity = 1, time = this.audioContext.currentTime) {
+    const frequency = 440 * Math.pow(2, (midiNote - 69) / 12);
+
+    // If there's already a note playing, we'll glide to the new one
+    if (this.currentVoice && this.activeNotes.size > 0) {
+      // Portamento - glide the frequency
+      const osc = this.currentVoice.oscillator;
+      osc.frequency.cancelScheduledValues(time);
+      osc.frequency.setValueAtTime(osc.frequency.value, time);
+      osc.frequency.exponentialRampToValueAtTime(
+        frequency,
+        time + this.portamentoTime,
+      );
+
+      // Update heterodyne oscillators
+      this.currentVoice.heterodyneOscs.forEach((hetOsc, i) => {
+        const hetFreq = frequency + (i === 0 ? 1.5 : -1.2);
+        hetOsc.frequency.cancelScheduledValues(time);
+        hetOsc.frequency.setValueAtTime(hetOsc.frequency.value, time);
+        hetOsc.frequency.exponentialRampToValueAtTime(
+          hetFreq,
+          time + this.portamentoTime,
+        );
+      });
+
+      // Update the stored frequency
+      this.currentVoice.frequency = frequency;
+      this.lastFrequency = frequency;
+
+      // Add to active notes but reuse the same voice
+      let set = this.activeNotes.get(midiNote);
+      if (!set) {
+        set = new Set();
+        this.activeNotes.set(midiNote, set);
+      }
+      set.add(this.currentVoice);
+
+      return this.currentVoice;
+    }
+
+    // Create new voice
+    const voice = {
+      oscillator: null,
+      heterodyneOscs: [],
+      gains: [],
+      frequency: frequency,
+      startTime: time,
+    };
+
+    // Main oscillator - sine wave for classic theremin
+    const osc = this.audioContext.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = this.lastFrequency || frequency;
+
+    // Glide from last frequency if available
+    if (this.lastFrequency && Math.abs(this.lastFrequency - frequency) > 1) {
+      osc.frequency.setValueAtTime(this.lastFrequency, time);
+      osc.frequency.exponentialRampToValueAtTime(
+        frequency,
+        time + this.portamentoTime,
+      );
+    } else {
+      osc.frequency.setValueAtTime(frequency, time);
+    }
+
+    // Connect vibrato
+    this.vibratoGain.connect(osc.detune);
+
+    // Create heterodyne oscillators for richer tone
+    // These create the characteristic theremin beating
+    const hetFrequencies = [1.5, -1.2]; // Slight frequency offsets
+
+    hetFrequencies.forEach((offset) => {
+      const hetOsc = this.audioContext.createOscillator();
+      hetOsc.type = 'sine';
+      hetOsc.frequency.value = (this.lastFrequency || frequency) + offset;
+
+      if (this.lastFrequency) {
+        hetOsc.frequency.setValueAtTime(this.lastFrequency + offset, time);
+        hetOsc.frequency.exponentialRampToValueAtTime(
+          frequency + offset,
+          time + this.portamentoTime,
+        );
+      }
+
+      const hetGain = this.audioContext.createGain();
+      hetGain.gain.value = 0.15; // Subtle beating
+
+      hetOsc.connect(hetGain);
+      hetGain.connect(this.output);
+
+      voice.heterodyneOscs.push(hetOsc);
+      voice.gains.push(hetGain);
+    });
+
+    // Main oscillator gain
+    const mainGain = this.audioContext.createGain();
+    mainGain.gain.value = 0;
+
+    osc.connect(mainGain);
+    mainGain.connect(this.output);
+
+    voice.oscillator = osc;
+    voice.gains.push(mainGain);
+
+    // Theremin envelope - smooth attack and release
+    const attack = 0.15;
+    const release = 0.3;
+
+    const targetGain = velocity * 0.7;
+    mainGain.gain.setValueAtTime(0.0001, time);
+    mainGain.gain.exponentialRampToValueAtTime(targetGain, time + attack);
+
+    // Heterodyne gains
+    voice.heterodyneOscs.forEach((_, i) => {
+      const gain = voice.gains[i];
+      gain.gain.setValueAtTime(0.0001, time);
+      gain.gain.exponentialRampToValueAtTime(0.15 * velocity, time + attack);
+    });
+
+    // Start oscillators
+    osc.start(time);
+    voice.heterodyneOscs.forEach((ho) => ho.start(time));
+
+    // Store as current voice
+    this.currentVoice = voice;
+    this.lastFrequency = frequency;
+    voice.release = release;
+
+    // Store in active notes
+    let set = this.activeNotes.get(midiNote);
+    if (!set) {
+      set = new Set();
+      this.activeNotes.set(midiNote, set);
+    }
+    set.add(voice);
+
+    return voice;
+  }
+
+  stopNote(midiNote, handleOrTime = this.audioContext.currentTime) {
+    const voices = this.activeNotes.get(midiNote);
+    if (!voices || voices.size === 0) return;
+
+    const stopVoice = (voice, when) => {
+      const { gains, oscillator, heterodyneOscs, release } = voice;
+      const end = when + release;
+
+      // Only stop if this is the last note
+      // (Theremin is monophonic with portamento)
+      const totalActiveNotes = Array.from(this.activeNotes.values()).reduce(
+        (sum, set) => sum + set.size,
+        0,
+      );
+
+      if (totalActiveNotes <= 1) {
+        // This is the last note, so fade out
+        gains.forEach((gain) => {
+          gain.gain.cancelScheduledValues(when);
+          const currentValue = gain.gain.value;
+          gain.gain.setValueAtTime(currentValue, when);
+          gain.gain.exponentialRampToValueAtTime(0.0001, end);
+        });
+
+        // Stop oscillators after release
+        setTimeout(
+          () => {
+            try {
+              oscillator.stop();
+            } catch {}
+            heterodyneOscs.forEach((osc) => {
+              try {
+                osc.stop();
+              } catch {}
+            });
+
+            // Clear current voice
+            if (this.currentVoice === voice) {
+              this.currentVoice = null;
+            }
+
+            voices.delete(voice);
+            if (voices.size === 0) this.activeNotes.delete(midiNote);
+          },
+          (release + 0.1) * 1000,
+        );
+      } else {
+        // Other notes are active, just remove this from tracking
+        voices.delete(voice);
+        if (voices.size === 0) this.activeNotes.delete(midiNote);
+      }
+    };
+
+    if (typeof handleOrTime === 'object' && handleOrTime) {
+      stopVoice(handleOrTime, this.audioContext.currentTime);
+    } else {
+      const when = Number(handleOrTime) || this.audioContext.currentTime;
+      Array.from(voices).forEach((v) => stopVoice(v, when));
+    }
+  }
+
+  // Additional methods for real-time control
+  setPortamento(time) {
+    this.portamentoTime = Math.max(0, Math.min(1, time));
+  }
+
+  setVibrato(rate, depth) {
+    this.vibratoLFO.frequency.value = rate;
+    this.vibratoGain.gain.value = depth;
+  }
+}
+
 // Export instrument factory - Updated to accept external AudioContext
 export function createInstrument(audioContext, type, preset) {
   switch (type) {
@@ -2751,6 +3064,8 @@ export function createInstrument(audioContext, type, preset) {
       return new PipeOrgan(audioContext);
     case 'reedorgan':
       return new ReedOrgan(audioContext);
+    case 'theremin':
+      return new Theremin(audioContext);
     default:
       return new SubtractiveSynth(audioContext, 'default');
   }
