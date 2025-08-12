@@ -666,6 +666,10 @@ export class Wuulf2Synth extends BaseInstrument {
     this.wetEnvelope = audioContext.createGain();
     this.wetEnvelope.gain.value = 1;
 
+    // Add master gate to cut all sound
+    this.masterGate = audioContext.createGain();
+    this.masterGate.gain.value = 1;
+
     // Connect effects chain - FIXED: properly connect input/output objects
     this.output.connect(this.dryGain);
     this.output.connect(this.chorus.input);
@@ -688,7 +692,8 @@ export class Wuulf2Synth extends BaseInstrument {
 
     this.dryGain.connect(this.highpass);
     this.wetEnvelope.connect(this.highpass);
-    this.highpass.connect(this.limiter);
+    this.highpass.connect(this.masterGate);
+    this.masterGate.connect(this.limiter);
   }
 
   connect(destination) {
@@ -1138,39 +1143,33 @@ export class Wuulf2Synth extends BaseInstrument {
       gain.gain.exponentialRampToValueAtTime(0.001, time + 2.0 + stagger);
     });
 
-    // Sub oscillators: Even slower, with controlled swell
+    // Sub oscillators: Quick fade
     voice.gains
       .slice(baseDetunes.length, baseDetunes.length + 3)
       .forEach((gain, i) => {
-        const subPeak = peak * 0.3 * (1 - i * 0.15);
+        const subPeak = peak * 0.2 * (1 - i * 0.15);
         gain.gain.setValueAtTime(0, time);
-        gain.gain.linearRampToValueAtTime(subPeak, time + attack * 2.5);
-        gain.gain.exponentialRampToValueAtTime(
-          subPeak * 0.2 + 0.001,
-          time + attack * 2.5 + decay,
-        );
-        // Auto-fade
+        gain.gain.linearRampToValueAtTime(subPeak, time + attack * 1.5);
+        // Immediate fade
         gain.gain.exponentialRampToValueAtTime(
           0.001,
-          time + attack * 2.5 + decay + 3.0,
+          time + 2.5, // Fade by 2.5 seconds
         );
       });
 
-    // Formant envelopes: Quick swell and fade
+    // Formant envelopes: Very quick swell and fade
     const formantGains = voice.gains.slice(-formants.length);
     formantGains.forEach((gain, i) => {
-      const formantAmp = (peak * 0.03) / (i + 1); // Reduced amplitude
-      const attackTime = 0.01 + i * 0.005 + Math.random() * 0.01;
-      const decayTime = 1.0 + i * 0.4 + Math.random() * 0.2;
+      const formantAmp = (peak * 0.02) / (i + 1); // Even quieter
+      const attackTime = 0.01 + i * 0.003;
 
       gain.gain.setValueAtTime(0, time);
       gain.gain.linearRampToValueAtTime(formantAmp, time + attackTime);
-      gain.gain.exponentialRampToValueAtTime(
-        formantAmp * 0.05 + 0.001,
-        time + decayTime,
-      );
       // Quick fade
-      gain.gain.exponentialRampToValueAtTime(0.001, time + decayTime + 2.0);
+      gain.gain.exponentialRampToValueAtTime(
+        0.001,
+        time + 1.5, // Gone by 1.5 seconds
+      );
     });
 
     // Start all oscillators
@@ -1195,36 +1194,75 @@ export class Wuulf2Synth extends BaseInstrument {
     if (!voices || voices.size === 0) return;
 
     const stopVoice = (voice, when) => {
-      const releaseTime = 2.0; // Shorter release to prevent lingering buildup
+      const releaseTime = 0.3; // Even shorter release
 
-      voice.gains.forEach((gain) => {
-        gain.gain.cancelScheduledValues(when);
-        const currentValue = gain.gain.value;
-        gain.gain.setValueAtTime(currentValue, when);
-        gain.gain.exponentialRampToValueAtTime(
-          0.001,
-          when + releaseTime + Math.random() * 0.5,
-        ); // Random release variation
+      // CRITICAL FIX: Schedule stops at the exact time, not after release
+      const stopTime = when + releaseTime;
+
+      // Schedule all oscillators to stop at the exact stop time
+      voice.oscillators.forEach((osc) => {
+        try {
+          osc.stop(stopTime);
+        } catch (e) {
+          // Already scheduled to stop
+        }
       });
 
-      setTimeout(
-        () => {
-          voice.oscillators.forEach((osc) => {
-            try {
-              osc.stop();
-            } catch {}
-          });
-          voice.lfos.forEach((lfo) => {
-            try {
-              lfo.stop();
-            } catch {}
-          });
-          voices.delete(voice);
-          if (voices.size === 0) this.activeNotes.delete(midiNote);
-        },
-        (releaseTime + 1.0) * 1000,
+      voice.lfos.forEach((lfo) => {
+        try {
+          lfo.stop(stopTime);
+        } catch (e) {
+          // Already scheduled to stop
+        }
+      });
+
+      // Fade out gains
+      voice.gains.forEach((gain) => {
+        gain.gain.cancelScheduledValues(when);
+        const currentValue = gain.gain.value || 0.001;
+        gain.gain.setValueAtTime(currentValue, when);
+        gain.gain.exponentialRampToValueAtTime(0.001, stopTime);
+      });
+
+      // If this is the last note, fade the master gate to ensure silence
+      if (
+        this.activeNotes.size === 1 &&
+        this.activeNotes.get(midiNote)?.size === 1
+      ) {
+        this.masterGate.gain.cancelScheduledValues(stopTime);
+        this.masterGate.gain.setValueAtTime(1, stopTime);
+        this.masterGate.gain.linearRampToValueAtTime(0, stopTime + 0.5);
+
+        // Reset master gate after ensuring silence
+        setTimeout(
+          () => {
+            this.masterGate.gain.value = 1;
+            // Also reset wet envelope
+            this.wetEnvelope.gain.value = 0;
+          },
+          (releaseTime + 1) * 1000,
+        );
+      }
+
+      // Clean up after release - use actual wall clock time for cleanup
+      const cleanupDelay = Math.max(
+        0,
+        (stopTime - this.audioContext.currentTime + 0.1) * 1000,
       );
+      setTimeout(() => {
+        voices.delete(voice);
+        if (voices.size === 0) this.activeNotes.delete(midiNote);
+      }, cleanupDelay);
     };
+
+    if (typeof handleOrTime === 'object' && handleOrTime) {
+      // It's a voice handle
+      stopVoice(handleOrTime, this.audioContext.currentTime);
+    } else {
+      // It's a time value - schedule all voices to stop at that time
+      const when = Number(handleOrTime) || this.audioContext.currentTime;
+      Array.from(voices).forEach((v) => stopVoice(v, when));
+    }
 
     if (typeof handleOrTime === 'object' && handleOrTime) {
       stopVoice(handleOrTime, this.audioContext.currentTime);
@@ -1479,299 +1517,361 @@ export class DrumSampler extends BaseInstrument {
   }
 }
 
-// String Ensemble Synthesizer
 export class StringEnsemble extends BaseInstrument {
-  constructor(audioContext) {
+  constructor(audioContext, opts = {}) {
     super(audioContext);
 
-    // Create ensemble effects
-    this.ensemble = this.createEnsembleEffect();
-    this.reverb = this.createStringReverb();
-    this.eq = this.createStringEQ();
+    // Global headroom + poly awareness (like public polysynths)
+    this.voiceCount = 0;
+    this.cfg = {
+      attack: opts.attack ?? 0.035,
+      decay: opts.decay ?? 0.18,
+      sustain: opts.sustain ?? 0.88,
+      release: opts.release ?? 0.28,
+      baseVoiceAmp: opts.baseVoiceAmp ?? 0.045,
+      vibratoHz: opts.vibratoHz ?? 5.3,
+      vibratoDepthCents: opts.vibratoDepthCents ?? 5,
+      chorusWet: opts.chorusWet ?? 0.25,
+      reverbWet: opts.reverbWet ?? 0.18,
+      // Tri‑chorus (string‑machine) parameters
+      chorusFastHz: opts.chorusFastHz ?? 6.0, // fast LFO ~6 Hz
+      chorusSlowHz: opts.chorusSlowHz ?? 0.6, // slow LFO ~0.6 Hz
+      chorusDepthFast: opts.chorusDepthFast ?? 0.0012, // ≈1.2 ms
+      chorusDepthSlow: opts.chorusDepthSlow ?? 0.0006, // ≈0.6 ms
+      solinaWetOnly: opts.solinaWetOnly ?? false, // 100% wet, like classic machines
+      conSordino: opts.conSordino ?? false,
+      vibratoOnsetBase: opts.vibratoOnsetBase ?? 0.28, // seconds
+      vibratoOnsetJitter: opts.vibratoOnsetJitter ?? 0.18, // ± jitter
+      bowJitterDepth: opts.bowJitterDepth ?? 0.06, // as % of voiceAmp added
+      bowJitterRate: opts.bowJitterRate ?? [5.8, 7.8], // Hz range
+    };
 
-    // Gentle master compressor for headroom (prevents crunchy clipping)
-    this.masterComp = audioContext.createDynamicsCompressor();
-    this.masterComp.threshold.value = -18;
-    this.masterComp.ratio.value = 3;
-    this.masterComp.attack.value = 0.01;
-    this.masterComp.release.value = 0.25;
+    // Tone shapers
+    this.hp = audioContext.createBiquadFilter();
+    this.hp.type = 'highpass';
+    this.hp.frequency.value = 45;
+    this.hp.Q.value = 0.7;
 
-    // Signal routing
-    this.output.connect(this.ensemble.input);
-    this.ensemble.output.connect(this.eq);
-    this.eq.connect(this.reverb);
-    this.reverb.connect(this.masterComp);
+    this.lp = audioContext.createBiquadFilter();
+    this.lp.type = 'lowpass';
+    this.lp.frequency.value = 6200;
+    this.lp.Q.value = 0.7;
+    // Body resonator EQ (broad peaks characteristic of orchestral strings)
+    this.body = this._makeStringBody();
 
-    // Vibrato LFO (shared across all voices)
-    this.vibratoLfo = audioContext.createOscillator();
-    this.vibratoLfo.frequency.value = 5.5;
-    this.vibratoLfo.start();
+    // Sends
+    this.chorus = this._makeTriChorus({
+      fast: this.cfg.chorusFastHz,
+      slow: this.cfg.chorusSlowHz,
+      depthFast: this.cfg.chorusDepthFast,
+      depthSlow: this.cfg.chorusDepthSlow,
+      wetOnly: this.cfg.solinaWetOnly,
+    });
+    this.rev = this._makeSmallHall();
+
+    this.dry = audioContext.createGain();
+    this.wetCh = audioContext.createGain();
+    this.wetRv = audioContext.createGain();
+    this.dry.gain.value = 1.0;
+    this.wetCh.gain.value = this.cfg.chorusWet;
+    this.wetRv.gain.value = this.cfg.reverbWet;
+    if (this.cfg.conSordino) {
+      this.wetCh.gain.value *= 0.6; // softer, less shimmer when muted
+    }
+
+    // Gentle bus compressor (not a brickwall)
+    this.comp = audioContext.createDynamicsCompressor();
+    this.comp.threshold.value = -18;
+    this.comp.ratio.value = 2.5;
+    this.comp.attack.value = 0.006;
+    this.comp.release.value = 0.14;
+
+    // Output trim for safety against external gain staging
+    this.outGain = audioContext.createGain();
+    this.outGain.gain.value = 0.7;
+
+    // Routing: instrument → hp → lp → body → (dry + chorus + reverb) → comp → out
+    this.output.connect(this.hp);
+    this.hp.connect(this.lp);
+    this.lp.connect(this.body.input);
+    this.body.output.connect(this.dry);
+    this.body.output.connect(this.chorus.input);
+    this.chorus.output.connect(this.wetCh);
+    this.body.output.connect(this.rev);
+    this.rev.connect(this.wetRv);
+    this.dry.connect(this.comp);
+    this.wetCh.connect(this.comp);
+    this.wetRv.connect(this.comp);
+    this.comp.connect(this.outGain);
   }
 
   connect(destination) {
-    this.masterComp.connect(destination);
+    this.outGain.connect(destination);
   }
-
   disconnect() {
-    this.masterComp.disconnect();
+    this.outGain.disconnect();
   }
 
-  createEnsembleEffect() {
+  // Tri‑chorus / Ensemble: 3 delay lanes, each modulated by two LFOs (fast & slow)
+  // with 120° phase offsets between lanes (classic string‑machine behavior).
+  _makeTriChorus({
+    fast = 6.0,
+    slow = 0.6,
+    depthFast = 0.0012,
+    depthSlow = 0.0006,
+    center = 0.015,
+    wetOnly = false,
+  } = {}) {
+    const ctx = this.audioContext;
+    const input = ctx.createGain();
+    const output = ctx.createGain();
+    const now = ctx.currentTime + 0.01;
+
+    // Optional dry tap: classic machines were effectively 100% wet
+    const dry = ctx.createGain();
+    dry.gain.value = wetOnly ? 0 : 0.7;
+    input.connect(dry);
+    dry.connect(output);
+
+    const makeLane = (laneIndex) => {
+      const d = ctx.createDelay(0.05); // 50 ms max
+      d.delayTime.value = center; // ~15 ms base delay
+
+      // Fast & slow LFOs with 120° phase offsets via start‑time staggering
+      const lfoF = ctx.createOscillator();
+      const lfoS = ctx.createOscillator();
+      lfoF.type = 'sine';
+      lfoF.frequency.value = fast;
+      lfoS.type = 'sine';
+      lfoS.frequency.value = slow;
+      const gF = ctx.createGain();
+      gF.gain.value = depthFast;
+      const gS = ctx.createGain();
+      gS.gain.value = depthSlow;
+      lfoF.connect(gF);
+      gF.connect(d.delayTime);
+      lfoS.connect(gS);
+      gS.connect(d.delayTime);
+
+      // 120° phase offset = 1/3 period start offset per lane
+      lfoF.start(now + (laneIndex * (1 / 3)) / fast);
+      lfoS.start(now + (laneIndex * (1 / 3)) / slow);
+
+      const laneOut = ctx.createGain();
+      input.connect(d);
+      d.connect(laneOut);
+      return laneOut;
+    };
+
+    const a = makeLane(0);
+    const b = makeLane(1);
+    const c = makeLane(2);
+
+    const wetMix = ctx.createGain();
+    wetMix.gain.value = 1.0;
+    a.connect(wetMix);
+    b.connect(wetMix);
+    c.connect(wetMix);
+    wetMix.connect(output);
+
+    return { input, output };
+  }
+
+  _makeStringBody() {
+    // Series of gentle peaking filters approximating violin/viola “body” and bridge hill
     const input = this.audioContext.createGain();
     const output = this.audioContext.createGain();
-    const delays = [];
 
-    // Create 8 string "players" with slight timing/pitch variations
-    for (let i = 0; i < 8; i++) {
-      const delay = this.audioContext.createDelay(0.05);
-      const gain = this.audioContext.createGain();
+    const bands = [
+      { f: 280, g: 1.8, Q: 1.1 }, // air/body
+      { f: 480, g: 1.5, Q: 1.0 },
+      { f: 650, g: 1.2, Q: 0.9 },
+      { f: 2500, g: 2.2, Q: 1.1 }, // “bridge hill” presence
+      { f: 3500, g: 1.2, Q: 0.9 }, // sheen
+    ];
 
-      // Humanize timing (simulate bow attacks)
-      delay.delayTime.value = 0.001 + Math.random() * 0.015;
-      gain.gain.value = 0.5 + Math.random() * 0.2;
+    let node = input;
+    bands.forEach((b) => {
+      const biq = this.audioContext.createBiquadFilter();
+      biq.type = 'peaking';
+      biq.frequency.value = b.f;
+      biq.gain.value = b.g;
+      biq.Q.value = b.Q;
+      node.connect(biq);
+      node = biq;
+    });
 
-      input.connect(delay);
-      delay.connect(gain);
-      gain.connect(output);
-
-      delays.push({ delay, gain });
-    }
-
-    return { input, output, delays };
+    node.connect(output);
+    return { input, output };
   }
 
-  createStringReverb() {
-    const convolver = this.audioContext.createConvolver();
-    const length = this.audioContext.sampleRate * 2.5; // Concert hall reverb
-    const impulse = this.audioContext.createBuffer(
-      2,
-      length,
-      this.audioContext.sampleRate,
-    );
-
-    for (let channel = 0; channel < 2; channel++) {
-      const channelData = impulse.getChannelData(channel);
-      for (let i = 0; i < length; i++) {
-        // Early reflections + smooth decay
-        const envelope = Math.pow(1 - i / length, 1.5);
-        channelData[i] = (Math.random() * 2 - 1) * envelope;
-
-        // Add early reflections
-        if (i < 0.1 * length) {
-          channelData[i] *= 2;
-        }
+  _makeSmallHall() {
+    const con = this.audioContext.createConvolver();
+    const sr = this.audioContext.sampleRate;
+    const len = Math.floor(sr * 1.4);
+    const buf = this.audioContext.createBuffer(2, len, sr);
+    for (let ch = 0; ch < 2; ch++) {
+      const data = buf.getChannelData(ch);
+      for (let i = 0; i < len; i++) {
+        const t = i / len;
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 1.7);
       }
     }
-
-    convolver.buffer = impulse;
-
-    // Mix control
-    const dry = this.audioContext.createGain();
-    const wet = this.audioContext.createGain();
-    const merger = this.audioContext.createGain();
-
-    dry.gain.value = 0.6;
-    wet.gain.value = 0.4;
-
-    // Connect reverb
-    const reverbInput = this.audioContext.createGain();
-    reverbInput.connect(dry);
-    reverbInput.connect(convolver);
-    convolver.connect(wet);
-
-    dry.connect(merger);
-    wet.connect(merger);
-
-    return merger;
-  }
-
-  createStringEQ() {
-    // Gentle high shelf for "air"
-    const highShelf = this.audioContext.createBiquadFilter();
-    highShelf.type = 'highshelf';
-    highShelf.frequency.value = 8000;
-    highShelf.gain.value = 3;
-
-    // Slight mid boost for presence
-    const midBoost = this.audioContext.createBiquadFilter();
-    midBoost.type = 'peaking';
-    midBoost.frequency.value = 2500;
-    midBoost.Q.value = 0.7;
-    midBoost.gain.value = 2;
-
-    highShelf.connect(midBoost);
-
-    return highShelf;
+    con.buffer = buf;
+    return con;
   }
 
   playNote(midiNote, velocity = 1, time = this.audioContext.currentTime) {
-    const frequency = 440 * Math.pow(2, (midiNote - 69) / 12);
+    const f = 440 * Math.pow(2, (midiNote - 69) / 12);
+    const v = Math.max(0.1, Math.min(1, velocity));
+    const polyScale = 1 / Math.sqrt(this.voiceCount + 1);
+    const voiceAmp = this.cfg.baseVoiceAmp * polyScale * v;
 
-    const voice = {
-      oscillators: [],
-      gains: [],
-      filters: [],
-      panners: [],
-      startTime: time,
-    };
+    const oscA = this.audioContext.createOscillator();
+    const oscB = this.audioContext.createOscillator();
+    const oscC = this.audioContext.createOscillator();
+    oscA.type = 'sawtooth';
+    oscB.type = 'sawtooth';
+    oscC.type = 'triangle'; // softens buzz, more string‑like
+    [oscA, oscB, oscC].forEach((o) => (o.frequency.value = f));
+    oscA.detune.value = -5 + (Math.random() - 0.5) * 2;
+    oscB.detune.value = 0 + (Math.random() - 0.5) * 2;
+    oscC.detune.value = 5 + (Math.random() - 0.5) * 2;
 
-    // Violin section (4 layers)
-    for (let i = 0; i < 4; i++) {
-      const osc = this.audioContext.createOscillator();
-      const gain = this.audioContext.createGain();
-      const filter = this.audioContext.createBiquadFilter();
-      const panner = this.audioContext.createStereoPanner();
-      const vibratoGain = this.audioContext.createGain();
+    // gentle lowpass per voice to prevent fizz
+    const lp = this.audioContext.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.Q.value = 0.8;
+    lp.frequency.setValueAtTime(2000, time);
 
-      osc.type = 'sawtooth';
-      osc.frequency.value = frequency;
-      osc.detune.value = (i - 1.5) * 8 + (Math.random() - 0.5) * 5;
+    // vibrato
+    const vib = this.audioContext.createOscillator();
+    const vibG = this.audioContext.createGain();
+    vib.type = 'sine';
+    vib.frequency.value = this.cfg.vibratoHz;
+    vibG.gain.setValueAtTime(0, time);
+    const vibOn =
+      this.cfg.vibratoOnsetBase +
+      (Math.random() - 0.5) * this.cfg.vibratoOnsetJitter;
+    vibG.gain.linearRampToValueAtTime(
+      this.cfg.vibratoDepthCents,
+      time + Math.max(0.05, vibOn),
+    );
+    vib.connect(vibG);
+    [oscA, oscB, oscC].forEach((o) => vibG.connect(o.detune));
 
-      filter.type = 'bandpass';
-      filter.frequency.value = 800 + i * 200;
-      filter.Q.value = 3;
+    // very slow intonation drift per voice (sub‑cent range)
+    const drift = this.audioContext.createOscillator();
+    const driftG = this.audioContext.createGain();
+    drift.type = 'sine';
+    drift.frequency.value = 0.18 + Math.random() * 0.08; // ~0.18–0.26 Hz
+    driftG.gain.value = 1.6; // cents
+    drift.connect(driftG);
+    [oscA, oscB, oscC].forEach((o) => driftG.connect(o.detune));
 
-      vibratoGain.gain.value = 3 + Math.random() * 2;
-      this.vibratoLfo.connect(vibratoGain);
-      vibratoGain.connect(osc.detune);
+    // pan + amp
+    const pan = this.audioContext.createStereoPanner();
+    pan.pan.value = (Math.random() - 0.5) * 0.5;
 
-      panner.pan.value = (i - 1.5) * 0.4;
-
-      osc.connect(filter);
-      filter.connect(gain);
-      gain.connect(panner);
-      panner.connect(this.output);
-
-      voice.oscillators.push(osc);
-      voice.gains.push(gain);
-      voice.filters.push(filter);
-      voice.panners.push(panner);
-    }
-
-    // Viola section (2 layers, one octave down)
-    for (let i = 0; i < 2; i++) {
-      const osc = this.audioContext.createOscillator();
-      const gain = this.audioContext.createGain();
-      const filter = this.audioContext.createBiquadFilter();
-      const panner = this.audioContext.createStereoPanner();
-
-      osc.type = 'sawtooth';
-      osc.frequency.value = frequency / 2;
-      osc.detune.value = i * 7 + (Math.random() - 0.5) * 4;
-
-      filter.type = 'bandpass';
-      filter.frequency.value = 600 + i * 150;
-      filter.Q.value = 2.5;
-
-      panner.pan.value = i === 0 ? -0.3 : 0.3;
-
-      osc.connect(filter);
-      filter.connect(gain);
-      gain.connect(panner);
-      panner.connect(this.output);
-
-      voice.oscillators.push(osc);
-      voice.gains.push(gain);
-      voice.filters.push(filter);
-      voice.panners.push(panner);
-    }
-
-    // Cello/Bass (1 layer, two octaves down)
-    const bassOsc = this.audioContext.createOscillator();
-    const bassGain = this.audioContext.createGain();
-    const bassFilter = this.audioContext.createBiquadFilter();
-
-    bassOsc.type = 'sawtooth';
-    bassOsc.frequency.value = frequency / 4;
-
-    bassFilter.type = 'lowpass';
-    bassFilter.frequency.value = 1200;
-    bassFilter.Q.value = 1;
-
-    bassOsc.connect(bassFilter);
-    bassFilter.connect(bassGain);
-    bassGain.connect(this.output);
-
-    voice.oscillators.push(bassOsc);
-    voice.gains.push(bassGain);
-    voice.filters.push(bassFilter);
-
-    // String ensemble envelope (slow attack for bowing)
-    const attack = 0.08 + Math.random() * 0.04;
-    const decay = 0.1;
-    const sustain = 0.8;
-    const peak = velocity * 0.15;
-
-    // Violins
-    voice.gains.slice(0, 4).forEach((gain, i) => {
-      const delay = i * 0.01; // Slight stagger
-      gain.gain.setValueAtTime(0.0001, time);
-      gain.gain.linearRampToValueAtTime(peak, time + attack + delay);
-      gain.gain.exponentialRampToValueAtTime(
-        peak * sustain + 0.001,
-        time + attack + decay + delay,
-      );
-    });
-
-    // Violas (slightly slower attack)
-    voice.gains.slice(4, 6).forEach((gain, i) => {
-      gain.gain.setValueAtTime(0.0001, time);
-      gain.gain.linearRampToValueAtTime(peak * 0.7, time + attack * 1.2);
-      gain.gain.exponentialRampToValueAtTime(
-        peak * sustain * 0.7 + 0.001,
-        time + attack * 1.2 + decay,
-      );
-    });
-
-    // Bass (slowest attack)
-    bassGain.gain.setValueAtTime(0.0001, time);
-    bassGain.gain.linearRampToValueAtTime(peak * 0.5, time + attack * 1.5);
-    bassGain.gain.exponentialRampToValueAtTime(
-      peak * sustain * 0.5 + 0.001,
-      time + attack * 1.5 + decay,
+    const g = this.audioContext.createGain();
+    const atk = time + this.cfg.attack;
+    const dec = atk + this.cfg.decay;
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.linearRampToValueAtTime(voiceAmp, atk);
+    g.gain.exponentialRampToValueAtTime(
+      voiceAmp * this.cfg.sustain + 0.001,
+      dec,
     );
 
-    // Bow noise transient for realistic onset
-    {
-      const bowNoise = this.audioContext.createBufferSource();
-      const frames = 2048;
-      const buf = this.audioContext.createBuffer(
-        1,
-        frames,
-        this.audioContext.sampleRate,
-      );
-      const data = buf.getChannelData(0);
-      for (let i = 0; i < frames; i++) data[i] = Math.random() * 2 - 1;
-      bowNoise.buffer = buf;
+    // Bow‑noise transient (filtered noise “hair” at onset)
+    const bowSrc = this.audioContext.createBufferSource();
+    const frames = 2048;
+    const bowBuf = this.audioContext.createBuffer(
+      1,
+      frames,
+      this.audioContext.sampleRate,
+    );
+    const bowData = bowBuf.getChannelData(0);
+    for (let i = 0; i < frames; i++) bowData[i] = Math.random() * 2 - 1;
+    bowSrc.buffer = bowBuf;
+    const bowHP = this.audioContext.createBiquadFilter();
+    bowHP.type = 'bandpass';
+    bowHP.frequency.value = 3000;
+    bowHP.Q.value = 1.0;
+    const bowGain = this.audioContext.createGain();
+    bowGain.gain.setValueAtTime(0.00005, time);
+    bowGain.gain.linearRampToValueAtTime(0.02 * v, time + 0.015);
+    bowGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.14);
+    bowSrc.connect(bowHP);
+    bowHP.connect(bowGain);
+    bowGain.connect(this.output);
+    bowSrc.start(time);
+    bowSrc.stop(time + 0.18);
 
-      const bowHP = this.audioContext.createBiquadFilter();
-      bowHP.type = 'highpass';
-      bowHP.frequency.value = 3000;
-
-      const bowGain = this.audioContext.createGain();
-      bowGain.gain.setValueAtTime(0.0001, time);
-      bowGain.gain.linearRampToValueAtTime(0.03, time + 0.015);
-      bowGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.15);
-
-      bowNoise.connect(bowHP);
-      bowHP.connect(bowGain);
-      bowGain.connect(this.output);
-
-      bowNoise.start(time);
-      bowNoise.stop(time + 0.2);
+    // Dynamic brightness coupling (filter follows the amplitude envelope)
+    const noteTilt = (midiNote - 60) * 9; // darker below C4, brighter above
+    let openF = 1800 + v * 1400 + noteTilt;
+    let restF = 1400 + v * 400 + noteTilt * 0.6;
+    if (this.cfg.conSordino) {
+      openF *= 0.65;
+      restF *= 0.7;
     }
+    lp.frequency.setValueAtTime(restF, time);
+    lp.frequency.linearRampToValueAtTime(openF, atk);
+    lp.frequency.exponentialRampToValueAtTime(restF, dec);
 
-    // Start all oscillators
-    voice.oscillators.forEach((osc) => osc.start(time));
+    // wire
+    oscA.connect(lp);
+    oscB.connect(lp);
+    oscC.connect(lp);
+    // Insert a gentle formant filter after LPF per voice
+    const formant = this.audioContext.createBiquadFilter();
+    formant.type = 'peaking';
+    formant.frequency.value = 2300; // “bridge hill”
+    formant.Q.value = 1.0;
+    formant.gain.value = 1.4; // gentle presence
+    lp.connect(formant);
+    formant.connect(g);
+    g.connect(pan);
+    pan.connect(this.output);
 
-    // Store voice
+    // bow jitter (tiny amplitude variation ~6–8 Hz)
+    const jit = this.audioContext.createOscillator();
+    const jitG = this.audioContext.createGain();
+    jit.type = 'sine';
+    const r = this.cfg.bowJitterRate;
+    jit.frequency.value = r[0] + Math.random() * (r[1] - r[0]);
+    // Additive modulation into the envelope, scaled by voiceAmp
+    jitG.gain.value = voiceAmp * this.cfg.bowJitterDepth * 0.01; // convert % to absolute gain add
+    jit.connect(jitG);
+    jitG.connect(g.gain);
+
+    drift.start(time);
+    vib.start(time);
+    jit.start(time);
+    oscA.start(time);
+    oscB.start(time);
+    oscC.start(time);
+
+    const voice = {
+      oscA,
+      oscB,
+      oscC,
+      vib,
+      drift,
+      jit,
+      g,
+      pan,
+      formant,
+      stopRelease: this.cfg.release,
+    };
     let set = this.activeNotes.get(midiNote);
     if (!set) {
       set = new Set();
       this.activeNotes.set(midiNote, set);
     }
     set.add(voice);
-
+    this.voiceCount++;
     return voice;
   }
 
@@ -1780,345 +1880,238 @@ export class StringEnsemble extends BaseInstrument {
     if (!voices || voices.size === 0) return;
 
     const stopVoice = (voice, when) => {
-      const releaseTime = 0.8; // Natural string decay
-      voice.gains.forEach((gain) => {
-        const p = gain.gain;
-        if (typeof p.cancelAndHoldAtTime === 'function') {
-          p.cancelAndHoldAtTime(when);
-        } else {
-          p.cancelScheduledValues(when);
-          const tc = Math.max(0.01, releaseTime * 0.25);
-          p.setTargetAtTime(0.0001, when, tc);
-        }
-        p.exponentialRampToValueAtTime(0.0001, when + releaseTime);
-      });
-
+      const rel = voice.stopRelease ?? this.cfg.release;
+      const p = voice.g.gain;
+      if (typeof p.cancelAndHoldAtTime === 'function')
+        p.cancelAndHoldAtTime(when);
+      else {
+        p.cancelScheduledValues(when);
+        p.setTargetAtTime(0.0001, when, Math.max(0.01, rel * 0.3));
+      }
+      p.exponentialRampToValueAtTime(0.0001, when + rel);
+      try {
+        voice.oscA.stop(when + rel + 0.02);
+        voice.oscB.stop(when + rel + 0.02);
+        voice.oscC.stop(when + rel + 0.02);
+        voice.vib.stop(when + rel + 0.02);
+        voice.drift?.stop(when + rel + 0.02);
+        voice.jit?.stop(when + rel + 0.02);
+      } catch {}
       setTimeout(
         () => {
-          try {
-            voice.oscillators.forEach((osc) => osc.stop());
-          } catch {}
           voices.delete(voice);
           if (voices.size === 0) this.activeNotes.delete(midiNote);
+          this.voiceCount = Math.max(0, this.voiceCount - 1);
         },
-        (releaseTime + 0.1) * 1000,
+        (rel + 0.1) * 1000,
       );
     };
 
-    if (typeof handleOrTime === 'object' && handleOrTime) {
+    if (typeof handleOrTime === 'object' && handleOrTime)
       stopVoice(handleOrTime, this.audioContext.currentTime);
-    } else {
+    else {
       const when = Number(handleOrTime) || this.audioContext.currentTime;
       Array.from(voices).forEach((v) => stopVoice(v, when));
     }
   }
 }
 
-// Brass Section Synthesizer
+// Brass Section Synthesizer (headroom-safe)
 export class BrassSection extends BaseInstrument {
-  constructor(audioContext) {
+  constructor(audioContext, opts = {}) {
     super(audioContext);
+    this.voiceCount = 0;
+    this.cfg = {
+      attack: opts.attack ?? 0.012,
+      decay: opts.decay ?? 0.14,
+      sustain: opts.sustain ?? 0.74,
+      release: opts.release ?? 0.26,
+      baseVoiceAmp: opts.baseVoiceAmp ?? 0.04,
+      filterOpen: opts.filterOpen ?? 2200,
+      filterRest: opts.filterRest ?? 1100,
+      pitchBlipCents: opts.pitchBlipCents ?? 12,
+      subBlend: opts.subBlend ?? 0.28,
+      reverbWet: opts.reverbWet ?? 0.15,
+    };
 
-    // Effects chain
-    this.compressor = audioContext.createDynamicsCompressor();
-    this.compressor.threshold.value = -10;
-    this.compressor.ratio.value = 4;
-    this.compressor.attack.value = 0.003;
-    this.compressor.release.value = 0.1;
+    // Light stage verb + compressor, no saturator
+    this.rev = this._makeStageReverb();
+    this.dry = audioContext.createGain();
+    this.dry.gain.value = 1.0;
+    this.wet = audioContext.createGain();
+    this.wet.gain.value = this.cfg.reverbWet;
 
-    this.reverb = this.createBrassReverb();
-    this.eq = this.createBrassEQ();
+    this.comp = audioContext.createDynamicsCompressor();
+    this.comp.threshold.value = -16;
+    this.comp.ratio.value = 2.3;
+    this.comp.attack.value = 0.005;
+    this.comp.release.value = 0.12;
 
-    // Routing with gentle saturation and controlled headroom
-    this.saturator = this.audioContext.createWaveShaper();
-    this.saturator.curve = (function makeCurve(amount = 0.35) {
-      const n = 44100;
-      const curve = new Float32Array(n);
-      const k = Math.max(0, amount) * 100;
-      for (let i = 0; i < n; i++) {
-        const x = (i / (n - 1)) * 2 - 1;
-        curve[i] = ((1 + k) * x) / (1 + k * Math.abs(x));
-      }
-      return curve;
-    })();
-    this.saturator.oversample = '2x';
+    this.out = audioContext.createGain();
+    this.out.gain.value = 0.72;
 
-    this.preDrive = this.audioContext.createGain();
-    this.preDrive.gain.value = 0.7; // leave headroom before saturator
-
-    this.output.connect(this.eq);
-    this.eq.connect(this.preDrive);
-    this.preDrive.connect(this.saturator);
-    this.saturator.connect(this.compressor);
-    this.compressor.connect(this.reverb);
+    // Routing: instrument → (dry + reverb) → comp → out
+    this.output.connect(this.dry);
+    this.output.connect(this.rev);
+    this.rev.connect(this.wet);
+    this.dry.connect(this.comp);
+    this.wet.connect(this.comp);
+    this.comp.connect(this.out);
   }
 
   connect(destination) {
-    this.reverb.connect(destination);
+    this.out.connect(destination);
   }
-
   disconnect() {
-    this.reverb.disconnect();
+    this.out.disconnect();
   }
 
-  createBrassReverb() {
-    const convolver = this.audioContext.createConvolver();
-    const length = this.audioContext.sampleRate * 1.5; // Shorter, brighter reverb
-    const impulse = this.audioContext.createBuffer(
-      2,
-      length,
-      this.audioContext.sampleRate,
-    );
-
-    for (let channel = 0; channel < 2; channel++) {
-      const channelData = impulse.getChannelData(channel);
-      for (let i = 0; i < length; i++) {
-        const envelope = Math.pow(1 - i / length, 1.2);
-        channelData[i] = (Math.random() * 2 - 1) * envelope;
+  _makeStageReverb() {
+    const con = this.audioContext.createConvolver();
+    const sr = this.audioContext.sampleRate;
+    const len = Math.floor(sr * 1.0);
+    const buf = this.audioContext.createBuffer(2, len, sr);
+    for (let ch = 0; ch < 2; ch++) {
+      const data = buf.getChannelData(ch);
+      for (let i = 0; i < len; i++) {
+        const t = i / len;
+        const early = i < sr * 0.04 ? 1.6 : 1.0;
+        data[i] = (Math.random() * 2 - 1) * early * Math.pow(1 - t, 1.6);
       }
     }
-
-    convolver.buffer = impulse;
-
-    const dry = this.audioContext.createGain();
-    const wet = this.audioContext.createGain();
-    const output = this.audioContext.createGain();
-
-    dry.gain.value = 0.7;
-    wet.gain.value = 0.3;
-
-    const input = this.audioContext.createGain();
-    input.connect(dry);
-    input.connect(convolver);
-    convolver.connect(wet);
-
-    dry.connect(output);
-    wet.connect(output);
-
-    return output;
+    con.buffer = buf;
+    return con;
   }
 
-  createBrassEQ() {
-    // Presence boost
-    const presence = this.audioContext.createBiquadFilter();
-    presence.type = 'peaking';
-    presence.frequency.value = 3500;
-    presence.Q.value = 0.7;
-    presence.gain.value = 4;
+  _makeLayer(freq, { detune = 0, pan = 0, q = 5, amp = 1, time, velocity }) {
+    const osc1 = this.audioContext.createOscillator();
+    const osc2 = this.audioContext.createOscillator();
+    const mix = this.audioContext.createGain();
+    const lp = this.audioContext.createBiquadFilter();
+    const g = this.audioContext.createGain();
+    const p = this.audioContext.createStereoPanner();
 
-    // Low-mid warmth
-    const warmth = this.audioContext.createBiquadFilter();
-    warmth.type = 'peaking';
-    warmth.frequency.value = 250;
-    warmth.Q.value = 0.5;
-    warmth.gain.value = 2;
+    osc1.type = 'sawtooth';
+    osc2.type = 'square';
+    osc1.frequency.value = freq;
+    osc2.frequency.value = freq;
+    osc1.detune.value = detune + (Math.random() - 0.5) * 2;
+    osc2.detune.value = detune + (Math.random() - 0.5) * 2;
 
-    presence.connect(warmth);
+    lp.type = 'lowpass';
+    lp.Q.value = q;
+    const v = Math.max(0.1, Math.min(1, velocity));
+    const open = this.cfg.filterOpen + v * 900;
+    const rest = this.cfg.filterRest + v * 300;
+    lp.frequency.setValueAtTime(rest, time);
+    lp.frequency.linearRampToValueAtTime(open, time + 0.03);
+    lp.frequency.exponentialRampToValueAtTime(rest, time + 0.22);
 
-    return presence;
+    // micro pitch blip
+    [osc1, osc2].forEach((o) => {
+      o.detune.setValueAtTime(this.cfg.pitchBlipCents, time);
+      o.detune.linearRampToValueAtTime(0, time + 0.05);
+    });
+
+    // amp env
+    const peak = amp * v;
+    const atk = time + this.cfg.attack;
+    const dec = atk + this.cfg.decay;
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.linearRampToValueAtTime(peak, atk);
+    g.gain.exponentialRampToValueAtTime(peak * this.cfg.sustain + 0.001, dec);
+
+    p.pan.value = pan;
+
+    osc1.connect(mix);
+    osc2.connect(mix);
+    mix.connect(lp);
+    lp.connect(g);
+    g.connect(p);
+    p.connect(this.output);
+    osc1.start(time);
+    osc2.start(time);
+
+    return { osc1, osc2, g };
   }
 
   playNote(midiNote, velocity = 1, time = this.audioContext.currentTime) {
-    const frequency = 440 * Math.pow(2, (midiNote - 69) / 12);
+    const f = 440 * Math.pow(2, (midiNote - 69) / 12);
+    const polyScale = 1 / Math.sqrt(this.voiceCount + 1);
+    const base = this.cfg.baseVoiceAmp * polyScale;
 
-    const voice = {
-      oscillators: [],
-      gains: [],
-      filters: [],
-      noiseGains: [],
-      startTime: time,
-    };
-
-    // Trumpet section (3 layers)
-    for (let i = 0; i < 3; i++) {
-      const osc1 = this.audioContext.createOscillator();
-      const osc2 = this.audioContext.createOscillator();
-      const gain = this.audioContext.createGain();
-      const filter = this.audioContext.createBiquadFilter();
-      const panner = this.audioContext.createStereoPanner();
-
-      osc1.type = 'sawtooth';
-      osc2.type = 'square';
-      osc1.frequency.value = frequency;
-      osc2.frequency.value = frequency;
-
-      osc1.detune.value = (i - 1) * 5 + (Math.random() - 0.5) * 3;
-      osc2.detune.value = (i - 1) * 5 + (Math.random() - 0.5) * 3;
-
-      // Tiny pitch blip at note-on for brassy speak
-      osc1.detune.setValueAtTime(20, time);
-      osc1.detune.linearRampToValueAtTime(0, time + 0.06);
-      osc2.detune.setValueAtTime(20, time);
-      osc2.detune.linearRampToValueAtTime(0, time + 0.06);
-
-      // Mix oscillators
-      const oscMixer = this.audioContext.createGain();
-      const osc1Gain = this.audioContext.createGain();
-      const osc2Gain = this.audioContext.createGain();
-
-      osc1Gain.gain.value = 0.7;
-      osc2Gain.gain.value = 0.3;
-
-      osc1.connect(osc1Gain);
-      osc2.connect(osc2Gain);
-      osc1Gain.connect(oscMixer);
-      osc2Gain.connect(oscMixer);
-
-      // Dynamic filter envelope for brass "blat"
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(800 + velocity * 2000, time);
-      filter.frequency.linearRampToValueAtTime(
-        2000 + velocity * 3000,
-        time + 0.03,
-      );
-      filter.frequency.exponentialRampToValueAtTime(
-        900 + velocity * 1200,
-        time + 0.25,
-      );
-      filter.Q.value = 5; // Softer resonance to prevent harshness
-
-      // Stereo spread
-      panner.pan.value = (i - 1) * 0.3;
-
-      oscMixer.connect(filter);
-      filter.connect(gain);
-      gain.connect(panner);
-      panner.connect(this.output);
-
-      voice.oscillators.push(osc1, osc2);
-      voice.gains.push(gain);
-      voice.filters.push(filter);
-    }
-
-    // French horn (2 layers, softer)
-    for (let i = 0; i < 2; i++) {
-      const osc = this.audioContext.createOscillator();
-      const gain = this.audioContext.createGain();
-      const filter = this.audioContext.createBiquadFilter();
-      const panner = this.audioContext.createStereoPanner();
-
-      osc.type = 'sawtooth';
-      osc.frequency.value = frequency / 2; // One octave down
-      osc.detune.value = i * 8;
-
-      filter.type = 'bandpass';
-      filter.frequency.value = 700;
-      filter.Q.value = 2;
-
-      panner.pan.value = i === 0 ? -0.5 : 0.5;
-
-      osc.connect(filter);
-      filter.connect(gain);
-      gain.connect(panner);
-      panner.connect(this.output);
-
-      voice.oscillators.push(osc);
-      voice.gains.push(gain);
-      voice.filters.push(filter);
-    }
-
-    // Trombone/Tuba (low brass)
-    const lowOsc = this.audioContext.createOscillator();
-    const lowGain = this.audioContext.createGain();
-    const lowFilter = this.audioContext.createBiquadFilter();
-
-    lowOsc.type = 'sawtooth';
-    lowOsc.frequency.value = frequency / 4; // Two octaves down
-
-    lowFilter.type = 'lowpass';
-    lowFilter.frequency.value = 500;
-    lowFilter.Q.value = 3;
-
-    lowOsc.connect(lowFilter);
-    lowFilter.connect(lowGain);
-    lowGain.connect(this.output);
-
-    voice.oscillators.push(lowOsc);
-    voice.gains.push(lowGain);
-    voice.filters.push(lowFilter);
-
-    // Breath noise for realism
-    const noise = this.audioContext.createBufferSource();
-    const noiseBuffer = this.audioContext.createBuffer(
-      1,
-      4096,
-      this.audioContext.sampleRate,
+    const layers = [];
+    layers.push(
+      this._makeLayer(f, {
+        detune: -5,
+        pan: -0.12,
+        q: 5.2,
+        amp: base * 1.05,
+        time,
+        velocity,
+      }),
     );
-    const noiseData = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < 4096; i++) {
-      noiseData[i] = Math.random() * 2 - 1;
-    }
-    noise.buffer = noiseBuffer;
-    noise.loop = true;
-
-    const noiseFilter = this.audioContext.createBiquadFilter();
-    const noiseGain = this.audioContext.createGain();
-
-    noiseFilter.type = 'bandpass';
-    noiseFilter.frequency.value = 2000;
-    noiseFilter.Q.value = 1;
-
-    noise.connect(noiseFilter);
-    noiseFilter.connect(noiseGain);
-    noiseGain.connect(this.output);
-
-    voice.oscillators.push(noise);
-    voice.noiseGains.push(noiseGain);
-
-    // Brass envelope (fast attack, quick "blat")
-    const attack = 0.01 + Math.random() * 0.02;
-    const decay = 0.1;
-    const sustain = 0.7;
-    const peak = velocity * 0.2;
-
-    // Trumpets with characteristic "blat"
-    voice.gains.slice(0, 3).forEach((gain, i) => {
-      const delay = i * 0.005;
-      gain.gain.setValueAtTime(0.0001, time);
-      gain.gain.linearRampToValueAtTime(peak * 1.2, time + attack + delay); // Overshoot
-      gain.gain.exponentialRampToValueAtTime(
-        peak * sustain + 0.001,
-        time + attack + decay + delay,
-      );
-    });
-
-    // French horns (softer attack)
-    voice.gains.slice(3, 5).forEach((gain, i) => {
-      gain.gain.setValueAtTime(0.0001, time);
-      gain.gain.linearRampToValueAtTime(peak * 0.6, time + attack * 2);
-      gain.gain.exponentialRampToValueAtTime(
-        peak * sustain * 0.6 + 0.001,
-        time + attack * 2 + decay,
-      );
-    });
-
-    // Low brass (slowest attack)
-    lowGain.gain.setValueAtTime(0.0001, time);
-    lowGain.gain.linearRampToValueAtTime(peak * 0.4, time + attack * 3);
-    lowGain.gain.exponentialRampToValueAtTime(
-      peak * sustain * 0.4 + 0.001,
-      time + attack * 3 + decay,
+    layers.push(
+      this._makeLayer(f, {
+        detune: 5,
+        pan: 0.12,
+        q: 5.0,
+        amp: base * 1.05,
+        time,
+        velocity,
+      }),
+    );
+    layers.push(
+      this._makeLayer(f * 2, {
+        detune: 3,
+        pan: 0.26,
+        q: 6.0,
+        amp: base * 0.65,
+        time,
+        velocity,
+      }),
+    );
+    layers.push(
+      this._makeLayer(f * 0.75, {
+        detune: -3,
+        pan: -0.28,
+        q: 4.2,
+        amp: base * 0.8,
+        time,
+        velocity,
+      }),
     );
 
-    // Breath noise envelope
-    noiseGain.gain.setValueAtTime(0.0001, time);
-    noiseGain.gain.linearRampToValueAtTime(peak * 0.05, time + attack * 0.5);
-    noiseGain.gain.exponentialRampToValueAtTime(0.0001, time + attack + 0.05);
+    // Sub/tuba layer one octave down
+    const sub = this.audioContext.createOscillator();
+    const subG = this.audioContext.createGain();
+    const subLP = this.audioContext.createBiquadFilter();
+    sub.type = 'triangle';
+    sub.frequency.value = f / 2;
+    subLP.type = 'lowpass';
+    subLP.frequency.value = 550;
+    subLP.Q.value = 0.7;
+    const v = Math.max(0.1, Math.min(1, velocity));
+    const subPeak = base * this.cfg.subBlend * v;
+    subG.gain.setValueAtTime(0.0001, time);
+    subG.gain.linearRampToValueAtTime(subPeak, time + this.cfg.attack * 1.4);
+    subG.gain.exponentialRampToValueAtTime(
+      subPeak * (this.cfg.sustain * 0.9) + 0.001,
+      time + this.cfg.attack * 1.4 + this.cfg.decay * 1.1,
+    );
+    sub.connect(subLP);
+    subLP.connect(subG);
+    subG.connect(this.output);
+    sub.start(time);
 
-    // Filter modulation for "wah"
-    // Already handled above with filter envelope for trumpets
-
-    // Start all oscillators
-    voice.oscillators.forEach((osc) => osc.start(time));
-
-    // Store voice
+    const voice = { layers, sub, subG, stopRelease: this.cfg.release };
     let set = this.activeNotes.get(midiNote);
     if (!set) {
       set = new Set();
       this.activeNotes.set(midiNote, set);
     }
     set.add(voice);
-
+    this.voiceCount++;
     return voice;
   }
 
@@ -2127,48 +2120,49 @@ export class BrassSection extends BaseInstrument {
     if (!voices || voices.size === 0) return;
 
     const stopVoice = (voice, when) => {
-      const releaseTime = 0.3; // Quick brass release
-
-      voice.gains.forEach((gain) => {
-        const p = gain.gain;
-        if (typeof p.cancelAndHoldAtTime === 'function') {
+      const rel = voice.stopRelease ?? this.cfg.release;
+      voice.layers.forEach(({ g, osc1, osc2 }) => {
+        const p = g.gain;
+        if (typeof p.cancelAndHoldAtTime === 'function')
           p.cancelAndHoldAtTime(when);
-        } else {
+        else {
           p.cancelScheduledValues(when);
-          const tc = Math.max(0.005, releaseTime * 0.2);
-          p.setTargetAtTime(0.0001, when, tc);
+          p.setTargetAtTime(0.0001, when, Math.max(0.01, rel * 0.3));
         }
-        p.exponentialRampToValueAtTime(0.0001, when + releaseTime);
+        p.exponentialRampToValueAtTime(0.0001, when + rel);
+        try {
+          osc1.stop(when + rel + 0.02);
+          osc2.stop(when + rel + 0.02);
+        } catch {}
       });
 
-      voice.noiseGains?.forEach((gain) => {
-        const p = gain.gain;
-        if (typeof p.cancelAndHoldAtTime === 'function') {
+      if (voice.subG) {
+        const p = voice.subG.gain;
+        if (typeof p.cancelAndHoldAtTime === 'function')
           p.cancelAndHoldAtTime(when);
-        } else {
+        else {
           p.cancelScheduledValues(when);
-          p.setTargetAtTime(0.0001, when, 0.02);
+          p.setTargetAtTime(0.0001, when, Math.max(0.015, rel * 0.3));
         }
-        p.exponentialRampToValueAtTime(0.0001, when + releaseTime);
-      });
+        p.exponentialRampToValueAtTime(0.0001, when + rel + 0.03);
+        try {
+          voice.sub.stop(when + rel + 0.05);
+        } catch {}
+      }
 
       setTimeout(
         () => {
-          voice.oscillators.forEach((osc) => {
-            try {
-              osc.stop();
-            } catch {}
-          });
           voices.delete(voice);
           if (voices.size === 0) this.activeNotes.delete(midiNote);
+          this.voiceCount = Math.max(0, this.voiceCount - 1);
         },
-        (releaseTime + 0.1) * 1000,
+        (rel + 0.15) * 1000,
       );
     };
 
-    if (typeof handleOrTime === 'object' && handleOrTime) {
+    if (typeof handleOrTime === 'object' && handleOrTime)
       stopVoice(handleOrTime, this.audioContext.currentTime);
-    } else {
+    else {
       const when = Number(handleOrTime) || this.audioContext.currentTime;
       Array.from(voices).forEach((v) => stopVoice(v, when));
     }
@@ -2179,6 +2173,7 @@ export class BrassSection extends BaseInstrument {
 export class SimplePiano extends BaseInstrument {
   constructor(audioContext) {
     super(audioContext);
+    this._polyCount = 0;
   }
 
   playNote(midiNote, velocity = 1, time = this.audioContext.currentTime) {
