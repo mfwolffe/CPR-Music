@@ -640,6 +640,10 @@ export class Wuulf2Synth extends BaseInstrument {
     this.portamentoTime = 0.5; // Time in seconds for pitch glide (adjustable)
     this.currentFrequency = 0; // Tracks the last played base frequency for gliding
 
+    // Store feedback references for control
+    this.delayFeedbacks = [];
+    this.reverbFeedbackGain = null;
+
     // Enhanced effects chain with new warp field
     this.reverb = this.createReverb();
     this.delay = this.createDelay();
@@ -650,17 +654,17 @@ export class Wuulf2Synth extends BaseInstrument {
 
     // Master limiter with controlled settings to prevent runaway
     this.limiter = audioContext.createDynamicsCompressor();
-    this.limiter.threshold.value = -12; // Lower threshold for earlier limiting
-    this.limiter.ratio.value = 8; // Gentler ratio
+    this.limiter.threshold.value = -12;
+    this.limiter.ratio.value = 8;
     this.limiter.attack.value = 0.003;
     this.limiter.release.value = 0.1;
 
     // Signal routing with much more dry signal
     this.dryGain = audioContext.createGain();
-    this.dryGain.gain.value = 0.7; // Mostly dry
+    this.dryGain.gain.value = 0.7;
 
     this.wetGain = audioContext.createGain();
-    this.wetGain.gain.value = 0.3; // Just a touch of effects
+    this.wetGain.gain.value = 0.3;
 
     // Add envelope control to wet signal for automatic fade
     this.wetEnvelope = audioContext.createGain();
@@ -670,7 +674,7 @@ export class Wuulf2Synth extends BaseInstrument {
     this.masterGate = audioContext.createGain();
     this.masterGate.gain.value = 1;
 
-    // Connect effects chain - FIXED: properly connect input/output objects
+    // Connect effects chain - properly connect input/output objects
     this.output.connect(this.dryGain);
     this.output.connect(this.chorus.input);
     this.chorus.output.connect(this.shimmer.input);
@@ -681,7 +685,7 @@ export class Wuulf2Synth extends BaseInstrument {
     this.reverb.connect(this.wetGain);
     this.wetGain.connect(this.wetEnvelope);
 
-    // Remove feedback loop entirely - this was causing the persistent overdrive
+    // REMOVED FEEDBACK LOOP - this was causing the persistent overdrive
     // No feedback from reverb to shimmer
 
     // Add a high-pass filter to remove low frequency buildup
@@ -704,9 +708,30 @@ export class Wuulf2Synth extends BaseInstrument {
     this.limiter.disconnect();
   }
 
+  // Kill all feedback loops
+  killFeedback() {
+    // Kill all delay feedback loops
+    if (this.delayFeedbacks) {
+      this.delayFeedbacks.forEach((feedback) => {
+        feedback.gain.cancelScheduledValues(this.audioContext.currentTime);
+        feedback.gain.setValueAtTime(0, this.audioContext.currentTime);
+      });
+    }
+  }
+
+  // Restore feedback loops
+  restoreFeedback() {
+    if (this.delayFeedbacks) {
+      const feedbackValues = [0.15, 0.12, 0.1, 0.08, 0.06, 0.04, 0.02]; // Lower values
+      this.delayFeedbacks.forEach((feedback, i) => {
+        feedback.gain.value = feedbackValues[i] || 0.05;
+      });
+    }
+  }
+
   createReverb() {
     const convolver = this.audioContext.createConvolver();
-    const length = this.audioContext.sampleRate * 8; // Longer 8-second reverb for deeper ether
+    const length = this.audioContext.sampleRate * 8;
     const impulse = this.audioContext.createBuffer(
       2,
       length,
@@ -716,7 +741,6 @@ export class Wuulf2Synth extends BaseInstrument {
     for (let channel = 0; channel < 2; channel++) {
       const channelData = impulse.getChannelData(channel);
       for (let i = 0; i < length; i++) {
-        // More chaotic reverb: fractal-like decay with Perlin noise simulation
         const noise =
           (Math.random() * 2 - 1) * Math.sin((i / length) * Math.PI);
         channelData[i] =
@@ -729,35 +753,23 @@ export class Wuulf2Synth extends BaseInstrument {
   }
 
   createDelay() {
-    // Enhanced multi-tap delay with more taps and modulation
     const input = this.audioContext.createGain();
     const output = this.audioContext.createGain();
 
     const delayTimes = [0.25, 0.375, 0.5, 0.625, 0.75, 1.0, 1.25];
-    const feedbacks = [0.3, 0.25, 0.2, 0.15, 0.1, 0.05, 0.03]; // Much lower feedback values
+    const feedbacks = [0.15, 0.12, 0.1, 0.08, 0.06, 0.04, 0.02]; // Much lower feedback
 
     delayTimes.forEach((delayTime, i) => {
       const delay = this.audioContext.createDelay(10);
       const feedback = this.audioContext.createGain();
       const tapGain = this.audioContext.createGain();
       const filter = this.audioContext.createBiquadFilter();
-      const lfo = this.audioContext.createOscillator(); // Per-tap LFO for time modulation
+      const lfo = this.audioContext.createOscillator();
       const lfoGain = this.audioContext.createGain();
 
       delay.delayTime.value = delayTime;
-      feedback.gain.value = feedbacks[i] * 0.5; // Even more reduced
-      tapGain.gain.value = 0.4 - i * 0.05; // Lower tap gains
-
-      // Add envelope to fade out delay taps
-      const fadeEnvelope = this.audioContext.createGain();
-      fadeEnvelope.gain.setValueAtTime(1, this.audioContext.currentTime);
-      fadeEnvelope.gain.exponentialRampToValueAtTime(
-        0.001,
-        this.audioContext.currentTime + 5,
-      ); // Fade out over 5 seconds
-
-      tapGain.connect(fadeEnvelope);
-      tapGain.connect(output);
+      feedback.gain.value = feedbacks[i];
+      tapGain.gain.value = 0.4 - i * 0.05;
 
       filter.type = 'lowpass';
       filter.frequency.value = 4000 - i * 600;
@@ -776,21 +788,19 @@ export class Wuulf2Synth extends BaseInstrument {
       feedback.connect(delay);
       filter.connect(tapGain);
       tapGain.connect(output);
+
+      // Store feedback reference
+      this.delayFeedbacks.push(feedback);
     });
 
-    return { input, output }; // Return as object for proper node connection
+    return { input, output };
   }
 
   createChorus() {
-    // Ultra-complex chorus with 12 voices and nested modulation
     const input = this.audioContext.createGain();
     const output = this.audioContext.createGain();
-    const delays = [];
-    const lfos = [];
-    const gains = [];
 
     for (let i = 0; i < 12; i++) {
-      // Doubled voices for insane lushness
       const delay = this.audioContext.createDelay(0.2);
       const lfo = this.audioContext.createOscillator();
       const lfoGain = this.audioContext.createGain();
@@ -798,13 +808,13 @@ export class Wuulf2Synth extends BaseInstrument {
 
       delay.delayTime.value = 0.01 + i * 0.005;
 
-      lfo.type = ['sine', 'triangle', 'sawtooth', 'square'][i % 4]; // Varied waveforms
+      lfo.type = ['sine', 'triangle', 'sawtooth', 'square'][i % 4];
       lfo.frequency.value = 0.2 + i * 0.1;
       lfoGain.gain.value = 0.002 + i * 0.0003;
 
-      voiceGain.gain.value = (0.8 - i * 0.05) * 0.5; // Reduced chorus voices
+      voiceGain.gain.value = (0.8 - i * 0.05) * 0.5;
 
-      // Nested modulation: secondary LFO modulates primary LFO frequency
+      // Nested modulation
       const metaLfo = this.audioContext.createOscillator();
       const metaLfoGain = this.audioContext.createGain();
       metaLfo.type = 'sine';
@@ -821,10 +831,6 @@ export class Wuulf2Synth extends BaseInstrument {
       input.connect(delay);
       delay.connect(voiceGain);
       voiceGain.connect(output);
-
-      delays.push(delay);
-      lfos.push(lfo, metaLfo); // Store both
-      gains.push(voiceGain);
     }
 
     // Dry signal
@@ -837,30 +843,27 @@ export class Wuulf2Synth extends BaseInstrument {
   }
 
   createGranularShimmer() {
-    // Proper granular pitch shifter for shimmering octaves with time-stretching
-    // Note: This is a simplified conceptual implementation; real granular needs more complexity
     const input = this.audioContext.createGain();
     const output = this.audioContext.createGain();
 
-    // Simulate granular by creating multiple delayed, pitch-shifted grains
     const grainCount = 8;
     for (let i = 0; i < grainCount; i++) {
       const delay = this.audioContext.createDelay(0.5);
-      const pitchShift = this.audioContext.createWaveShaper(); // Approximate pitch with waveshaper
+      const pitchShift = this.audioContext.createWaveShaper();
       const grainGain = this.audioContext.createGain();
 
-      delay.delayTime.value = i * 0.05; // Overlapping grains
-      grainGain.gain.value = (0.2 - i * 0.02) * 0.5; // Much quieter shimmer
+      delay.delayTime.value = i * 0.05;
+      grainGain.gain.value = (0.2 - i * 0.02) * 0.5;
 
-      // Waveshaper curve for +1 octave shift (simplified)
+      // Waveshaper curve for +1 octave shift
       const curve = new Float32Array(1024);
       for (let j = 0; j < 1024; j++) {
         curve[j] =
-          Math.sin((j / 1024) * Math.PI * 2) * (1 + Math.random() * 0.1); // Add randomness
+          Math.sin((j / 1024) * Math.PI * 2) * (1 + Math.random() * 0.1);
       }
       pitchShift.curve = curve;
 
-      // Random time-stretch simulation via modulated delay
+      // Random time-stretch simulation
       const stretchLfo = this.audioContext.createOscillator();
       stretchLfo.type = 'sine';
       stretchLfo.frequency.value = 1 + Math.random();
@@ -883,15 +886,13 @@ export class Wuulf2Synth extends BaseInstrument {
     const input = this.audioContext.createGain();
     const output = this.audioContext.createGain();
 
-    // Simulate warping with multiple buffer sources (conceptual; needs audio buffer for real)
-    // For simplicity, use delays with modulated time
     const warpDelay = this.audioContext.createDelay(2);
     const rateLfo = this.audioContext.createOscillator();
     const rateGain = this.audioContext.createGain();
 
     rateLfo.type = 'sawtooth';
     rateLfo.frequency.value = 0.5;
-    rateGain.gain.value = 0.5; // Modulate between 0.5-1.5x speed
+    rateGain.gain.value = 0.5;
     rateLfo.connect(rateGain);
     rateGain.connect(warpDelay.delayTime);
     rateLfo.start();
@@ -899,18 +900,15 @@ export class Wuulf2Synth extends BaseInstrument {
     input.connect(warpDelay);
     warpDelay.connect(output);
 
-    // Add occasional reverse effect (simulated with negative delay modulation)
     return { input, output };
   }
 
   createPhaser() {
-    // Added phaser for sweeping, otherworldly phases
     const phaser = this.audioContext.createBiquadFilter();
     phaser.type = 'allpass';
     phaser.frequency.value = 440;
     phaser.Q.value = 0.5;
 
-    // Modulate frequency for movement
     const lfo = this.audioContext.createOscillator();
     const lfoGain = this.audioContext.createGain();
     lfo.type = 'sine';
@@ -924,9 +922,14 @@ export class Wuulf2Synth extends BaseInstrument {
   }
 
   playNote(midiNote, velocity = 1, time = this.audioContext.currentTime) {
+    // Restore feedback when playing notes
+    if (this.activeNotes.size === 0) {
+      this.restoreFeedback();
+    }
+
     const frequency = 440 * Math.pow(2, (midiNote - 69) / 12);
 
-    // Portamento: Determine starting frequency for glide (from last note or same as target if first)
+    // Portamento
     let startFrequency = this.currentFrequency || frequency;
     if (this.currentFrequency === 0) startFrequency = frequency;
 
@@ -939,7 +942,20 @@ export class Wuulf2Synth extends BaseInstrument {
       startTime: time,
     };
 
-    // Fractal main tones: Recursive detuning for infinite depth
+    // Ultra-controlled envelopes with gentle overdrive tickle
+    const attack = 0.5;
+    const decay = 1.0;
+    const sustain = 0.2;
+    const peak = velocity * 0.05;
+
+    // Trigger wet envelope fade on each note
+    this.wetEnvelope.gain.cancelScheduledValues(time);
+    this.wetEnvelope.gain.setValueAtTime(0, time);
+    this.wetEnvelope.gain.linearRampToValueAtTime(1, time + 0.2);
+    this.wetEnvelope.gain.linearRampToValueAtTime(0.7, time + 1);
+    this.wetEnvelope.gain.exponentialRampToValueAtTime(0.001, time + 3);
+
+    // Fractal main tones
     const baseDetunes = [-15, -10, -5, 0, 5, 10, 15];
     for (let i = 0; i < baseDetunes.length; i++) {
       const osc = this.audioContext.createOscillator();
@@ -948,7 +964,6 @@ export class Wuulf2Synth extends BaseInstrument {
       const panner = this.audioContext.createStereoPanner();
 
       osc.type = ['sawtooth', 'square', 'triangle'][i % 3];
-      // Portamento ramp for main oscillators
       osc.frequency.setValueAtTime(startFrequency, time);
       osc.frequency.exponentialRampToValueAtTime(
         frequency,
@@ -956,7 +971,6 @@ export class Wuulf2Synth extends BaseInstrument {
       );
       osc.detune.value = baseDetunes[i] + (Math.random() - 0.5) * 6;
 
-      // Fractal sub-detunes: Add mini-oscillators modulating this one
       const fractalLfo = this.audioContext.createOscillator();
       fractalLfo.type = 'sine';
       fractalLfo.frequency.value = 0.5 + Math.random();
@@ -984,192 +998,21 @@ export class Wuulf2Synth extends BaseInstrument {
       voice.lfos.push(fractalLfo);
     }
 
-    // Deeper sub oscillators with FM modulation for chaos
-    for (let oct = 1; oct <= 3; oct++) {
-      const subOsc = this.audioContext.createOscillator();
-      const subGain = this.audioContext.createGain();
-      const subPanner = this.audioContext.createStereoPanner();
-      const fmMod = this.audioContext.createOscillator(); // FM modulator
-      const fmGain = this.audioContext.createGain();
-
-      subOsc.type = 'sine';
-      // Portamento ramp for sub oscillators (scaled by octave)
-      const subStartFreq = startFrequency / (oct * 2);
-      const subTargetFreq = frequency / (oct * 2);
-      subOsc.frequency.setValueAtTime(subStartFreq, time);
-      subOsc.frequency.exponentialRampToValueAtTime(
-        subTargetFreq,
-        time + this.portamentoTime,
-      );
-      subOsc.detune.value = (Math.random() - 0.5) * 8;
-
-      fmMod.type = 'triangle';
-      // FM modulator also ramps to match (simplified, assuming same scaling)
-      const fmStartFreq = startFrequency / 4;
-      const fmTargetFreq = frequency / 4;
-      fmMod.frequency.setValueAtTime(fmStartFreq, time);
-      fmMod.frequency.exponentialRampToValueAtTime(
-        fmTargetFreq,
-        time + this.portamentoTime,
-      );
-      fmGain.gain.value = 100 + Math.random() * 200;
-      fmMod.connect(fmGain);
-      fmGain.connect(subOsc.frequency);
-      fmMod.start(time);
-
-      subPanner.pan.value = (oct - 2) * 0.3;
-
-      subOsc.connect(subGain);
-      subGain.connect(subPanner);
-      subPanner.connect(this.output);
-
-      voice.oscillators.push(subOsc, fmMod);
-      voice.gains.push(subGain, fmGain);
-      voice.panners.push(subPanner);
-    }
-
-    // Otherworldly formant harmonics: Vocal-like filters for eerie "singing"
-    const formants = [800, 1150, 2900, 3900, 4950]; // Approximate vowel formants
-    formants.forEach((formantFreq, i) => {
-      const osc = this.audioContext.createOscillator();
-      const formantFilter = this.audioContext.createBiquadFilter();
-      const gain = this.audioContext.createGain();
-      const panner = this.audioContext.createStereoPanner();
-
-      osc.type = 'sawtooth';
-      // Portamento ramp for formant oscillators (scaled by harmonic)
-      const formantStartFreq = startFrequency * (i + 1);
-      const formantTargetFreq = frequency * (i + 1);
-      osc.frequency.setValueAtTime(formantStartFreq, time);
-      osc.frequency.exponentialRampToValueAtTime(
-        formantTargetFreq,
-        time + this.portamentoTime,
-      );
-      osc.detune.value = (Math.random() - 0.5) * 15;
-
-      formantFilter.type = 'bandpass';
-      formantFilter.frequency.value = formantFreq + (Math.random() - 0.5) * 100;
-      formantFilter.Q.value = 20;
-
-      panner.pan.value = Math.cos(i * 1.2) * 0.9;
-
-      osc.connect(formantFilter);
-      formantFilter.connect(gain);
-      gain.connect(panner);
-      panner.connect(this.output);
-
-      voice.oscillators.push(osc);
-      voice.filters.push(formantFilter);
-      voice.gains.push(gain);
-      voice.panners.push(panner);
-    });
-
-    // Chaotic modulation network: Multiple interconnected LFOs
-    const filterLfo = this.audioContext.createOscillator();
-    const filterLfoGain = this.audioContext.createGain();
-    filterLfo.type = 'sine';
-    filterLfo.frequency.value = 0.15 + Math.random() * 0.3;
-    filterLfoGain.gain.value = 300 + midiNote * 10;
-    filterLfo.connect(filterLfoGain);
-    voice.filters.forEach((filter) => filterLfoGain.connect(filter.frequency));
-    filterLfo.start(time);
-    voice.lfos.push(filterLfo);
-
-    const ampLfo = this.audioContext.createOscillator();
-    const ampLfoGain = this.audioContext.createGain();
-    ampLfo.type = 'triangle';
-    ampLfo.frequency.value = 4 + Math.random() * 3;
-    ampLfoGain.gain.value = 0.15;
-    ampLfo.connect(ampLfoGain);
-    voice.gains.forEach((gain) => ampLfoGain.connect(gain.gain)); // Modulate all gains
-    ampLfo.start(time);
-    voice.lfos.push(ampLfo);
-
-    const panLfo = this.audioContext.createOscillator();
-    panLfo.type = 'sine';
-    panLfo.frequency.value = 0.3 + Math.random() * 0.2;
-    voice.panners.forEach((panner, i) => {
-      const panGain = this.audioContext.createGain();
-      panGain.gain.value = 0.4 + Math.random() * 0.2;
-      panLfo.connect(panGain);
-      panGain.connect(panner.pan);
-    });
-    panLfo.start(time);
-    voice.lfos.push(panLfo);
-
-    // Add chaos LFO that modulates other LFO frequencies
-    const chaosLfo = this.audioContext.createOscillator();
-    chaosLfo.type = 'sawtooth';
-    chaosLfo.frequency.value = 0.05;
-    voice.lfos.forEach((lfo) => {
-      const chaosGain = this.audioContext.createGain();
-      chaosGain.gain.value = 0.1;
-      chaosLfo.connect(chaosGain);
-      chaosGain.connect(lfo.frequency);
-    });
-    chaosLfo.start(time);
-    voice.lfos.push(chaosLfo);
-
-    // Ultra-controlled envelopes with gentle overdrive tickle
-    const attack = 0.5; // Faster attack
-    const decay = 1.0; // Quicker decay
-    const sustain = 0.2; // Very low sustain
-    const peak = velocity * 0.05; // Much quieter peak
-
-    // Trigger wet envelope fade on each note
-    this.wetEnvelope.gain.cancelScheduledValues(time);
-    this.wetEnvelope.gain.setValueAtTime(0, time);
-    this.wetEnvelope.gain.linearRampToValueAtTime(1, time + 0.2); // Quick rise
-    this.wetEnvelope.gain.linearRampToValueAtTime(0.7, time + 1); // Start fading
-    this.wetEnvelope.gain.exponentialRampToValueAtTime(0.001, time + 3); // Gone by 3 seconds
-
-    // Main oscillators: Quick swell and immediate fade
+    // Apply envelopes
     voice.gains.slice(0, baseDetunes.length).forEach((gain, i) => {
-      const stagger = i * 0.03; // Less stagger
-      const gainScale = (1 - i * 0.1) * 0.5; // Much reduced
+      const stagger = i * 0.03;
+      const gainScale = (1 - i * 0.1) * 0.5;
 
       gain.gain.setValueAtTime(0, time);
-      // Quick attack
       gain.gain.linearRampToValueAtTime(
         peak * gainScale,
         time + attack + stagger,
       );
-      // Immediate decay
       gain.gain.exponentialRampToValueAtTime(
         peak * sustain * gainScale + 0.001,
         time + attack + decay + stagger,
       );
-      // Quick fade - 2 seconds total
       gain.gain.exponentialRampToValueAtTime(0.001, time + 2.0 + stagger);
-    });
-
-    // Sub oscillators: Quick fade
-    voice.gains
-      .slice(baseDetunes.length, baseDetunes.length + 3)
-      .forEach((gain, i) => {
-        const subPeak = peak * 0.2 * (1 - i * 0.15);
-        gain.gain.setValueAtTime(0, time);
-        gain.gain.linearRampToValueAtTime(subPeak, time + attack * 1.5);
-        // Immediate fade
-        gain.gain.exponentialRampToValueAtTime(
-          0.001,
-          time + 2.5, // Fade by 2.5 seconds
-        );
-      });
-
-    // Formant envelopes: Very quick swell and fade
-    const formantGains = voice.gains.slice(-formants.length);
-    formantGains.forEach((gain, i) => {
-      const formantAmp = (peak * 0.02) / (i + 1); // Even quieter
-      const attackTime = 0.01 + i * 0.003;
-
-      gain.gain.setValueAtTime(0, time);
-      gain.gain.linearRampToValueAtTime(formantAmp, time + attackTime);
-      // Quick fade
-      gain.gain.exponentialRampToValueAtTime(
-        0.001,
-        time + 1.5, // Gone by 1.5 seconds
-      );
     });
 
     // Start all oscillators
@@ -1194,87 +1037,135 @@ export class Wuulf2Synth extends BaseInstrument {
     if (!voices || voices.size === 0) return;
 
     const stopVoice = (voice, when) => {
-      const releaseTime = 0.3; // Even shorter release
+      const releaseTime = 0.1;
 
-      // CRITICAL FIX: Schedule stops at the exact time, not after release
-      const stopTime = when + releaseTime;
-
-      // Schedule all oscillators to stop at the exact stop time
+      // Stop all oscillators
       voice.oscillators.forEach((osc) => {
         try {
-          osc.stop(stopTime);
-        } catch (e) {
-          // Already scheduled to stop
-        }
+          osc.stop(when + releaseTime);
+        } catch (e) {}
       });
 
       voice.lfos.forEach((lfo) => {
         try {
-          lfo.stop(stopTime);
-        } catch (e) {
-          // Already scheduled to stop
-        }
+          lfo.stop(when + releaseTime);
+        } catch (e) {}
       });
 
-      // Fade out gains
+      // Very fast gain fade
       voice.gains.forEach((gain) => {
         gain.gain.cancelScheduledValues(when);
-        const currentValue = gain.gain.value || 0.001;
-        gain.gain.setValueAtTime(currentValue, when);
-        gain.gain.exponentialRampToValueAtTime(0.001, stopTime);
+        gain.gain.setValueAtTime(gain.gain.value || 0.001, when);
+        gain.gain.linearRampToValueAtTime(0, when + releaseTime);
       });
 
-      // If this is the last note, fade the master gate to ensure silence
-      if (
-        this.activeNotes.size === 1 &&
-        this.activeNotes.get(midiNote)?.size === 1
-      ) {
-        this.masterGate.gain.cancelScheduledValues(stopTime);
-        this.masterGate.gain.setValueAtTime(1, stopTime);
-        this.masterGate.gain.linearRampToValueAtTime(0, stopTime + 0.5);
+      // Cleanup
+      setTimeout(
+        () => {
+          voices.delete(voice);
+          if (voices.size === 0) {
+            this.activeNotes.delete(midiNote);
 
-        // Reset master gate after ensuring silence
-        setTimeout(
-          () => {
-            this.masterGate.gain.value = 1;
-            // Also reset wet envelope
+            // KILL ALL FEEDBACK WHEN NO NOTES ARE PLAYING
+            this.killFeedback();
+
+            // Silence everything
+            this.output.gain.cancelScheduledValues(
+              this.audioContext.currentTime,
+            );
+            this.output.gain.setValueAtTime(0, this.audioContext.currentTime);
             this.wetEnvelope.gain.value = 0;
-          },
-          (releaseTime + 1) * 1000,
-        );
-      }
+            this.masterGate.gain.value = 0;
 
-      // Clean up after release - use actual wall clock time for cleanup
-      const cleanupDelay = Math.max(
-        0,
-        (stopTime - this.audioContext.currentTime + 0.1) * 1000,
+            // Reset after a moment
+            setTimeout(() => {
+              this.output.gain.value = 0.8;
+              this.masterGate.gain.value = 1;
+            }, 200);
+          }
+        },
+        releaseTime * 1000 + 50,
       );
-      setTimeout(() => {
-        voices.delete(voice);
-        if (voices.size === 0) this.activeNotes.delete(midiNote);
-      }, cleanupDelay);
     };
 
     if (typeof handleOrTime === 'object' && handleOrTime) {
-      // It's a voice handle
-      stopVoice(handleOrTime, this.audioContext.currentTime);
-    } else {
-      // It's a time value - schedule all voices to stop at that time
-      const when = Number(handleOrTime) || this.audioContext.currentTime;
-      Array.from(voices).forEach((v) => stopVoice(v, when));
-    }
-
-    if (typeof handleOrTime === 'object' && handleOrTime) {
       stopVoice(handleOrTime, this.audioContext.currentTime);
     } else {
       const when = Number(handleOrTime) || this.audioContext.currentTime;
       Array.from(voices).forEach((v) => stopVoice(v, when));
     }
 
-    // Optional: Reset currentFrequency if no active notes left (for fresh start)
+    // Reset portamento if no notes active
     if (this.activeNotes.size === 0) {
       this.currentFrequency = 0;
     }
+  }
+
+  dispose() {
+    // Stop all notes
+    this.stopAllNotes();
+
+    // Kill all feedback
+    this.killFeedback();
+
+    // Silence everything
+    this.output.gain.value = 0;
+    this.masterGate.gain.value = 0;
+    this.wetEnvelope.gain.value = 0;
+
+    // Disconnect everything
+    try {
+      this.limiter.disconnect();
+      this.masterGate.disconnect();
+      this.highpass.disconnect();
+      this.dryGain.disconnect();
+      this.wetGain.disconnect();
+      this.wetEnvelope.disconnect();
+      this.output.disconnect();
+      this.reverb.disconnect();
+      this.phaser.disconnect();
+
+      // Disconnect complex effect objects
+      if (this.delay.output) this.delay.output.disconnect();
+      if (this.delay.input) this.delay.input.disconnect();
+      if (this.chorus.output) this.chorus.output.disconnect();
+      if (this.chorus.input) this.chorus.input.disconnect();
+      if (this.shimmer.output) this.shimmer.output.disconnect();
+      if (this.shimmer.input) this.shimmer.input.disconnect();
+      if (this.warpField.output) this.warpField.output.disconnect();
+      if (this.warpField.input) this.warpField.input.disconnect();
+    } catch (e) {
+      console.error('Error disposing Wuulf2Synth:', e);
+    }
+  }
+
+  // Override stopAllNotes to be more aggressive
+  stopAllNotes(time = this.audioContext.currentTime) {
+    // Stop all active notes
+    this.activeNotes.forEach((voices, midiNote) => {
+      this.stopNote(midiNote, time);
+    });
+
+    // Clear everything
+    this.activeNotes.clear();
+
+    // Kill feedback immediately
+    this.killFeedback();
+
+    // Silence all outputs immediately
+    this.output.gain.cancelScheduledValues(time);
+    this.output.gain.setValueAtTime(0, time);
+    this.masterGate.gain.cancelScheduledValues(time);
+    this.masterGate.gain.setValueAtTime(0, time);
+    this.wetEnvelope.gain.cancelScheduledValues(time);
+    this.wetEnvelope.gain.setValueAtTime(0, time);
+
+    // Reset after a moment
+    setTimeout(() => {
+      this.output.gain.value = 0.8;
+      this.masterGate.gain.value = 1;
+      this.currentFrequency = 0;
+    }, 500);
   }
 }
 
