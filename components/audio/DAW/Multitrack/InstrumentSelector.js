@@ -69,6 +69,24 @@ const INSTRUMENTS = [
     description: 'Simple acoustic piano',
   },
   {
+    id: 'organ',
+    type: 'organ',
+    preset: null,
+    name: 'Pipe Organ',
+    icon: FaMusic,
+    color: '#8B4513', // Warm brown like mahogany
+    description: 'Classic pipe organ with multiple ranks',
+  },
+  {
+    id: 'reedorgan',
+    type: 'reedorgan',
+    preset: null,
+    name: 'Reed Organ',
+    icon: FaMusic,
+    color: '#CD853F',
+    description: 'Warm harmonium with characteristic beating',
+  },
+  {
     id: 'drums',
     type: 'drums',
     preset: null,

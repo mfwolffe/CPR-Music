@@ -2210,6 +2210,526 @@ export class SimplePiano extends BaseInstrument {
   }
 }
 
+// Basic Pipe Organ Synthesizer
+export class PipeOrgan extends BaseInstrument {
+  constructor(audioContext) {
+    super(audioContext);
+
+    // Pipe organ typically has multiple ranks (sets of pipes)
+    // We'll simulate different pipe footages (16', 8', 4', 2', 1')
+    this.ranks = {
+      16: 0.5, // Sub-octave
+      8: 1, // Fundamental
+      4: 2, // Octave
+      2: 4, // Super-octave
+      1: 8, // Two octaves up
+      '5⅓': 1.5, // Quint (perfect fifth)
+      '2⅔': 3, // Twelfth
+    };
+
+    // Rank volumes (drawbar-like settings)
+    this.rankGains = {
+      16: 0.3,
+      8: 1.0, // Fundamental is loudest
+      4: 0.7,
+      2: 0.4,
+      1: 0.2,
+      '5⅓': 0.3,
+      '2⅔': 0.2,
+    };
+
+    // Create a subtle reverb for church-like sound
+    this.reverb = this.createOrganReverb();
+
+    // Connect output through reverb
+    this.dryGain = audioContext.createGain();
+    this.dryGain.gain.value = 0.7;
+    this.wetGain = audioContext.createGain();
+    this.wetGain.gain.value = 0.3;
+
+    this.output.connect(this.dryGain);
+    this.output.connect(this.reverb);
+    this.reverb.connect(this.wetGain);
+
+    // Final output
+    this.finalOutput = audioContext.createGain();
+    this.dryGain.connect(this.finalOutput);
+    this.wetGain.connect(this.finalOutput);
+  }
+
+  connect(destination) {
+    this.finalOutput.connect(destination);
+  }
+
+  disconnect() {
+    this.finalOutput.disconnect();
+  }
+
+  createOrganReverb() {
+    const convolver = this.audioContext.createConvolver();
+    const length = this.audioContext.sampleRate * 3; // 3 second reverb
+    const impulse = this.audioContext.createBuffer(
+      2,
+      length,
+      this.audioContext.sampleRate,
+    );
+
+    for (let channel = 0; channel < 2; channel++) {
+      const channelData = impulse.getChannelData(channel);
+      for (let i = 0; i < length; i++) {
+        // Create a church-like reverb decay
+        const decay = Math.pow(1 - i / length, 2);
+        channelData[i] = (Math.random() * 2 - 1) * decay;
+      }
+    }
+
+    convolver.buffer = impulse;
+    return convolver;
+  }
+
+  playNote(midiNote, velocity = 1, time = this.audioContext.currentTime) {
+    const frequency = 440 * Math.pow(2, (midiNote - 69) / 12);
+
+    const voice = {
+      oscillators: [],
+      gains: [],
+      filters: [],
+      startTime: time,
+    };
+
+    // Create oscillators for each rank
+    Object.entries(this.ranks).forEach(([footage, multiplier]) => {
+      // Each rank gets slight detuning for richness
+      const detuneCents = (Math.random() - 0.5) * 4; // ±2 cents
+
+      // Create the main oscillator for this rank
+      const osc = this.audioContext.createOscillator();
+      osc.frequency.value = frequency * multiplier;
+      osc.detune.value = detuneCents;
+
+      // Pipe organs use relatively simple waveforms
+      // Mix of sine (flute pipes) and sawtooth (reed pipes)
+      if (footage === '16' || footage === '8') {
+        osc.type = 'sine'; // Flute pipes for fundamental tones
+      } else {
+        osc.type = 'sawtooth'; // Reed pipes for harmonics
+      }
+
+      // Create a bandpass filter to shape the tone
+      const filter = this.audioContext.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = frequency * multiplier * 2;
+      filter.Q.value = 1.5;
+
+      // Individual gain for this rank
+      const gain = this.audioContext.createGain();
+      gain.gain.value = 0;
+
+      // Connect oscillator -> filter -> gain -> output
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.output);
+
+      voice.oscillators.push(osc);
+      voice.gains.push(gain);
+      voice.filters.push(filter);
+    });
+
+    // Pipe organ envelope - very fast attack, sustained, medium release
+    const attack = 0.01; // Instant speech
+    const release = 0.5; // Natural pipe decay
+
+    // Apply envelope to all ranks
+    voice.gains.forEach((gain, index) => {
+      const footage = Object.keys(this.ranks)[index];
+      const rankGain = this.rankGains[footage] || 0.5;
+      const targetGain = velocity * rankGain * 0.1; // Scale down to prevent clipping
+
+      gain.gain.setValueAtTime(0.0001, time);
+      gain.gain.exponentialRampToValueAtTime(targetGain, time + attack);
+    });
+
+    // Add subtle tremulant (vibrato) effect
+    const tremulant = this.audioContext.createOscillator();
+    tremulant.frequency.value = 4.5; // Classic tremulant speed
+    tremulant.type = 'sine';
+
+    const tremulantGain = this.audioContext.createGain();
+    tremulantGain.gain.value = 2; // Very subtle pitch modulation
+
+    tremulant.connect(tremulantGain);
+
+    // Apply tremulant to each oscillator
+    voice.oscillators.forEach((osc) => {
+      tremulantGain.connect(osc.detune);
+    });
+
+    // Start all oscillators
+    voice.oscillators.forEach((osc) => osc.start(time));
+    tremulant.start(time);
+
+    // Store the tremulant in voice for cleanup
+    voice.tremulant = tremulant;
+    voice.release = release;
+
+    // Store voice
+    let set = this.activeNotes.get(midiNote);
+    if (!set) {
+      set = new Set();
+      this.activeNotes.set(midiNote, set);
+    }
+    set.add(voice);
+
+    return voice;
+  }
+
+  stopNote(midiNote, handleOrTime = this.audioContext.currentTime) {
+    const voices = this.activeNotes.get(midiNote);
+    if (!voices || voices.size === 0) return;
+
+    const stopVoice = (voice, when) => {
+      const { gains, oscillators, tremulant, release } = voice;
+      const end = when + release;
+
+      // Fade out all gains
+      gains.forEach((gain) => {
+        gain.gain.cancelScheduledValues(when);
+        const currentValue = gain.gain.value;
+        gain.gain.setValueAtTime(currentValue, when);
+        gain.gain.exponentialRampToValueAtTime(0.0001, end);
+      });
+
+      // Stop oscillators after release
+      setTimeout(
+        () => {
+          oscillators.forEach((osc) => {
+            try {
+              osc.stop();
+            } catch {}
+          });
+          try {
+            tremulant.stop();
+          } catch {}
+          voices.delete(voice);
+          if (voices.size === 0) this.activeNotes.delete(midiNote);
+        },
+        (release + 0.1) * 1000,
+      );
+    };
+
+    if (typeof handleOrTime === 'object' && handleOrTime) {
+      stopVoice(handleOrTime, this.audioContext.currentTime);
+    } else {
+      const when = Number(handleOrTime) || this.audioContext.currentTime;
+      Array.from(voices).forEach((v) => stopVoice(v, when));
+    }
+  }
+}
+
+// Reed Organ/Harmonium Synthesizer
+export class ReedOrgan extends BaseInstrument {
+  constructor(audioContext) {
+    super(audioContext);
+
+    // Reed organs have fewer harmonics than pipe organs
+    // They produce a warm, breathy, slightly nasal tone
+    this.reedRanks = {
+      8: 1, // Fundamental
+      4: 2, // Octave
+      16: 0.5, // Sub-octave (not all harmoniums have this)
+    };
+
+    // Reed organ specific characteristics
+    this.reedGains = {
+      8: 1.0, // Fundamental is dominant
+      4: 0.3, // Gentle octave
+      16: 0.4, // Subtle bass
+    };
+
+    // Create filters for the characteristic reed organ sound
+    this.masterFilter = audioContext.createBiquadFilter();
+    this.masterFilter.type = 'lowpass';
+    this.masterFilter.frequency.value = 2000; // Warm, mellow tone
+    this.masterFilter.Q.value = 0.5;
+
+    // Add a highpass to remove mud
+    this.highpass = audioContext.createBiquadFilter();
+    this.highpass.type = 'highpass';
+    this.highpass.frequency.value = 80;
+    this.highpass.Q.value = 0.7;
+
+    // Subtle chorus for the characteristic harmonium wobble
+    this.chorus = this.createHarmoniumChorus();
+
+    // Compression for consistent reed response
+    this.compressor = audioContext.createDynamicsCompressor();
+    this.compressor.threshold.value = -20;
+    this.compressor.ratio.value = 3;
+    this.compressor.attack.value = 0.01;
+    this.compressor.release.value = 0.1;
+
+    // Signal path
+    this.output.connect(this.highpass);
+    this.highpass.connect(this.masterFilter);
+    this.masterFilter.connect(this.chorus.input);
+    this.chorus.output.connect(this.compressor);
+
+    // Final output
+    this.finalOutput = audioContext.createGain();
+    this.finalOutput.gain.value = 0.7; // Prevent clipping
+    this.compressor.connect(this.finalOutput);
+  }
+
+  connect(destination) {
+    this.finalOutput.connect(destination);
+  }
+
+  disconnect() {
+    this.finalOutput.disconnect();
+  }
+
+  createHarmoniumChorus() {
+    // Harmonium has a natural chorus from multiple reeds
+    const input = this.audioContext.createGain();
+    const output = this.audioContext.createGain();
+
+    // Create two delayed paths for chorus effect
+    const delay1 = this.audioContext.createDelay(0.05);
+    const delay2 = this.audioContext.createDelay(0.05);
+
+    // LFOs for delay modulation - slower than typical chorus
+    const lfo1 = this.audioContext.createOscillator();
+    const lfo2 = this.audioContext.createOscillator();
+    const lfoGain1 = this.audioContext.createGain();
+    const lfoGain2 = this.audioContext.createGain();
+
+    lfo1.frequency.value = 0.7; // Slow wobble
+    lfo2.frequency.value = 0.9; // Slightly different rate
+    lfoGain1.gain.value = 0.002; // Subtle modulation
+    lfoGain2.gain.value = 0.0015;
+
+    lfo1.connect(lfoGain1);
+    lfo2.connect(lfoGain2);
+    lfoGain1.connect(delay1.delayTime);
+    lfoGain2.connect(delay2.delayTime);
+
+    delay1.delayTime.value = 0.012;
+    delay2.delayTime.value = 0.018;
+
+    // Mix dry and wet
+    const dryGain = this.audioContext.createGain();
+    const wetGain1 = this.audioContext.createGain();
+    const wetGain2 = this.audioContext.createGain();
+
+    dryGain.gain.value = 0.7;
+    wetGain1.gain.value = 0.15;
+    wetGain2.gain.value = 0.15;
+
+    input.connect(dryGain);
+    input.connect(delay1);
+    input.connect(delay2);
+
+    delay1.connect(wetGain1);
+    delay2.connect(wetGain2);
+
+    dryGain.connect(output);
+    wetGain1.connect(output);
+    wetGain2.connect(output);
+
+    lfo1.start();
+    lfo2.start();
+
+    return { input, output };
+  }
+
+  playNote(midiNote, velocity = 1, time = this.audioContext.currentTime) {
+    const frequency = 440 * Math.pow(2, (midiNote - 69) / 12);
+
+    const voice = {
+      oscillators: [],
+      gains: [],
+      filters: [],
+      noiseGain: null,
+      startTime: time,
+    };
+
+    // Add breath noise for realism
+    const noise = this.audioContext.createBufferSource();
+    const noiseBuffer = this.audioContext.createBuffer(
+      1,
+      this.audioContext.sampleRate * 2,
+      this.audioContext.sampleRate,
+    );
+    const noiseData = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < noiseData.length; i++) {
+      noiseData[i] = (Math.random() - 0.5) * 0.2;
+    }
+    noise.buffer = noiseBuffer;
+    noise.loop = true;
+
+    // Filter the noise to make it breathy
+    const noiseFilter = this.audioContext.createBiquadFilter();
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.value = frequency * 2;
+    noiseFilter.Q.value = 5;
+
+    const noiseGain = this.audioContext.createGain();
+    noiseGain.gain.value = 0;
+
+    noise.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(this.output);
+
+    voice.noise = noise;
+    voice.noiseGain = noiseGain;
+
+    // Create oscillators for each reed rank
+    Object.entries(this.reedRanks).forEach(([footage, multiplier]) => {
+      // Reed organs have natural beating between reeds
+      // Create two slightly detuned oscillators per rank
+      for (let i = 0; i < 2; i++) {
+        const osc = this.audioContext.createOscillator();
+        osc.frequency.value = frequency * multiplier;
+
+        // Natural reed detuning creates beating
+        const detuneCents = (i === 0 ? -2 : 2) + (Math.random() - 0.5) * 2;
+        osc.detune.value = detuneCents;
+
+        // Reed organs produce a complex waveform
+        // Mix between sawtooth (bright reeds) and triangle (mellow reeds)
+        osc.type = footage === '16' ? 'triangle' : 'sawtooth';
+
+        // Individual filter for each reed
+        const filter = this.audioContext.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = frequency * multiplier * 1.5;
+        filter.Q.value = 2; // Fairly resonant
+
+        // Add formant filter for reed character
+        const formant = this.audioContext.createBiquadFilter();
+        formant.type = 'peaking';
+        formant.frequency.value = 700 + (Math.random() - 0.5) * 100;
+        formant.Q.value = 3;
+        formant.gain.value = 6;
+
+        const gain = this.audioContext.createGain();
+        gain.gain.value = 0;
+
+        // Connect: osc -> filter -> formant -> gain -> output
+        osc.connect(filter);
+        filter.connect(formant);
+        formant.connect(gain);
+        gain.connect(this.output);
+
+        voice.oscillators.push(osc);
+        voice.gains.push(gain);
+        voice.filters.push(filter);
+      }
+    });
+
+    // Reed organ envelope - slow attack (air pressure building)
+    const attack = 0.08; // Slower than pipe organ
+    const release = 0.3; // Quick release when bellows stop
+
+    // Apply envelope
+    const rankFootages = Object.keys(this.reedRanks);
+    voice.gains.forEach((gain, index) => {
+      const rankIndex = Math.floor(index / 2); // 2 oscillators per rank
+      const footage = rankFootages[rankIndex];
+      const rankGain = this.reedGains[footage] || 0.5;
+      const targetGain = velocity * rankGain * 0.08; // Scale for multiple oscillators
+
+      gain.gain.setValueAtTime(0.0001, time);
+      gain.gain.exponentialRampToValueAtTime(targetGain, time + attack);
+    });
+
+    // Breath noise envelope
+    const noiseLevel = velocity * 0.015; // Very subtle
+    voice.noiseGain.gain.setValueAtTime(0.0001, time);
+    voice.noiseGain.gain.exponentialRampToValueAtTime(
+      noiseLevel,
+      time + attack * 0.5,
+    );
+
+    // Add subtle pitch bend at start (air pressure stabilizing)
+    voice.oscillators.forEach((osc) => {
+      const startDetune = osc.detune.value;
+      osc.detune.setValueAtTime(startDetune - 10, time);
+      osc.detune.linearRampToValueAtTime(startDetune, time + attack);
+    });
+
+    // Start all sound sources
+    voice.oscillators.forEach((osc) => osc.start(time));
+    voice.noise.start(time);
+
+    voice.release = release;
+
+    // Store voice
+    let set = this.activeNotes.get(midiNote);
+    if (!set) {
+      set = new Set();
+      this.activeNotes.set(midiNote, set);
+    }
+    set.add(voice);
+
+    return voice;
+  }
+
+  stopNote(midiNote, handleOrTime = this.audioContext.currentTime) {
+    const voices = this.activeNotes.get(midiNote);
+    if (!voices || voices.size === 0) return;
+
+    const stopVoice = (voice, when) => {
+      const { gains, oscillators, noise, noiseGain, release } = voice;
+      const end = when + release;
+
+      // Fade out all gains
+      gains.forEach((gain) => {
+        gain.gain.cancelScheduledValues(when);
+        const currentValue = gain.gain.value;
+        gain.gain.setValueAtTime(currentValue, when);
+        gain.gain.exponentialRampToValueAtTime(0.0001, end);
+      });
+
+      // Fade out breath noise
+      noiseGain.gain.cancelScheduledValues(when);
+      noiseGain.gain.setValueAtTime(noiseGain.gain.value, when);
+      noiseGain.gain.exponentialRampToValueAtTime(0.0001, end);
+
+      // Slight pitch drop as air pressure releases
+      oscillators.forEach((osc) => {
+        const currentDetune = osc.detune.value;
+        osc.detune.setValueAtTime(currentDetune, when);
+        osc.detune.linearRampToValueAtTime(currentDetune - 5, end);
+      });
+
+      // Stop all sources after release
+      setTimeout(
+        () => {
+          oscillators.forEach((osc) => {
+            try {
+              osc.stop();
+            } catch {}
+          });
+          try {
+            noise.stop();
+          } catch {}
+          voices.delete(voice);
+          if (voices.size === 0) this.activeNotes.delete(midiNote);
+        },
+        (release + 0.1) * 1000,
+      );
+    };
+
+    if (typeof handleOrTime === 'object' && handleOrTime) {
+      stopVoice(handleOrTime, this.audioContext.currentTime);
+    } else {
+      const when = Number(handleOrTime) || this.audioContext.currentTime;
+      Array.from(voices).forEach((v) => stopVoice(v, when));
+    }
+  }
+}
+
 // Export instrument factory - Updated to accept external AudioContext
 export function createInstrument(audioContext, type, preset) {
   switch (type) {
@@ -2227,6 +2747,10 @@ export function createInstrument(audioContext, type, preset) {
       return new StringEnsemble(audioContext);
     case 'brass':
       return new BrassSection(audioContext);
+    case 'organ':
+      return new PipeOrgan(audioContext);
+    case 'reedorgan':
+      return new ReedOrgan(audioContext);
     default:
       return new SubtractiveSynth(audioContext, 'default');
   }
