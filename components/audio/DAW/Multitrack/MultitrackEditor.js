@@ -1,8 +1,15 @@
 // components/audio/DAW/Multitrack/MultitrackEditor.js
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Button, Container, Row, Col } from 'react-bootstrap';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  Button,
+  Container,
+  Row,
+  Col,
+  ButtonGroup,
+  ToggleButton,
+} from 'react-bootstrap';
 import {
   FaPlus,
   FaCut,
@@ -16,7 +23,11 @@ import {
   FaMicrophone,
   FaMusic,
   FaKeyboard,
+  FaMousePointer,
+  FaHandPaper,
+  FaMagnet,
 } from 'react-icons/fa';
+import { RiScissors2Fill } from 'react-icons/ri';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import Track from './Track';
 import RecordingTrack from './RecordingTrack';
@@ -28,6 +39,14 @@ import TakesImportModal from './TakesImportModal';
 import MultitrackMixdown from './MultitrackMixdown';
 import MIDIInputManager from './MIDIInputManager';
 import MIDIDeviceSelector from './MIDIDeviceSelector';
+import clipClipboard from './ClipClipboard';
+import {
+  splitClipsAtTime,
+  rippleDelete,
+  findClipsInRange,
+  duplicateClips,
+  quantizeClips,
+} from './clipOperations';
 
 // Create singleton MIDI manager
 const midiInputManager = new MIDIInputManager();
@@ -38,562 +57,502 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   const {
     tracks = [],
     addTrack,
+    updateTrack,
     selectedTrackId,
-    activeRegion,
-    deleteRegion,
-    exciseRegion,
-    // new: tool & snap controls + clip actions
+    selectedClipId,
+    setSelectedClipId,
+    currentTime,
+    // tool & snap controls
     editorTool,
     setEditorTool,
     snapEnabled,
     setSnapEnabled,
     gridSizeSec,
     setGridSizeSec,
-    splitAtPlayhead,
-    rippleDeleteSelection,
   } = useMultitrack();
+
   const [showEffectsPanel, setShowEffectsPanel] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(100);
   const [showTakesModal, setShowTakesModal] = useState(false);
-  const [showMIDIDeviceSelector, setShowMIDIDeviceSelector] = useState(false);
-  const [connectedMIDIDevice, setConnectedMIDIDevice] = useState(null);
-  const [midiActivity, setMidiActivity] = useState(false);
-  const [showPiano, setShowPiano] = useState(false); // New state for piano visibility
-  const fileInputRef = useRef(null);
+  const [availableTakes] = useState(propTakes);
+  const [midiInputActive, setMidiInputActive] = useState(false);
+  const [selectedMidiDevice, setSelectedMidiDevice] = useState(null);
 
-  // Store MIDI handler ref to avoid recreating
-  const midiHandlerRef = useRef(null);
+  // Track undo/redo history
+  const [history, setHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
 
-  // Use takes from props if provided, otherwise use empty array
-  const availableTakes = propTakes;
+  // Get selected track and clips
+  const selectedTrack = tracks.find((t) => t.id === selectedTrackId);
+  const selectedClips =
+    selectedTrack?.clips?.filter((c) => c.id === selectedClipId) || [];
 
-  // Initialize MIDI manager on mount
-  useEffect(() => {
-    midiInputManager.initialize().then((success) => {
-      if (success) {
-        console.log('🎹 MIDI Manager initialized successfully');
-      }
+  // Handle copy
+  const handleCopy = useCallback(() => {
+    if (!selectedTrack || selectedClips.length === 0) return;
+
+    clipClipboard.copy(selectedClips, selectedTrack.id);
+    console.log('Copied', selectedClips.length, 'clips');
+  }, [selectedTrack, selectedClips]);
+
+  // Handle cut
+  const handleCut = useCallback(() => {
+    if (!selectedTrack || selectedClips.length === 0) return;
+
+    const clipIds = clipClipboard.cut(selectedClips, selectedTrack.id);
+
+    // Remove cut clips
+    updateTrack(selectedTrack.id, {
+      clips: selectedTrack.clips.filter((c) => !clipIds.includes(c.id)),
     });
-  }, []);
 
-  // Global MIDI handler - routes to recording tracks or selected track
-  const handleGlobalMIDI = (message) => {
-    console.log('🎹 Global MIDI message:', message);
+    setSelectedClipId(null);
+    console.log('Cut', selectedClips.length, 'clips');
+  }, [selectedTrack, selectedClips, updateTrack, setSelectedClipId]);
 
-    // Flash activity indicator
-    setMidiActivity(true);
-    setTimeout(() => setMidiActivity(false), 100);
+  // Handle paste
+  const handlePaste = useCallback(() => {
+    if (!selectedTrack || !clipClipboard.hasContent()) return;
 
-    // Find if any MIDI track is recording
-    const recordingTrack = tracks.find(
-      (t) => t.type === 'midi' && t.isRecording,
-    );
+    // Paste at current playhead position
+    const pastePosition = currentTime;
+    const newClips = clipClipboard.paste(pastePosition, selectedTrack.id);
 
-    if (recordingTrack) {
-      // Route to recording track
-      console.log('📍 Routing MIDI to recording track:', recordingTrack.id);
-      // The track component will handle recording through its own recorder
-    } else {
-      // Route to selected track for live playing
-      const selectedTrack = tracks.find(
-        (t) => t.id === selectedTrackId && t.type === 'midi',
-      );
-      if (selectedTrack) {
-        console.log('📍 Routing MIDI to selected track:', selectedTrack.id);
-        // The track will handle live playback
-      }
-    }
-
-    // Broadcast the MIDI message for any track to pick up
-    window.dispatchEvent(new CustomEvent('midiMessage', { detail: message }));
-  };
-
-  // Store the handler ref
-  useEffect(() => {
-    midiHandlerRef.current = handleGlobalMIDI;
-  }, [tracks, selectedTrackId]);
-
-  // Generate silent audio for empty tracks
-  const generateSilentAudio = () => {
-    // Create a proper silent audio blob
-    const sampleRate = 44100;
-    const duration = 1; // 1 second of silence
-    const length = sampleRate * duration;
-    const audioBuffer = new AudioContext().createBuffer(2, length, sampleRate);
-
-    // Convert to WAV format
-    const wav = audioBufferToWav(audioBuffer);
-    const blob = new Blob([wav], { type: 'audio/wav' });
-    return URL.createObjectURL(blob);
-  };
-
-  // Add recording track handler
-  const handleAddRecordingTrack = () => {
-    const newTrack = {
-      name: `Recording ${tracks.length + 1}`,
-      isRecordingTrack: true,
-      audioURL: null,
-      volume: 1,
-      pan: 0,
-      muted: false,
-      solo: false,
-    };
-    addTrack(newTrack);
-  };
-
-  // Add empty sample track
-  const handleAddSampleTrack = () => {
-    const newTrack = {
-      name: `Track ${tracks.length + 1}`,
-      audioURL: generateSilentAudio(),
-      volume: 1,
-      pan: 0,
-      muted: false,
-      solo: false,
-    };
-    addTrack(newTrack);
-  };
-
-  // Add MIDI track
-  const handleAddMIDITrack = () => {
-    const newTrack = {
-      name: `MIDI ${tracks.length + 1}`,
-      type: 'midi', // Important: mark this as a MIDI track
-      audioURL: null,
-      volume: 1,
-      pan: 0,
-      muted: false,
-      solo: false,
-      midiData: {
-        notes: [],
-        tempo: 120,
-        instrument: {
-          id: 'synth-default',
-          type: 'synth',
-          preset: 'default',
-          name: 'Basic Synth',
-        },
-      },
-    };
-    addTrack(newTrack);
-  };
-
-  // Handle MIDI device selection
-  const handleMIDIDeviceSelect = (deviceId) => {
-    console.log('🎹 Selecting MIDI device:', deviceId);
-
-    // Disconnect previous device if any
-    if (connectedMIDIDevice) {
-      midiInputManager.disconnectInput(connectedMIDIDevice);
-    }
-
-    // Connect new device
-    if (deviceId) {
-      const success = midiInputManager.connectInput(deviceId, (message) => {
-        if (midiHandlerRef.current) {
-          midiHandlerRef.current(message);
-        }
+    if (newClips.length > 0) {
+      updateTrack(selectedTrack.id, {
+        clips: [...(selectedTrack.clips || []), ...newClips],
       });
 
-      if (success) {
-        setConnectedMIDIDevice(deviceId);
-        console.log('✅ MIDI device connected');
-      } else {
-        console.error('❌ Failed to connect MIDI device');
+      // Select first pasted clip
+      setSelectedClipId(newClips[0].id);
+      console.log('Pasted', newClips.length, 'clips at', pastePosition);
+    }
+  }, [selectedTrack, currentTime, updateTrack, setSelectedClipId]);
+
+  // Handle delete
+  const handleDelete = useCallback(() => {
+    if (!selectedTrack || !selectedClipId) return;
+
+    updateTrack(selectedTrack.id, {
+      clips: selectedTrack.clips.filter((c) => c.id !== selectedClipId),
+    });
+
+    setSelectedClipId(null);
+  }, [selectedTrack, selectedClipId, updateTrack, setSelectedClipId]);
+
+  // Handle split at playhead
+  const handleSplitAtPlayhead = useCallback(() => {
+    tracks.forEach((track) => {
+      if (!track.clips || track.clips.length === 0) return;
+
+      const newClips = splitClipsAtTime(track.clips, currentTime);
+      if (newClips.length > track.clips.length) {
+        updateTrack(track.id, { clips: newClips });
       }
-    }
-  };
+    });
+  }, [tracks, currentTime, updateTrack]);
 
-  // Test function to check if tracks are being added
+  // Handle duplicate
+  const handleDuplicate = useCallback(() => {
+    if (!selectedTrack || selectedClips.length === 0) return;
+
+    // Find the end of selected clips
+    const maxEnd = Math.max(
+      ...selectedClips.map((c) => (c.start || 0) + (c.duration || 0)),
+    );
+    const minStart = Math.min(...selectedClips.map((c) => c.start || 0));
+    const offset = maxEnd - minStart;
+
+    const duplicated = duplicateClips(selectedClips, offset);
+
+    updateTrack(selectedTrack.id, {
+      clips: [...selectedTrack.clips, ...duplicated],
+    });
+
+    // Select first duplicated clip
+    if (duplicated.length > 0) {
+      setSelectedClipId(duplicated[0].id);
+    }
+  }, [selectedTrack, selectedClips, updateTrack, setSelectedClipId]);
+
+  // Handle quantize
+  const handleQuantize = useCallback(() => {
+    if (!selectedTrack || !snapEnabled) return;
+
+    const quantized = quantizeClips(
+      selectedClipId ? selectedClips : selectedTrack.clips,
+      gridSizeSec,
+    );
+
+    updateTrack(selectedTrack.id, { clips: quantized });
+  }, [
+    selectedTrack,
+    selectedClips,
+    selectedClipId,
+    snapEnabled,
+    gridSizeSec,
+    updateTrack,
+  ]);
+
+  // Keyboard shortcuts
   useEffect(() => {
-    console.log('Current tracks:', tracks);
-    if (!Array.isArray(tracks)) {
-      console.error('Tracks is not an array:', tracks);
-    }
-  }, [tracks]);
+    const handleKeyDown = (e) => {
+      // Check if we're in an input field
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return;
+      }
 
-  // Handle file import
-  const handleFileImport = (event) => {
-    const file = event.target.files[0];
-    if (file && file.type.startsWith('audio/')) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const audioURL = e.target.result;
-        addTrack({
-          name: file.name.replace(/\.[^/.]+$/, ''), // Remove file extension
-          audioURL: audioURL,
-        });
-      };
-      reader.readAsDataURL(file);
-    }
-    // Reset input so same file can be selected again
-    event.target.value = '';
+      const isMeta = e.metaKey || e.ctrlKey;
+
+      if (isMeta && e.key === 'c') {
+        e.preventDefault();
+        handleCopy();
+      } else if (isMeta && e.key === 'x') {
+        e.preventDefault();
+        handleCut();
+      } else if (isMeta && e.key === 'v') {
+        e.preventDefault();
+        handlePaste();
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        handleDelete();
+      } else if (isMeta && e.key === 'd') {
+        e.preventDefault();
+        handleDuplicate();
+      } else if (e.key === 's' && !isMeta) {
+        e.preventDefault();
+        handleSplitAtPlayhead();
+      } else if (e.key === 'q' && !isMeta) {
+        e.preventDefault();
+        handleQuantize();
+      } else if (e.key === '1') {
+        setEditorTool('select');
+      } else if (e.key === '2') {
+        setEditorTool('clip');
+      } else if (e.key === '3') {
+        setEditorTool('cut');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    handleCopy,
+    handleCut,
+    handlePaste,
+    handleDelete,
+    handleDuplicate,
+    handleSplitAtPlayhead,
+    handleQuantize,
+    setEditorTool,
+  ]);
+
+  // MIDI setup
+  useEffect(() => {
+    midiInputManager.addListener('editor', (noteData) => {
+      if (midiInputActive && selectedTrackId) {
+        const track = tracks.find((t) => t.id === selectedTrackId);
+        if (track && track.type === 'midi' && track.isRecording) {
+          console.log('MIDI Editor received note:', noteData);
+        }
+      }
+    });
+
+    return () => {
+      midiInputManager.removeListener('editor');
+    };
+  }, [midiInputActive, selectedTrackId, tracks]);
+
+  const handleAddAudioTrack = () => {
+    addTrack({ type: 'audio' });
   };
+
+  const handleAddMIDITrack = () => {
+    addTrack({ type: 'midi', midiData: { notes: [], tempo: 120 } });
+  };
+
+  const handleAddRecordingTrack = () => {
+    addTrack({ type: 'recording' });
+  };
+
+  const handleImportTake = (take) => {
+    addTrack({
+      type: 'audio',
+      name: take.name,
+      audioURL: take.audioURL,
+      clips: [
+        {
+          id: `clip-${Date.now()}`,
+          start: 0,
+          duration: take.duration || 0,
+          src: take.audioURL,
+          offset: 0,
+          color: '#7bafd4',
+        },
+      ],
+    });
+  };
+
+  const canPaste = clipClipboard.hasContent();
+  const hasSelection = selectedClipId !== null;
 
   return (
-    <div
-      className={`multitrack-editor-container ${showPiano ? 'piano-visible' : ''}`}
-    >
-      {/* Top Toolbar - Effects and Edit Actions */}
-      <div className="multitrack-toolbar">
-        {/* Tool Mode */}
-        <div className="toolbar-section">
-          <Button
-            size="sm"
-            variant={editorTool === 'clip' ? 'primary' : 'outline-secondary'}
-            onClick={() => setEditorTool('clip')}
-            title="Clip editing mode (drag/move/resize clips)"
-          >
-            Clip
-          </Button>
-          <Button
-            size="sm"
-            className="ms-1"
-            variant={editorTool === 'region' ? 'primary' : 'outline-secondary'}
-            onClick={() => setEditorTool('region')}
-            title="Region selection mode (draw selections on waveform)"
-          >
-            Region
-          </Button>
-        </div>
+    <Container fluid className="multitrack-editor p-3">
+      <Row className="mb-3">
+        <Col>
+          <div className="d-flex justify-content-between align-items-center">
+            <div className="d-flex gap-2 align-items-center">
+              {/* Tool Selection */}
+              <ButtonGroup size="sm">
+                <ToggleButton
+                  id="tool-select"
+                  type="radio"
+                  variant="outline-secondary"
+                  name="tool"
+                  value="select"
+                  checked={editorTool === 'select'}
+                  onChange={(e) => setEditorTool(e.currentTarget.value)}
+                  title="Selection Tool (1)"
+                >
+                  <FaMousePointer />
+                </ToggleButton>
+                <ToggleButton
+                  id="tool-clip"
+                  type="radio"
+                  variant="outline-secondary"
+                  name="tool"
+                  value="clip"
+                  checked={editorTool === 'clip'}
+                  onChange={(e) => setEditorTool(e.currentTarget.value)}
+                  title="Clip Tool (2)"
+                >
+                  <FaHandPaper />
+                </ToggleButton>
+                <ToggleButton
+                  id="tool-cut"
+                  type="radio"
+                  variant="outline-secondary"
+                  name="tool"
+                  value="cut"
+                  checked={editorTool === 'cut'}
+                  onChange={(e) => setEditorTool(e.currentTarget.value)}
+                  title="Cut Tool (3)"
+                >
+                  <RiScissors2Fill />
+                </ToggleButton>
+              </ButtonGroup>
 
-        {/* Snap/Grid */}
-        <div className="toolbar-section">
-          <Button
-            size="sm"
-            variant={snapEnabled ? 'success' : 'outline-secondary'}
-            onClick={() => setSnapEnabled(!snapEnabled)}
-            title="Toggle snap to grid"
-          >
-            {snapEnabled ? 'Snap On' : 'Snap Off'}
-          </Button>
-          <span className="text-white ms-2">Grid:</span>
-          <input
-            type="number"
-            min="0.01"
-            step="0.01"
-            value={gridSizeSec}
-            onChange={(e) =>
-              setGridSizeSec(Math.max(0.01, parseFloat(e.target.value) || 0.1))
-            }
-            className="ms-1"
-            style={{ width: '70px' }}
-            title="Grid size in seconds"
-          />
-          <span className="text-white ms-1">s</span>
-        </div>
+              {/* Clip Operations */}
+              <div className="vr" />
+              <ButtonGroup size="sm">
+                <Button
+                  variant="outline-secondary"
+                  onClick={handleCut}
+                  disabled={!hasSelection}
+                  title="Cut (Cmd/Ctrl+X)"
+                >
+                  <FaCut />
+                </Button>
+                <Button
+                  variant="outline-secondary"
+                  onClick={handleCopy}
+                  disabled={!hasSelection}
+                  title="Copy (Cmd/Ctrl+C)"
+                >
+                  <FaCopy />
+                </Button>
+                <Button
+                  variant="outline-secondary"
+                  onClick={handlePaste}
+                  disabled={!canPaste}
+                  title="Paste (Cmd/Ctrl+V)"
+                >
+                  <FaPaste />
+                </Button>
+                <Button
+                  variant="outline-danger"
+                  onClick={handleDelete}
+                  disabled={!hasSelection}
+                  title="Delete (Delete/Backspace)"
+                >
+                  <FaTrash />
+                </Button>
+              </ButtonGroup>
 
-        {/* Clip actions */}
-        <div className="toolbar-section">
-          <Button
-            size="sm"
-            variant="outline-info"
-            onClick={() => splitAtPlayhead('selected')}
-            title="Split selected track clip at playhead"
-          >
-            <FaCut /> Split
-          </Button>
-          <Button
-            size="sm"
-            className="ms-1"
-            variant={activeRegion ? 'danger' : 'outline-danger'}
-            disabled={!activeRegion}
-            onClick={() => rippleDeleteSelection()}
-            title="Ripple delete current selection across tracks"
-          >
-            Ripple
-          </Button>
-        </div>
-        <div className="toolbar-section">
-          <Button size="sm" variant="outline-light" disabled>
-            <FaUndo /> Undo
-          </Button>
-          <Button size="sm" variant="outline-light" disabled>
-            <FaRedo /> Redo
-          </Button>
-        </div>
-        <div className="toolbar-section">
-          <Button size="sm" variant="outline-light" disabled>
-            <FaCut /> Cut
-          </Button>
-          <Button size="sm" variant="outline-light" disabled>
-            <FaCopy /> Copy
-          </Button>
-          <Button size="sm" variant="outline-light" disabled>
-            <FaPaste /> Paste
-          </Button>
-          <Button
-            size="sm"
-            variant={activeRegion ? 'danger' : 'outline-light'}
-            disabled={!activeRegion}
-            onClick={() => deleteRegion(activeRegion)}
-            title={
-              activeRegion
-                ? 'Delete selection (ripple)'
-                : 'Select a region to enable'
-            }
-          >
-            <FaTrash /> Delete
-          </Button>
-          <Button
-            size="sm"
-            variant={activeRegion ? 'warning' : 'outline-light'}
-            disabled={!activeRegion}
-            onClick={() => exciseRegion(activeRegion)}
-            title={
-              activeRegion ? 'Keep only selection' : 'Select a region to enable'
-            }
-          >
-            <FaCut /> Excise
-          </Button>
-        </div>
-        <div className="toolbar-section">
-          <Button
-            size="sm"
-            variant={showEffectsPanel ? 'warning' : 'outline-warning'}
-            onClick={() => setShowEffectsPanel(!showEffectsPanel)}
-          >
-            Effects {showEffectsPanel ? '◀' : '▶'}
-          </Button>
-        </div>
+              {/* Edit Operations */}
+              <div className="vr" />
+              <ButtonGroup size="sm">
+                <Button
+                  variant="outline-secondary"
+                  onClick={handleSplitAtPlayhead}
+                  title="Split at Playhead (S)"
+                >
+                  <RiScissors2Fill />
+                </Button>
+                <Button
+                  variant="outline-secondary"
+                  onClick={handleDuplicate}
+                  disabled={!hasSelection}
+                  title="Duplicate (Cmd/Ctrl+D)"
+                >
+                  <FaCopy /> <FaCopy />
+                </Button>
+              </ButtonGroup>
 
-        <div className="toolbar-section">
-          <Button
-            size="sm"
-            variant="outline-primary"
-            onClick={() => setShowTakesModal(true)}
-          >
-            <FaDatabase /> Import Take
-          </Button>
-
-          <Button
-            size="sm"
-            variant="outline-secondary"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <FaFileImport /> Import File
-          </Button>
-
-          {/* MIDI Device Setup Button */}
-          <Button
-            size="sm"
-            variant={connectedMIDIDevice ? 'success' : 'outline-secondary'}
-            onClick={() => setShowMIDIDeviceSelector(true)}
-            className="position-relative"
-          >
-            <FaKeyboard />
-            {connectedMIDIDevice ? ' MIDI Connected' : ' MIDI Setup'}
-            {midiActivity && (
-              <span
-                className="position-absolute top-0 start-100 translate-middle p-1 bg-success border border-light rounded-circle"
-                style={{ width: '8px', height: '8px' }}
+              {/* Snap Controls */}
+              <div className="vr" />
+              <Button
+                variant={snapEnabled ? 'secondary' : 'outline-secondary'}
+                size="sm"
+                onClick={() => setSnapEnabled(!snapEnabled)}
+                title="Toggle Snap to Grid"
               >
-                <span className="visually-hidden">MIDI activity</span>
-              </span>
-            )}
-          </Button>
-
-          {/* MIXDOWN BUTTON */}
-          <MultitrackMixdown />
-        </div>
-
-        <div className="toolbar-section ms-auto">
-          <label className="text-white me-2">Zoom:</label>
-          <input
-            type="range"
-            min="50"
-            max="200"
-            value={zoomLevel}
-            onChange={(e) => setZoomLevel(e.target.value)}
-            className="zoom-slider"
-          />
-          <span className="text-white ms-2">{zoomLevel}%</span>
-        </div>
-      </div>
-
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="audio/*"
-        style={{ display: 'none' }}
-        onChange={handleFileImport}
-      />
-
-      {/* Main Content Area */}
-      <div className="multitrack-main-content">
-        <Row className="g-0">
-          <Col md={showEffectsPanel ? 9 : 12}>
-            {/* Timeline */}
-            <MultitrackTimeline zoomLevel={zoomLevel} />
-
-            {/* Tracks Area with Add Track Button */}
-            <div className="tracks-layout">
-              {/* Left side - Add Track Button */}
-              <div className="tracks-sidebar">
-                <div className="add-track-buttons">
-                  <Button
-                    onClick={handleAddRecordingTrack}
-                    variant="danger"
-                    className="add-track-sidebar-btn"
-                    title="Add recording track"
-                  >
-                    <FaMicrophone size={20} />
-                  </Button>
-
-                  <Button
-                    onClick={handleAddMIDITrack}
-                    variant="success"
-                    className="add-track-sidebar-btn"
-                    title="Add MIDI track"
-                  >
-                    <FaMusic size={20} />
-                  </Button>
-
-                  <Button
-                    onClick={handleAddSampleTrack}
-                    variant="outline-secondary"
-                    className="add-track-sidebar-btn mt-2"
-                    title="Add empty audio track"
-                    size="sm"
-                  >
-                    <FaPlus size={16} />
-                  </Button>
-                </div>
-              </div>
-
-              {/* Right side - Tracks */}
-              <div className="tracks-area">
-                {tracks.length === 0 ? (
-                  <div className="empty-state">
-                    <p className="text-muted">No tracks yet.</p>
-                    <p className="text-muted">
-                      Click the + button to add a track or import a take.
-                    </p>
-                  </div>
-                ) : (
-                  tracks.map((track, index) => {
-                    if (!track) {
-                      console.error('Null track found at index:', index);
-                      return null;
-                    }
-
-                    console.log(`Rendering track ${track.id}:`, {
-                      type: track.type,
-                      isRecordingTrack: track.isRecordingTrack,
-                      track,
-                    });
-
-                    // Check track type
-                    if (track.type === 'midi') {
-                      return (
-                        <MIDITrack
-                          key={track.id}
-                          track={track}
-                          index={index}
-                          zoomLevel={zoomLevel}
-                        />
-                      );
-                    } else if (track.isRecordingTrack) {
-                      return (
-                        <RecordingTrack
-                          key={track.id}
-                          track={track}
-                          index={index}
-                          zoomLevel={zoomLevel}
-                        />
-                      );
-                    } else {
-                      // Regular audio track
-                      return (
-                        <Track
-                          key={track.id}
-                          track={track}
-                          index={index}
-                          zoomLevel={zoomLevel}
-                        />
-                      );
-                    }
-                  })
-                )}
-              </div>
+                <FaMagnet />
+              </Button>
+              <select
+                className="form-select form-select-sm"
+                style={{ width: '100px' }}
+                value={gridSizeSec}
+                onChange={(e) => setGridSizeSec(parseFloat(e.target.value))}
+                disabled={!snapEnabled}
+              >
+                <option value="0.01">1/100</option>
+                <option value="0.0625">1/16</option>
+                <option value="0.125">1/8</option>
+                <option value="0.25">1/4</option>
+                <option value="0.5">1/2</option>
+                <option value="1">1 bar</option>
+              </select>
+              <Button
+                variant="outline-secondary"
+                size="sm"
+                onClick={handleQuantize}
+                disabled={!snapEnabled || !selectedTrack}
+                title="Quantize (Q)"
+              >
+                Q
+              </Button>
             </div>
-          </Col>
 
-          {/* Effects Panel */}
-          {showEffectsPanel && (
-            <Col md={3}>
-              <EffectsPanel />
-            </Col>
-          )}
-        </Row>
-      </div>
+            <div className="d-flex gap-2">
+              <Dropdown>
+                <Dropdown.Toggle variant="primary" size="sm">
+                  <FaPlus /> Add Track
+                </Dropdown.Toggle>
+                <Dropdown.Menu>
+                  <Dropdown.Item onClick={handleAddAudioTrack}>
+                    <FaMusic /> Audio Track
+                  </Dropdown.Item>
+                  <Dropdown.Item onClick={handleAddRecordingTrack}>
+                    <FaMicrophone /> Recording Track
+                  </Dropdown.Item>
+                  <Dropdown.Item onClick={handleAddMIDITrack}>
+                    <FaKeyboard /> MIDI Track
+                  </Dropdown.Item>
+                  <Dropdown.Divider />
+                  <Dropdown.Item onClick={() => setShowTakesModal(true)}>
+                    <FaDatabase /> Import from Takes
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown>
 
-      {/* Bottom Section - Piano and Transport Controls */}
-      <div className="multitrack-bottom-section">
-        <MultitrackTransport
-          showPiano={showPiano}
-          setShowPiano={setShowPiano}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowEffectsPanel(!showEffectsPanel)}
+              >
+                Effects
+              </Button>
+
+              <MultitrackMixdown tracks={tracks} />
+            </div>
+          </div>
+        </Col>
+      </Row>
+
+      {/* Transport */}
+      <Row className="mb-3">
+        <Col>
+          <MultitrackTransport />
+        </Col>
+      </Row>
+
+      {/* Timeline */}
+      <Row className="mb-2">
+        <Col>
+          <MultitrackTimeline zoomLevel={zoomLevel} />
+        </Col>
+      </Row>
+
+      {/* Tracks */}
+      <Row>
+        <Col>
+          <div className="tracks-container">
+            {tracks.map((track, index) => {
+              if (track.type === 'recording') {
+                return (
+                  <RecordingTrack key={track.id} track={track} index={index} />
+                );
+              } else if (track.type === 'midi') {
+                return <MIDITrack key={track.id} track={track} index={index} />;
+              } else {
+                return (
+                  <Track
+                    key={track.id}
+                    track={track}
+                    index={index}
+                    zoomLevel={zoomLevel}
+                  />
+                );
+              }
+            })}
+          </div>
+        </Col>
+      </Row>
+
+      {/* Zoom Control */}
+      <Row className="mt-3">
+        <Col>
+          <div className="d-flex align-items-center gap-2">
+            <label>Zoom:</label>
+            <input
+              type="range"
+              min="10"
+              max="500"
+              value={zoomLevel}
+              onChange={(e) => setZoomLevel(parseInt(e.target.value))}
+              style={{ width: '200px' }}
+            />
+            <span>{zoomLevel}%</span>
+          </div>
+        </Col>
+      </Row>
+
+      {/* MIDI Device Selector */}
+      {tracks.some((t) => t.type === 'midi') && (
+        <MIDIDeviceSelector
+          midiInputManager={midiInputManager}
+          selectedDevice={selectedMidiDevice}
+          onDeviceSelect={setSelectedMidiDevice}
+          isActive={midiInputActive}
+          onToggleActive={setMidiInputActive}
         />
-      </div>
+      )}
 
-      {/* Takes Import Modal */}
+      {/* Modals */}
       <TakesImportModal
         show={showTakesModal}
         onHide={() => setShowTakesModal(false)}
         takes={availableTakes}
+        onImport={handleImportTake}
       />
 
-      {/* MIDI Device Selector Modal */}
-      <MIDIDeviceSelector
-        show={showMIDIDeviceSelector}
-        onHide={() => setShowMIDIDeviceSelector(false)}
-        midiInputManager={midiInputManager}
-        currentDevice={connectedMIDIDevice}
-        onDeviceSelect={handleMIDIDeviceSelect}
-      />
-    </div>
+      {showEffectsPanel && (
+        <EffectsPanel
+          show={showEffectsPanel}
+          onHide={() => setShowEffectsPanel(false)}
+        />
+      )}
+    </Container>
   );
-}
-
-// Helper function to convert AudioBuffer to WAV
-function audioBufferToWav(buffer) {
-  const length = buffer.length * buffer.numberOfChannels * 2 + 44;
-  const arrayBuffer = new ArrayBuffer(length);
-  const view = new DataView(arrayBuffer);
-  const sampleRate = buffer.sampleRate;
-
-  const writeString = (offset, string) => {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
-    }
-  };
-
-  // Write WAV header
-  writeString(0, 'RIFF');
-  view.setUint32(4, length - 8, true);
-  writeString(8, 'WAVE');
-  writeString(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, buffer.numberOfChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * buffer.numberOfChannels * 2, true);
-  view.setUint16(32, buffer.numberOfChannels * 2, true);
-  view.setUint16(34, 16, true);
-  writeString(36, 'data');
-  view.setUint32(40, length - 44, true);
-
-  // Write audio data
-  let offset = 44;
-  for (let i = 0; i < buffer.length; i++) {
-    for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
-      const sample = buffer.getChannelData(channel)[i];
-      const value = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
-      view.setInt16(offset, value, true);
-      offset += 2;
-    }
-  }
-
-  return arrayBuffer;
 }
