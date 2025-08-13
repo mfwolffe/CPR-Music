@@ -1,4 +1,3 @@
-// components/audio/DAW/Multitrack/ClipPlayer.js
 'use client';
 
 import { decodeAudioFromURL } from './AudioEngine';
@@ -32,8 +31,24 @@ export default class ClipPlayer {
     const existing = this.clips.get(clip.id);
     if (existing && existing.src === clip.src) {
       // Update volume and pan
-      existing.gainNode.gain.value = volume;
-      existing.panNode.pan.value = pan;
+      try {
+        existing.gainNode.gain.value = volume;
+      } catch {}
+      try {
+        existing.panNode.pan.value = pan;
+      } catch {}
+      // IMPORTANT: also update timing so canvas edits take effect
+      existing.startTime = Math.max(0, Number(clip.start) || 0);
+      existing.offset = Math.max(0, Number(clip.offset) || 0);
+
+      const nextDur =
+        clip.duration != null ? Number(clip.duration) : existing.duration;
+      if (existing.buffer) {
+        const maxDur = Math.max(0, existing.buffer.duration - existing.offset);
+        existing.duration = Math.max(0, Math.min(Number(nextDur) || 0, maxDur));
+      } else {
+        existing.duration = Math.max(0, Number(nextDur) || 0);
+      }
       return existing;
     }
 
@@ -82,6 +97,16 @@ export default class ClipPlayer {
    * @param {number} pan - Track pan
    */
   async updateClips(clips, volume = 1, pan = 0) {
+    clips = Array.isArray(clips)
+      ? clips.map((c) => ({
+          id: c.id,
+          src: c.src,
+          start: Math.max(0, Number(c.start) || 0),
+          offset: Math.max(0, Number(c.offset) || 0),
+          duration: Math.max(0, Number(c.duration) || 0),
+        }))
+      : [];
+
     // Remove clips that no longer exist
     const clipIds = new Set(clips.map((c) => c.id));
     for (const [id, clipData] of this.clips.entries()) {
@@ -135,8 +160,8 @@ export default class ClipPlayer {
 
     // Calculate timing
     let when = 0;
-    let sourceOffset = offset;
-    let sourceDuration = duration;
+    let sourceOffset = Math.max(0, Number(offset) || 0);
+    let sourceDuration = Math.max(0, Number(duration) || 0);
 
     if (timelinePosition < startTime) {
       // Clip hasn't started yet, schedule it for the future
@@ -150,10 +175,10 @@ export default class ClipPlayer {
     }
 
     // Ensure we don't exceed buffer duration
-    const maxDuration = buffer.duration - sourceOffset;
-    sourceDuration = Math.min(sourceDuration, maxDuration);
+    const maxDuration = Math.max(0, buffer.duration - sourceOffset);
+    sourceDuration = Math.max(0, Math.min(sourceDuration, maxDuration));
 
-    if (sourceDuration > 0) {
+    if (sourceDuration > 1e-4) {
       source.start(when, sourceOffset, sourceDuration);
       clipData.source = source;
 
