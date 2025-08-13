@@ -12,9 +12,22 @@ import {
 import { MdPanTool } from 'react-icons/md';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import TrackClipCanvas from '../../../../contexts/TrackClipCanvas';
-import AudioEngine from './AudioEngine';
+import AudioEngine, { decodeAudioFromURL } from './AudioEngine';
 import waveformCache from './WaveformCache';
 import ClipPlayer from './ClipPlayer';
+
+async function resumeAudioContextIfNeeded() {
+  try {
+    const ctx = AudioEngine.getAudioContext
+      ? AudioEngine.getAudioContext()
+      : null;
+    if (ctx && ctx.state === 'suspended') {
+      await ctx.resume();
+    }
+  } catch (e) {
+    console.warn('resumeAudioContextIfNeeded failed:', e);
+  }
+}
 
 export default function Track({ track, index, zoomLevel = 100 }) {
   const containerRef = useRef(null);
@@ -76,6 +89,15 @@ export default function Track({ track, index, zoomLevel = 100 }) {
     };
   }, [track.id]);
 
+  // Preload waveform peaks for any existing clips on this track
+  useEffect(() => {
+    (track.clips || []).forEach((c) => {
+      if (c?.src) {
+        waveformCache.preloadURL(c.src).catch(() => {});
+      }
+    });
+  }, [track.clips]);
+
   // Update clips when they change
   useEffect(() => {
     if (!clipPlayerRef.current || !track.clips) return;
@@ -109,7 +131,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
       const shouldPlay = soloTrackId ? track.id === soloTrackId : !track.muted;
 
       if (shouldPlay) {
-        resumeAudioContext().then(() => {
+        resumeAudioContextIfNeeded().then(() => {
           clipPlayerRef.current.play(currentTime);
         });
       }
@@ -230,7 +252,6 @@ export default function Track({ track, index, zoomLevel = 100 }) {
             onClick={(e) => e.stopPropagation()}
           />
         </div>
-
         {/* Audio Controls - Stacked Vertically */}
         <div className="track-audio-controls">
           {/* Volume */}
@@ -277,9 +298,9 @@ export default function Track({ track, index, zoomLevel = 100 }) {
             </span>
           </div>
         </div>
-
         {/* Action Buttons - Stacked */}
         <div className="track-action-buttons">
+          {/* S/M Row */}
           <div className="track-button-row">
             <Button
               variant={
@@ -303,27 +324,26 @@ export default function Track({ track, index, zoomLevel = 100 }) {
             </Button>
           </div>
 
-          <Button
-            variant="outline-secondary"
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            className="w-100"
-            title="Import Audio"
-          >
-            <FaFileImport />
-          </Button>
-
-          <Button
-            variant="outline-danger"
-            size="sm"
-            onClick={() => removeTrack(track.id)}
-            className="w-100"
-            title="Delete Track"
-          >
-            <FaTrash />
-          </Button>
+          {/* Import and Delete Row - side by side */}
+          <div className="track-button-row">
+            <Button
+              variant="outline-secondary"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              title="Import Audio"
+            >
+              <FaFileImport />
+            </Button>
+            <Button
+              variant="outline-danger"
+              size="sm"
+              onClick={() => removeTrack(track.id)}
+              title="Delete Track"
+            >
+              <FaTrash />
+            </Button>
+          </div>
         </div>
-
         <input
           ref={fileInputRef}
           type="file"

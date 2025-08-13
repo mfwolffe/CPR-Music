@@ -1,4 +1,3 @@
-// components/audio/DAW/Multitrack/WaveformCache.js
 'use client';
 
 import { decodeAudioFromURL, getPeaks } from './AudioEngine';
@@ -68,32 +67,36 @@ class WaveformCache {
 
   /**
    * Get peaks for a specific clip (handles offset and duration)
-   * @param {string} url - Audio source URL
-   * @param {number} offset - Offset into the audio (seconds)
-   * @param {number} duration - Duration of the clip (seconds)
-   * @param {number} pixelWidth - Width in pixels to render
-   * @param {number} zoomLevel - Zoom level (100 = normal)
-   * @returns {Promise<Array>} Subset of peaks for the clip
+   * Returns an array of [min, max] pairs sized appropriately for the clip.
    */
   async getPeaksForClip(url, offset, duration, pixelWidth, zoomLevel = 100) {
-    const scale = zoomLevel / 100;
-    const effectiveWidth = pixelWidth * scale;
-
-    // Calculate desired samples per pixel based on clip duration and render width
-    const { audioBuffer, peaks, resolution } = await this.getPeaksForURL(
-      url,
-      Math.max(1, (duration * audioBuffer.sampleRate) / effectiveWidth),
+    if (!url) throw new Error('URL is required');
+    const dur = Math.max(0, Number(duration) || 0);
+    const off = Math.max(0, Number(offset) || 0);
+    const scale = Math.max(0.01, Number(zoomLevel) / 100);
+    const effectiveWidth = Math.max(
+      1,
+      Math.floor((Number(pixelWidth) || 1) * scale),
     );
 
-    const sampleRate = audioBuffer.sampleRate;
-    const startSample = Math.floor(offset * sampleRate);
-    const endSample = Math.floor((offset + duration) * sampleRate);
+    // First fetch (or decode) to know the sampleRate
+    const first = await this.getPeaksForURL(url, 256);
+    const sampleRate = first.audioBuffer.sampleRate;
 
-    // Calculate which peaks to use
-    const startPeak = Math.floor(startSample / resolution);
-    const endPeak = Math.ceil(endSample / resolution);
+    // Choose a resolution close to desired samples-per-pixel for this clip slice
+    const desiredSPP = Math.max(
+      1,
+      Math.floor((dur * sampleRate) / effectiveWidth),
+    );
+    const { peaks, resolution } = await this.getPeaksForURL(url, desiredSPP);
 
-    // Return the subset of peaks
+    // Convert seconds window -> peak indices
+    const startSample = Math.floor(off * sampleRate);
+    const endSample = Math.floor((off + dur) * sampleRate);
+    const startPeak = Math.max(0, Math.floor(startSample / resolution));
+    const endPeak = Math.min(peaks.length, Math.ceil(endSample / resolution));
+
+    // Return a shallow slice of [min,max] pairs for this clip view
     return peaks.slice(startPeak, endPeak);
   }
 
