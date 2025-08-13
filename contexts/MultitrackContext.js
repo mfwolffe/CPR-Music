@@ -50,6 +50,8 @@ export const MultitrackProvider = ({ children }) => {
   // Unified transport (single timebase for audio + MIDI)
   const transportRef = useRef(null);
 
+  const trackPlayersRef = useRef({}); // trackId -> ClipPlayer instance
+
   useEffect(() => {
     // create a fresh transport when duration changes (so it clamps correctly)
     transportRef.current = createTransport({
@@ -144,6 +146,14 @@ export const MultitrackProvider = ({ children }) => {
 
     setDuration(maxDuration);
   }, [tracks]);
+
+  const registerTrackPlayer = useCallback((trackId, player) => {
+    trackPlayersRef.current[trackId] = player;
+  }, []);
+
+  const unregisterTrackPlayer = useCallback((trackId) => {
+    delete trackPlayersRef.current[trackId];
+  }, []);
 
   // Track management
   const addTrack = useCallback(
@@ -287,42 +297,33 @@ export const MultitrackProvider = ({ children }) => {
   // Playback control
   const seek = useCallback(
     (progress) => {
-      // Clamp
+      // Clamp progress
       const p = Math.max(
         0,
         Math.min(1, typeof progress === 'number' ? progress : 0),
       );
 
-      // Prefer project duration (clip-aware), fallback to longest WS duration
-      const longestDuration = Math.max(
-        0,
-        ...tracks.map((t) => t.wavesurferInstance?.getDuration?.() || 0),
-      );
-      const projectDuration =
-        duration && duration > 0 ? duration : longestDuration;
+      const projectDuration = duration || 0;
       const targetSec = projectDuration > 0 ? p * projectDuration : 0;
 
-      // Seek all audio tracks visually/sonically
-      tracks.forEach((track) => {
-        const ws = track.wavesurferInstance;
-        if (!ws) return;
-        try {
-          ws.seekTo(projectDuration > 0 ? p : 0);
-        } catch (err) {
-          console.error(`Error seeking track ${track.id}:`, err);
+      // Seek all track players
+      Object.values(trackPlayersRef.current).forEach((player) => {
+        if (player) {
+          player.seek(targetSec);
         }
       });
 
-      // Move the unified transport timebase
+      // Update transport
       try {
         transportRef.current?.seek?.(targetSec);
       } catch {}
 
-      // Reflect immediately in UI
+      // Update current time
       setCurrentTime(targetSec);
     },
-    [tracks, duration],
+    [duration],
   );
+
   // --- Local pure helpers for clip editing (non-destructive) ---
   function splitClipLocal(clip, at) {
     const end = (clip.start || 0) + (clip.duration || 0);
@@ -387,55 +388,57 @@ export const MultitrackProvider = ({ children }) => {
       transportRef.current?.play?.(currentTime || 0);
     } catch {}
 
-    // Respect solo/mute while starting playback
-    tracks.forEach((t) => {
-      const ws = t?.wavesurferInstance;
-      if (!ws) return;
-      const d = ws.getDuration?.() || 0;
-      const localSec = Math.min(currentTime || 0, d > 0 ? d : currentTime || 0);
-      if (d > 0) {
-        try {
-          ws.seekTo(localSec / d);
-        } catch {}
-      }
-      try {
-        ws.play();
-      } catch (e) {
-        console.warn('ws.play failed', t?.id, e);
+    // Start all track players
+    Object.entries(trackPlayersRef.current).forEach(([trackId, player]) => {
+      const track = tracks.find((t) => t.id === trackId);
+      if (!track) return;
+
+      // Handle solo/mute logic
+      const shouldPlay = soloTrackId ? track.id === soloTrackId : !track.muted;
+
+      if (shouldPlay && player) {
+        player.play(currentTime || 0);
       }
     });
 
     setIsPlaying(true);
-  }, [tracks, currentTime]);
+  }, [currentTime, tracks, soloTrackId]);
 
   const pause = useCallback(() => {
-    tracks.forEach((t) => {
-      const ws = t?.wavesurferInstance;
-      try {
-        ws?.pause?.();
-      } catch {}
-    });
+    // Pause transport
     try {
       transportRef.current?.pause?.();
     } catch {}
+
+    // Pause all track players and get current position
+    let maxPosition = 0;
+    Object.values(trackPlayersRef.current).forEach((player) => {
+      if (player) {
+        const position = player.pause();
+        maxPosition = Math.max(maxPosition, position);
+      }
+    });
+
     setIsPlaying(false);
-  }, [tracks, currentTime]);
+    setCurrentTime(maxPosition);
+  }, []);
 
   const stop = useCallback(() => {
-    tracks.forEach((t) => {
-      const ws = t?.wavesurferInstance;
-      try {
-        ws?.pause?.();
-        const d = ws?.getDuration?.() || 0;
-        if (d > 0) ws.seekTo(0);
-      } catch {}
-    });
+    // Stop transport
     try {
       transportRef.current?.stop?.();
     } catch {}
+
+    // Stop all track players
+    Object.values(trackPlayersRef.current).forEach((player) => {
+      if (player) {
+        player.stop();
+      }
+    });
+
     setIsPlaying(false);
     setCurrentTime(0);
-  }, [tracks]);
+  }, []);
 
   // --- Non-destructive CLIP actions (audio + MIDI) ---
   const splitAtPlayhead = useCallback(
@@ -992,6 +995,8 @@ export const MultitrackProvider = ({ children }) => {
     removeTrack,
     updateTrack,
     clearAllTracks,
+    registerTrackPlayer,
+    unregisterTrackPlayer,
 
     // Playback control
     play,

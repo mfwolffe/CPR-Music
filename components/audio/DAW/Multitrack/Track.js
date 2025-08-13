@@ -1,8 +1,7 @@
-// components/audio/DAW/Multitrack/UpdatedTrack.js
+// components/audio/DAW/Multitrack/Track.js
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import WaveSurfer from 'wavesurfer.js';
 import { Button, Form, Dropdown } from 'react-bootstrap';
 import {
   FaTrash,
@@ -12,12 +11,18 @@ import {
 } from 'react-icons/fa';
 import { MdPanTool } from 'react-icons/md';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
-import EnhancedTrackClipCanvas from '../../../../contexts/TrackClipCanvas';
+import TrackClipCanvas from '../../../../contexts/TrackClipCanvas';
 import waveformCache from './WaveformCache';
+import ClipPlayer from './ClipPlayer';
+import {
+  getAudioContext,
+  resumeAudioContext,
+  decodeAudioFromURL,
+} from './AudioEngine';
 
-export default function UpdatedTrack({ track, index, zoomLevel = 100 }) {
+export default function Track({ track, index, zoomLevel = 100 }) {
   const containerRef = useRef(null);
-  const wavesurferRef = useRef(null);
+  const clipPlayerRef = useRef(null);
   const fileInputRef = useRef(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -31,6 +36,10 @@ export default function UpdatedTrack({ track, index, zoomLevel = 100 }) {
     activeRegion,
     setActiveRegion,
     editorTool,
+    isPlaying,
+    currentTime,
+    registerTrackPlayer,
+    unregisterTrackPlayer,
   } = useMultitrack();
 
   // Guard against missing track prop
@@ -39,73 +48,97 @@ export default function UpdatedTrack({ track, index, zoomLevel = 100 }) {
     return null;
   }
 
-  // Initialize wavesurfer (temporary - will be removed in Phase 2)
+  // Initialize ClipPlayer
   useEffect(() => {
     if (!track || !track.id) {
       console.error('Track component: Invalid track object', track);
       return;
     }
 
-    if (!containerRef.current || !track.audioURL) return;
+    console.log(`Track ${track.id} - Initializing ClipPlayer...`);
 
-    console.log(`Track ${track.id} - Initializing wavesurfer (temporary)...`);
+    const audioContext = getAudioContext();
+    const clipPlayer = new ClipPlayer(audioContext);
+    clipPlayerRef.current = clipPlayer;
+
+    // Register with multitrack context
+    registerTrackPlayer?.(track.id, clipPlayer);
 
     // Clear active region if it belongs to this track
     if (activeRegion && activeRegion.trackId === track.id) {
       setActiveRegion(null);
     }
 
-    // Destroy previous instance if it exists
-    if (wavesurferRef.current) {
-      wavesurferRef.current.destroy();
-      wavesurferRef.current = null;
-    }
-
-    // Create temporary wavesurfer instance (hidden)
-    const containerHeight = containerRef.current.offsetHeight || 80;
-
-    const ws = WaveSurfer.create({
-      container: containerRef.current,
-      waveColor: 'transparent',
-      progressColor: 'transparent',
-      cursorColor: 'transparent',
-      height: 0, // Hide wavesurfer completely
-      interact: false,
-      normalize: true,
-      backend: 'WebAudio',
-    });
-
-    wavesurferRef.current = ws;
-
-    // Load audio
-    ws.load(track.audioURL)
-      .then(() => {
-        console.log(`Track ${track.id} - Audio loaded`);
-        setIsLoading(false);
-
-        // Preload waveform peaks for better performance
-        if (track.audioURL) {
-          waveformCache.preloadURL(track.audioURL).catch((err) => {
-            console.warn('Failed to preload waveform:', err);
-          });
-        }
-
-        // Update track with wavesurfer instance
-        updateTrack(track.id, { wavesurferInstance: ws });
-      })
-      .catch((err) => {
-        console.error(`Track ${track.id} - Error loading audio:`, err);
-        setIsLoading(false);
-      });
-
     // Cleanup
     return () => {
-      if (wavesurferRef.current) {
-        wavesurferRef.current.destroy();
-        wavesurferRef.current = null;
+      console.log(`Track ${track.id} - Cleaning up ClipPlayer`);
+      unregisterTrackPlayer?.(track.id);
+      if (clipPlayerRef.current) {
+        clipPlayerRef.current.dispose();
+        clipPlayerRef.current = null;
       }
     };
-  }, [track.audioURL, track.id]);
+  }, [track.id]);
+
+  // Update clips when they change
+  useEffect(() => {
+    if (!clipPlayerRef.current || !track.clips) return;
+
+    const updateClips = async () => {
+      try {
+        await clipPlayerRef.current.updateClips(
+          track.clips,
+          track.muted ? 0 : track.volume,
+          track.pan,
+        );
+
+        // If we're playing, restart playback to include new clips
+        if (isPlaying && clipPlayerRef.current) {
+          clipPlayerRef.current.play(currentTime);
+        }
+      } catch (error) {
+        console.error(`Error updating clips for track ${track.id}:`, error);
+      }
+    };
+
+    updateClips();
+  }, [track.clips, track.volume, track.pan, track.muted]);
+
+  // Handle playback state changes
+  useEffect(() => {
+    if (!clipPlayerRef.current) return;
+
+    if (isPlaying) {
+      // Check if we should play this track (solo/mute logic)
+      const shouldPlay = soloTrackId ? track.id === soloTrackId : !track.muted;
+
+      if (shouldPlay) {
+        resumeAudioContext().then(() => {
+          clipPlayerRef.current.play(currentTime);
+        });
+      }
+    } else {
+      clipPlayerRef.current.stop();
+    }
+  }, [isPlaying, currentTime, track.id, track.muted, soloTrackId]);
+
+  // Handle seek
+  useEffect(() => {
+    if (!clipPlayerRef.current || isPlaying) return;
+    clipPlayerRef.current.seek(currentTime);
+  }, [currentTime, isPlaying]);
+
+  // Handle volume changes
+  useEffect(() => {
+    if (!clipPlayerRef.current) return;
+    clipPlayerRef.current.setVolume(track.muted ? 0 : track.volume);
+  }, [track.volume, track.muted]);
+
+  // Handle pan changes
+  useEffect(() => {
+    if (!clipPlayerRef.current) return;
+    clipPlayerRef.current.setPan(track.pan);
+  }, [track.pan]);
 
   // Handle file import
   const handleFileImport = async (e) => {
@@ -117,13 +150,17 @@ export default function UpdatedTrack({ track, index, zoomLevel = 100 }) {
     try {
       const url = URL.createObjectURL(file);
 
+      // Decode to get duration
+      const audioBuffer = await decodeAudioFromURL(url);
+      const duration = audioBuffer ? audioBuffer.duration : 0;
+
       // Initialize a clip for the new audio
       const clipId = `clip-${track.id}-${Date.now()}`;
       const clips = [
         {
           id: clipId,
           start: 0,
-          duration: 0, // Will be updated when audio loads
+          duration: duration,
           color: track.color || '#7bafd4',
           src: url,
           offset: 0,
@@ -136,32 +173,21 @@ export default function UpdatedTrack({ track, index, zoomLevel = 100 }) {
         clips: clips,
       });
 
+      // Preload waveform peaks
+      waveformCache.preloadURL(url).catch((err) => {
+        console.warn('Failed to preload waveform:', err);
+      });
+
       // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
     } catch (err) {
       console.error('Error importing file:', err);
+    } finally {
       setIsLoading(false);
     }
   };
-
-  // Update clip duration when wavesurfer loads
-  useEffect(() => {
-    if (!track.wavesurferInstance || !track.clips?.length) return;
-
-    const ws = track.wavesurferInstance;
-    const duration = ws.getDuration();
-
-    if (duration > 0 && track.clips[0]?.duration === 0) {
-      updateTrack(track.id, {
-        clips: track.clips.map((c) => ({
-          ...c,
-          duration: duration,
-        })),
-      });
-    }
-  }, [track.wavesurferInstance, track.clips, track.id, updateTrack]);
 
   const handleVolumeChange = (e) => {
     const volume = parseFloat(e.target.value);
@@ -299,16 +325,9 @@ export default function UpdatedTrack({ track, index, zoomLevel = 100 }) {
           overflow: 'hidden',
         }}
       >
-        {/* Hidden wavesurfer container */}
-        <div style={{ display: 'none' }} />
-
         {/* Enhanced clip canvas with waveforms */}
         {track.clips && track.clips.length > 0 && (
-          <EnhancedTrackClipCanvas
-            track={track}
-            zoomLevel={zoomLevel}
-            height={100}
-          />
+          <TrackClipCanvas track={track} zoomLevel={zoomLevel} height={100} />
         )}
 
         {/* Loading indicator */}
