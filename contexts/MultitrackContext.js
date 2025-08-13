@@ -10,6 +10,7 @@ import {
   useEffect,
 } from 'react';
 import audioContextManager from '../components/audio/DAW/Multitrack/AudioContextManager';
+import { createTransport } from '../components/audio/DAW/Multitrack/AudioEngine';
 
 const MultitrackContext = createContext();
 
@@ -42,6 +43,24 @@ export const MultitrackProvider = ({ children }) => {
   const trackInstrumentsRef = useRef({}); // Store instrument references for each track
   const midiSchedulerRef = useRef(null); // For future MIDI scheduling
 
+  // Unified transport (single timebase for audio + MIDI)
+  const transportRef = useRef(null);
+
+  useEffect(() => {
+    // create a fresh transport when duration changes (so it clamps correctly)
+    transportRef.current = createTransport({
+      onTick: (t) => setCurrentTime(t),
+      getProjectDurationSec: () => duration || 0,
+    });
+    return () => {
+      try {
+        transportRef.current?.stop?.();
+      } catch {}
+    };
+  }, [duration]);
+
+  // (removed tick and useEffect for old transport)
+
   // Debug: Log when instruments change
   useEffect(() => {
     console.log(
@@ -50,33 +69,7 @@ export const MultitrackProvider = ({ children }) => {
     );
   }, [tracks]); // Re-log when tracks change
 
-  // Update current time during playback
-  useEffect(() => {
-    if (isPlaying) {
-      playbackTimerRef.current = setInterval(() => {
-        // Get current time from the first track with a wavesurfer instance
-        const firstTrack = tracks.find((t) => t.wavesurferInstance);
-        if (firstTrack && firstTrack.wavesurferInstance) {
-          const time = firstTrack.wavesurferInstance.getCurrentTime();
-          setCurrentTime(time);
-        } else {
-          // If no audio tracks, increment time manually for MIDI-only playback
-          setCurrentTime((prev) => prev + 0.1);
-        }
-      }, 100); // Update every 100ms
-    } else {
-      if (playbackTimerRef.current) {
-        clearInterval(playbackTimerRef.current);
-        playbackTimerRef.current = null;
-      }
-    }
-
-    return () => {
-      if (playbackTimerRef.current) {
-        clearInterval(playbackTimerRef.current);
-      }
-    };
-  }, [isPlaying, tracks]);
+  // (removed interval-based timer effect for updating current time)
 
   // Update duration when tracks change
   useEffect(() => {
@@ -251,87 +244,98 @@ export const MultitrackProvider = ({ children }) => {
   }, [tracks]);
 
   // Playback control
-  const play = useCallback(() => {
-    console.log('MultitrackContext: Playing all tracks');
-
-    // Play all audio tracks (wavesurfer instances)
-    tracks.forEach((track) => {
-      if (track.wavesurferInstance && !track.muted) {
-        // Check if it's solo mode
-        if (soloTrackId && track.id !== soloTrackId) {
-          return; // Skip non-solo tracks
-        }
-
-        try {
-          track.wavesurferInstance.play();
-        } catch (err) {
-          console.error(`Error playing track ${track.id}:`, err);
-        }
-      }
-    });
-
-    // MIDI tracks will handle their own playback through their components
-
-    setIsPlaying(true);
-  }, [tracks, soloTrackId]);
-
-  const pause = useCallback(() => {
-    console.log('MultitrackContext: Pausing all tracks');
-
-    // Pause all wavesurfer instances
-    tracks.forEach((track) => {
-      if (track.wavesurferInstance) {
-        try {
-          track.wavesurferInstance.pause();
-        } catch (err) {
-          console.error(`Error pausing track ${track.id}:`, err);
-        }
-      }
-    });
-
-    setIsPlaying(false);
-  }, [tracks]);
-
-  const stop = useCallback(() => {
-    console.log('MultitrackContext: Stopping all tracks');
-
-    // Stop all wavesurfer instances and seek to beginning
-    tracks.forEach((track) => {
-      if (track.wavesurferInstance) {
-        try {
-          track.wavesurferInstance.pause();
-          track.wavesurferInstance.seekTo(0);
-        } catch (err) {
-          console.error(`Error stopping track ${track.id}:`, err);
-        }
-      }
-    });
-
-    setIsPlaying(false);
-    setCurrentTime(0);
-  }, [tracks]);
-
   const seek = useCallback(
     (progress) => {
-      // Seek all tracks to the same position (progress is 0-1)
+      // Clamp
+      const p = Math.max(
+        0,
+        Math.min(1, typeof progress === 'number' ? progress : 0),
+      );
+
+      // Compute longest duration from current tracks (fallback 0)
+      const longestDuration = Math.max(
+        0,
+        ...tracks.map((t) => t.wavesurferInstance?.getDuration?.() || 0),
+      );
+      const targetSec = longestDuration > 0 ? p * longestDuration : 0;
+
+      // Seek all audio tracks visually/sonically
       tracks.forEach((track) => {
-        if (track.wavesurferInstance) {
-          try {
-            track.wavesurferInstance.seekTo(progress);
-          } catch (err) {
-            console.error(`Error seeking track ${track.id}:`, err);
-          }
+        const ws = track.wavesurferInstance;
+        if (!ws) return;
+        try {
+          ws.seekTo(longestDuration > 0 ? p : 0);
+        } catch (err) {
+          console.error(`Error seeking track ${track.id}:`, err);
         }
       });
 
-      // Update current time based on longest track
-      const longestDuration = Math.max(
-        ...tracks.map((t) => t.wavesurferInstance?.getDuration() || 0),
-      );
-      setCurrentTime(progress * longestDuration);
+      // Move the unified transport timebase
+      try {
+        transportRef.current?.seek?.(targetSec);
+      } catch {}
+
+      // Reflect immediately in UI
+      setCurrentTime(targetSec);
     },
     [tracks],
   );
+
+  const play = useCallback(() => {
+    // Start transport from current time
+    try {
+      transportRef.current?.play?.(currentTime || 0);
+    } catch {}
+
+    // Respect solo/mute while starting playback
+    tracks.forEach((t) => {
+      const ws = t?.wavesurferInstance;
+      if (!ws) return;
+      const d = ws.getDuration?.() || 0;
+      const localSec = Math.min(currentTime || 0, d > 0 ? d : currentTime || 0);
+      if (d > 0) {
+        try {
+          ws.seekTo(localSec / d);
+        } catch {}
+      }
+      try {
+        ws.play();
+      } catch (e) {
+        console.warn('ws.play failed', t?.id, e);
+      }
+    });
+
+    setIsPlaying(true);
+  }, [tracks, currentTime]);
+
+  const pause = useCallback(() => {
+    tracks.forEach((t) => {
+      const ws = t?.wavesurferInstance;
+      try {
+        ws?.pause?.();
+      } catch {}
+    });
+    try {
+      transportRef.current?.pause?.();
+    } catch {}
+    setIsPlaying(false);
+  }, [tracks, currentTime]);
+
+  const stop = useCallback(() => {
+    tracks.forEach((t) => {
+      const ws = t?.wavesurferInstance;
+      try {
+        ws?.pause?.();
+        const d = ws?.getDuration?.() || 0;
+        if (d > 0) ws.seekTo(0);
+      } catch {}
+    });
+    try {
+      transportRef.current?.stop?.();
+    } catch {}
+    setIsPlaying(false);
+    setCurrentTime(0);
+  }, [tracks]);
 
   // MIDI-specific methods
   const registerTrackInstrument = useCallback((trackId, instrument) => {
