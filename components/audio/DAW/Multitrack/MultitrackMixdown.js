@@ -1,68 +1,135 @@
 // components/audio/DAW/Multitrack/MultitrackMixdown.js
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Button, Modal, Form, ProgressBar, Alert } from 'react-bootstrap';
 import { FaDownload, FaMixcloud } from 'react-icons/fa';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
+import { decodeAudioFromURL } from './AudioEngine';
 
 /**
- * Mixdown multiple tracks into a single stereo track
- * @param {Array} tracks - Array of track objects with wavesurfer instances
- * @param {number} outputDuration - Duration in seconds
- * @returns {Promise<AudioBuffer>} - Mixed stereo audio buffer
+ * Clip‑aware mixdown (independent of WaveSurfer):
+ * - Respects per‑clip {start, duration, offset}
+ * - Respects per‑track volume/pan, mute and solo
+ * - Produces silence for gaps between clips
  */
-async function mixdownTracks(tracks, outputDuration) {
-  // Find the highest sample rate among all tracks
-  const sampleRates = tracks
-    .filter((t) => t.wavesurferInstance)
-    .map((t) => t.wavesurferInstance.getDecodedData()?.sampleRate || 44100);
-  const sampleRate = Math.max(...sampleRates, 44100);
+async function mixdownClips(
+  tracks,
+  sampleRateHint = 44100,
+  onProgress = () => {},
+) {
+  // 1) Filter to included tracks (mute/solo + must have clips)
+  onProgress(5);
+  const soloIds = new Set(tracks.filter((t) => t.soloed).map((t) => t.id));
+  const included = tracks.filter((t) => {
+    if (!Array.isArray(t.clips) || t.clips.length === 0) return false;
+    if (soloIds.size > 0) return soloIds.has(t.id) && !t.muted;
+    return !t.muted;
+  });
+  if (included.length === 0)
+    throw new Error('No (unmuted) tracks with clips to mix down.');
 
-  // Create offline context for mixing
-  const outputLength = Math.ceil(outputDuration * sampleRate);
-  const offlineContext = new OfflineAudioContext(2, outputLength, sampleRate);
+  // 2) Decode unique sources once
+  onProgress(10);
+  const allClips = included.flatMap((t) => t.clips || []);
+  const uniqueSrc = Array.from(
+    new Set(allClips.map((c) => c?.src).filter(Boolean)),
+  );
+  const bufferMap = new Map(); // src -> AudioBuffer
 
-  // Process each track
-  for (const track of tracks) {
-    if (!track.wavesurferInstance || track.muted) continue;
+  let done = 0;
+  await Promise.all(
+    uniqueSrc.map(async (src) => {
+      try {
+        const buf = await decodeAudioFromURL(src);
+        bufferMap.set(src, buf);
+      } finally {
+        done += 1;
+        onProgress(
+          10 + Math.round((done / Math.max(1, uniqueSrc.length)) * 40),
+        );
+      }
+    }),
+  );
 
-    try {
-      const audioBuffer = await track.wavesurferInstance.getDecodedData();
-      if (!audioBuffer) continue;
+  // 3) Compute project duration from clips actually renderable with buffers
+  const projectDuration = included.reduce((maxT, track) => {
+    const end = (track.clips || []).reduce((m, c) => {
+      const buf = bufferMap.get(c?.src);
+      if (!buf) return m;
+      const off = Math.max(0, Number(c?.offset) || 0);
+      const dur = Math.max(
+        0,
+        Math.min(Number(c?.duration) || 0, Math.max(0, buf.duration - off)),
+      );
+      return Math.max(m, (Number(c?.start) || 0) + dur);
+    }, 0);
+    return Math.max(maxT, end);
+  }, 0);
+  if (!(projectDuration > 0))
+    throw new Error('Project duration is 0 – nothing to render.');
 
-      // Create source
-      const source = offlineContext.createBufferSource();
-      source.buffer = audioBuffer;
+  // 4) Choose sample rate (prefer the highest among decoded buffers, fallback to hint)
+  const highestRate = Math.max(
+    sampleRateHint,
+    ...Array.from(bufferMap.values()).map((b) => b.sampleRate || 0),
+  );
 
-      // Create gain node for volume
-      const gainNode = offlineContext.createGain();
-      gainNode.gain.value = track.volume || 1;
+  // 5) Create OfflineAudioContext and schedule all clips at their start times
+  const length = Math.ceil(projectDuration * highestRate);
+  const offline = new OfflineAudioContext(2, length, highestRate);
 
-      // Create stereo panner for pan control
-      const pannerNode = offlineContext.createStereoPanner();
-      pannerNode.pan.value = track.pan || 0;
+  // Track scheduling
+  included.forEach((track) => {
+    const gain = offline.createGain();
+    gain.gain.value = track.muted
+      ? 0
+      : typeof track.volume === 'number'
+        ? track.volume
+        : 1;
 
-      // Connect nodes: source -> gain -> panner -> destination
-      source.connect(gainNode);
-      gainNode.connect(pannerNode);
-      pannerNode.connect(offlineContext.destination);
-
-      // Start playback
-      source.start(0);
-    } catch (error) {
-      console.error(`Error processing track ${track.id}:`, error);
+    const panner = offline.createStereoPanner
+      ? offline.createStereoPanner()
+      : null;
+    if (panner) {
+      panner.pan.value = typeof track.pan === 'number' ? track.pan : 0;
+      gain.connect(panner);
+      panner.connect(offline.destination);
+    } else {
+      gain.connect(offline.destination);
     }
-  }
 
-  // Render the mixed audio
-  const renderedBuffer = await offlineContext.startRendering();
-  return renderedBuffer;
+    (track.clips || []).forEach((c) => {
+      const buf = bufferMap.get(c?.src);
+      if (!buf) return; // skip missing/failed buffer
+      const start = Math.max(0, Number(c?.start) || 0);
+      const offset = Math.max(0, Number(c?.offset) || 0);
+      const maxDur = Math.max(0, buf.duration - offset);
+      const clipDur = Math.max(0, Math.min(Number(c?.duration) || 0, maxDur));
+      if (!(clipDur > 0)) return;
+
+      const src = offline.createBufferSource();
+      src.buffer = buf;
+      src.connect(gain);
+
+      try {
+        src.start(start, offset, clipDur);
+      } catch (e) {
+        // Some browsers throw when duration hits exact end; retry w/o explicit duration
+        try {
+          src.start(start, offset);
+        } catch {}
+      }
+    });
+  });
+
+  onProgress(60);
+  const rendered = await offline.startRendering();
+  onProgress(100);
+  return rendered;
 }
 
-/**
- * Convert AudioBuffer to WAV blob
- */
+/** Convert AudioBuffer to WAV blob */
 function audioBufferToWav(buffer) {
   const length = buffer.length * buffer.numberOfChannels * 2 + 44;
   const arrayBuffer = new ArrayBuffer(length);
@@ -71,7 +138,6 @@ function audioBufferToWav(buffer) {
   let offset = 0;
   let pos = 0;
 
-  // write WAVE header
   const setUint16 = (data) => {
     view.setUint16(pos, data, true);
     pos += 2;
@@ -81,44 +147,41 @@ function audioBufferToWav(buffer) {
     pos += 4;
   };
 
-  // RIFF identifier
-  setUint32(0x46464952); // "RIFF"
-  setUint32(length - 8); // file length - 8
-  setUint32(0x45564157); // "WAVE"
+  // RIFF header
+  setUint32(0x46464952); // RIFF
+  setUint32(length - 8);
+  setUint32(0x45564157); // WAVE
 
-  // fmt sub-chunk
-  setUint32(0x20746d66); // "fmt "
-  setUint32(16); // subchunk size
-  setUint16(1); // PCM
+  // fmt  chunk
+  setUint32(0x20746d66); // fmt
+  setUint32(16);
+  setUint16(1);
   setUint16(buffer.numberOfChannels);
   setUint32(buffer.sampleRate);
-  setUint32(buffer.sampleRate * 2 * buffer.numberOfChannels); // byte rate
-  setUint16(buffer.numberOfChannels * 2); // block align
-  setUint16(16); // bits per sample
+  setUint32(buffer.sampleRate * 2 * buffer.numberOfChannels);
+  setUint16(buffer.numberOfChannels * 2);
+  setUint16(16);
 
-  // data sub-chunk
-  setUint32(0x61746164); // "data"
-  setUint32(length - pos - 4); // subchunk size
+  // data chunk
+  setUint32(0x61746164); // data
+  setUint32(length - pos - 4);
 
-  // write interleaved data
+  // interleave
   const interleaved = new Float32Array(buffer.length * buffer.numberOfChannels);
-  for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
-    channels[channel] = buffer.getChannelData(channel);
-  }
-
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++)
+    channels[ch] = buffer.getChannelData(ch);
   offset = 0;
   for (let i = 0; i < buffer.length; i++) {
-    for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
-      interleaved[offset++] = channels[channel][i];
-    }
+    for (let ch = 0; ch < buffer.numberOfChannels; ch++)
+      interleaved[offset++] = channels[ch][i];
   }
 
-  // Convert float samples to 16-bit PCM
-  const volume = 0.95; // slightly reduce to prevent clipping
+  // float -> 16-bit PCM
+  const volume = 0.95;
   offset = 44;
   for (let i = 0; i < interleaved.length; i++) {
-    const sample = Math.max(-1, Math.min(1, interleaved[i])) * volume;
-    view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+    const s = Math.max(-1, Math.min(1, interleaved[i])) * volume;
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
     offset += 2;
   }
 
@@ -126,14 +189,28 @@ function audioBufferToWav(buffer) {
 }
 
 export default function MultitrackMixdown() {
-  const { tracks, addTrack } = useMultitrack();
+  const { tracks, addTrack, soloTrackId } = useMultitrack();
   const [showModal, setShowModal] = useState(false);
   const [mixdownName, setMixdownName] = useState('Mixdown');
-  const [exportFormat, setExportFormat] = useState('wav');
   const [addToProject, setAddToProject] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState(null);
+
+  // Derive which tracks would be included right now (mute/solo, has clips)
+  const includedTracks = useMemo(() => {
+    const soloSet = soloTrackId ? new Set([soloTrackId]) : null;
+    return tracks
+      .filter((t) => {
+        const hasClips = Array.isArray(t.clips) && t.clips.length > 0;
+        if (!hasClips) return false;
+        if (soloSet) return soloSet.has(t.id) && !t.muted;
+        return !t.muted;
+      })
+      .map((t) => ({ ...t, soloed: soloSet ? soloSet.has(t.id) : false }));
+  }, [tracks, soloTrackId]);
+
+  const canMixdown = includedTracks.length > 0;
 
   const handleMixdown = useCallback(async () => {
     setIsProcessing(true);
@@ -141,57 +218,40 @@ export default function MultitrackMixdown() {
     setProgress(0);
 
     try {
-      // Get tracks with audio
-      const audioTracks = tracks.filter(
-        (t) => t.wavesurferInstance && t.audioURL,
-      );
+      const onProgress = (p) => setProgress(Math.min(100, Math.max(0, p)));
+      const rendered = await mixdownClips(includedTracks, 44100, onProgress);
 
-      if (audioTracks.length === 0) {
-        throw new Error('No audio tracks to mixdown');
-      }
-
-      setProgress(10);
-
-      // Find the longest duration
-      const durations = await Promise.all(
-        audioTracks.map(async (track) => {
-          const ws = track.wavesurferInstance;
-          return ws ? ws.getDuration() : 0;
-        }),
-      );
-      const maxDuration = Math.max(...durations);
-
-      setProgress(30);
-
-      // Perform mixdown
-      const mixedBuffer = await mixdownTracks(audioTracks, maxDuration);
-
-      setProgress(70);
-
-      // Convert to blob
-      const blob = audioBufferToWav(mixedBuffer);
+      const blob = audioBufferToWav(rendered);
       const audioURL = URL.createObjectURL(blob);
 
-      setProgress(90);
-
       if (addToProject) {
-        // Add as new track
+        const clipId = `clip-mixdown-${Date.now()}`;
+        const newClip = {
+          id: clipId,
+          start: 0,
+          duration: rendered.duration,
+          color: '#ff6b6b',
+          src: audioURL,
+          offset: 0,
+          name: mixdownName || 'Mixdown',
+        };
         addTrack({
           name: mixdownName || 'Mixdown',
-          audioURL: audioURL,
           isMixdown: true,
-          color: '#ff6b6b', // Red color for mixdown tracks
+          color: '#ff6b6b',
+          volume: 1,
+          pan: 0,
+          muted: false,
+          audioURL,
+          clips: [newClip],
         });
       } else {
-        // Download the file
         const a = document.createElement('a');
         a.href = audioURL;
-        a.download = `${mixdownName || 'mixdown'}.${exportFormat}`;
+        a.download = `${mixdownName || 'mixdown'}.wav`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-
-        // Clean up
         setTimeout(() => URL.revokeObjectURL(audioURL), 100);
       }
 
@@ -200,16 +260,13 @@ export default function MultitrackMixdown() {
         setShowModal(false);
         setIsProcessing(false);
         setProgress(0);
-      }, 500);
+      }, 400);
     } catch (err) {
       console.error('Mixdown error:', err);
-      setError(err.message);
+      setError(err.message || String(err));
       setIsProcessing(false);
     }
-  }, [tracks, addTrack, mixdownName, exportFormat, addToProject]);
-
-  const activeTracks = tracks.filter((t) => t.audioURL && !t.muted);
-  const canMixdown = activeTracks.length > 0;
+  }, [includedTracks, addToProject, mixdownName, addTrack]);
 
   return (
     <>
@@ -218,9 +275,9 @@ export default function MultitrackMixdown() {
         onClick={() => setShowModal(true)}
         disabled={!canMixdown}
         title={
-          !canMixdown
-            ? 'Add audio tracks to enable mixdown'
-            : 'Mix all tracks to stereo'
+          canMixdown
+            ? 'Mix all audible clips to stereo'
+            : 'Add unmuted tracks with clips to enable mixdown'
         }
       >
         <FaMixcloud /> Mixdown
@@ -254,7 +311,7 @@ export default function MultitrackMixdown() {
             </Form.Group>
 
             <Form.Group className="mb-3">
-              <Form.Label>Output Options</Form.Label>
+              <Form.Label>Destination</Form.Label>
               <Form.Check
                 type="checkbox"
                 label="Add mixdown as new track"
@@ -264,43 +321,20 @@ export default function MultitrackMixdown() {
               />
             </Form.Group>
 
-            {!addToProject && (
-              <Form.Group className="mb-3">
-                <Form.Label>Export Format</Form.Label>
-                <Form.Select
-                  value={exportFormat}
-                  onChange={(e) => setExportFormat(e.target.value)}
-                  disabled={isProcessing}
-                >
-                  <option value="wav">WAV (Uncompressed)</option>
-                  <option value="mp3" disabled>
-                    MP3 (Coming Soon)
-                  </option>
-                  <option value="ogg" disabled>
-                    OGG (Coming Soon)
-                  </option>
-                </Form.Select>
-              </Form.Group>
-            )}
-
             <div className="mb-3">
               <strong>Tracks to Mix:</strong>
               <ul className="mt-2">
-                {activeTracks.map((track) => (
-                  <li key={track.id}>
-                    {track.name}
-                    {track.volume !== 1 &&
-                      ` (vol: ${Math.round(track.volume * 100)}%)`}
-                    {track.pan !== 0 &&
-                      ` (pan: ${track.pan > 0 ? 'R' : 'L'}${Math.abs(Math.round(track.pan * 100))}%)`}
+                {includedTracks.map((t) => (
+                  <li key={t.id}>
+                    {t.name}
+                    {t.volume !== 1 &&
+                      ` (vol: ${Math.round((t.volume || 1) * 100)}%)`}
+                    {t.pan !== 0 &&
+                      ` (pan: ${t.pan > 0 ? 'R' : 'L'}${Math.abs(Math.round((t.pan || 0) * 100))}%)`}
+                    {t.soloed ? ' [solo]' : ''}
                   </li>
                 ))}
               </ul>
-              {tracks.some((t) => t.muted && t.audioURL) && (
-                <small className="text-muted">
-                  Muted tracks will be excluded from mixdown
-                </small>
-              )}
             </div>
 
             {isProcessing && (
@@ -328,10 +362,10 @@ export default function MultitrackMixdown() {
             disabled={isProcessing || !canMixdown}
           >
             {isProcessing
-              ? 'Processing...'
+              ? 'Processing…'
               : addToProject
                 ? 'Create Mixdown'
-                : 'Export'}
+                : 'Export WAV'}
           </Button>
         </Modal.Footer>
       </Modal>
