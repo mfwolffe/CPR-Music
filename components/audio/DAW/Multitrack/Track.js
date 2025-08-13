@@ -73,10 +73,11 @@ export default function Track({ track, index, zoomLevel = 100 }) {
       container: containerRef.current,
       height: 100, // Match the 100px container height
       waveColor: track.color || '#7bafd4',
-      progressColor: '#92ce84',
+      progressColor: track.color || '#7bafd4', // hide progress fill
       cursorColor: '#cbb677',
+      cursorWidth: 0, // hide WS cursor
       barWidth: 2,
-      barHeight: 1, // Full height bars
+      barHeight: 1,
       barRadius: 2,
       barGap: 1,
       normalize: true,
@@ -101,6 +102,30 @@ export default function Track({ track, index, zoomLevel = 100 }) {
         wavesurferInstance: ws,
         regionsPlugin: null, // Will be set when regions plugin is initialized
       });
+
+      // Seed a full-length clip once WS knows the duration
+      try {
+        const dReady = ws.getDuration?.() || 0;
+        if (
+          dReady > 0 &&
+          (!Array.isArray(track.clips) || track.clips.length === 0)
+        ) {
+          updateTrack(track.id, {
+            clips: [
+              {
+                id: `clip-${track.id}`,
+                start: 0,
+                duration: dReady,
+                color: track.color || '#7bafd4',
+                src: track.audioURL,
+                offset: 0,
+              },
+            ],
+          });
+        }
+      } catch (e) {
+        console.warn('Track clip init failed:', e);
+      }
 
       // Update the global duration when track is ready
       const duration = ws.getDuration();

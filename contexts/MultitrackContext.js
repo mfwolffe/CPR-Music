@@ -71,24 +71,49 @@ export const MultitrackProvider = ({ children }) => {
 
   // (removed interval-based timer effect for updating current time)
 
-  // Update duration when tracks change
+  // Update duration when tracks change (clip-aware)
   useEffect(() => {
-    // Find the longest duration among all tracks
     let maxDuration = 0;
 
-    // Check audio tracks
+    // Seed per-track clip initializations when needed
+    const initClipsById = new Map();
+
+    // Pass 1: audio tracks — prefer clips to compute end; otherwise fallback to WS duration
     tracks.forEach((track) => {
+      // If clips exist, compute end from clips
+      if (Array.isArray(track.clips) && track.clips.length > 0) {
+        const end = track.clips.reduce(
+          (m, c) => Math.max(m, (c.start || 0) + (c.duration || 0)),
+          0,
+        );
+        maxDuration = Math.max(maxDuration, end);
+        return;
+      }
+      // No clips yet: fallback to the raw audio duration from wavesurfer
       if (track.wavesurferInstance) {
         try {
-          const trackDuration = track.wavesurferInstance.getDuration() || 0;
-          maxDuration = Math.max(maxDuration, trackDuration);
+          const d = track.wavesurferInstance.getDuration() || 0;
+          maxDuration = Math.max(maxDuration, d);
+          if (d > 0 && track.type !== 'midi' && track.audioURL) {
+            // Schedule an initial single clip so we can render/manipulate non-destructively later
+            initClipsById.set(track.id, [
+              {
+                id: `clip-${track.id}`,
+                start: 0,
+                duration: d,
+                color: track.color || '#7bafd4',
+                src: track.audioURL,
+                offset: 0,
+              },
+            ]);
+          }
         } catch (e) {
-          // Ignore errors
+          // ignore
         }
       }
     });
 
-    // Check MIDI tracks (convert beats → seconds using track tempo)
+    // Pass 2: MIDI tracks — convert beats → seconds using track tempo
     tracks.forEach((track) => {
       if (track.type === 'midi' && track.midiData?.notes?.length > 0) {
         const lastBeat = track.midiData.notes.reduce((latest, note) => {
@@ -100,6 +125,18 @@ export const MultitrackProvider = ({ children }) => {
         maxDuration = Math.max(maxDuration, seconds);
       }
     });
+
+    // Apply any clip initializations in one state update
+    if (initClipsById.size > 0) {
+      setTracks((prev) =>
+        prev.map((t) =>
+          initClipsById.has(t.id) &&
+          (!Array.isArray(t.clips) || t.clips.length === 0)
+            ? { ...t, clips: initClipsById.get(t.id) }
+            : t,
+        ),
+      );
+    }
 
     setDuration(maxDuration);
   }, [tracks]);
@@ -252,19 +289,21 @@ export const MultitrackProvider = ({ children }) => {
         Math.min(1, typeof progress === 'number' ? progress : 0),
       );
 
-      // Compute longest duration from current tracks (fallback 0)
+      // Prefer project duration (clip-aware), fallback to longest WS duration
       const longestDuration = Math.max(
         0,
         ...tracks.map((t) => t.wavesurferInstance?.getDuration?.() || 0),
       );
-      const targetSec = longestDuration > 0 ? p * longestDuration : 0;
+      const projectDuration =
+        duration && duration > 0 ? duration : longestDuration;
+      const targetSec = projectDuration > 0 ? p * projectDuration : 0;
 
       // Seek all audio tracks visually/sonically
       tracks.forEach((track) => {
         const ws = track.wavesurferInstance;
         if (!ws) return;
         try {
-          ws.seekTo(longestDuration > 0 ? p : 0);
+          ws.seekTo(projectDuration > 0 ? p : 0);
         } catch (err) {
           console.error(`Error seeking track ${track.id}:`, err);
         }
@@ -278,9 +317,66 @@ export const MultitrackProvider = ({ children }) => {
       // Reflect immediately in UI
       setCurrentTime(targetSec);
     },
-    [tracks],
+    [tracks, duration],
   );
+  // --- Local pure helpers for clip editing (non-destructive) ---
+  function splitClipLocal(clip, at) {
+    const end = (clip.start || 0) + (clip.duration || 0);
+    if (at <= (clip.start || 0) || at >= end) return [clip, null];
+    const left = { ...clip, duration: at - (clip.start || 0) };
+    const right = {
+      ...clip,
+      id: `${clip.id}-r-${Math.random().toString(36).slice(2, 7)}`,
+      start: at,
+      duration: end - at,
+      offset: (clip.offset || 0) + (at - (clip.start || 0)),
+    };
+    return [left, right];
+  }
 
+  function trimClipLocal(clip, newStart, newEnd) {
+    const s = Math.max(clip.start || 0, newStart);
+    const e = Math.min((clip.start || 0) + (clip.duration || 0), newEnd);
+    if (e <= s) return null;
+    const delta = s - (clip.start || 0);
+    return {
+      ...clip,
+      start: s,
+      duration: e - s,
+      offset: (clip.offset || 0) + delta,
+    };
+  }
+
+  function rippleClipsLocal(clips, start, end) {
+    const cut = Math.max(0, end - start);
+    if (cut === 0) return clips.slice();
+    const out = [];
+    for (const c of clips) {
+      const cEnd = (c.start || 0) + (c.duration || 0);
+      if (cEnd <= start) {
+        out.push({ ...c });
+        continue;
+      }
+      if ((c.start || 0) >= end) {
+        out.push({ ...c, start: (c.start || 0) - cut });
+        continue;
+      }
+      const [left, right] = splitClipLocal(c, start);
+      if (left && left !== c) out.push(left);
+      else if ((c.start || 0) < start) {
+        const trimmed = trimClipLocal(c, c.start || 0, start);
+        if (trimmed) out.push(trimmed);
+      }
+      if (right) out.push({ ...right, start });
+      else if (cEnd > end) {
+        const trimmedRight = trimClipLocal(c, end, cEnd);
+        if (trimmedRight) out.push({ ...trimmedRight, start });
+      }
+    }
+    return out.sort((a, b) => (a.start || 0) - (b.start || 0));
+  }
+
+  // --- Playback control methods (play, pause, stop) ---
   const play = useCallback(() => {
     // Start transport from current time
     try {
@@ -336,6 +432,109 @@ export const MultitrackProvider = ({ children }) => {
     setIsPlaying(false);
     setCurrentTime(0);
   }, [tracks]);
+
+  // --- Non-destructive CLIP actions (audio + MIDI) ---
+  const splitAtPlayhead = useCallback(
+    (scope = 'selected') => {
+      const tSec = currentTime || 0;
+      setTracks((prev) =>
+        prev.map((track) => {
+          const inScope = scope === 'all' ? true : track.id === selectedTrackId;
+          if (
+            !inScope ||
+            !Array.isArray(track.clips) ||
+            track.clips.length === 0
+          )
+            return track;
+          let changed = false;
+          const out = [];
+          for (const c of track.clips) {
+            const cEnd = (c.start || 0) + (c.duration || 0);
+            if (tSec > (c.start || 0) && tSec < cEnd) {
+              const [left, right] = splitClipLocal(c, tSec);
+              if (left) out.push(left);
+              if (right) out.push(right);
+              changed = true;
+            } else {
+              out.push(c);
+            }
+          }
+          return changed ? { ...track, clips: out } : track;
+        }),
+      );
+    },
+    [currentTime, selectedTrackId],
+  );
+
+  const rippleDeleteSelection = useCallback(() => {
+    const region = activeRegion;
+    if (!region) return;
+    const rStart = Math.max(
+      0,
+      Math.min(
+        region.start ?? region.startTime ?? 0,
+        region.end ?? region.endTime ?? 0,
+      ),
+    );
+    const rEnd = Math.max(
+      rStart,
+      region.end ?? region.endTime ?? region.start ?? region.startTime ?? 0,
+    );
+    const cut = Math.max(0, rEnd - rStart);
+    if (cut === 0) return;
+
+    try {
+      pause();
+    } catch {}
+
+    setTracks((prev) =>
+      prev.map((track) => {
+        if (track.type !== 'midi' && Array.isArray(track.clips)) {
+          const nextClips = rippleClipsLocal(track.clips, rStart, rEnd);
+          return { ...track, clips: nextClips };
+        }
+        if (track.type === 'midi' && track.midiData) {
+          const tempo = track.midiData.tempo || 120;
+          const spb = 60 / tempo;
+          const rs = rStart / spb;
+          const re = rEnd / spb;
+          const delta = re - rs;
+          const src = Array.isArray(track.midiData.notes)
+            ? track.midiData.notes
+            : [];
+          const out = [];
+          for (const n of src) {
+            const s = n.startTime;
+            const e = n.startTime + n.duration;
+            if (e <= rs) {
+              out.push(n);
+            } else if (s >= re) {
+              out.push({ ...n, startTime: s - delta });
+            } else if (s < rs && e > re) {
+              const leftDur = Math.max(0, rs - s);
+              const rightDur = Math.max(0, e - re);
+              if (leftDur > 1e-6) out.push({ ...n, duration: leftDur });
+              if (rightDur > 1e-6)
+                out.push({ ...n, startTime: re - delta, duration: rightDur });
+            } else if (s < rs && e > rs && e <= re) {
+              const leftDur = Math.max(0, rs - s);
+              if (leftDur > 1e-6) out.push({ ...n, duration: leftDur });
+            } else if (s >= rs && s < re && e > re) {
+              const rightDur = Math.max(0, e - re);
+              if (rightDur > 1e-6)
+                out.push({ ...n, startTime: re - delta, duration: rightDur });
+            }
+            // fully inside region → dropped
+          }
+          return { ...track, midiData: { ...track.midiData, notes: out } };
+        }
+        return track;
+      }),
+    );
+
+    setActiveRegion(null);
+    setCurrentTime(rStart);
+  }, [activeRegion, pause, setTracks, setActiveRegion, setCurrentTime]);
 
   // MIDI-specific methods
   const registerTrackInstrument = useCallback((trackId, instrument) => {
@@ -801,6 +1000,8 @@ export const MultitrackProvider = ({ children }) => {
     setActiveRegion,
     deleteRegion,
     exciseRegion,
+    splitAtPlayhead,
+    rippleDeleteSelection,
 
     // MIDI methods
     registerTrackInstrument,
