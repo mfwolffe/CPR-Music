@@ -2978,7 +2978,8 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   height: 100% !important;
 }
 
-* Double-height MIDI track (240px = 2 slots) */ .track.midi-track {
+/* Double-height MIDI track (240px = 2 slots) */
+.track.midi-track {
   height: 240px !important;
   max-height: 240px !important;
   min-height: 240px !important;
