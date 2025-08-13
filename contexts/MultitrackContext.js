@@ -35,6 +35,10 @@ export const MultitrackProvider = ({ children }) => {
 
   // Editor state
   const [activeRegion, setActiveRegion] = useState(null);
+  const [editorTool, setEditorTool] = useState('clip'); // 'clip' | 'region'
+  const [selectedClipId, setSelectedClipId] = useState(null);
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [gridSizeSec, setGridSizeSec] = useState(0.1);
 
   // Playback timer
   const playbackTimerRef = useRef(null);
@@ -1000,6 +1004,15 @@ export const MultitrackProvider = ({ children }) => {
     setActiveRegion,
     deleteRegion,
     exciseRegion,
+    // editor tool & clip selection
+    editorTool,
+    setEditorTool,
+    selectedClipId,
+    setSelectedClipId,
+    snapEnabled,
+    setSnapEnabled,
+    gridSizeSec,
+    setGridSizeSec,
     splitAtPlayhead,
     rippleDeleteSelection,
 

@@ -42,6 +42,15 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
     activeRegion,
     deleteRegion,
     exciseRegion,
+    // new: tool & snap controls + clip actions
+    editorTool,
+    setEditorTool,
+    snapEnabled,
+    setSnapEnabled,
+    gridSizeSec,
+    setGridSizeSec,
+    splitAtPlayhead,
+    rippleDeleteSelection,
   } = useMultitrack();
   const [showEffectsPanel, setShowEffectsPanel] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(100);
@@ -227,6 +236,74 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
     >
       {/* Top Toolbar - Effects and Edit Actions */}
       <div className="multitrack-toolbar">
+        {/* Tool Mode */}
+        <div className="toolbar-section">
+          <Button
+            size="sm"
+            variant={editorTool === 'clip' ? 'primary' : 'outline-secondary'}
+            onClick={() => setEditorTool('clip')}
+            title="Clip editing mode (drag/move/resize clips)"
+          >
+            Clip
+          </Button>
+          <Button
+            size="sm"
+            className="ms-1"
+            variant={editorTool === 'region' ? 'primary' : 'outline-secondary'}
+            onClick={() => setEditorTool('region')}
+            title="Region selection mode (draw selections on waveform)"
+          >
+            Region
+          </Button>
+        </div>
+
+        {/* Snap/Grid */}
+        <div className="toolbar-section">
+          <Button
+            size="sm"
+            variant={snapEnabled ? 'success' : 'outline-secondary'}
+            onClick={() => setSnapEnabled(!snapEnabled)}
+            title="Toggle snap to grid"
+          >
+            {snapEnabled ? 'Snap On' : 'Snap Off'}
+          </Button>
+          <span className="text-white ms-2">Grid:</span>
+          <input
+            type="number"
+            min="0.01"
+            step="0.01"
+            value={gridSizeSec}
+            onChange={(e) =>
+              setGridSizeSec(Math.max(0.01, parseFloat(e.target.value) || 0.1))
+            }
+            className="ms-1"
+            style={{ width: '70px' }}
+            title="Grid size in seconds"
+          />
+          <span className="text-white ms-1">s</span>
+        </div>
+
+        {/* Clip actions */}
+        <div className="toolbar-section">
+          <Button
+            size="sm"
+            variant="outline-info"
+            onClick={() => splitAtPlayhead('selected')}
+            title="Split selected track clip at playhead"
+          >
+            <FaCut /> Split
+          </Button>
+          <Button
+            size="sm"
+            className="ms-1"
+            variant={activeRegion ? 'danger' : 'outline-danger'}
+            disabled={!activeRegion}
+            onClick={() => rippleDeleteSelection()}
+            title="Ripple delete current selection across tracks"
+          >
+            Ripple
+          </Button>
+        </div>
         <div className="toolbar-section">
           <Button size="sm" variant="outline-light" disabled>
             <FaUndo /> Undo
