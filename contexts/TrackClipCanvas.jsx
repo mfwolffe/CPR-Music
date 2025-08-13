@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMultitrack } from './MultitrackContext';
 import waveformCache from '../components/audio/DAW/Multitrack/WaveformCache';
 
-export default function EnhancedTrackClipCanvas({ track, zoomLevel = 100, height = 100 }) {
+export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }) {
   const {
     currentTime,
     duration,

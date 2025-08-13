@@ -86,6 +86,7 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
         const arrayBuffer = await blob.arrayBuffer();
         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
         duration = audioBuffer.duration;
+        console.log('Audio duration:', duration);
       } catch (error) {
         console.error('Error getting audio duration:', error);
         duration = 10; // fallback duration
@@ -113,6 +114,14 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
 
       setRecordedBlob(blob);
       setIsRecording(false);
+
+      // Important: Update duration in multitrack context
+      if (duration > 0) {
+        // This will trigger duration update in MultitrackContext
+        setTimeout(() => {
+          updateTrack(track.id, { duration: duration });
+        }, 100);
+      }
     };
 
     // Start recording

@@ -12,9 +12,9 @@ import {
 import { MdPanTool } from 'react-icons/md';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import TrackClipCanvas from '../../../../contexts/TrackClipCanvas';
+import AudioEngine from './AudioEngine';
 import waveformCache from './WaveformCache';
 import ClipPlayer from './ClipPlayer';
-import AudioEngine from './AudioEngine';
 
 export default function Track({ track, index, zoomLevel = 100 }) {
   const containerRef = useRef(null);
@@ -214,19 +214,14 @@ export default function Track({ track, index, zoomLevel = 100 }) {
 
   return (
     <div
-      className={`track ${isSelected ? 'selected' : ''}`}
+      className={`track ${isSelected ? 'track-selected' : ''} ${
+        track.type === 'recording' ? 'recording-track' : ''
+      }`}
       onClick={() => setSelectedTrackId(track.id)}
-      style={{
-        border: isSelected ? '2px solid #cbb677' : '1px solid #444',
-        borderRadius: '8px',
-        marginBottom: '10px',
-        backgroundColor: '#1a1a1a',
-        position: 'relative',
-      }}
     >
+      {/* Left Side - Track Controls */}
       <div className="track-controls">
         <div className="track-header">
-          <div style={{ width: '24px' }}></div>
           <Form.Control
             type="text"
             value={track.name}
@@ -234,14 +229,13 @@ export default function Track({ track, index, zoomLevel = 100 }) {
             className="track-name-input"
             onClick={(e) => e.stopPropagation()}
           />
-          <div style={{ width: '24px' }}></div>
         </div>
 
-        {/* Audio Controls - Vertical Stack */}
+        {/* Audio Controls - Stacked Vertically */}
         <div className="track-audio-controls">
-          {/* Volume Control */}
+          {/* Volume */}
           <div className="track-control-row">
-            <span className="track-control-label">VOL</span>
+            <FaVolumeUp size={12} className="control-icon" />
             <input
               type="range"
               className="track-volume-slider"
@@ -254,11 +248,14 @@ export default function Track({ track, index, zoomLevel = 100 }) {
               }
               disabled={track.muted}
             />
+            <span className="control-value">
+              {Math.round(track.volume * 100)}
+            </span>
           </div>
 
-          {/* Pan Control */}
+          {/* Pan */}
           <div className="track-control-row">
-            <span className="track-control-label">PAN</span>
+            <MdPanTool size={12} className="control-icon" />
             <input
               type="range"
               className="track-pan-slider"
@@ -271,12 +268,18 @@ export default function Track({ track, index, zoomLevel = 100 }) {
               }
               disabled={track.muted}
             />
+            <span className="control-value">
+              {track.pan > 0
+                ? `R${Math.round(track.pan * 100)}`
+                : track.pan < 0
+                  ? `L${Math.round(-track.pan * 100)}`
+                  : 'C'}
+            </span>
           </div>
         </div>
 
-        {/* Action Buttons - Vertical Stack */}
+        {/* Action Buttons - Stacked */}
         <div className="track-action-buttons">
-          {/* S/M Row */}
           <div className="track-button-row">
             <Button
               variant={
@@ -296,68 +299,55 @@ export default function Track({ track, index, zoomLevel = 100 }) {
               onClick={() => updateTrack(track.id, { muted: !track.muted })}
               title={track.muted ? 'Unmute' : 'Mute'}
             >
-              {track.muted ? <FaVolumeMute /> : <FaVolumeUp />}
+              M
             </Button>
           </div>
 
-          {/* Delete Button - Full Width */}
+          <Button
+            variant="outline-secondary"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+            className="w-100"
+            title="Import Audio"
+          >
+            <FaFileImport />
+          </Button>
+
           <Button
             variant="outline-danger"
             size="sm"
             onClick={() => removeTrack(track.id)}
-            className="track-delete-btn"
+            className="w-100"
             title="Delete Track"
           >
             <FaTrash />
           </Button>
         </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="audio/*"
+          onChange={handleFileImport}
+          style={{ display: 'none' }}
+        />
       </div>
-      {/* Waveform Container */}
-      <div
-        ref={containerRef}
-        style={{
-          position: 'relative',
-          height: '100px',
-          backgroundColor: '#2a2a2a',
-          overflow: 'hidden',
-        }}
-      >
-        {/* Enhanced clip canvas with waveforms */}
-        {track.clips && track.clips.length > 0 && (
-          <TrackClipCanvas track={track} zoomLevel={zoomLevel} height={100} />
-        )}
 
-        {/* Loading indicator */}
-        {isLoading && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              color: '#888',
-            }}
-          >
-            Loading...
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!isLoading && (!track.clips || track.clips.length === 0) && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              color: '#666',
-              textAlign: 'center',
-            }}
-          >
+      {/* Right Side - Waveform */}
+      <div className="track-waveform">
+        {isLoading ? (
+          <div className="waveform-loading">Loading...</div>
+        ) : track.clips && track.clips.length > 0 ? (
+          <TrackClipCanvas
+            track={track}
+            clips={track.clips}
+            zoomLevel={zoomLevel}
+            height={120}
+          />
+        ) : (
+          <div className="empty-waveform-state">
             <FaFileImport size={24} />
-            <div style={{ fontSize: '12px', marginTop: '5px' }}>
-              Import audio file
-            </div>
+            <div>Import audio file</div>
           </div>
         )}
       </div>
