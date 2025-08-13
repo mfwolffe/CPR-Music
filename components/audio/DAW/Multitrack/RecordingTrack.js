@@ -72,17 +72,43 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
       }
     };
 
-    recorder.onstop = () => {
+    recorder.onstop = async () => {
       const blob = new Blob(chunksRef.current, { type: mimeType });
       const url = URL.createObjectURL(blob);
 
       console.log('Recording stopped, blob created:', blob);
 
-      // Update the track with the recorded audio
+      // Get audio duration using Web Audio API
+      let duration = 0;
+      try {
+        const audioContext = new (window.AudioContext ||
+          window.webkitAudioContext)();
+        const arrayBuffer = await blob.arrayBuffer();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        duration = audioBuffer.duration;
+      } catch (error) {
+        console.error('Error getting audio duration:', error);
+        duration = 10; // fallback duration
+      }
+
+      // Create a clip for the recorded audio
+      const newClip = {
+        id: `clip-${track.id}-${Date.now()}`,
+        start: 0,
+        duration: duration,
+        src: url,
+        offset: 0,
+        color: track.color || '#ff6b6b',
+        name: `Recording ${new Date().toLocaleTimeString()}`,
+      };
+
+      // Update the track with the recorded audio AND the clip
       updateTrack(track.id, {
         audioURL: url,
         isRecording: false,
         isEmpty: false,
+        clips: [newClip], // Add the clip!
+        type: 'audio', // Convert from recording to audio track
       });
 
       setRecordedBlob(blob);

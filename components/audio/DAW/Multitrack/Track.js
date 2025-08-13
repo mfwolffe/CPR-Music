@@ -14,11 +14,7 @@ import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import TrackClipCanvas from '../../../../contexts/TrackClipCanvas';
 import waveformCache from './WaveformCache';
 import ClipPlayer from './ClipPlayer';
-import {
-  getAudioContext,
-  resumeAudioContext,
-  decodeAudioFromURL,
-} from './AudioEngine';
+import AudioEngine from './AudioEngine';
 
 export default function Track({ track, index, zoomLevel = 100 }) {
   const containerRef = useRef(null);
@@ -57,7 +53,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
 
     console.log(`Track ${track.id} - Initializing ClipPlayer...`);
 
-    const audioContext = getAudioContext();
+    const audioContext = AudioEngine.getAudioContext();
     const clipPlayer = new ClipPlayer(audioContext);
     clipPlayerRef.current = clipPlayer;
 
@@ -228,93 +224,94 @@ export default function Track({ track, index, zoomLevel = 100 }) {
         position: 'relative',
       }}
     >
-      {/* Track Header */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          padding: '10px',
-          borderBottom: '1px solid #333',
-          gap: '10px',
-        }}
-      >
-        <Form.Control
-          type="text"
-          value={track.name}
-          onChange={(e) => updateTrack(track.id, { name: e.target.value })}
-          style={{
-            width: '150px',
-            backgroundColor: '#2a2a2a',
-            border: '1px solid #444',
-            color: '#fff',
-          }}
-        />
-
-        <Button
-          variant={track.muted ? 'danger' : 'secondary'}
-          size="sm"
-          onClick={handleMute}
-          title={track.muted ? 'Unmute' : 'Mute'}
-        >
-          {track.muted ? <FaVolumeMute /> : <FaVolumeUp />}
-        </Button>
-
-        <Button
-          variant={isSolo ? 'warning' : 'secondary'}
-          size="sm"
-          onClick={handleSolo}
-          title="Solo"
-        >
-          S
-        </Button>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <label style={{ fontSize: '12px', color: '#888' }}>Vol</label>
-          <Form.Range
-            min="0"
-            max="1"
-            step="0.01"
-            value={track.volume}
-            onChange={handleVolumeChange}
-            style={{ width: '80px' }}
+      <div className="track-controls">
+        <div className="track-header">
+          <div style={{ width: '24px' }}></div>
+          <Form.Control
+            type="text"
+            value={track.name}
+            onChange={(e) => updateTrack(track.id, { name: e.target.value })}
+            className="track-name-input"
+            onClick={(e) => e.stopPropagation()}
           />
+          <div style={{ width: '24px' }}></div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <MdPanTool size={14} style={{ color: '#888' }} />
-          <Form.Range
-            min="-1"
-            max="1"
-            step="0.01"
-            value={track.pan}
-            onChange={handlePanChange}
-            style={{ width: '80px' }}
-          />
+        {/* Audio Controls - Vertical Stack */}
+        <div className="track-audio-controls">
+          {/* Volume Control */}
+          <div className="track-control-row">
+            <span className="track-control-label">VOL</span>
+            <input
+              type="range"
+              className="track-volume-slider"
+              min="0"
+              max="1"
+              step="0.01"
+              value={track.volume}
+              onChange={(e) =>
+                updateTrack(track.id, { volume: parseFloat(e.target.value) })
+              }
+              disabled={track.muted}
+            />
+          </div>
+
+          {/* Pan Control */}
+          <div className="track-control-row">
+            <span className="track-control-label">PAN</span>
+            <input
+              type="range"
+              className="track-pan-slider"
+              min="-1"
+              max="1"
+              step="0.01"
+              value={track.pan}
+              onChange={(e) =>
+                updateTrack(track.id, { pan: parseFloat(e.target.value) })
+              }
+              disabled={track.muted}
+            />
+          </div>
         </div>
 
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '5px' }}>
+        {/* Action Buttons - Vertical Stack */}
+        <div className="track-action-buttons">
+          {/* S/M Row */}
+          <div className="track-button-row">
+            <Button
+              variant={
+                soloTrackId === track.id ? 'warning' : 'outline-secondary'
+              }
+              size="sm"
+              onClick={() =>
+                setSoloTrackId(soloTrackId === track.id ? null : track.id)
+              }
+              title="Solo"
+            >
+              S
+            </Button>
+            <Button
+              variant={track.muted ? 'danger' : 'outline-secondary'}
+              size="sm"
+              onClick={() => updateTrack(track.id, { muted: !track.muted })}
+              title={track.muted ? 'Unmute' : 'Mute'}
+            >
+              {track.muted ? <FaVolumeMute /> : <FaVolumeUp />}
+            </Button>
+          </div>
+
+          {/* Delete Button - Full Width */}
           <Button
-            variant="secondary"
+            variant="outline-danger"
             size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading}
+            onClick={() => removeTrack(track.id)}
+            className="track-delete-btn"
+            title="Delete Track"
           >
-            <FaFileImport />
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="audio/*"
-            onChange={handleFileImport}
-            style={{ display: 'none' }}
-          />
-
-          <Button variant="danger" size="sm" onClick={handleRemove}>
             <FaTrash />
           </Button>
         </div>
       </div>
-
       {/* Waveform Container */}
       <div
         ref={containerRef}

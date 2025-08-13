@@ -29,6 +29,7 @@ import {
 } from 'react-icons/fa';
 import { RiScissors2Fill } from 'react-icons/ri';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
+import { Dropdown } from 'react-bootstrap';
 import Track from './Track';
 import RecordingTrack from './RecordingTrack';
 import MIDITrack from './MIDITrack';

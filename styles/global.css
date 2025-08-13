@@ -3069,3 +3069,91 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   padding: 0.15rem 0.4rem;
   height: 20px;
 }
+
+/* Track Controls - Vertical Stack Layout */
+.track-controls {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  gap: 12px;
+}
+
+/* Volume/Pan controls container */
+.track-audio-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 4px;
+}
+
+/* Individual control row */
+.track-control-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Control labels */
+.track-control-label {
+  font-size: 10px;
+  color: #888;
+  text-transform: uppercase;
+  width: 20px;
+  text-align: center;
+}
+
+/* Sliders */
+.track-volume-slider,
+.track-pan-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: #333;
+  outline: none;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.track-volume-slider::-webkit-slider-thumb,
+.track-pan-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  background: #4a7c9e;
+  cursor: pointer;
+  border-radius: 50%;
+  border: 1px solid #5a8cae;
+}
+
+/* Action buttons container */
+.track-action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: auto;
+}
+
+/* S/M/Delete buttons row */
+.track-button-row {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+}
+
+/* Individual action buttons */
+.track-controls .btn-sm {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+/* Delete button full width */
+.track-delete-btn {
+  width: 100% !important;
+}
