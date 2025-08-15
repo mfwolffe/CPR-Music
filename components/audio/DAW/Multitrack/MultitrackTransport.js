@@ -17,6 +17,7 @@ import { MdPiano } from 'react-icons/md';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import Metronome from './Metronome';
 import PianoKeyboard from './PianoKeyboard';
+import MIDIInputManager from './MIDIInputManager';
 
 export default function MultitrackTransport({
   showPiano: showPianoProp,
@@ -64,6 +65,50 @@ export default function MultitrackTransport({
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
 
+  // Refs for latest state in async callbacks
+  const selectedTrackIdRef = useRef(selectedTrackId);
+  useEffect(() => {
+    selectedTrackIdRef.current = selectedTrackId;
+  }, [selectedTrackId]);
+  const tracksRef = useRef(tracks);
+  useEffect(() => {
+    tracksRef.current = tracks;
+  }, [tracks]);
+  const showPianoRef = useRef(showPiano);
+  useEffect(() => {
+    showPianoRef.current = showPiano;
+  }, [showPiano]);
+
+  // Virtual capture clock (used when transport isn't running)
+  const captureBaseSecRef = useRef(0);
+  const captureBaseWallRef = useRef(0);
+  const getCaptureSec = useCallback(() => {
+    if (isPlayingRef.current) return currentTimeRef.current;
+    // If not playing, start/continue a virtual clock from current timeline pos
+    if (!captureBaseWallRef.current) {
+      captureBaseSecRef.current = currentTimeRef.current;
+      captureBaseWallRef.current =
+        typeof performance !== 'undefined' ? performance.now() : Date.now();
+    }
+    const nowWall =
+      typeof performance !== 'undefined' ? performance.now() : Date.now();
+    return (
+      captureBaseSecRef.current + (nowWall - captureBaseWallRef.current) / 1000
+    );
+  }, []);
+
+  // Reset virtual clock when transport starts or piano closes
+  useEffect(() => {
+    if (isPlaying) {
+      captureBaseWallRef.current = 0;
+    }
+  }, [isPlaying]);
+  useEffect(() => {
+    if (!showPiano) {
+      captureBaseWallRef.current = 0;
+    }
+  }, [showPiano]);
+
   // Format time display
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -80,7 +125,7 @@ export default function MultitrackTransport({
     seek(progress);
   };
 
-  // Handle piano key presses: preview always; record when armed & playing
+  // Handle piano key presses: preview always; record when armed & playing (uses robust capture clock)
   const handlePianoNote = (note, action) => {
     const selectedMidiTrack = tracks.find(
       (t) => t.id === selectedTrackId && t.type === 'midi',
@@ -95,19 +140,11 @@ export default function MultitrackTransport({
     const secPerBeat = 60 / tempo;
     const velocity = 0.85; // 0..1 for context
 
-    // Record while transport is running; don't depend on per-track isRecording
-    const armedAndRolling = isPlayingRef.current || showPiano;
-    console.log('[Transport Piano]', {
-      armedAndRolling,
-      tempo,
-      selectedTrackId,
-    });
+    const shouldCapture = isPlayingRef.current || showPiano;
 
     if (action === 'down') {
-      // Ensure UI highlight updates reliably without stale closure
       setActiveNotes((prev) => (prev.includes(note) ? prev : [...prev, note]));
 
-      // Prevent double-attacks by guarding on existing preview token
       if (!previewTokensRef.current.has(note)) {
         try {
           const token = playNoteOnSelectedTrack(note, velocity);
@@ -115,11 +152,10 @@ export default function MultitrackTransport({
         } catch {}
       }
 
-      // Start live capture (seconds + high-res wall clock) if armed & playing
-      if (armedAndRolling) {
+      if (shouldCapture) {
+        const startSec = getCaptureSec();
         liveNotesRef.current.set(note, {
-          startSec: currentTimeRef.current,
-          startWall: performance.now(),
+          startSec,
           velocity,
         });
       }
@@ -129,25 +165,21 @@ export default function MultitrackTransport({
         if (stored && stored !== NO_TOKEN) {
           stopNoteOnSelectedTrack(note, stored);
         } else {
-          // No handle from instrument → use single-arg stop to ensure a gate-off
           stopNoteOnSelectedTrack(note);
         }
       } catch {}
       previewTokensRef.current.delete(note);
       setActiveNotes((prev) => prev.filter((n) => n !== note));
 
-      // Finish capture → convert to beats and write
       const live = liveNotesRef.current.get(note);
       if (
-        armedAndRolling &&
+        shouldCapture &&
         live &&
         typeof addNoteToSelectedTrack === 'function'
       ) {
-        const durationSec = live.startWall
-          ? Math.max(0, (performance.now() - live.startWall) / 1000)
-          : Math.max(0, currentTimeRef.current - live.startSec);
+        const endSec = getCaptureSec();
+        const durationSec = Math.max(0, endSec - live.startSec);
         if (durationSec > 0.04) {
-          // ignore ultra-taps
           const startBeat = live.startSec / secPerBeat;
           const durationBeats = durationSec / secPerBeat;
           addNoteToSelectedTrack(note, live.velocity, startBeat, durationBeats);
@@ -156,6 +188,129 @@ export default function MultitrackTransport({
       }
     }
   };
+
+  // External MIDI device capture: preview/record just like the piano
+  const handleExternalMIDIMessage = useCallback(
+    (message) => {
+      const id = selectedTrackIdRef.current;
+      const tr = tracksRef.current.find(
+        (t) => t.id === id && t.type === 'midi',
+      );
+      if (!tr) return;
+
+      const tempo = tr.midiData?.tempo || 120;
+      const secPerBeat = 60 / tempo;
+      const shouldCapture = isPlayingRef.current || showPianoRef.current;
+
+      if (message.type === 'noteon' && (message.velocity ?? 0) > 0) {
+        const velocity01 = Math.max(
+          0,
+          Math.min(1, (message.velocity || 0) / 127),
+        );
+        if (!previewTokensRef.current.has(message.note)) {
+          try {
+            const token = playNoteOnSelectedTrack(message.note, velocity01);
+            previewTokensRef.current.set(message.note, token ?? NO_TOKEN);
+          } catch {}
+        }
+        if (shouldCapture) {
+          const startSec = getCaptureSec();
+          liveNotesRef.current.set(message.note, {
+            startSec,
+            velocity: velocity01,
+          });
+        }
+      } else if (
+        message.type === 'noteoff' ||
+        (message.type === 'noteon' && (message.velocity ?? 0) === 0)
+      ) {
+        const stored = previewTokensRef.current.get(message.note);
+        try {
+          if (stored && stored !== NO_TOKEN) {
+            stopNoteOnSelectedTrack(message.note, stored);
+          } else {
+            stopNoteOnSelectedTrack(message.note);
+          }
+        } catch {}
+        previewTokensRef.current.delete(message.note);
+
+        const live = liveNotesRef.current.get(message.note);
+        if (
+          shouldCapture &&
+          live &&
+          typeof addNoteToSelectedTrack === 'function'
+        ) {
+          const endSec = getCaptureSec();
+          const durationSec = Math.max(0, endSec - live.startSec);
+          if (durationSec > 0.02) {
+            const startBeat = live.startSec / secPerBeat;
+            const durationBeats = durationSec / secPerBeat;
+            addNoteToSelectedTrack(
+              message.note,
+              live.velocity,
+              startBeat,
+              durationBeats,
+            );
+          }
+          liveNotesRef.current.delete(message.note);
+        }
+      }
+    },
+    [
+      addNoteToSelectedTrack,
+      playNoteOnSelectedTrack,
+      stopNoteOnSelectedTrack,
+      getCaptureSec,
+    ],
+  );
+
+  // External MIDI setup – initialize and connect to all inputs
+  useEffect(() => {
+    const mm =
+      typeof window !== 'undefined' && window.__midiInputManager
+        ? window.__midiInputManager
+        : new MIDIInputManager();
+    if (typeof window !== 'undefined' && !window.__midiInputManager) {
+      window.__midiInputManager = mm;
+    }
+
+    let mounted = true;
+    let onDeviceChange;
+
+    (async () => {
+      const ok = await mm.initialize();
+      if (!ok || !mounted) return;
+
+      const connectAll = () => {
+        try {
+          const inputs = mm.getInputDevices();
+          inputs.forEach((d) => {
+            try {
+              mm.connectInput(d.id, handleExternalMIDIMessage);
+            } catch {}
+          });
+        } catch {}
+      };
+
+      connectAll();
+      onDeviceChange = () => connectAll();
+      mm.addListener('devicechange', onDeviceChange);
+    })();
+
+    return () => {
+      mounted = false;
+      try {
+        const mm2 = window.__midiInputManager || mm;
+        const inputs = mm2.getInputDevices?.() || [];
+        inputs.forEach((d) => {
+          try {
+            mm2.disconnectInput(d.id);
+          } catch {}
+        });
+        if (onDeviceChange) mm2.removeListener('devicechange', onDeviceChange);
+      } catch {}
+    };
+  }, [handleExternalMIDIMessage]);
   useEffect(() => {
     const wasPlaying = prevIsPlayingRef.current;
     prevIsPlayingRef.current = isPlaying;

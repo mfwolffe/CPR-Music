@@ -1,4 +1,3 @@
-// components/audio/DAW/Multitrack/Track.js
 'use client';
 
 import { useEffect, useRef, useState } from 'react';

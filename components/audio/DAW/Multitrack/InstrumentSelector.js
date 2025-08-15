@@ -149,8 +149,12 @@ export default function InstrumentSelector({
   currentInstrument,
 }) {
   const [selectedInstrument, setSelectedInstrument] = useState(
-    currentInstrument || 'synth-default',
+    (currentInstrument && currentInstrument.id) ||
+      currentInstrument ||
+      'synth-default',
   );
+  const selectedMeta =
+    INSTRUMENTS.find((i) => i.id === selectedInstrument) || INSTRUMENTS[0];
   const [previewNote, setPreviewNote] = useState(null);
 
   const handleSelect = () => {
@@ -233,14 +237,11 @@ export default function InstrumentSelector({
           variant="primary"
           onClick={handleSelect}
           style={{
-            backgroundColor: INSTRUMENTS.find(
-              (i) => i.id === selectedInstrument,
-            )?.color,
-            borderColor: INSTRUMENTS.find((i) => i.id === selectedInstrument)
-              ?.color,
+            backgroundColor: selectedMeta.color,
+            borderColor: selectedMeta.color,
           }}
         >
-          Select {INSTRUMENTS.find((i) => i.id === selectedInstrument)?.name}
+          Select {selectedMeta.name}
         </Button>
       </Modal.Footer>
     </Modal>

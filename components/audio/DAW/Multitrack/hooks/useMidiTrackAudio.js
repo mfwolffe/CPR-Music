@@ -249,6 +249,7 @@ export function useMIDITrackAudio(
     noteLastPlayedRef.current.set(note, now);
 
     // Rest of playNote implementation...
+    const audioContext = audioContextManager.getContext();
     const secondArg = time != null ? time : audioContext.currentTime;
     instrumentRef.current.playNote(note, velocity, secondArg);
   }, []);

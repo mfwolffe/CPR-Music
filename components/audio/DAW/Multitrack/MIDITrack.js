@@ -19,6 +19,14 @@ import {
 } from 'react-icons/fa';
 import { useMIDITrackAudio } from './hooks/useMidiTrackAudio';
 import MIDIInputManager from './MIDIInputManager';
+// Shared MIDI input manager (singleton across app)
+const midiInputManager =
+  typeof window !== 'undefined' && window.__midiInputManager
+    ? window.__midiInputManager
+    : new MIDIInputManager();
+if (typeof window !== 'undefined' && !window.__midiInputManager) {
+  window.__midiInputManager = midiInputManager;
+}
 import { MdPanTool, MdMusicNote, MdPiano } from 'react-icons/md';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import InstrumentSelector from './InstrumentSelector';
@@ -357,9 +365,17 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     }
   }
 
-  // Handle instrument selection
-  const handleInstrumentSelect = (instrument) => {
-    updateTrack(track.id, { midiData: { instrument } });
+  // Handle instrument selection (supports preview-only audition)
+  const handleInstrumentSelect = (instrument, previewOnly = false) => {
+    if (previewOnly) {
+      try {
+        instrumentRef.current?.preview?.(60);
+      } catch {}
+      return; // don't close modal or commit on preview
+    }
+    updateTrack(track.id, (t) => ({
+      midiData: { ...(t.midiData || {}), instrument },
+    }));
     setShowInstrumentSelector(false);
   };
 

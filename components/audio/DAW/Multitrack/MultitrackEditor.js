@@ -51,6 +51,7 @@ import {
 
 // Create singleton MIDI manager
 const midiInputManager = new MIDIInputManager();
+if (typeof window !== 'undefined') window.__midiInputManager = midiInputManager;
 
 export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   console.log('MultitrackEditor rendering');
@@ -225,7 +226,15 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
         handleSplitAtPlayhead();
       } else if (e.key === 'q' && !isMeta) {
         e.preventDefault();
-        handleQuantize();
+        // Only quantize if an audio/recording track with clips is selected
+        if (
+          selectedTrack &&
+          Array.isArray(selectedTrack.clips) &&
+          selectedTrack.clips.length > 0
+        ) {
+          e.preventDefault();
+          handleQuantize();
+        }
       } else if (e.key === '1') {
         setEditorTool('select');
       } else if (e.key === '2') {
