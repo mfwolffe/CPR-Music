@@ -1,15 +1,18 @@
 // components/audio/DAW/Multitrack/WalkingWaveform.js
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 export default function WalkingWaveform({
   mediaStream,
   isRecording,
   trackId,
-  height = 120, // Match track height
+  height = 120,
   color = '#ff6b6b',
   backgroundColor = '#2a2a2a',
+  startPosition = 0, // Start position in seconds
+  zoomLevel = 100, // Zoom level percentage
+  duration = 30, // Project duration
 }) {
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
@@ -23,6 +26,9 @@ export default function WalkingWaveform({
       mediaStream,
       isRecording,
       hasCanvas: !!canvasRef.current,
+      startPosition,
+      zoomLevel,
+      duration,
     });
 
     if (!mediaStream || !isRecording || !canvasRef.current) {
@@ -55,6 +61,19 @@ export default function WalkingWaveform({
       const width = canvas.width;
       const canvasHeight = canvas.height;
 
+      // Calculate pixels per second to match TrackClipCanvas calculation
+      const scale = Math.max(0.01, zoomLevel / 100);
+      const projectDur = Math.max(1e-6, duration || 30);
+      const pixelsPerSecond = (width * scale) / projectDur;
+
+      console.log('WalkingWaveform: Pixel calculation', {
+        width,
+        scale,
+        projectDur,
+        pixelsPerSecond,
+        startPositionPx: startPosition * pixelsPerSecond,
+      });
+
       // Initialize recording start time
       startTimeRef.current = Date.now();
       waveformDataRef.current = [];
@@ -75,7 +94,13 @@ export default function WalkingWaveform({
         frameCount++;
         if (frameCount % 60 === 0) {
           // Log every second
-          console.log('WalkingWaveform: Still animating...', frameCount);
+          const elapsed = (Date.now() - startTimeRef.current) / 1000;
+          console.log('WalkingWaveform: Still animating...', {
+            frameCount,
+            startPosition,
+            elapsed,
+            currentX: (startPosition + elapsed) * pixelsPerSecond,
+          });
         }
 
         const bufferLength = analyserRef.current.frequencyBinCount;
@@ -95,16 +120,17 @@ export default function WalkingWaveform({
         waveformDataRef.current.push(amplitude);
 
         // Calculate time position
-        const elapsed = (Date.now() - startTimeRef.current) / 1000; // seconds
-        const pixelsPerSecond = 50; // Match the timeline scale
-        const xPosition = elapsed * pixelsPerSecond;
+        const elapsed = (Date.now() - startTimeRef.current) / 1000; // seconds since recording started
+        const absoluteTime = startPosition + elapsed; // absolute position in the timeline
+        const xPosition = absoluteTime * pixelsPerSecond;
 
         // Draw waveform bars
         const barWidth = 2;
         const barSpacing = 1;
         const currentBar = Math.floor(xPosition / (barWidth + barSpacing));
 
-        if (currentBar < width / (barWidth + barSpacing)) {
+        // Check if we're still within canvas bounds
+        if (currentBar * (barWidth + barSpacing) < width) {
           const x = currentBar * (barWidth + barSpacing);
 
           // Calculate bar height and center it vertically
@@ -114,6 +140,11 @@ export default function WalkingWaveform({
 
           ctx.fillStyle = color;
           ctx.fillRect(x, y, barWidth, barHeight);
+        } else {
+          console.log('WalkingWaveform: Reached canvas edge', {
+            currentBar,
+            maxBars: width / (barWidth + barSpacing),
+          });
         }
 
         // Continue animation
@@ -121,7 +152,10 @@ export default function WalkingWaveform({
       };
 
       // Start drawing
-      console.log('WalkingWaveform: Starting animation');
+      console.log(
+        'WalkingWaveform: Starting animation at position',
+        startPosition,
+      );
       draw();
     } catch (error) {
       console.error('WalkingWaveform: Error initializing:', error);
@@ -140,20 +174,29 @@ export default function WalkingWaveform({
         audioContextRef.current.close();
       }
     };
-  }, [mediaStream, isRecording, height, color, backgroundColor]);
+  }, [
+    mediaStream,
+    isRecording,
+    height,
+    color,
+    backgroundColor,
+    startPosition,
+    zoomLevel,
+    duration,
+  ]);
 
   return (
     <canvas
       ref={canvasRef}
       width={3000} // Match track width for scrolling
-      height={height} // Use the height prop
+      height={height}
       style={{
         display: 'block',
         position: 'absolute',
         top: '50%',
         left: 0,
         transform: 'translateY(-50%)',
-        backgroundColor,
+        backgroundColor: 'transparent',
         width: '3000px',
         height: `${height}px`,
       }}
