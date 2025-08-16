@@ -182,65 +182,51 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
     if (!selectedTrack || !snapEnabled) return;
 
     const quantized = quantizeClips(
-      selectedClipId ? selectedClips : selectedTrack.clips,
+      selectedClipId
+        ? selectedTrack.clips.filter((c) => c.id === selectedClipId)
+        : selectedTrack.clips,
       gridSizeSec,
     );
 
     updateTrack(selectedTrack.id, { clips: quantized });
-  }, [
-    selectedTrack,
-    selectedClips,
-    selectedClipId,
-    snapEnabled,
-    gridSizeSec,
-    updateTrack,
-  ]);
+  }, [selectedTrack, selectedClipId, snapEnabled, gridSizeSec, updateTrack]);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Check if we're in an input field
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-        return;
-      }
+      // Tool shortcuts
+      if (e.key === '1') setEditorTool('select');
+      if (e.key === '2') setEditorTool('clip');
+      if (e.key === '3') setEditorTool('cut');
 
-      const isMeta = e.metaKey || e.ctrlKey;
-
-      if (isMeta && e.key === 'c') {
+      // Edit shortcuts
+      if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
         e.preventDefault();
         handleCopy();
-      } else if (isMeta && e.key === 'x') {
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'x') {
         e.preventDefault();
         handleCut();
-      } else if (isMeta && e.key === 'v') {
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
         e.preventDefault();
         handlePaste();
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
         handleDelete();
-      } else if (isMeta && e.key === 'd') {
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
         e.preventDefault();
         handleDuplicate();
-      } else if (e.key === 's' && !isMeta) {
+      }
+      if (e.key === 's' && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         handleSplitAtPlayhead();
-      } else if (e.key === 'q' && !isMeta) {
+      }
+      if (e.key === 'q' || e.key === 'Q') {
         e.preventDefault();
-        // Only quantize if an audio/recording track with clips is selected
-        if (
-          selectedTrack &&
-          Array.isArray(selectedTrack.clips) &&
-          selectedTrack.clips.length > 0
-        ) {
-          e.preventDefault();
-          handleQuantize();
-        }
-      } else if (e.key === '1') {
-        setEditorTool('select');
-      } else if (e.key === '2') {
-        setEditorTool('clip');
-      } else if (e.key === '3') {
-        setEditorTool('cut');
+        handleQuantize();
       }
     };
 
@@ -380,36 +366,16 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                   <FaPaste />
                 </Button>
                 <Button
-                  variant="outline-danger"
+                  variant="outline-secondary"
                   onClick={handleDelete}
                   disabled={!hasSelection}
-                  title="Delete (Delete/Backspace)"
+                  title="Delete"
                 >
                   <FaTrash />
                 </Button>
               </ButtonGroup>
 
-              {/* Edit Operations */}
-              <div className="vr" />
-              <ButtonGroup size="sm">
-                <Button
-                  variant="outline-secondary"
-                  onClick={handleSplitAtPlayhead}
-                  title="Split at Playhead (S)"
-                >
-                  <RiScissors2Fill />
-                </Button>
-                <Button
-                  variant="outline-secondary"
-                  onClick={handleDuplicate}
-                  disabled={!hasSelection}
-                  title="Duplicate (Cmd/Ctrl+D)"
-                >
-                  <FaCopy /> <FaCopy />
-                </Button>
-              </ButtonGroup>
-
-              {/* Snap Controls */}
+              {/* Snap controls */}
               <div className="vr" />
               <Button
                 variant={snapEnabled ? 'secondary' : 'outline-secondary'}
@@ -497,14 +463,32 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
       {/* Tracks */}
       <Row>
         <Col>
-          <div className="tracks-container">
+          <div
+            className="tracks-container"
+            style={{
+              overflowX: 'auto',
+              overflowY: 'hidden',
+            }}
+          >
             {tracks.map((track, index) => {
               if (track.type === 'recording') {
                 return (
-                  <RecordingTrack key={track.id} track={track} index={index} />
+                  <RecordingTrack
+                    key={track.id}
+                    track={track}
+                    index={index}
+                    zoomLevel={zoomLevel}
+                  />
                 );
               } else if (track.type === 'midi') {
-                return <MIDITrack key={track.id} track={track} index={index} />;
+                return (
+                  <MIDITrack
+                    key={track.id}
+                    track={track}
+                    index={index}
+                    zoomLevel={zoomLevel}
+                  />
+                );
               } else {
                 return (
                   <Track
@@ -534,6 +518,34 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
               style={{ width: '200px' }}
             />
             <span>{zoomLevel}%</span>
+
+            {/* Zoom presets */}
+            <ButtonGroup size="sm" className="ms-3">
+              <Button
+                variant="outline-secondary"
+                onClick={() => setZoomLevel(50)}
+              >
+                50%
+              </Button>
+              <Button
+                variant="outline-secondary"
+                onClick={() => setZoomLevel(100)}
+              >
+                100%
+              </Button>
+              <Button
+                variant="outline-secondary"
+                onClick={() => setZoomLevel(200)}
+              >
+                200%
+              </Button>
+              <Button
+                variant="outline-secondary"
+                onClick={() => setZoomLevel(400)}
+              >
+                400%
+              </Button>
+            </ButtonGroup>
           </div>
         </Col>
       </Row>

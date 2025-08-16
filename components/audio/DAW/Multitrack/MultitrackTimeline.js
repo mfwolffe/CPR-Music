@@ -4,13 +4,28 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 
-export default function MultitrackTimeline({ zoomLevel = 100 }) {
+export default function MultitrackTimeline({
+  zoomLevel = 100,
+  scrollRef,
+  onScroll,
+}) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
+  const scrollContainerRef = useRef(null);
   const animationFrameRef = useRef(null);
   const [containerWidth, setContainerWidth] = useState(0);
+  const [isHovering, setIsHovering] = useState(false);
+  const [isScrolling, setIsScrolling] = useState(false);
+  const scrollTimeoutRef = useRef(null);
 
-  const { duration, currentTime, seek, isPlaying, tracks } = useMultitrack();
+  const { duration, currentTime, seek, isPlaying } = useMultitrack();
+
+  // Connect external scroll ref if provided
+  useEffect(() => {
+    if (scrollRef && scrollContainerRef.current) {
+      scrollRef.current = scrollContainerRef.current;
+    }
+  }, [scrollRef]);
 
   // Update container width on resize
   useEffect(() => {
@@ -30,10 +45,17 @@ export default function MultitrackTimeline({ zoomLevel = 100 }) {
     if (!containerRef.current || duration === 0) return;
 
     const rect = containerRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const progress = x / rect.width;
+    const scrollLeft = scrollContainerRef.current?.scrollLeft || 0;
+    const x = e.clientX - rect.left + scrollLeft;
 
-    // Seek all tracks to this position
+    // Calculate time based on the virtual width
+    const scale = zoomLevel / 100;
+    const virtualWidth = 3000 * scale; // Match track canvas width
+    const projectDuration = Math.max(duration, 30);
+    const clickTime = (x / virtualWidth) * projectDuration;
+
+    // Convert to progress (0-1)
+    const progress = clickTime / projectDuration;
     seek(Math.max(0, Math.min(1, progress)));
   };
 
@@ -43,8 +65,12 @@ export default function MultitrackTimeline({ zoomLevel = 100 }) {
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
-    const width = containerWidth;
     const height = 40;
+
+    // Calculate virtual width based on zoom
+    const scale = zoomLevel / 100;
+    const virtualWidth = 3000 * scale; // Match track canvas width
+    const width = Math.max(containerWidth, virtualWidth);
 
     canvas.width = width;
     canvas.height = height;
@@ -53,10 +79,39 @@ export default function MultitrackTimeline({ zoomLevel = 100 }) {
     ctx.fillStyle = '#1e1e1e';
     ctx.fillRect(0, 0, width, height);
 
-    // Draw timeline markers
-    const pixelsPerSecond =
-      (width * (zoomLevel / 100)) / Math.max(duration, 30);
-    const secondsPerMajorTick = Math.max(1, Math.floor(50 / pixelsPerSecond));
+    // Calculate pixels per second using the same formula as tracks
+    const projectDuration = Math.max(duration, 30);
+    const pixelsPerSecond = virtualWidth / projectDuration;
+
+    // Determine appropriate tick intervals based on zoom level
+    let majorTickInterval = 1; // seconds
+    let minorTicksPerMajor = 5;
+
+    if (pixelsPerSecond > 200) {
+      // Very zoomed in - show 0.1 second intervals
+      majorTickInterval = 0.1;
+      minorTicksPerMajor = 10;
+    } else if (pixelsPerSecond > 100) {
+      // Zoomed in - show 0.5 second intervals
+      majorTickInterval = 0.5;
+      minorTicksPerMajor = 5;
+    } else if (pixelsPerSecond > 50) {
+      // Normal - show 1 second intervals
+      majorTickInterval = 1;
+      minorTicksPerMajor = 5;
+    } else if (pixelsPerSecond > 20) {
+      // Zoomed out - show 5 second intervals
+      majorTickInterval = 5;
+      minorTicksPerMajor = 5;
+    } else if (pixelsPerSecond > 10) {
+      // Very zoomed out - show 10 second intervals
+      majorTickInterval = 10;
+      minorTicksPerMajor = 5;
+    } else {
+      // Extremely zoomed out - show 30 second intervals
+      majorTickInterval = 30;
+      minorTicksPerMajor = 6;
+    }
 
     ctx.font = '11px Arial';
     ctx.fillStyle = '#888';
@@ -64,8 +119,10 @@ export default function MultitrackTimeline({ zoomLevel = 100 }) {
     ctx.lineWidth = 1;
 
     // Draw major ticks and time labels
-    for (let sec = 0; sec <= duration; sec += secondsPerMajorTick) {
-      const x = (sec / duration) * width;
+    for (let sec = 0; sec <= projectDuration; sec += majorTickInterval) {
+      const x = sec * pixelsPerSecond;
+
+      if (x > width) break;
 
       // Major tick
       ctx.beginPath();
@@ -76,16 +133,32 @@ export default function MultitrackTimeline({ zoomLevel = 100 }) {
       // Time label
       const minutes = Math.floor(sec / 60);
       const seconds = sec % 60;
-      const label = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+      let label;
+      if (majorTickInterval < 1) {
+        // Show decimal seconds for sub-second intervals
+        label = sec.toFixed(1) + 's';
+      } else if (seconds === 0 && minutes > 0) {
+        // Show just minutes for whole minutes
+        label = `${minutes}:00`;
+      } else {
+        // Show minutes:seconds
+        label = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      }
+
       ctx.fillText(label, x + 3, height - 15);
     }
 
     // Draw minor ticks
     ctx.strokeStyle = '#333';
-    const secondsPerMinorTick = secondsPerMajorTick / 5;
-    for (let sec = 0; sec <= duration; sec += secondsPerMinorTick) {
-      if (sec % secondsPerMajorTick !== 0) {
-        const x = (sec / duration) * width;
+    const minorTickInterval = majorTickInterval / minorTicksPerMajor;
+
+    for (let sec = 0; sec <= projectDuration; sec += minorTickInterval) {
+      if (sec % majorTickInterval !== 0) {
+        const x = sec * pixelsPerSecond;
+
+        if (x > width) break;
+
         ctx.beginPath();
         ctx.moveTo(x, height - 5);
         ctx.lineTo(x, height);
@@ -107,8 +180,13 @@ export default function MultitrackTimeline({ zoomLevel = 100 }) {
       const playhead = document.getElementById('multitrack-playhead');
       if (!playhead || !containerRef.current || duration === 0) return;
 
-      const progress = currentTime / duration;
-      const x = progress * containerRef.current.offsetWidth;
+      // Calculate position using the same scale as drawing
+      const scale = zoomLevel / 100;
+      const virtualWidth = 3000 * scale;
+      const projectDuration = Math.max(duration, 30);
+      const pixelsPerSecond = virtualWidth / projectDuration;
+
+      const x = currentTime * pixelsPerSecond;
       playhead.style.left = `${x}px`;
     };
 
@@ -130,76 +208,152 @@ export default function MultitrackTimeline({ zoomLevel = 100 }) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [currentTime, duration, containerWidth, isPlaying]);
+  }, [currentTime, duration, zoomLevel, isPlaying]);
+
+  // Calculate the actual width for the timeline
+  const scale = zoomLevel / 100;
+  const virtualWidth = 3000 * scale;
+  const timelineWidth = Math.max(containerWidth, virtualWidth);
 
   return (
-    <div
-      className="timeline-container"
-      style={{ display: 'flex', height: '40px' }}
-    >
-      {/* Sidebar spacer - matches add track button area */}
+    <>
+      <style>
+        {`
+          /* Hide scrollbar for Chrome, Safari and Opera */
+          .timeline-scroll-container::-webkit-scrollbar {
+            height: 8px;
+            opacity: 0;
+            transition: opacity 0.3s;
+          }
+          
+          .timeline-scroll-container::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+          }
+          
+          .timeline-scroll-container::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+          }
+          
+          .timeline-scroll-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+          }
+          
+          /* Show scrollbar on hover or when scrolling */
+          .timeline-scroll-container.show-scrollbar::-webkit-scrollbar,
+          .timeline-scroll-container:hover::-webkit-scrollbar {
+            opacity: 1;
+          }
+          
+          /* For Firefox - show thin scrollbar on hover */
+          .timeline-scroll-container:hover {
+            scrollbar-width: thin !important;
+          }
+        `}
+      </style>
       <div
-        className="timeline-sidebar-spacer"
-        style={{
-          width: '80px',
-          backgroundColor: '#1e1e1e',
-          borderRight: '1px solid #3a3a3a',
-          flexShrink: 0,
-        }}
-      />
-
-      {/* Track controls spacer */}
-      <div
-        className="timeline-controls-spacer"
-        style={{
-          width: '200px',
-          backgroundColor: '#232323',
-          borderRight: '1px solid #444',
-          flexShrink: 0,
-        }}
-      />
-
-      {/* Timeline */}
-      <div
-        ref={containerRef}
-        className="multitrack-timeline"
-        onClick={handleTimelineClick}
-        style={{
-          position: 'relative',
-          flex: 1,
-          height: '40px',
-          backgroundColor: '#1e1e1e',
-          cursor: 'pointer',
-          userSelect: 'none',
-          overflow: 'hidden',
-        }}
+        className="timeline-container"
+        style={{ display: 'flex', height: '40px' }}
       >
-        <canvas
-          ref={canvasRef}
+        {/* Sidebar spacer - matches add track button area */}
+        <div
+          className="timeline-sidebar-spacer"
           style={{
-            display: 'block',
-            width: '100%',
-            height: '100%',
+            width: '80px',
+            backgroundColor: '#1e1e1e',
+            borderRight: '1px solid #3a3a3a',
+            flexShrink: 0,
           }}
         />
 
-        {/* Playhead - positioned relative to timeline container */}
+        {/* Track controls spacer */}
         <div
-          id="multitrack-playhead"
+          className="timeline-controls-spacer"
           style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '2px',
-            height: '100vh',
-            backgroundColor: '#ff3030',
-            boxShadow: '0 0 3px rgba(255, 48, 48, 0.8)',
-            pointerEvents: 'none',
-            zIndex: 1000,
-            transition: isPlaying ? 'none' : 'left 0.1s ease-out',
+            width: '200px',
+            backgroundColor: '#232323',
+            borderRight: '1px solid #444',
+            flexShrink: 0,
           }}
         />
+
+        {/* Timeline with horizontal scroll */}
+        <div
+          ref={scrollContainerRef}
+          className={`timeline-scroll-container ${isScrolling ? 'show-scrollbar' : ''}`}
+          onMouseEnter={() => setIsHovering(true)}
+          onMouseLeave={() => setIsHovering(false)}
+          onScroll={(e) => {
+            // Show scrollbar while scrolling
+            setIsScrolling(true);
+
+            // Clear existing timeout
+            if (scrollTimeoutRef.current) {
+              clearTimeout(scrollTimeoutRef.current);
+            }
+
+            // Hide scrollbar after scrolling stops
+            scrollTimeoutRef.current = setTimeout(() => {
+              setIsScrolling(false);
+            }, 1000);
+
+            // Handle scroll sync if needed
+            if (onScroll) {
+              onScroll(e);
+            }
+          }}
+          style={{
+            flex: 1,
+            overflowX: 'auto',
+            overflowY: 'hidden',
+            position: 'relative',
+            // Hide scrollbar by default
+            scrollbarWidth: 'none', // Firefox
+            msOverflowStyle: 'none', // IE/Edge
+          }}
+        >
+          <div
+            ref={containerRef}
+            className="multitrack-timeline"
+            onClick={handleTimelineClick}
+            style={{
+              position: 'relative',
+              width: `${timelineWidth}px`,
+              height: '40px',
+              backgroundColor: '#1e1e1e',
+              cursor: 'pointer',
+              userSelect: 'none',
+            }}
+          >
+            <canvas
+              ref={canvasRef}
+              style={{
+                display: 'block',
+                width: '100%',
+                height: '100%',
+              }}
+            />
+
+            {/* Playhead - positioned relative to timeline container */}
+            <div
+              id="multitrack-playhead"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '2px',
+                height: '100vh',
+                backgroundColor: '#ff3030',
+                boxShadow: '0 0 3px rgba(255, 48, 48, 0.8)',
+                pointerEvents: 'none',
+                zIndex: 1000,
+                transition: isPlaying ? 'none' : 'left 0.1s ease-out',
+              }}
+            />
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
