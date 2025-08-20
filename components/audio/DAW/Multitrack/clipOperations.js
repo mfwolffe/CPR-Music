@@ -231,6 +231,9 @@ export function duplicateClips(clips, offsetTime = 0) {
  * @returns {Array} Quantized clips
  */
 export function quantizeClips(clips, gridSize) {
+  // Safety check for undefined clips
+  if (!clips || !Array.isArray(clips)) return [];
+
   if (!gridSize || gridSize <= 0) return [...clips];
 
   return clips.map((clip) => ({

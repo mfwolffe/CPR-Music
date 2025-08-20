@@ -93,13 +93,19 @@ function collectTrackMidiNotes(track, tempo = { bpm: 120, stepsPerBeat: 4 }) {
   const baseOffsetSec = getTrackMidiBaseOffsetSec(track, secPerBeat);
 
   const timeFromNote = (n) => {
-    // Prefer beats → ticks → seconds. Many piano rolls store beats; some store ticks.
+    // Check if we have startTime
+    if (Number.isFinite(n.startTime)) {
+      return Math.max(0, n.startTime * secPerBeat);
+    }
+
+    // Then check other beat-based fields
     const tb = toNumber(n.timeBeats ?? n.startBeat ?? n.beat, NaN);
     if (Number.isFinite(tb)) return Math.max(0, tb * secPerBeat);
 
     const tk = toNumber(n.ticks ?? n.tick ?? n.startTick, NaN);
     if (Number.isFinite(tk)) return Math.max(0, tk * secPerTick);
 
+    // Only use these fields if they're actually in seconds
     const ts = toNumber(
       n.time ??
         n.start ??
@@ -120,8 +126,16 @@ function collectTrackMidiNotes(track, tempo = { bpm: 120, stepsPerBeat: 4 }) {
   };
 
   const durationFromNote = (n, timeHint = 0) => {
-    // Prefer beats → ticks → seconds → derived from end
-    const baseBeat = toNumber(n.timeBeats ?? n.startBeat ?? n.beat, NaN);
+    // Check if we have duration
+    if (Number.isFinite(n.duration)) {
+      return Math.max(0, n.duration * secPerBeat);
+    }
+
+    // Then check other beat-based fields
+    const baseBeat = toNumber(
+      n.timeBeats ?? n.startBeat ?? n.beat ?? n.startTime,
+      NaN,
+    );
     const db = toNumber(
       n.durationBeats ??
         n.lenBeats ??
@@ -148,7 +162,8 @@ function collectTrackMidiNotes(track, tempo = { bpm: 120, stepsPerBeat: 4 }) {
     );
     if (Number.isFinite(dtk)) return Math.max(0, dtk * secPerTick);
 
-    const ds = toNumber(n.duration ?? n.len ?? n.length ?? n.durationSec, NaN);
+    // Only use these if they're actually duration in seconds
+    const ds = toNumber(n.len ?? n.length ?? n.durationSec, NaN);
     if (Number.isFinite(ds)) return Math.max(0, ds);
 
     const endB = toNumber(n.endBeats ?? n.endBeat, NaN);
@@ -157,11 +172,15 @@ function collectTrackMidiNotes(track, tempo = { bpm: 120, stepsPerBeat: 4 }) {
     }
 
     const endTk = toNumber(n.endTick ?? n.endTicks, NaN);
-    const startTk = toNumber(n.startTick ?? n.tick ?? n.ticks, NaN);
+    const startTk = toNumber(
+      n.startTick ?? n.tick ?? n.ticks ?? n.startTime,
+      NaN,
+    );
     if (Number.isFinite(endTk) && Number.isFinite(startTk)) {
       return Math.max(0, (endTk - startTk) * secPerTick);
     }
 
+    // Fallback for end time in seconds
     const startS = Number.isFinite(timeHint)
       ? timeHint
       : Math.max(

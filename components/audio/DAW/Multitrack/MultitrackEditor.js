@@ -60,10 +60,16 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
     tracks = [],
     addTrack,
     updateTrack,
+    removeTrack,
     selectedTrackId,
+    setSelectedTrackId,
     selectedClipId,
     setSelectedClipId,
     currentTime,
+    duration,
+    isPlaying,
+    soloTrackId,
+    setSoloTrackId,
     // tool & snap controls
     editorTool,
     setEditorTool,
@@ -264,7 +270,11 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   };
 
   const handleAddMIDITrack = () => {
-    addTrack({ type: 'midi', midiData: { notes: [], tempo: 120 } });
+    addTrack({
+      type: 'midi',
+      midiData: { notes: [], tempo: 120 },
+      clips: [], // Initialize empty clips array for MIDI tracks
+    });
   };
 
   const handleAddRecordingTrack = () => {
@@ -291,6 +301,58 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
 
   const canPaste = clipClipboard.hasContent();
   const hasSelection = selectedClipId !== null;
+
+  // Update playhead positions for both timeline and tracks
+  useEffect(() => {
+    // Remove any old playhead elements that might be lingering
+    const oldPlayhead = document.getElementById('multitrack-playhead');
+    if (oldPlayhead) {
+      oldPlayhead.remove();
+    }
+
+    const updatePlayheads = () => {
+      const timelinePlayhead = document.getElementById(
+        'multitrack-timeline-playhead',
+      );
+      const tracksPlayhead = document.getElementById(
+        'multitrack-tracks-playhead',
+      );
+
+      if (!duration || duration === 0) return;
+
+      // Use the exact same calculation for both playheads
+      const scale = zoomLevel / 100;
+      const virtualWidth = 3000 * scale;
+      const projectDuration = Math.max(duration, 30);
+      const pixelsPerSecond = virtualWidth / projectDuration;
+      const x = currentTime * pixelsPerSecond;
+
+      if (timelinePlayhead) {
+        timelinePlayhead.style.left = `${x}px`;
+      }
+      if (tracksPlayhead) {
+        tracksPlayhead.style.left = `${x}px`;
+      }
+    };
+
+    updatePlayheads();
+
+    // Update on animation frame if playing
+    let animationId;
+    if (isPlaying) {
+      const animate = () => {
+        updatePlayheads();
+        animationId = requestAnimationFrame(animate);
+      };
+      animate();
+    }
+
+    return () => {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
+    };
+  }, [currentTime, duration, zoomLevel, isPlaying]);
 
   return (
     <Container fluid className="multitrack-editor p-3">
@@ -468,38 +530,65 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
             style={{
               overflowX: 'auto',
               overflowY: 'hidden',
+              position: 'relative',
             }}
           >
-            {tracks.map((track, index) => {
-              if (track.type === 'recording') {
-                return (
-                  <RecordingTrack
-                    key={track.id}
-                    track={track}
-                    index={index}
-                    zoomLevel={zoomLevel}
-                  />
-                );
-              } else if (track.type === 'midi') {
-                return (
-                  <MIDITrack
-                    key={track.id}
-                    track={track}
-                    index={index}
-                    zoomLevel={zoomLevel}
-                  />
-                );
-              } else {
-                return (
-                  <Track
-                    key={track.id}
-                    track={track}
-                    index={index}
-                    zoomLevel={zoomLevel}
-                  />
-                );
-              }
-            })}
+            <div
+              style={{
+                position: 'relative',
+                minHeight: `${tracks.length * 120}px`,
+              }}
+            >
+              {tracks.map((track, index) => {
+                if (track.type === 'recording') {
+                  return (
+                    <RecordingTrack
+                      key={track.id}
+                      track={track}
+                      index={index}
+                      zoomLevel={zoomLevel}
+                    />
+                  );
+                } else if (track.type === 'midi') {
+                  return (
+                    <MIDITrack
+                      key={track.id}
+                      track={track}
+                      index={index}
+                      zoomLevel={zoomLevel}
+                    />
+                  );
+                } else {
+                  return (
+                    <Track
+                      key={track.id}
+                      track={track}
+                      index={index}
+                      zoomLevel={zoomLevel}
+                    />
+                  );
+                }
+              })}
+
+              {/* Global playhead that spans all tracks */}
+              {tracks.length > 0 && (
+                <div
+                  id="multitrack-tracks-playhead"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '2px',
+                    height: '100%',
+                    backgroundColor: '#ff3030',
+                    boxShadow: '0 0 3px rgba(255, 48, 48, 0.8)',
+                    pointerEvents: 'none',
+                    zIndex: 1000,
+                    marginLeft: '280px', // Account for sidebar + controls width
+                  }}
+                />
+              )}
+            </div>
           </div>
         </Col>
       </Row>

@@ -174,41 +174,8 @@ export default function MultitrackTimeline({
     ctx.stroke();
   }, [containerWidth, duration, zoomLevel]);
 
-  // Update playhead position
-  useEffect(() => {
-    const updatePlayhead = () => {
-      const playhead = document.getElementById('multitrack-playhead');
-      if (!playhead || !containerRef.current || duration === 0) return;
-
-      // Calculate position using the same scale as drawing
-      const scale = zoomLevel / 100;
-      const virtualWidth = 3000 * scale;
-      const projectDuration = Math.max(duration, 30);
-      const pixelsPerSecond = virtualWidth / projectDuration;
-
-      const x = currentTime * pixelsPerSecond;
-      playhead.style.left = `${x}px`;
-    };
-
-    const animate = () => {
-      updatePlayhead();
-      if (isPlaying) {
-        animationFrameRef.current = requestAnimationFrame(animate);
-      }
-    };
-
-    if (isPlaying) {
-      animate();
-    } else {
-      updatePlayhead();
-    }
-
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-    };
-  }, [currentTime, duration, zoomLevel, isPlaying]);
+  // Update playhead position - REMOVED, now handled by MultitrackEditor
+  // The MultitrackEditor component will control both playheads to ensure sync
 
   // Calculate the actual width for the timeline
   const scale = zoomLevel / 100;
@@ -337,13 +304,13 @@ export default function MultitrackTimeline({
 
             {/* Playhead - positioned relative to timeline container */}
             <div
-              id="multitrack-playhead"
+              id="multitrack-timeline-playhead"
               style={{
                 position: 'absolute',
                 top: 0,
                 left: 0,
                 width: '2px',
-                height: '100vh',
+                height: '40px', // Only the height of the timeline
                 backgroundColor: '#ff3030',
                 boxShadow: '0 0 3px rgba(255, 48, 48, 0.8)',
                 pointerEvents: 'none',

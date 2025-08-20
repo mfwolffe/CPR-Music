@@ -169,6 +169,7 @@ export const MultitrackProvider = ({ children }) => {
         solo: trackData.solo || false,
         color: trackData.color || '#7bafd4',
         wavesurferInstance: null, // Will be set by Track component
+        clips: trackData.clips || [], // Always initialize clips array
         // Preserve any additional properties passed in
         ...trackData,
       };
