@@ -5,6 +5,7 @@ import { Button, Modal, Form, ProgressBar, Alert } from 'react-bootstrap';
 import { FaMixcloud } from 'react-icons/fa';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import { decodeAudioFromURL } from './AudioEngine';
+import { createInstrument } from './instruments/WebAudioInstruments';
 
 /** Numeric helper: safe conversion with default */
 function toNumber(val, def = 0) {
@@ -34,7 +35,7 @@ function noteNameToMidi(name) {
 // Soft-clip curve for master bus (prevents render-time clipping)
 function makeSoftClipCurve(samples = 4096, drive = 0.85) {
   const curve = new Float32Array(samples);
-  const k = Math.max(0.001, drive) * 12 + 1; // drive -> slope
+  const k = Math.max(0.001, drive) * 18 + 1; // drive -> slope (stronger soft-clip)
   for (let i = 0; i < samples; i++) {
     const x = (i * 2) / (samples - 1) - 1; // -1..1
     curve[i] = Math.tanh(k * x) / Math.tanh(k);
@@ -534,7 +535,7 @@ async function mixdownClipsAndMidi(
   const uniqueSrc = Array.from(
     new Set(allClips.map((c) => c?.src).filter(Boolean)),
   );
-  const bufferMap = new Map(); // src -> AudioBuffer
+  const bufferMap = new Map();
 
   let done = 0;
   await Promise.all(
@@ -551,7 +552,7 @@ async function mixdownClipsAndMidi(
     }),
   );
 
-  // Compute project duration from audio clips and MIDI notes
+  // Compute project duration
   const projectDuration = included.reduce((maxT, track) => {
     let endAudio = 0;
     (track.clips || []).forEach((c) => {
@@ -572,27 +573,30 @@ async function mixdownClipsAndMidi(
 
     return Math.max(maxT, Math.max(endAudio, endMidi));
   }, 0);
-  if (!(projectDuration > 0))
-    throw new Error('Project duration is 0 – nothing to render.');
 
-  // Choose sample rate (prefer highest decoded buffer rate, fallback to hint)
+  if (!(projectDuration > 0))
+    throw new Error('Project duration is 0 — nothing to render.');
+
+  // Choose sample rate
   const highestRate = Math.max(
     sampleRateHint,
     ...Array.from(bufferMap.values()).map((b) => b.sampleRate || 0),
   );
 
-  // Create OfflineAudioContext and schedule
+  // Create OfflineAudioContext
   const length = Math.ceil(projectDuration * highestRate);
   const offline = new OfflineAudioContext(2, length, highestRate);
-  // Master bus with gentle soft-clip to avoid summed-voice distortion
+
+  // Master bus
   const masterGain = offline.createGain();
-  masterGain.gain.value = 0.9; // -1 dBFS headroom
+  masterGain.gain.value = 0.9;
   const masterShaper = offline.createWaveShaper();
   masterShaper.curve = makeSoftClipCurve(4096, 0.4);
   masterGain.connect(masterShaper);
   masterShaper.connect(offline.destination);
 
-  included.forEach((track) => {
+  // Process each track
+  for (const track of included) {
     const trackGain = offline.createGain();
     trackGain.gain.value = track.muted
       ? 0
@@ -600,18 +604,48 @@ async function mixdownClipsAndMidi(
         ? track.volume
         : 1;
 
+    // Collect MIDI notes for this track
+    const midiNotes = collectTrackMidiNotes(track, { bpm });
+    const isMidiTrack = track.type === 'midi' && midiNotes.length > 0;
+
+    // Create dynamics processor for MIDI tracks
+    let midiLimiter = null;
+    if (isMidiTrack) {
+      midiLimiter = offline.createDynamicsCompressor();
+      midiLimiter.threshold.value = -12;
+      midiLimiter.knee.value = 2;
+      midiLimiter.ratio.value = 8;
+      midiLimiter.attack.value = 0.003;
+      midiLimiter.release.value = 0.25;
+    }
+
+    // Set up panning
     const panner = offline.createStereoPanner
       ? offline.createStereoPanner()
       : null;
     if (panner) {
       panner.pan.value = typeof track.pan === 'number' ? track.pan : 0;
-      trackGain.connect(panner);
-      panner.connect(masterGain);
-    } else {
-      trackGain.connect(masterGain);
     }
 
-    // Audio clips
+    // Connect audio chain
+    if (isMidiTrack && midiLimiter) {
+      trackGain.connect(midiLimiter);
+      if (panner) {
+        midiLimiter.connect(panner);
+        panner.connect(masterGain);
+      } else {
+        midiLimiter.connect(masterGain);
+      }
+    } else {
+      if (panner) {
+        trackGain.connect(panner);
+        panner.connect(masterGain);
+      } else {
+        trackGain.connect(masterGain);
+      }
+    }
+
+    // Process audio clips
     (track.clips || []).forEach((c) => {
       const buf = bufferMap.get(c?.src);
       if (!buf) return;
@@ -633,51 +667,147 @@ async function mixdownClipsAndMidi(
       }
     });
 
-    // MIDI notes (simple synth fallback)
-    const notes = collectTrackMidiNotes(track, { bpm });
-    const A = 0.005,
-      D = 0.01,
-      S = 0.8,
-      R = 0.05; // ADSR defaults
-    notes.forEach((n) => {
-      const start = Math.max(0, n.time);
-      const dur = Math.max(0, n.duration);
-      if (!(dur > 0)) return;
+    // Process MIDI notes with ACTUAL instruments
+    if (isMidiTrack) {
+      // Get the instrument configuration from the track
+      const instrumentConfig = track.midiData?.instrument || {
+        type: 'synth',
+        preset: 'default',
+      };
 
-      const osc = offline.createOscillator();
+      // Create the actual instrument in offline context
+      let instrument = null;
       try {
-        osc.type = track.waveform || 'sine';
-      } catch {
-        osc.type = 'sine';
+        // Import the factory function if needed
+        const { createInstrument } = await import(
+          './instruments/WebAudioInstruments'
+        );
+        instrument = createInstrument(
+          offline, // Use offline context instead of regular context
+          instrumentConfig.type,
+          instrumentConfig.preset,
+        );
+      } catch (e) {
+        console.warn('Failed to create instrument, using fallback synth', e);
+        // Fallback to a basic but better synth than single oscillator
+        instrument = createBasicSynth(offline);
       }
-      // schedule pitch precisely at note start (offline-safe)
-      osc.frequency.setValueAtTime(n.freq, start);
 
-      const env = offline.createGain();
-      const peak = Math.max(
-        0,
-        Math.min(1, (track.midiLevel ?? 0.15) * (n.velocity ?? 1)),
-      );
-      env.gain.setValueAtTime(0, start);
-      env.gain.linearRampToValueAtTime(peak, start + A);
-      env.gain.linearRampToValueAtTime(peak * S, start + A + D);
-      env.gain.setValueAtTime(peak * S, start + Math.max(0, dur - R));
-      env.gain.linearRampToValueAtTime(0, start + Math.max(0, dur));
+      // If instrument has async initialization, wait for it
+      if (instrument?.ready && typeof instrument.ready.then === 'function') {
+        try {
+          await instrument.ready;
+        } catch (e) {
+          console.warn('Instrument initialization failed', e);
+        }
+      }
 
-      osc.connect(env);
-      env.connect(trackGain);
+      // Connect instrument output to track gain
+      if (instrument) {
+        if (typeof instrument.connect === 'function') {
+          instrument.connect(trackGain);
+        } else if (instrument.output) {
+          instrument.output.connect(trackGain);
+        }
 
-      try {
-        osc.start(start);
-        osc.stop(start + dur);
-      } catch {}
-    });
-  });
+        // Schedule all notes using the actual instrument
+        midiNotes.forEach((n) => {
+          const start = Math.max(0, n.time);
+          const dur = Math.max(0, n.duration);
+          if (!(dur > 0)) return;
+
+          try {
+            // Play the note using the instrument's playNote method
+            const noteNumber = freqToMidi(n.freq);
+            const velocity = n.velocity ?? 1;
+
+            // Schedule the note
+            instrument.playNote(noteNumber, velocity, start);
+
+            // Schedule note off if instrument has stopNote method
+            if (typeof instrument.stopNote === 'function') {
+              // Use setTimeout equivalent for offline context
+              // Most instruments handle note duration internally, but we can try to stop it
+              setTimeout(() => {
+                instrument.stopNote(noteNumber, start + dur);
+              }, 0);
+            }
+          } catch (e) {
+            console.warn('Failed to schedule MIDI note', e);
+          }
+        });
+      }
+    }
+  }
 
   onProgress(65);
   const rendered = await offline.startRendering();
   onProgress(100);
   return rendered;
+}
+
+// Helper function to convert frequency to MIDI note number
+function freqToMidi(freq) {
+  return Math.round(69 + 12 * Math.log2(freq / 440));
+}
+
+// Fallback basic synth that's still better than single oscillator
+function createBasicSynth(audioContext) {
+  const synth = {
+    output: audioContext.createGain(),
+    voices: new Map(),
+
+    connect(destination) {
+      this.output.connect(destination);
+    },
+
+    playNote(midiNote, velocity = 1, time = 0) {
+      const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
+
+      // Create two oscillators for richness
+      const osc1 = audioContext.createOscillator();
+      const osc2 = audioContext.createOscillator();
+      osc1.type = 'sawtooth';
+      osc2.type = 'sawtooth';
+      osc1.frequency.value = freq;
+      osc2.frequency.value = freq;
+      osc2.detune.value = 7; // Slight detune for thickness
+
+      // Simple filter
+      const filter = audioContext.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 2000 + velocity * 2000;
+      filter.Q.value = 2;
+
+      // Envelope
+      const envelope = audioContext.createGain();
+      envelope.gain.setValueAtTime(0.0001, time);
+      envelope.gain.exponentialRampToValueAtTime(velocity * 0.3, time + 0.01);
+      envelope.gain.exponentialRampToValueAtTime(velocity * 0.2, time + 0.1);
+      envelope.gain.exponentialRampToValueAtTime(0.0001, time + 1);
+
+      // Connect
+      osc1.connect(filter);
+      osc2.connect(filter);
+      filter.connect(envelope);
+      envelope.connect(this.output);
+
+      // Start/stop
+      osc1.start(time);
+      osc2.start(time);
+      osc1.stop(time + 1.5);
+      osc2.stop(time + 1.5);
+
+      return { osc1, osc2, envelope };
+    },
+
+    stopNote(midiNote, time = 0) {
+      // Note: In offline context, we typically let notes play out their full envelope
+      // This is more for compatibility with the interface
+    },
+  };
+
+  return synth;
 }
 
 /** Convert AudioBuffer to WAV blob */
