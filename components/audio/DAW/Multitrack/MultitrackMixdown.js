@@ -20,6 +20,10 @@ function midiToFreq(midi) {
   return 440 * Math.pow(2, (Number(midi) - 69) / 12);
 }
 
+function freqToMidi(freq) {
+  return Math.round(69 + 12 * Math.log2(freq / 440));
+}
+
 function noteNameToMidi(name) {
   if (typeof name !== 'string') return null;
   const m = name.trim().match(/^([A-Ga-g])([#b♯♭]?)(-?\d{1,2})$/);
@@ -35,9 +39,9 @@ function noteNameToMidi(name) {
 // Soft-clip curve for master bus (prevents render-time clipping)
 function makeSoftClipCurve(samples = 4096, drive = 0.85) {
   const curve = new Float32Array(samples);
-  const k = Math.max(0.001, drive) * 18 + 1; // drive -> slope (stronger soft-clip)
+  const k = Math.max(0.001, drive) * 10 + 1;
   for (let i = 0; i < samples; i++) {
-    const x = (i * 2) / (samples - 1) - 1; // -1..1
+    const x = (i * 2) / (samples - 1) - 1;
     curve[i] = Math.tanh(k * x) / Math.tanh(k);
   }
   return curve;
@@ -55,13 +59,12 @@ function getTrackMidiBaseOffsetSec(track, secPerBeat) {
     if (Number.isFinite(n)) sec += n * secPerBeat;
   };
 
-  // Common places folks store MIDI offsets
   addSec(track?.midiOffsetSec);
   addSec(track?.pianoRollOffsetSec);
   addSec(track?.midiData?.offsetSec);
   addSec(track?.piano?.offsetSec);
   if (track?.type === 'midi' || track?.kind === 'midi') {
-    addSec(track?.start); // allow MIDI track-level start
+    addSec(track?.start);
     addBeats(track?.startBeat);
   }
   addBeats(track?.midiOffsetBeats);
@@ -587,12 +590,27 @@ async function mixdownClipsAndMidi(
   const length = Math.ceil(projectDuration * highestRate);
   const offline = new OfflineAudioContext(2, length, highestRate);
 
-  // Master bus with more conservative gain
+  // Master bus: headroom + DC block + limiter + gentle soft-clip
   const masterGain = offline.createGain();
-  masterGain.gain.value = 0.7; // Reduced from 0.9 for more headroom
+  masterGain.gain.value = 0.5; // a little more headroom
+
+  const dcBlock = offline.createBiquadFilter();
+  dcBlock.type = 'highpass';
+  dcBlock.frequency.value = 20;
+
+  const masterLimiter = offline.createDynamicsCompressor();
+  masterLimiter.threshold.value = -1; // ceiling
+  masterLimiter.knee.value = 0;
+  masterLimiter.ratio.value = 20; // behave like a limiter
+  masterLimiter.attack.value = 0.003;
+  masterLimiter.release.value = 0.1;
+
   const masterShaper = offline.createWaveShaper();
-  masterShaper.curve = makeSoftClipCurve(4096, 0.4);
-  masterGain.connect(masterShaper);
+  masterShaper.curve = makeSoftClipCurve(4096, 0.25); // gentler than before
+
+  masterGain.connect(dcBlock);
+  dcBlock.connect(masterLimiter);
+  masterLimiter.connect(masterShaper);
   masterShaper.connect(offline.destination);
 
   // Process each track
@@ -604,12 +622,28 @@ async function mixdownClipsAndMidi(
         ? track.volume
         : 1;
 
+    // Try to reuse the project's virtual instrument for offline bounce
+    let offlineInstrument = null;
+    try {
+      const instrumentSpec = track.midiData?.instrument || {};
+      offlineInstrument = createInstrument(offline, instrumentSpec);
+      const instrumentOut = offlineInstrument?.output || offlineInstrument;
+      if (instrumentOut && typeof instrumentOut.connect === 'function') {
+        instrumentOut.connect(trackGain);
+      } else {
+        offlineInstrument = null; // fall back if no connectable output
+      }
+    } catch (e) {
+      offlineInstrument = null; // factory not offline-safe → fallback
+    }
+
     // Collect MIDI notes for this track
     const midiNotes = collectTrackMidiNotes(track, { bpm });
     const isMidiTrack = track.type === 'midi' && midiNotes.length > 0;
 
     // Create compressor AND additional gain reduction for MIDI
     let midiProcessingChain = null;
+
     if (isMidiTrack) {
       // First: Gain reduction to prevent overload
       const midiInputGain = offline.createGain();
@@ -681,114 +715,126 @@ async function mixdownClipsAndMidi(
       // Sort notes by start time for better scheduling
       const sortedNotes = [...midiNotes].sort((a, b) => a.time - b.time);
 
-      // Track simultaneous notes for gain compensation
-      const simultaneousNotes = new Map(); // time -> count
+      // Count simultaneous notes for simple polyphony compensation
+      const simultaneousNotes = new Map(); // time(ms) -> count
       sortedNotes.forEach((n) => {
-        const key = Math.round(n.time * 1000) / 1000; // Round to ms
+        const key = Math.round(n.time * 1000);
         simultaneousNotes.set(key, (simultaneousNotes.get(key) || 0) + 1);
       });
 
-      // Get the instrument type for better defaults
-      const instrumentType = track.midiData?.instrument?.type || 'synth';
-      const instrumentPreset = track.midiData?.instrument?.preset || 'default';
-
-      // Process each note with a simple but clean synthesizer
-      sortedNotes.forEach((n) => {
-        const start = Math.max(0, n.time);
-        const dur = Math.max(0.01, n.duration); // Minimum 10ms duration
-
-        // Skip notes that are too short to be audible
-        if (dur < 0.01) {
-          console.log('Skipping very short note:', n);
-          return;
+      // Prefer the project's instrument if available
+      if (
+        offlineInstrument &&
+        typeof offlineInstrument.playNote === 'function'
+      ) {
+        for (const n of sortedNotes) {
+          const start = Math.max(0, n.time);
+          const dur = Math.max(0.01, n.duration);
+          const midi = Math.round(69 + 12 * Math.log2(n.freq / 440));
+          const velocity = n.velocity ?? 1;
+          const token = offlineInstrument.playNote(midi, velocity, start);
+          if (typeof offlineInstrument.stopNote === 'function') {
+            offlineInstrument.stopNote(midi, start + dur);
+          }
         }
+      } else {
+        // Fallback: dual-osc synth with gentle tone & stereo spread
+        const instrumentType = track.midiData?.instrument?.type || 'synth';
+        const instrumentPreset =
+          track.midiData?.instrument?.preset || 'default';
 
-        // Create a simple but clean oscillator setup
-        const osc1 = offline.createOscillator();
-        const osc2 = offline.createOscillator();
+        for (const n of sortedNotes) {
+          const start = Math.max(0, n.time);
+          const dur = Math.max(0.01, n.duration);
+          if (dur < 0.01) continue;
 
-        // Set oscillator types based on instrument
-        if (instrumentType === 'piano') {
-          osc1.type = 'sine';
-          osc2.type = 'sine';
-        } else if (instrumentPreset === 'bass') {
-          osc1.type = 'sawtooth';
-          osc2.type = 'square';
-        } else if (instrumentPreset === 'lead') {
-          osc1.type = 'sawtooth';
-          osc2.type = 'sawtooth';
-        } else {
-          osc1.type = 'sawtooth';
-          osc2.type = 'triangle';
+          // Two oscillators for richness
+          const osc1 = offline.createOscillator();
+          const osc2 = offline.createOscillator();
+
+          // Types by preset for a touch of color
+          if (instrumentType === 'piano') {
+            osc1.type = 'sine';
+            osc2.type = 'sine';
+          } else if (instrumentPreset === 'bass') {
+            osc1.type = 'sawtooth';
+            osc2.type = 'square';
+          } else if (instrumentPreset === 'lead') {
+            osc1.type = 'sawtooth';
+            osc2.type = 'sawtooth';
+          } else {
+            osc1.type = 'sawtooth';
+            osc2.type = 'triangle';
+          }
+
+          osc1.frequency.setValueAtTime(n.freq, start);
+          osc2.frequency.setValueAtTime(n.freq, start);
+          osc2.detune.setValueAtTime(7, start);
+
+          // Slightly darker filter & lower Q to keep chords clean
+          const filter = offline.createBiquadFilter();
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(
+            Math.min(20000, 1000 + (n.velocity ?? 1) * 2000),
+            start,
+          );
+          filter.Q.setValueAtTime(1.2, start);
+
+          // Envelope with polyphony compensation
+          const env = offline.createGain();
+          const key = Math.round(start * 1000);
+          const sim = simultaneousNotes.get(key) || 1;
+          const polyComp = Math.min(1, 1 / Math.sqrt(sim));
+          const baseGain = 0.1; // lower base prevents overload
+          const vel = n.velocity ?? 1;
+          const peak = baseGain * polyComp * vel;
+
+          const attack = 0.005;
+          const decay = 0.05;
+          const sustain = 0.6;
+          const release = Math.min(0.3, dur * 0.3);
+
+          env.gain.setValueAtTime(0.0001, start);
+          env.gain.linearRampToValueAtTime(peak, start + attack);
+          env.gain.exponentialRampToValueAtTime(
+            Math.max(0.0001, peak * sustain),
+            start + attack + decay,
+          );
+          const relStart = start + dur - release;
+          if (relStart > start + attack + decay) {
+            env.gain.setValueAtTime(peak * sustain, relStart);
+          }
+          env.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+
+          // Per-note stereo spread to reduce masking in chords
+          const panner = offline.createStereoPanner
+            ? offline.createStereoPanner()
+            : null;
+          if (panner) {
+            const pan = ((n.freq % 50) / 50) * 0.4 - 0.2; // -0.2 .. +0.2
+            panner.pan.setValueAtTime(pan, start);
+          }
+
+          // Connect: osc → filter → env → (panner?) → trackGain
+          osc1.connect(filter);
+          osc2.connect(filter);
+          filter.connect(env);
+          if (panner) {
+            env.connect(panner);
+            panner.connect(trackGain);
+          } else {
+            env.connect(trackGain);
+          }
+
+          try {
+            osc1.start(start);
+            osc2.start(start);
+            const stopTime = start + dur + 0.05; // stop slightly after envelope
+            osc1.stop(stopTime);
+            osc2.stop(stopTime);
+          } catch {}
         }
-
-        // Set frequencies
-        osc1.frequency.setValueAtTime(n.freq, start);
-        osc2.frequency.setValueAtTime(n.freq, start);
-        osc2.detune.setValueAtTime(7, start); // Slight detune for richness
-
-        // Create filter for tone shaping
-        const filter = offline.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(
-          Math.min(20000, 1000 + n.velocity * 3000),
-          start,
-        );
-        filter.Q.setValueAtTime(2, start);
-
-        // Create envelope
-        const envelope = offline.createGain();
-
-        // Calculate gain based on velocity and polyphony
-        const simultaneousCount =
-          simultaneousNotes.get(Math.round(start * 1000) / 1000) || 1;
-        const polyphonyCompensation = Math.min(
-          1,
-          1 / Math.sqrt(simultaneousCount),
-        );
-        const baseGain = 0.15; // Much lower base gain
-        const velocityGain =
-          (n.velocity ?? 1) * baseGain * polyphonyCompensation;
-
-        // ADSR envelope with better timings
-        const attack = 0.002;
-        const decay = 0.05;
-        const sustain = 0.6;
-        const release = Math.min(0.3, dur * 0.3); // Release is 30% of note duration or 300ms
-
-        // Schedule envelope
-        envelope.gain.setValueAtTime(0, start);
-        envelope.gain.linearRampToValueAtTime(velocityGain, start + attack);
-        envelope.gain.exponentialRampToValueAtTime(
-          Math.max(0.0001, velocityGain * sustain),
-          start + attack + decay,
-        );
-
-        // Handle sustain and release
-        const releaseTime = start + dur - release;
-        if (releaseTime > start + attack + decay) {
-          envelope.gain.setValueAtTime(velocityGain * sustain, releaseTime);
-        }
-        envelope.gain.exponentialRampToValueAtTime(0.0001, start + dur);
-
-        // Connect nodes: oscillators -> filter -> envelope -> trackGain
-        osc1.connect(filter);
-        osc2.connect(filter);
-        filter.connect(envelope);
-        envelope.connect(trackGain);
-
-        // Start and stop oscillators
-        try {
-          osc1.start(start);
-          osc2.start(start);
-          // Stop slightly after envelope ends to avoid clicks
-          const stopTime = start + dur + 0.05;
-          osc1.stop(stopTime);
-          osc2.stop(stopTime);
-        } catch (e) {
-          console.warn('Failed to schedule note:', e, n);
-        }
-      });
+      }
     }
   });
 
@@ -796,11 +842,6 @@ async function mixdownClipsAndMidi(
   const rendered = await offline.startRendering();
   onProgress(100);
   return rendered;
-}
-
-// Helper function to convert frequency to MIDI note number
-function freqToMidi(freq) {
-  return Math.round(69 + 12 * Math.log2(freq / 440));
 }
 
 // Fallback basic synth that's still better than single oscillator
@@ -909,11 +950,15 @@ function audioBufferToWav(buffer) {
       interleaved[offset++] = channels[ch][i];
   }
 
-  // float -> 16-bit PCM
+  // float -> 16-bit PCM with TPDF dither (1 LSB)
   const volume = 0.95;
   offset = 44;
   for (let i = 0; i < interleaved.length; i++) {
-    const s = Math.max(-1, Math.min(1, interleaved[i])) * volume;
+    // TPDF dither: sum of two uniforms in [-0.5, 0.5] scaled to 1 LSB
+    const dither = (Math.random() + Math.random() - 1) / 32768;
+    let s = interleaved[i] * volume + dither;
+    // clamp after adding dither
+    s = Math.max(-1, Math.min(1, s));
     view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
     offset += 2;
   }
