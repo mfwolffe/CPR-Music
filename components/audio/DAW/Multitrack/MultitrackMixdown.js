@@ -587,16 +587,16 @@ async function mixdownClipsAndMidi(
   const length = Math.ceil(projectDuration * highestRate);
   const offline = new OfflineAudioContext(2, length, highestRate);
 
-  // Master bus
+  // Master bus with more conservative gain
   const masterGain = offline.createGain();
-  masterGain.gain.value = 0.9;
+  masterGain.gain.value = 0.7; // Reduced from 0.9 for more headroom
   const masterShaper = offline.createWaveShaper();
   masterShaper.curve = makeSoftClipCurve(4096, 0.4);
   masterGain.connect(masterShaper);
   masterShaper.connect(offline.destination);
 
   // Process each track
-  for (const track of included) {
+  included.forEach((track) => {
     const trackGain = offline.createGain();
     trackGain.gain.value = track.muted
       ? 0
@@ -608,15 +608,25 @@ async function mixdownClipsAndMidi(
     const midiNotes = collectTrackMidiNotes(track, { bpm });
     const isMidiTrack = track.type === 'midi' && midiNotes.length > 0;
 
-    // Create dynamics processor for MIDI tracks
-    let midiLimiter = null;
+    // Create compressor AND additional gain reduction for MIDI
+    let midiProcessingChain = null;
     if (isMidiTrack) {
-      midiLimiter = offline.createDynamicsCompressor();
-      midiLimiter.threshold.value = -12;
-      midiLimiter.knee.value = 2;
-      midiLimiter.ratio.value = 8;
-      midiLimiter.attack.value = 0.003;
-      midiLimiter.release.value = 0.25;
+      // First: Gain reduction to prevent overload
+      const midiInputGain = offline.createGain();
+      midiInputGain.gain.value = 0.3; // Significantly reduce MIDI volume
+
+      // Then: Compressor to handle peaks
+      const midiCompressor = offline.createDynamicsCompressor();
+      midiCompressor.threshold.value = -24; // Lower threshold
+      midiCompressor.knee.value = 6; // Softer knee
+      midiCompressor.ratio.value = 4; // Gentler ratio
+      midiCompressor.attack.value = 0.003;
+      midiCompressor.release.value = 0.1;
+
+      // Connect: trackGain -> inputGain -> compressor
+      trackGain.connect(midiInputGain);
+      midiInputGain.connect(midiCompressor);
+      midiProcessingChain = midiCompressor;
     }
 
     // Set up panning
@@ -628,13 +638,12 @@ async function mixdownClipsAndMidi(
     }
 
     // Connect audio chain
-    if (isMidiTrack && midiLimiter) {
-      trackGain.connect(midiLimiter);
+    if (isMidiTrack && midiProcessingChain) {
       if (panner) {
-        midiLimiter.connect(panner);
+        midiProcessingChain.connect(panner);
         panner.connect(masterGain);
       } else {
-        midiLimiter.connect(masterGain);
+        midiProcessingChain.connect(masterGain);
       }
     } else {
       if (panner) {
@@ -667,78 +676,121 @@ async function mixdownClipsAndMidi(
       }
     });
 
-    // Process MIDI notes with ACTUAL instruments
+    // Process MIDI notes with simplified approach
     if (isMidiTrack) {
-      // Get the instrument configuration from the track
-      const instrumentConfig = track.midiData?.instrument || {
-        type: 'synth',
-        preset: 'default',
-      };
+      // Sort notes by start time for better scheduling
+      const sortedNotes = [...midiNotes].sort((a, b) => a.time - b.time);
 
-      // Create the actual instrument in offline context
-      let instrument = null;
-      try {
-        // Import the factory function if needed
-        const { createInstrument } = await import(
-          './instruments/WebAudioInstruments'
-        );
-        instrument = createInstrument(
-          offline, // Use offline context instead of regular context
-          instrumentConfig.type,
-          instrumentConfig.preset,
-        );
-      } catch (e) {
-        console.warn('Failed to create instrument, using fallback synth', e);
-        // Fallback to a basic but better synth than single oscillator
-        instrument = createBasicSynth(offline);
-      }
+      // Track simultaneous notes for gain compensation
+      const simultaneousNotes = new Map(); // time -> count
+      sortedNotes.forEach((n) => {
+        const key = Math.round(n.time * 1000) / 1000; // Round to ms
+        simultaneousNotes.set(key, (simultaneousNotes.get(key) || 0) + 1);
+      });
 
-      // If instrument has async initialization, wait for it
-      if (instrument?.ready && typeof instrument.ready.then === 'function') {
+      // Get the instrument type for better defaults
+      const instrumentType = track.midiData?.instrument?.type || 'synth';
+      const instrumentPreset = track.midiData?.instrument?.preset || 'default';
+
+      // Process each note with a simple but clean synthesizer
+      sortedNotes.forEach((n) => {
+        const start = Math.max(0, n.time);
+        const dur = Math.max(0.01, n.duration); // Minimum 10ms duration
+
+        // Skip notes that are too short to be audible
+        if (dur < 0.01) {
+          console.log('Skipping very short note:', n);
+          return;
+        }
+
+        // Create a simple but clean oscillator setup
+        const osc1 = offline.createOscillator();
+        const osc2 = offline.createOscillator();
+
+        // Set oscillator types based on instrument
+        if (instrumentType === 'piano') {
+          osc1.type = 'sine';
+          osc2.type = 'sine';
+        } else if (instrumentPreset === 'bass') {
+          osc1.type = 'sawtooth';
+          osc2.type = 'square';
+        } else if (instrumentPreset === 'lead') {
+          osc1.type = 'sawtooth';
+          osc2.type = 'sawtooth';
+        } else {
+          osc1.type = 'sawtooth';
+          osc2.type = 'triangle';
+        }
+
+        // Set frequencies
+        osc1.frequency.setValueAtTime(n.freq, start);
+        osc2.frequency.setValueAtTime(n.freq, start);
+        osc2.detune.setValueAtTime(7, start); // Slight detune for richness
+
+        // Create filter for tone shaping
+        const filter = offline.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(
+          Math.min(20000, 1000 + n.velocity * 3000),
+          start,
+        );
+        filter.Q.setValueAtTime(2, start);
+
+        // Create envelope
+        const envelope = offline.createGain();
+
+        // Calculate gain based on velocity and polyphony
+        const simultaneousCount =
+          simultaneousNotes.get(Math.round(start * 1000) / 1000) || 1;
+        const polyphonyCompensation = Math.min(
+          1,
+          1 / Math.sqrt(simultaneousCount),
+        );
+        const baseGain = 0.15; // Much lower base gain
+        const velocityGain =
+          (n.velocity ?? 1) * baseGain * polyphonyCompensation;
+
+        // ADSR envelope with better timings
+        const attack = 0.002;
+        const decay = 0.05;
+        const sustain = 0.6;
+        const release = Math.min(0.3, dur * 0.3); // Release is 30% of note duration or 300ms
+
+        // Schedule envelope
+        envelope.gain.setValueAtTime(0, start);
+        envelope.gain.linearRampToValueAtTime(velocityGain, start + attack);
+        envelope.gain.exponentialRampToValueAtTime(
+          Math.max(0.0001, velocityGain * sustain),
+          start + attack + decay,
+        );
+
+        // Handle sustain and release
+        const releaseTime = start + dur - release;
+        if (releaseTime > start + attack + decay) {
+          envelope.gain.setValueAtTime(velocityGain * sustain, releaseTime);
+        }
+        envelope.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+
+        // Connect nodes: oscillators -> filter -> envelope -> trackGain
+        osc1.connect(filter);
+        osc2.connect(filter);
+        filter.connect(envelope);
+        envelope.connect(trackGain);
+
+        // Start and stop oscillators
         try {
-          await instrument.ready;
+          osc1.start(start);
+          osc2.start(start);
+          // Stop slightly after envelope ends to avoid clicks
+          const stopTime = start + dur + 0.05;
+          osc1.stop(stopTime);
+          osc2.stop(stopTime);
         } catch (e) {
-          console.warn('Instrument initialization failed', e);
+          console.warn('Failed to schedule note:', e, n);
         }
-      }
-
-      // Connect instrument output to track gain
-      if (instrument) {
-        if (typeof instrument.connect === 'function') {
-          instrument.connect(trackGain);
-        } else if (instrument.output) {
-          instrument.output.connect(trackGain);
-        }
-
-        // Schedule all notes using the actual instrument
-        midiNotes.forEach((n) => {
-          const start = Math.max(0, n.time);
-          const dur = Math.max(0, n.duration);
-          if (!(dur > 0)) return;
-
-          try {
-            // Play the note using the instrument's playNote method
-            const noteNumber = freqToMidi(n.freq);
-            const velocity = n.velocity ?? 1;
-
-            // Schedule the note
-            instrument.playNote(noteNumber, velocity, start);
-
-            // Schedule note off if instrument has stopNote method
-            if (typeof instrument.stopNote === 'function') {
-              // Use setTimeout equivalent for offline context
-              // Most instruments handle note duration internally, but we can try to stop it
-              setTimeout(() => {
-                instrument.stopNote(noteNumber, start + dur);
-              }, 0);
-            }
-          } catch (e) {
-            console.warn('Failed to schedule MIDI note', e);
-          }
-        });
-      }
+      });
     }
-  }
+  });
 
   onProgress(65);
   const rendered = await offline.startRendering();
