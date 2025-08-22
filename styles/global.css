@@ -3025,6 +3025,28 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   height: 20px;
 }
 
+/* Layout consistency: enforce exact 80px + 200px left gutter
+   so timeline/playhead math (subtract 280px) always aligns.
+   Use border-box so padding/borders are included in the fixed widths. */
+.track-sidebar,
+.timeline-sidebar-spacer {
+  box-sizing: border-box;
+}
+
+.track-controls,
+.timeline-controls-spacer {
+  box-sizing: border-box;
+  width: 200px;
+  min-width: 200px;
+}
+
+/* MIDI track controls must not exceed 200px regardless of padding */
+.track.midi-track .track-controls {
+  box-sizing: border-box;
+  width: 200px !important;
+  min-width: 200px !important;
+}
+
 .track.midi-track {
   height: 240px !important;
   max-height: 240px !important;

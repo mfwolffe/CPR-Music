@@ -612,294 +612,350 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
 
   return (
     <div
-      className={`track midi-track ${
-        selectedTrackId === track.id ? 'track-selected' : ''
-      } ${track.muted ? 'track-muted' : ''} ${
-        soloTrackId === track.id ? 'track-solo' : ''
-      }`}
-      onClick={() => setSelectedTrackId(track.id)}
+      className="track-container"
+      style={{ display: 'flex', height: '120px' }}
     >
-      <div className="track-controls">
-        <div className="track-header">
-          <span className="track-name">{track.name}</span>
-          <Button
-            variant="link"
-            size="sm"
-            className="p-0 text-danger"
-            onClick={(e) => {
-              e.stopPropagation();
-              removeTrack(track.id);
-            }}
-          >
-            <FaTrash />
-          </Button>
-        </div>
-
-        {/* Instrument Display */}
-        <div
-          className="instrument-display"
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowInstrumentSelector(true);
+      {/* Sidebar spacer - matches timeline sidebar */}
+      <div
+        className="track-sidebar"
+        style={{
+          width: '80px',
+          backgroundColor: '#1e1e1e',
+          borderRight: '1px solid #3a3a3a',
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {/* Track number with recording indicator (match RecordingTrack) */}
+        <span
+          style={{
+            color: isRecording ? '#ff6b6b' : '#666',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
           }}
         >
-          <InstrumentIcon />
-          <span>{track.midiData?.instrument?.name || 'Select Instrument'}</span>
-        </div>
+          {isRecording && <FaCircle size={8} />}
+          {index + 1}
+        </span>
+      </div>
 
-        {/* View Mode Toggle */}
-        <ButtonGroup className="w-100 mb-2">
-          <Button
-            size="sm"
-            variant={viewMode === 'notes' ? 'primary' : 'outline-primary'}
-            onClick={() => setViewMode('notes')}
-          >
-            <MdMusicNote /> Notes
-          </Button>
-          <Button
-            size="sm"
-            variant={viewMode === 'patterns' ? 'primary' : 'outline-primary'}
-            onClick={() => setViewMode('patterns')}
-          >
-            <FaThLarge /> Patterns
-          </Button>
-        </ButtonGroup>
+      {/* Main track div */}
+      <div
+        className={`track midi-track ${
+          selectedTrackId === track.id ? 'track-selected' : ''
+        } ${track.muted ? 'track-muted' : ''} ${
+          soloTrackId === track.id ? 'track-solo' : ''
+        }`}
+        onClick={() => setSelectedTrackId(track.id)}
+        style={{ display: 'flex', flex: 1 }}
+      >
+        <div
+          className="track-controls"
+          style={{
+            width: '200px',
+            flexShrink: 0,
+            backgroundColor: '#232323',
+            borderRight: '1px solid #444',
+            padding: '10px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+          }}
+        >
+          <div className="track-header">
+            <span className="track-name">{track.name}</span>
+            <Button
+              variant="link"
+              size="sm"
+              className="p-0 text-danger"
+              onClick={(e) => {
+                e.stopPropagation();
+                removeTrack(track.id);
+              }}
+            >
+              <FaTrash />
+            </Button>
+          </div>
 
-        {/* Pattern Controls */}
-        {viewMode === 'patterns' && (
-          <>
+          {/* Instrument Display */}
+          <div
+            className="instrument-display"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowInstrumentSelector(true);
+            }}
+          >
+            <InstrumentIcon />
+            <span>
+              {track.midiData?.instrument?.name || 'Select Instrument'}
+            </span>
+          </div>
+
+          {/* View Mode Toggle */}
+          <ButtonGroup className="w-100 mb-2">
             <Button
               size="sm"
-              variant="outline-primary"
-              className="w-100 mb-2"
-              onClick={() => setShowPatternLibrary(true)}
+              variant={viewMode === 'notes' ? 'primary' : 'outline-primary'}
+              onClick={() => setViewMode('notes')}
             >
-              Pattern Library
+              <MdMusicNote /> Notes
             </Button>
-            {track.midiData?.notes?.length > 0 && (
+            <Button
+              size="sm"
+              variant={viewMode === 'patterns' ? 'primary' : 'outline-primary'}
+              onClick={() => setViewMode('patterns')}
+            >
+              <FaThLarge /> Patterns
+            </Button>
+          </ButtonGroup>
+
+          {/* Pattern Controls */}
+          {viewMode === 'patterns' && (
+            <>
               <Button
                 size="sm"
-                variant="outline-success"
+                variant="outline-primary"
                 className="w-100 mb-2"
-                onClick={convertNotesToPattern}
+                onClick={() => setShowPatternLibrary(true)}
               >
-                Convert to Pattern
+                Pattern Library
               </Button>
+              {track.midiData?.notes?.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline-success"
+                  className="w-100 mb-2"
+                  onClick={convertNotesToPattern}
+                >
+                  Convert to Pattern
+                </Button>
+              )}
+            </>
+          )}
+
+          {/* Track Buttons */}
+          <div className="track-buttons">
+            <Button
+              variant={track.muted ? 'danger' : 'outline-secondary'}
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                updateTrack(track.id, (t) => ({ muted: !t.muted }));
+              }}
+              title={track.muted ? 'Unmute' : 'Mute'}
+            >
+              {track.muted ? <FaVolumeMute /> : <FaVolumeUp />}
+            </Button>
+            <Button
+              variant={
+                soloTrackId === track.id ? 'warning' : 'outline-secondary'
+              }
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSoloTrackId(soloTrackId === track.id ? null : track.id);
+              }}
+              title="Solo"
+            >
+              S
+            </Button>
+            <Button
+              variant={isRecording ? 'danger' : 'outline-danger'}
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRecord();
+              }}
+              title={isRecording ? 'Stop Recording' : 'Record'}
+            >
+              {isRecording ? <FaStop /> : <FaCircle />}
+            </Button>
+          </div>
+
+          {/* Compact Vol/Pan switch */}
+          <ButtonGroup size="sm" className="control-tabs mb-1">
+            <Button
+              variant={controlTab === 'vol' ? 'secondary' : 'outline-secondary'}
+              onClick={(e) => {
+                e.stopPropagation();
+                setControlTab('vol');
+              }}
+            >
+              Vol
+            </Button>
+            <Button
+              variant={controlTab === 'pan' ? 'secondary' : 'outline-secondary'}
+              onClick={(e) => {
+                e.stopPropagation();
+                setControlTab('pan');
+              }}
+            >
+              Pan
+            </Button>
+          </ButtonGroup>
+
+          {controlTab === 'vol' ? (
+            <div className="track-control">
+              <label className="track-control-label">
+                <FaVolumeUp /> Volume
+                <span className="track-control-value">
+                  {Math.round(track.volume * 100)}%
+                </span>
+              </label>
+              <Form.Range
+                className="track-volume-slider"
+                min="0"
+                max="100"
+                value={track.volume * 100}
+                onChange={handleVolumeChange}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          ) : (
+            <div className="track-control">
+              <label className="track-control-label">
+                <MdPanTool /> Pan
+                <span className="track-control-value">
+                  {track.pan === 0
+                    ? 'C'
+                    : track.pan > 0
+                      ? `${Math.round(track.pan * 100)}R`
+                      : `${Math.round(Math.abs(track.pan * 100))}L`}
+                </span>
+              </label>
+              <Form.Range
+                className="track-pan-slider"
+                min="-100"
+                max="100"
+                value={track.pan * 100}
+                onChange={handlePanChange}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="track-waveform" style={{ flex: 1 }}>
+          <div
+            className="midi-track-display"
+            onDoubleClick={() => {
+              if (viewMode === 'notes') {
+                setShowPianoRoll(true);
+              } else {
+                setShowStepSequencer(true);
+              }
+            }}
+            onClick={handleCanvasClick}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDraggingOver(true);
+            }}
+            onDragLeave={() => setIsDraggingOver(false)}
+            onDrop={handlePatternDrop}
+          >
+            <canvas
+              ref={canvasRef}
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'block',
+              }}
+            />
+            {isRecording && <div className="midi-recording-indicator">REC</div>}
+            {isCountingIn && (
+              <div className="count-in-indicator">{countInBeat}</div>
             )}
-          </>
-        )}
-
-        {/* Track Buttons */}
-        <div className="track-buttons">
-          <Button
-            variant={track.muted ? 'danger' : 'outline-secondary'}
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              updateTrack(track.id, (t) => ({ muted: !t.muted }));
-            }}
-            title={track.muted ? 'Unmute' : 'Mute'}
-          >
-            {track.muted ? <FaVolumeMute /> : <FaVolumeUp />}
-          </Button>
-          <Button
-            variant={soloTrackId === track.id ? 'warning' : 'outline-secondary'}
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSoloTrackId(soloTrackId === track.id ? null : track.id);
-            }}
-            title="Solo"
-          >
-            S
-          </Button>
-          <Button
-            variant={isRecording ? 'danger' : 'outline-danger'}
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleRecord();
-            }}
-            title={isRecording ? 'Stop Recording' : 'Record'}
-          >
-            {isRecording ? <FaStop /> : <FaCircle />}
-          </Button>
+            <div className="midi-indicator">
+              <MdMusicNote /> MIDI
+            </div>
+            {track.midiData?.tempo && (
+              <div className="midi-tempo-display">
+                {track.midiData.tempo} BPM
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Compact Vol/Pan switch */}
-        <ButtonGroup size="sm" className="control-tabs mb-1">
-          <Button
-            variant={controlTab === 'vol' ? 'secondary' : 'outline-secondary'}
-            onClick={(e) => {
-              e.stopPropagation();
-              setControlTab('vol');
-            }}
-          >
-            Vol
-          </Button>
-          <Button
-            variant={controlTab === 'pan' ? 'secondary' : 'outline-secondary'}
-            onClick={(e) => {
-              e.stopPropagation();
-              setControlTab('pan');
-            }}
-          >
-            Pan
-          </Button>
-        </ButtonGroup>
-
-        {controlTab === 'vol' ? (
-          <div className="track-control">
-            <label className="track-control-label">
-              <FaVolumeUp /> Volume
-              <span className="track-control-value">
-                {Math.round(track.volume * 100)}%
-              </span>
-            </label>
-            <Form.Range
-              className="track-volume-slider"
-              min="0"
-              max="100"
-              value={track.volume * 100}
-              onChange={handleVolumeChange}
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-        ) : (
-          <div className="track-control">
-            <label className="track-control-label">
-              <MdPanTool /> Pan
-              <span className="track-control-value">
-                {track.pan === 0
-                  ? 'C'
-                  : track.pan > 0
-                    ? `${Math.round(track.pan * 100)}R`
-                    : `${Math.round(Math.abs(track.pan * 100))}L`}
-              </span>
-            </label>
-            <Form.Range
-              className="track-pan-slider"
-              min="-100"
-              max="100"
-              value={track.pan * 100}
-              onChange={handlePanChange}
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-        )}
-      </div>
-
-      <div className="track-waveform">
-        <div
-          className="midi-track-display"
-          onDoubleClick={() => {
-            if (viewMode === 'notes') {
-              setShowPianoRoll(true);
-            } else {
-              setShowStepSequencer(true);
-            }
-          }}
-          onClick={handleCanvasClick}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDraggingOver(true);
-          }}
-          onDragLeave={() => setIsDraggingOver(false)}
-          onDrop={handlePatternDrop}
-        >
-          <canvas
-            ref={canvasRef}
-            style={{
-              width: '100%',
-              height: '100%',
-              display: 'block',
-            }}
+        {/* Modals */}
+        {showInstrumentSelector && (
+          <InstrumentSelector
+            show={showInstrumentSelector}
+            onHide={() => setShowInstrumentSelector(false)}
+            onSelect={handleInstrumentSelect}
+            currentInstrument={track.midiData?.instrument}
           />
-          {isRecording && <div className="midi-recording-indicator">REC</div>}
-          {isCountingIn && (
-            <div className="count-in-indicator">{countInBeat}</div>
-          )}
-          <div className="midi-indicator">
-            <MdMusicNote /> MIDI
-          </div>
-          {track.midiData?.tempo && (
-            <div className="midi-tempo-display">{track.midiData.tempo} BPM</div>
-          )}
-        </div>
-      </div>
+        )}
 
-      {/* Modals */}
-      {showInstrumentSelector && (
-        <InstrumentSelector
-          show={showInstrumentSelector}
-          onHide={() => setShowInstrumentSelector(false)}
-          onSelect={handleInstrumentSelect}
-          currentInstrument={track.midiData?.instrument}
-        />
-      )}
+        {showPianoRoll && (
+          <PianoRollEditor
+            show={showPianoRoll}
+            onHide={() => setShowPianoRoll(false)}
+            notes={track.midiData?.notes || []}
+            onSave={(updatedNotes) => {
+              updateTrack(track.id, { midiData: { notes: updatedNotes } });
+              setShowPianoRoll(false);
+            }}
+            instrument={instrumentRef.current}
+            trackName={track.name}
+            tempo={track.midiData?.tempo || 120}
+            isPlaying={globalIsPlaying}
+            currentTime={globalCurrentTime}
+          />
+        )}
 
-      {showPianoRoll && (
-        <PianoRollEditor
-          show={showPianoRoll}
-          onHide={() => setShowPianoRoll(false)}
-          notes={track.midiData?.notes || []}
-          onSave={(updatedNotes) => {
-            updateTrack(track.id, { midiData: { notes: updatedNotes } });
-            setShowPianoRoll(false);
-          }}
-          instrument={instrumentRef.current}
-          trackName={track.name}
-          tempo={track.midiData?.tempo || 120}
-          isPlaying={globalIsPlaying}
-          currentTime={globalCurrentTime}
-        />
-      )}
-
-      {showStepSequencer && (
-        <StepSequencer
-          show={showStepSequencer}
-          onHide={() => {
-            setShowStepSequencer(false);
-            setEditingPatternId(null);
-          }}
-          pattern={
-            editingPatternId
-              ? track.midiData.patterns?.find((p) => p.id === editingPatternId)
-              : null
-          }
-          onSave={(pattern) => {
-            if (editingPatternId) {
-              handleUpdatePattern(editingPatternId, pattern);
-            } else {
-              handleCreatePattern(pattern);
+        {showStepSequencer && (
+          <StepSequencer
+            show={showStepSequencer}
+            onHide={() => {
+              setShowStepSequencer(false);
+              setEditingPatternId(null);
+            }}
+            pattern={
+              editingPatternId
+                ? track.midiData.patterns?.find(
+                    (p) => p.id === editingPatternId,
+                  )
+                : null
             }
-            setShowStepSequencer(false);
-            setEditingPatternId(null);
-          }}
-          instrument={instrumentRef.current}
-        />
-      )}
+            onSave={(pattern) => {
+              if (editingPatternId) {
+                handleUpdatePattern(editingPatternId, pattern);
+              } else {
+                handleCreatePattern(pattern);
+              }
+              setShowStepSequencer(false);
+              setEditingPatternId(null);
+            }}
+            instrument={instrumentRef.current}
+          />
+        )}
 
-      {showPatternLibrary && (
-        <PatternLibrary
-          show={showPatternLibrary}
-          onHide={() => setShowPatternLibrary(false)}
-          patterns={track.midiData.patterns || []}
-          onPatternSelect={(pattern) => {
-            setDraggedPattern(pattern);
-            setShowPatternLibrary(false);
-          }}
-          onPatternCreate={handleCreatePattern}
-          onPatternUpdate={handleUpdatePattern}
-          onPatternDelete={handleDeletePattern}
-          onGenerateTestPattern={generateTestPattern}
-        />
-      )}
+        {showPatternLibrary && (
+          <PatternLibrary
+            show={showPatternLibrary}
+            onHide={() => setShowPatternLibrary(false)}
+            patterns={track.midiData.patterns || []}
+            onPatternSelect={(pattern) => {
+              setDraggedPattern(pattern);
+              setShowPatternLibrary(false);
+            }}
+            onPatternCreate={handleCreatePattern}
+            onPatternUpdate={handleUpdatePattern}
+            onPatternDelete={handleDeletePattern}
+            onGenerateTestPattern={generateTestPattern}
+          />
+        )}
 
-      {/* TODO(recorder): When MIDIRecorder is refactored into a hook or imperative class
-          constructed with `new`, instantiate it via useEffect above (see docs there) and
-          remove this placeholder. Recording from the transport piano already writes notes
-          in beats while playing, so this UI mount is not required to avoid crashes. */}
+        {/* TODO(recorder): When MIDIRecorder is refactored into a hook or imperative class
+            constructed with `new`, instantiate it via useEffect above (see docs there) and
+            remove this placeholder. Recording from the transport piano already writes notes
+            in beats while playing, so this UI mount is not required to avoid crashes. */}
+      </div>
     </div>
   );
 }
