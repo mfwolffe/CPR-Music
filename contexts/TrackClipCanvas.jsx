@@ -191,6 +191,10 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
       const { dpr, width: W, height: H } = resizeToCSS(canvas);
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, W, H);
+      // Shared time→pixel mapping for this canvas (used by grid, hit-tests, etc.)
+      const projectDur = Math.max(1e-6, duration || 0);
+      const scale = Math.max(0.01, zoomLevel / 100);
+      const pxPerSec = (W * scale) / projectDur;
 
       // Get clip rectangles
       const rects = clipRects(W);
