@@ -239,12 +239,12 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
       }
 
       // Playhead
-      const projectDur = Math.max(1e-6, duration || 0);
-      const scale = Math.max(0.01, zoomLevel / 100);
-      const pxPerSec = (W * scale) / projectDur;
-      const phX = Math.floor((currentTime || 0) * pxPerSec);
-      ctx.fillStyle = '#ff3030';
-      ctx.fillRect(phX, 0, Math.max(1, Math.floor(2 * dpr)), H);
+      // const projectDur = Math.max(1e-6, duration || 0);
+      // const scale = Math.max(0.01, zoomLevel / 100);
+      // const pxPerSec = (W * scale) / projectDur;
+      // const phX = Math.floor((currentTime || 0) * pxPerSec);
+      // ctx.fillStyle = '#ff3030';
+      // ctx.fillRect(phX, 0, Math.max(1, Math.floor(2 * dpr)), H);
       
       // Draw grid lines if snap is enabled
       if (snapEnabled && gridSizeSec > 0) {
