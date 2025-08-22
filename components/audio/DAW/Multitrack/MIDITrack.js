@@ -554,19 +554,19 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       });
 
       // Draw playhead if playing
-      if (globalIsPlaying) {
-        const tempo = track.midiData?.tempo || 120;
-        const secPerBeat = 60 / tempo;
-        const currentBeat = globalCurrentTime / secPerBeat;
-        const playheadX =
-          ((currentBeat - firstBeat) / beatsVisible) * displayWidth;
-        ctx.strokeStyle = '#ff3030';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(playheadX, 0);
-        ctx.lineTo(playheadX, displayHeight);
-        ctx.stroke();
-      }
+      // if (globalIsPlaying) {
+      //   const tempo = track.midiData?.tempo || 120;
+      //   const secPerBeat = 60 / tempo;
+      //   const currentBeat = globalCurrentTime / secPerBeat;
+      //   const playheadX =
+      //     ((currentBeat - firstBeat) / beatsVisible) * displayWidth;
+      //   ctx.strokeStyle = '#ff3030';
+      //   ctx.lineWidth = 2;
+      //   ctx.beginPath();
+      //   ctx.moveTo(playheadX, 0);
+      //   ctx.lineTo(playheadX, displayHeight);
+      //   ctx.stroke();
+      // }
     }
 
     // Restore context state

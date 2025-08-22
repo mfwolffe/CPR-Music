@@ -58,17 +58,22 @@ export default function WalkingWaveform({
       // Set up canvas
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
-      const width = canvas.width;
+      const inner = document.getElementById('multitrack-tracks-inner');
+      const totalWidth = inner
+        ? inner.offsetWidth
+        : 280 + 3000 * (zoomLevel / 100);
+      const contentWidth = Math.max(1, totalWidth - 280);
+      canvas.width = contentWidth;
+      canvas.style.width = contentWidth + 'px';
+      const width = contentWidth;
       const canvasHeight = canvas.height;
 
       // Calculate pixels per second to match TrackClipCanvas calculation
-      const scale = Math.max(0.01, zoomLevel / 100);
       const projectDur = Math.max(1e-6, duration || 30);
-      const pixelsPerSecond = (width * scale) / projectDur;
+      const pixelsPerSecond = width / projectDur;
 
       console.log('WalkingWaveform: Pixel calculation', {
         width,
-        scale,
         projectDur,
         pixelsPerSecond,
         startPositionPx: startPosition * pixelsPerSecond,
@@ -188,7 +193,6 @@ export default function WalkingWaveform({
   return (
     <canvas
       ref={canvasRef}
-      width={3000} // Match track width for scrolling
       height={height}
       style={{
         display: 'block',
@@ -197,7 +201,7 @@ export default function WalkingWaveform({
         left: 0,
         transform: 'translateY(-50%)',
         backgroundColor: 'transparent',
-        width: '3000px',
+        width: '100%',
         height: `${height}px`,
       }}
     />

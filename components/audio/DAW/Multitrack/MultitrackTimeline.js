@@ -48,11 +48,13 @@ export default function MultitrackTimeline({
     const scrollLeft = scrollContainerRef.current?.scrollLeft || 0;
     const x = e.clientX - rect.left + scrollLeft;
 
-    // Calculate time based on the virtual width
+    // Calculate time based on the actual content width
     const scale = zoomLevel / 100;
-    const virtualWidth = 3000 * scale; // Match track canvas width
-    const projectDuration = Math.max(duration, 30);
-    const clickTime = (x / virtualWidth) * projectDuration;
+    const inner = document.getElementById('multitrack-tracks-inner');
+    const totalWidth = inner ? inner.offsetWidth : 280 + 3000 * scale;
+    const contentWidth = Math.max(1, totalWidth - 280); // subtract left gutter
+    const projectDuration = duration > 0 ? duration : 30;
+    const clickTime = (x / contentWidth) * projectDuration;
 
     // Convert to progress (0-1)
     const progress = clickTime / projectDuration;
@@ -67,10 +69,12 @@ export default function MultitrackTimeline({
     const ctx = canvas.getContext('2d');
     const height = 40;
 
-    // Calculate virtual width based on zoom
+    // Calculate content width based on zoom and DOM
     const scale = zoomLevel / 100;
-    const virtualWidth = 3000 * scale; // Match track canvas width
-    const width = Math.max(containerWidth, virtualWidth);
+    const inner = document.getElementById('multitrack-tracks-inner');
+    const totalWidth = inner ? inner.offsetWidth : 280 + 3000 * scale;
+    const contentWidth = Math.max(1, totalWidth - 280);
+    const width = Math.max(containerWidth, contentWidth);
 
     canvas.width = width;
     canvas.height = height;
@@ -80,8 +84,8 @@ export default function MultitrackTimeline({
     ctx.fillRect(0, 0, width, height);
 
     // Calculate pixels per second using the same formula as tracks
-    const projectDuration = Math.max(duration, 30);
-    const pixelsPerSecond = virtualWidth / projectDuration;
+    const projectDuration = duration > 0 ? duration : 30;
+    const pixelsPerSecond = contentWidth / projectDuration;
 
     // Determine appropriate tick intervals based on zoom level
     let majorTickInterval = 1; // seconds
@@ -179,8 +183,13 @@ export default function MultitrackTimeline({
 
   // Calculate the actual width for the timeline
   const scale = zoomLevel / 100;
-  const virtualWidth = 3000 * scale;
-  const timelineWidth = Math.max(containerWidth, virtualWidth);
+  const innerEl =
+    typeof document !== 'undefined'
+      ? document.getElementById('multitrack-tracks-inner')
+      : null;
+  const totalWidth = innerEl ? innerEl.offsetWidth : 280 + 3000 * scale;
+  const contentWidth = Math.max(1, totalWidth - 280);
+  const timelineWidth = Math.max(containerWidth, contentWidth);
 
   return (
     <>

@@ -55,6 +55,9 @@ if (typeof window !== 'undefined') window.__midiInputManager = midiInputManager;
 
 export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   console.log('MultitrackEditor rendering');
+  const tracksScrollRef = useRef(null);
+  const timelineScrollRef = useRef(null);
+  const isSyncingScrollRef = useRef(false);
 
   const {
     tracks = [],
@@ -320,11 +323,14 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
 
       if (!duration || duration === 0) return;
 
-      // Use the exact same calculation for both playheads
-      const scale = zoomLevel / 100;
-      const virtualWidth = 3000 * scale;
-      const projectDuration = Math.max(duration, 30);
-      const pixelsPerSecond = virtualWidth / projectDuration;
+      // Derive content width from the shared inner container so 1s = 1s across UI
+      const inner = document.getElementById('multitrack-tracks-inner');
+      const totalWidth = inner
+        ? inner.offsetWidth
+        : 280 + 3000 * (zoomLevel / 100);
+      const contentWidth = Math.max(0, totalWidth - 280); // subtract left gutter (80+200)
+      const projectDuration = duration > 0 ? duration : 30;
+      const pixelsPerSecond = contentWidth / projectDuration;
       const x = currentTime * pixelsPerSecond;
 
       if (timelinePlayhead) {
@@ -518,7 +524,23 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
       {/* Timeline */}
       <Row className="mb-2">
         <Col>
-          <MultitrackTimeline zoomLevel={zoomLevel} />
+          <MultitrackTimeline
+            zoomLevel={zoomLevel}
+            scrollRef={timelineScrollRef}
+            onScroll={(e) => {
+              if (!tracksScrollRef.current) return;
+              if (isSyncingScrollRef.current) return;
+              isSyncingScrollRef.current = true;
+              try {
+                tracksScrollRef.current.scrollLeft = e.target.scrollLeft;
+              } finally {
+                // Allow the reciprocal handler to run without ping-pong loops
+                setTimeout(() => {
+                  isSyncingScrollRef.current = false;
+                }, 0);
+              }
+            }}
+          />
         </Col>
       </Row>
 
@@ -526,7 +548,20 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
       <Row>
         <Col>
           <div
+            ref={tracksScrollRef}
             className="tracks-container"
+            onScroll={(e) => {
+              if (!timelineScrollRef.current) return;
+              if (isSyncingScrollRef.current) return;
+              isSyncingScrollRef.current = true;
+              try {
+                timelineScrollRef.current.scrollLeft = e.target.scrollLeft;
+              } finally {
+                setTimeout(() => {
+                  isSyncingScrollRef.current = false;
+                }, 0);
+              }
+            }}
             style={{
               overflowX: 'auto',
               overflowY: 'hidden',
@@ -534,9 +569,11 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
             }}
           >
             <div
+              id="multitrack-tracks-inner"
               style={{
                 position: 'relative',
                 minHeight: `${tracks.length * 120}px`,
+                width: `${280 + 3000 * (zoomLevel / 100)}px`,
               }}
             >
               {tracks.map((track, index) => {

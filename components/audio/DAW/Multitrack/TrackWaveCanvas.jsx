@@ -35,7 +35,9 @@ export default function TrackWaveCanvas({
     ctx.fillRect(0, 0, W, H);
 
     const projectDur = Math.max(1e-6, duration || 0); // avoid /0
-    const pxPerSec = (W * (zoomLevel / 100)) / projectDur;
+    const rect = canvas.getBoundingClientRect();
+    const displayW = Math.max(1, Math.floor(rect.width));
+    const pxPerSec = displayW / projectDur;
 
     // draw clips
     for (const c of clips) {
@@ -47,10 +49,6 @@ export default function TrackWaveCanvas({
       ctx.fillRect(x, pad, w, H - pad * 2);
     }
 
-    // playhead
-    const phX = Math.floor((currentTime / projectDur) * W);
-    ctx.fillStyle = '#ff3030';
-    ctx.fillRect(phX, 0, Math.max(1, Math.floor(2 * dpr)), H);
   }, [clips, currentTime, duration, zoomLevel, bg, clipColor, height]);
 
   return (
