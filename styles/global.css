@@ -586,12 +586,24 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
 }
 
 /* Recording track specific styles */
+.track.recording-track {
+  height: 160px !important;
+  min-height: 160px !important;
+  max-height: 160px !important;
+}
+
 .track.recording-track .track-controls {
   background-color: #2a1a1a;
+  height: 160px !important;
+  min-height: 160px !important;
+  max-height: 160px !important;
 }
 
 .track.recording-track .track-waveform {
   background-color: #1f1a1a;
+  height: 160px !important;
+  min-height: 160px !important;
+  max-height: 160px !important;
 }
 
 /* Playhead styling */
@@ -910,13 +922,14 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
 .track-controls {
   width: 200px;
   min-width: 200px;
-  padding: 0.25rem 0.5rem;
+  padding: 0.5rem 0.5rem;
   background-color: #232323;
   border-right: 1px solid #444;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
   justify-content: center;
+  overflow-y: auto;
 }
 
 /* Track Header */
@@ -1026,6 +1039,7 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   flex: 1;
   height: 16px;
   -webkit-appearance: none;
+  appearance: none;
   background: transparent;
   cursor: pointer;
   margin: 0;
@@ -2345,7 +2359,7 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
 
 /* Pattern drag and drop */
 .pattern-draggable {
-  cursor: grab;
+  overflow: visible; /* show full content; no internal scrollbars */
   transition: transform 0.2s ease;
 }
 
@@ -2460,6 +2474,20 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
 /* Pattern edit mode */
 .pattern-edit-indicator {
   position: absolute;
+
+/* Audio track height slightly taller than 120 to fit unified controls */
+.track.audio-track {
+  height: 140px !important;
+  min-height: 140px !important;
+  max-height: 140px !important;
+}
+
+.track.audio-track .track-controls,
+.track.audio-track .track-waveform {
+  height: 140px !important;
+  min-height: 140px !important;
+  max-height: 140px !important;
+}
   top: 4px;
   left: 4px;
   background-color: #ff6a6a;
@@ -3012,6 +3040,7 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   height: 240px !important;
   min-height: 240px !important;
   max-height: 240px !important;
+  overflow: hidden;
 }
 
 /* Compact control tab buttons */

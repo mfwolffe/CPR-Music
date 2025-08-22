@@ -2,8 +2,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Button, Form } from 'react-bootstrap';
-import { FaCircle, FaStop, FaMicrophone } from 'react-icons/fa';
+import { Button, Form, ButtonGroup } from 'react-bootstrap';
+import { FaCircle, FaStop, FaMicrophone, FaVolumeUp } from 'react-icons/fa';
 import { MdPanTool } from 'react-icons/md';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import WalkingWaveform from './WalkingWaveform';
@@ -20,6 +20,7 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
 
   const [mediaStream, setMediaStream] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [controlTab, setControlTab] = useState('vol'); // 'vol' | 'pan'
   const [recordedBlob, setRecordedBlob] = useState(null);
 
   const mediaRecorderRef = useRef(null);
@@ -183,7 +184,7 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
   return (
     <div
       className="track-container"
-      style={{ display: 'flex', height: '120px' }}
+      style={{ display: 'flex', height: '160px' }}
     >
       {/* Sidebar spacer - matches timeline sidebar */}
       <div
@@ -216,7 +217,7 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
 
       {/* Main track div */}
       <div
-        className={`track ${isSelected ? 'track-selected' : ''}`}
+        className={`track recording-track ${isSelected ? 'track-selected' : ''}`}
         onClick={() => setSelectedTrackId(track.id)}
         style={{ display: 'flex', flex: 1 }}
       >
@@ -245,7 +246,32 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
             />
           </div>
 
-          <div className="track-buttons">
+          {/* Three-button row: Solo / Mute / Record */}
+          <div className="track-button-row" style={{ display: 'flex', gap: 4 }}>
+            <Button
+              variant="outline-secondary"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                // Solo is managed globally; placeholder if needed later
+              }}
+              title="Solo"
+              style={{ flex: 1 }}
+            >
+              S
+            </Button>
+            <Button
+              variant={track.muted ? 'danger' : 'outline-secondary'}
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                updateTrack(track.id, { muted: !track.muted });
+              }}
+              title={track.muted ? 'Unmute' : 'Mute'}
+              style={{ flex: 1 }}
+            >
+              M
+            </Button>
             {!isRecording ? (
               <Button
                 size="sm"
@@ -254,9 +280,10 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
                   e.stopPropagation();
                   startRecording();
                 }}
-                className="w-100"
+                title="Record"
+                style={{ flex: 1 }}
               >
-                <FaCircle /> Record
+                <FaCircle />
               </Button>
             ) : (
               <Button
@@ -266,45 +293,43 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
                   e.stopPropagation();
                   stopRecording();
                 }}
-                className="w-100"
+                title="Stop"
+                style={{ flex: 1 }}
               >
-                <FaStop /> Stop
+                <FaStop />
               </Button>
             )}
           </div>
 
-          <div className="track-sliders">
-            <div className="slider-group" style={{ marginBottom: '4px' }}>
-              <label
-                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-              >
-                <MdPanTool size={12} />
-                <Form.Range
-                  value={track.pan || 0}
-                  onChange={(e) =>
-                    updateTrack(track.id, { pan: parseFloat(e.target.value) })
-                  }
-                  onClick={(e) => e.stopPropagation()}
-                  min={-1}
-                  max={1}
-                  step={0.01}
-                  className="track-pan-slider"
-                  style={{ flex: 1 }}
-                />
-                <span style={{ fontSize: '11px', width: '30px' }}>
-                  {track.pan > 0
-                    ? `R${Math.round(track.pan * 100)}`
-                    : track.pan < 0
-                      ? `L${Math.round(-track.pan * 100)}`
-                      : 'C'}
-                </span>
-              </label>
-            </div>
+          {/* Vol/Pan toggle like MIDI */}
+          <ButtonGroup
+            size="sm"
+            className="control-tabs"
+            style={{ marginTop: 4 }}
+          >
+            <Button
+              variant={controlTab === 'vol' ? 'secondary' : 'outline-secondary'}
+              onClick={(e) => {
+                e.stopPropagation();
+                setControlTab('vol');
+              }}
+            >
+              Vol
+            </Button>
+            <Button
+              variant={controlTab === 'pan' ? 'secondary' : 'outline-secondary'}
+              onClick={(e) => {
+                e.stopPropagation();
+                setControlTab('pan');
+              }}
+            >
+              Pan
+            </Button>
+          </ButtonGroup>
 
+          {controlTab === 'vol' ? (
             <div className="slider-group">
-              <label
-                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-              >
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <FaMicrophone size={12} />
                 <Form.Range
                   value={track.volume || 1}
@@ -320,12 +345,37 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
                   className="track-volume-slider"
                   style={{ flex: 1 }}
                 />
-                <span style={{ fontSize: '11px', width: '30px' }}>
-                  {Math.round(track.volume * 100)}
+                <span style={{ fontSize: '11px', width: 30 }}>
+                  {Math.round((track.volume || 1) * 100)}
                 </span>
               </label>
             </div>
-          </div>
+          ) : (
+            <div className="slider-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <MdPanTool size={12} />
+                <Form.Range
+                  value={track.pan || 0}
+                  onChange={(e) =>
+                    updateTrack(track.id, { pan: parseFloat(e.target.value) })
+                  }
+                  onClick={(e) => e.stopPropagation()}
+                  min={-1}
+                  max={1}
+                  step={0.01}
+                  className="track-pan-slider"
+                  style={{ flex: 1 }}
+                />
+                <span style={{ fontSize: '11px', width: 30 }}>
+                  {track.pan > 0
+                    ? `R${Math.round((track.pan || 0) * 100)}`
+                    : track.pan < 0
+                      ? `L${Math.round(Math.abs((track.pan || 0) * 100))}`
+                      : 'C'}
+                </span>
+              </label>
+            </div>
+          )}
         </div>
 
         {/* Track Waveform - takes remaining space */}
@@ -351,7 +401,7 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
                 mediaStream={mediaStream}
                 isRecording={isRecording}
                 trackId={track.id}
-                height={120}
+                height={160}
                 color="#ff6b6b"
                 startPosition={track.recordingStartPosition || 0}
                 zoomLevel={zoomLevel}

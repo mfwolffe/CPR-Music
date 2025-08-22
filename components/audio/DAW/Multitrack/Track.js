@@ -2,12 +2,13 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Button, Form } from 'react-bootstrap';
+import { Button, Form, ButtonGroup } from 'react-bootstrap';
 import {
   FaTrash,
   FaFileImport,
   FaVolumeUp,
   FaVolumeMute,
+  FaCircle,
 } from 'react-icons/fa';
 import { MdPanTool } from 'react-icons/md';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
@@ -33,6 +34,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef(null);
   const clipPlayerRef = useRef(null);
+  const [controlTab, setControlTab] = useState('vol'); // 'vol' | 'pan'
 
   // Resume audio context if needed
   const resumeAudioContextIfNeeded = async () => {
@@ -201,7 +203,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
   return (
     <div
       className="track-container"
-      style={{ display: 'flex', height: '120px' }}
+      style={{ display: 'flex', height: '140px' }}
     >
       {/* Sidebar spacer - matches timeline sidebar */}
       <div
@@ -226,7 +228,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
       <div
         className={`track ${isSelected ? 'track-selected' : ''} ${
           track.type === 'recording' ? 'recording-track' : ''
-        }`}
+        } ${track.type === 'audio' ? 'audio-track' : ''}`}
         onClick={() => setSelectedTrackId(track.id)}
         style={{ display: 'flex', flex: 1 }}
       >
@@ -256,16 +258,36 @@ export default function Track({ track, index, zoomLevel = 100 }) {
           </div>
 
           {/* Audio Controls - Stacked Vertically */}
-          <div className="track-audio-controls">
-            {/* Volume */}
+          {/* Vol/Pan toggle like MIDI */}
+          <ButtonGroup
+            size="sm"
+            className="control-tabs"
+            style={{ marginBottom: 4 }}
+          >
+            <Button
+              variant={controlTab === 'vol' ? 'secondary' : 'outline-secondary'}
+              onClick={(e) => {
+                e.stopPropagation();
+                setControlTab('vol');
+              }}
+            >
+              Vol
+            </Button>
+            <Button
+              variant={controlTab === 'pan' ? 'secondary' : 'outline-secondary'}
+              onClick={(e) => {
+                e.stopPropagation();
+                setControlTab('pan');
+              }}
+            >
+              Pan
+            </Button>
+          </ButtonGroup>
+
+          {controlTab === 'vol' ? (
             <div
               className="track-control-row"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                marginBottom: '4px',
-              }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8 }}
             >
               <FaVolumeUp size={12} className="control-icon" />
               <input
@@ -281,16 +303,15 @@ export default function Track({ track, index, zoomLevel = 100 }) {
               />
               <span
                 className="control-value"
-                style={{ fontSize: '11px', width: '30px' }}
+                style={{ fontSize: '11px', width: 30 }}
               >
                 {Math.round(track.volume * 100)}
               </span>
             </div>
-
-            {/* Pan */}
+          ) : (
             <div
               className="track-control-row"
-              style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8 }}
             >
               <MdPanTool size={12} className="control-icon" />
               <input
@@ -306,7 +327,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
               />
               <span
                 className="control-value"
-                style={{ fontSize: '11px', width: '30px' }}
+                style={{ fontSize: '11px', width: 30 }}
               >
                 {track.pan > 0
                   ? `R${Math.round(track.pan * 100)}`
@@ -315,59 +336,59 @@ export default function Track({ track, index, zoomLevel = 100 }) {
                     : 'C'}
               </span>
             </div>
+          )}
+
+          {/* Three-button row like MIDI: Solo / Mute / Record */}
+          <div className="track-button-row" style={{ display: 'flex', gap: 4 }}>
+            <Button
+              variant={isSolo ? 'warning' : 'outline-secondary'}
+              size="sm"
+              onClick={handleSolo}
+              title="Solo"
+              style={{ flex: 1 }}
+            >
+              S
+            </Button>
+            <Button
+              variant={track.muted ? 'danger' : 'outline-secondary'}
+              size="sm"
+              onClick={handleMute}
+              title={track.muted ? 'Unmute' : 'Mute'}
+              style={{ flex: 1 }}
+            >
+              M
+            </Button>
+            <Button
+              variant="outline-danger"
+              size="sm"
+              disabled
+              title="Record not available for audio clips"
+              style={{ flex: 1 }}
+            >
+              <FaCircle />
+            </Button>
           </div>
 
-          {/* Action Buttons - Stacked */}
-          <div className="track-action-buttons">
-            {/* S/M Row */}
-            <div
-              className="track-button-row"
-              style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}
+          {/* Import and Delete Row - side by side */}
+          <div className="track-button-row" style={{ display: 'flex', gap: 4 }}>
+            <Button
+              variant="outline-secondary"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              title="Import Audio"
+              style={{ flex: 1 }}
             >
-              <Button
-                variant={isSolo ? 'warning' : 'outline-secondary'}
-                size="sm"
-                onClick={handleSolo}
-                title="Solo"
-                style={{ flex: 1 }}
-              >
-                S
-              </Button>
-              <Button
-                variant={track.muted ? 'danger' : 'outline-secondary'}
-                size="sm"
-                onClick={handleMute}
-                title={track.muted ? 'Unmute' : 'Mute'}
-                style={{ flex: 1 }}
-              >
-                M
-              </Button>
-            </div>
-
-            {/* Import and Delete Row - side by side */}
-            <div
-              className="track-button-row"
-              style={{ display: 'flex', gap: '4px' }}
+              <FaFileImport />
+            </Button>
+            <Button
+              variant="outline-danger"
+              size="sm"
+              onClick={handleRemove}
+              title="Delete Track"
+              style={{ flex: 1 }}
             >
-              <Button
-                variant="outline-secondary"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-                title="Import Audio"
-                style={{ flex: 1 }}
-              >
-                <FaFileImport />
-              </Button>
-              <Button
-                variant="outline-danger"
-                size="sm"
-                onClick={handleRemove}
-                title="Delete Track"
-                style={{ flex: 1 }}
-              >
-                <FaTrash />
-              </Button>
-            </div>
+              <FaTrash />
+            </Button>
           </div>
 
           <input
@@ -407,7 +428,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
               track={track}
               clips={track.clips}
               zoomLevel={zoomLevel}
-              height={120}
+              height={140}
             />
           ) : (
             <div
