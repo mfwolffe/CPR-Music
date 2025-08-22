@@ -182,10 +182,7 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
 
   // Otherwise, render the recording interface
   return (
-    <div
-      className="track-container"
-      style={{ display: 'flex', height: '160px' }}
-    >
+    <div className="track-container" style={{ display: 'flex' }}>
       {/* Sidebar spacer - matches timeline sidebar */}
       <div
         className="track-sidebar"

@@ -572,7 +572,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
               id="multitrack-tracks-inner"
               style={{
                 position: 'relative',
-                minHeight: `${tracks.length * 120}px`,
+                minHeight: '100%',
                 width: `${280 + 3000 * (zoomLevel / 100)}px`,
               }}
             >

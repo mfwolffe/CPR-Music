@@ -201,10 +201,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
   const isSolo = soloTrackId === track.id;
 
   return (
-    <div
-      className="track-container"
-      style={{ display: 'flex', height: '140px' }}
-    >
+    <div className="track-container" style={{ display: 'flex' }}>
       {/* Sidebar spacer - matches timeline sidebar */}
       <div
         className="track-sidebar"
@@ -428,7 +425,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
               track={track}
               clips={track.clips}
               zoomLevel={zoomLevel}
-              height={140}
+              height={160}
             />
           ) : (
             <div

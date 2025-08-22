@@ -229,10 +229,10 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   flex-shrink: 0;
 }
 
-/* Updated timeline spacer to match new track controls width */
+/* Timeline controls spacer (aligns with 200px track controls) */
 .timeline-controls-spacer {
-  width: 280px; /* Match updated track controls width */
-  min-width: 280px;
+  width: 200px;
+  min-width: 200px;
   background-color: #232323;
   border-right: 1px solid #444;
 }
@@ -871,6 +871,7 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   background-color: #242424; /* Match track background */
   padding: 0;
   margin: 0;
+  padding-bottom: 60px; /* space for fixed transport at bottom */
   min-height: 0;
   position: relative;
   z-index: 1;
@@ -2477,16 +2478,16 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
 
 /* Audio track height slightly taller than 120 to fit unified controls */
 .track.audio-track {
-  height: 140px !important;
-  min-height: 140px !important;
-  max-height: 140px !important;
+  height: 160px !important;
+  min-height: 160px !important;
+  max-height: 160px !important;
 }
 
 .track.audio-track .track-controls,
 .track.audio-track .track-waveform {
-  height: 140px !important;
-  min-height: 140px !important;
-  max-height: 140px !important;
+  height: 160px !important;
+  min-height: 160px !important;
+  max-height: 160px !important;
 }
   top: 4px;
   left: 4px;
@@ -2765,57 +2766,32 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   ) !important;
 }
 
-/* MIDI Track Double Height Complete Fix */
-
-/* First, we need to override the base track height for MIDI tracks */
+/* MIDI Track Height – authoritative */
 .track.midi-track {
-  height: 160px !important; /* Override the 120px !important from base styles */
-  max-height: 160px !important;
-  min-height: 160px !important;
+  height: 320px !important;
+  min-height: 320px !important;
+  max-height: 320px !important;
   display: flex;
   align-items: stretch;
 }
 
-/* MIDI track controls - ensure they use full height */
-.track.midi-track .track-controls {
-  width: 220px;
-  min-width: 220px;
-  padding: 0.75rem;
-  justify-content: flex-start;
-  height: 100%;
-  max-height: none;
+.track.midi-track .track-controls,
+.track.midi-track .track-waveform,
+.track.midi-track .midi-track-display {
+  height: 320px !important;
+  min-height: 320px !important;
+  max-height: 320px !important;
 }
 
-/* Override ALL track-waveform constraints for MIDI tracks */
-.track.midi-track .track-waveform {
-  height: 160px !important; /* Override the 120px !important */
-  min-height: 160px !important;
-  max-height: 160px !important;
-  flex: 1;
-  display: block;
-  position: relative;
-  overflow: hidden;
-}
-
-/* Remove canvas positioning that centers it */
 .track.midi-track .track-waveform canvas {
-  position: static !important; /* Override absolute positioning */
+  position: static !important;
   top: auto !important;
   left: auto !important;
-  transform: none !important; /* Remove the translateY centering */
+  transform: none !important;
   width: 100% !important;
-  height: 160px !important; /* Force full height */
+  height: 100% !important;
   max-height: none !important;
   display: block !important;
-}
-
-/* MIDI track display wrapper */
-.track.midi-track .midi-track-display {
-  width: 100%;
-  height: 160px !important;
-  position: relative;
-  cursor: pointer;
-  display: block;
 }
 
 /* Space out MIDI controls properly */
@@ -2978,70 +2954,7 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   min-height: 0; /* Important for flex children */
 }
 
-:root {
-  --track-slot-height: 120px;
-}
-
-/* Double-height MIDI track (two slots) – final override */
-.track.midi-track {
-  height: calc(var(--track-slot-height) * 2) !important;
-  min-height: calc(var(--track-slot-height) * 2) !important;
-  max-height: calc(var(--track-slot-height) * 2) !important;
-}
-
-.track.midi-track .track-waveform,
-.track.midi-track .midi-track-display {
-  height: calc(var(--track-slot-height) * 2) !important;
-  min-height: calc(var(--track-slot-height) * 2) !important;
-  max-height: calc(var(--track-slot-height) * 2) !important;
-}
-
-/* Ensure MIDI canvas fully fills and isn't centered/offset */
-.track.midi-track .track-waveform canvas {
-  position: static !important;
-  top: auto !important;
-  left: auto !important;
-  transform: none !important;
-  width: 100% !important;
-  height: 100% !important;
-}
-
-/* Double-height MIDI track (240px = 2 slots) */
-.track.midi-track {
-  height: 240px !important;
-  max-height: 240px !important;
-  min-height: 240px !important;
-}
-
-.track.midi-track .track-controls {
-  height: 240px !important;
-  min-height: 240px !important;
-  max-height: 240px !important;
-}
-
-.track.midi-track .track-waveform {
-  height: 240px !important;
-  min-height: 240px !important;
-  max-height: 240px !important;
-}
-
-.track.midi-track .track-waveform canvas {
-  position: static !important;
-  top: auto !important;
-  left: auto !important;
-  transform: none !important;
-  width: 100% !important;
-  height: 240px !important;
-  max-height: none !important;
-  display: block !important;
-}
-
-.track.midi-track .midi-track-display {
-  height: 240px !important;
-  min-height: 240px !important;
-  max-height: 240px !important;
-  overflow: hidden;
-}
+/* Remove older slot-based/double-height blocks for MIDI to avoid conflicts */
 
 /* Compact control tab buttons */
 .track.midi-track .control-tabs {

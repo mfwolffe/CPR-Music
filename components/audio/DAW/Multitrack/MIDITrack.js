@@ -611,10 +611,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
   };
 
   return (
-    <div
-      className="track-container"
-      style={{ display: 'flex', height: '120px' }}
-    >
+    <div className="track-container" style={{ display: 'flex' }}>
       {/* Sidebar spacer - matches timeline sidebar */}
       <div
         className="track-sidebar"
