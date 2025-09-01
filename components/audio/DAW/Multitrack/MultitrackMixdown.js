@@ -590,26 +590,33 @@ async function mixdownClipsAndMidi(
   const length = Math.ceil(projectDuration * highestRate);
   const offline = new OfflineAudioContext(2, length, highestRate);
 
-  // Master bus: headroom + DC block + limiter + gentle soft-clip
+  // Master bus: headroom + DC block + EQ + limiter + stronger soft-clip
   const masterGain = offline.createGain();
-  masterGain.gain.value = 0.5; // a little more headroom
+  masterGain.gain.value = 0.4; // More headroom for MIDI content
 
   const dcBlock = offline.createBiquadFilter();
   dcBlock.type = 'highpass';
   dcBlock.frequency.value = 20;
 
+  // Add high-frequency roll-off to reduce MIDI harshness
+  const highCut = offline.createBiquadFilter();
+  highCut.type = 'lowpass';
+  highCut.frequency.value = 8000; // Roll off above 8kHz
+  highCut.Q.value = 0.707; // Butterworth response
+
   const masterLimiter = offline.createDynamicsCompressor();
-  masterLimiter.threshold.value = -1; // ceiling
+  masterLimiter.threshold.value = -6; // Much lower threshold to catch MIDI transients
   masterLimiter.knee.value = 0;
   masterLimiter.ratio.value = 20; // behave like a limiter
-  masterLimiter.attack.value = 0.003;
-  masterLimiter.release.value = 0.1;
+  masterLimiter.attack.value = 0.001; // Faster attack for MIDI spikes
+  masterLimiter.release.value = 0.08; // Faster release
 
   const masterShaper = offline.createWaveShaper();
-  masterShaper.curve = makeSoftClipCurve(4096, 0.25); // gentler than before
+  masterShaper.curve = makeSoftClipCurve(4096, 0.6); // More aggressive soft clipping
 
   masterGain.connect(dcBlock);
-  dcBlock.connect(masterLimiter);
+  dcBlock.connect(highCut);
+  highCut.connect(masterLimiter);
   masterLimiter.connect(masterShaper);
   masterShaper.connect(offline.destination);
 
@@ -645,22 +652,31 @@ async function mixdownClipsAndMidi(
     let midiProcessingChain = null;
 
     if (isMidiTrack) {
-      // First: Gain reduction to prevent overload
+      // First: More aggressive gain reduction to prevent synthesis overload
       const midiInputGain = offline.createGain();
-      midiInputGain.gain.value = 0.3; // Significantly reduce MIDI volume
+      midiInputGain.gain.value = 0.2; // Further reduced from 0.3 to 0.2
 
-      // Then: Compressor to handle peaks
+      // Then: Tighter compressor settings for MIDI transients
       const midiCompressor = offline.createDynamicsCompressor();
-      midiCompressor.threshold.value = -24; // Lower threshold
-      midiCompressor.knee.value = 6; // Softer knee
-      midiCompressor.ratio.value = 4; // Gentler ratio
-      midiCompressor.attack.value = 0.003;
-      midiCompressor.release.value = 0.1;
+      midiCompressor.threshold.value = -30; // Lower threshold to catch more peaks
+      midiCompressor.knee.value = 3; // Harder knee for cleaner limiting
+      midiCompressor.ratio.value = 6; // Higher ratio for more control
+      midiCompressor.attack.value = 0.001; // Faster attack for transients
+      midiCompressor.release.value = 0.08; // Slightly faster release
 
-      // Connect: trackGain -> inputGain -> compressor
+      // Add a safety limiter after compression
+      const midiLimiter = offline.createDynamicsCompressor();
+      midiLimiter.threshold.value = -12; // Hard ceiling
+      midiLimiter.knee.value = 0; // Brick wall limiting
+      midiLimiter.ratio.value = 20; // Very high ratio
+      midiLimiter.attack.value = 0.0001; // Instant attack
+      midiLimiter.release.value = 0.05; // Quick release
+
+      // Connect: trackGain -> inputGain -> compressor -> limiter
       trackGain.connect(midiInputGain);
       midiInputGain.connect(midiCompressor);
-      midiProcessingChain = midiCompressor;
+      midiCompressor.connect(midiLimiter);
+      midiProcessingChain = midiLimiter;
     }
 
     // Set up panning
@@ -748,44 +764,37 @@ async function mixdownClipsAndMidi(
           const dur = Math.max(0.01, n.duration);
           if (dur < 0.01) continue;
 
-          // Two oscillators for richness
-          const osc1 = offline.createOscillator();
-          const osc2 = offline.createOscillator();
+          // Single oscillator to eliminate beating frequencies
+          const osc = offline.createOscillator();
 
-          // Types by preset for a touch of color
+          // Gentler waveforms by preset to reduce harsh harmonics
           if (instrumentType === 'piano') {
-            osc1.type = 'sine';
-            osc2.type = 'sine';
+            osc.type = 'sine';
           } else if (instrumentPreset === 'bass') {
-            osc1.type = 'sawtooth';
-            osc2.type = 'square';
+            osc.type = 'triangle'; // Changed from sawtooth
           } else if (instrumentPreset === 'lead') {
-            osc1.type = 'sawtooth';
-            osc2.type = 'sawtooth';
+            osc.type = 'sawtooth'; // Keep sawtooth for leads
           } else {
-            osc1.type = 'sawtooth';
-            osc2.type = 'triangle';
+            osc.type = 'triangle'; // Default to triangle instead of sawtooth
           }
 
-          osc1.frequency.setValueAtTime(n.freq, start);
-          osc2.frequency.setValueAtTime(n.freq, start);
-          osc2.detune.setValueAtTime(7, start);
+          osc.frequency.setValueAtTime(n.freq, start);
 
-          // Slightly darker filter & lower Q to keep chords clean
+          // Much darker filter with lower Q to prevent resonant peaks
           const filter = offline.createBiquadFilter();
           filter.type = 'lowpass';
           filter.frequency.setValueAtTime(
-            Math.min(20000, 1000 + (n.velocity ?? 1) * 2000),
+            Math.min(1500, 800 + (n.velocity ?? 1) * 700), // Capped at 1500Hz
             start,
           );
-          filter.Q.setValueAtTime(1.2, start);
+          filter.Q.setValueAtTime(0.8, start); // Reduced from 1.2 to 0.8
 
-          // Envelope with polyphony compensation
+          // Envelope with improved polyphony compensation
           const env = offline.createGain();
           const key = Math.round(start * 1000);
           const sim = simultaneousNotes.get(key) || 1;
-          const polyComp = Math.min(1, 1 / Math.sqrt(sim));
-          const baseGain = 0.1; // lower base prevents overload
+          const polyComp = Math.min(1, 1 / Math.pow(sim, 0.8)); // More aggressive compensation
+          const baseGain = 0.05; // Halved from 0.1 to prevent overload
           const vel = n.velocity ?? 1;
           const peak = baseGain * polyComp * vel;
 
@@ -816,8 +825,7 @@ async function mixdownClipsAndMidi(
           }
 
           // Connect: osc → filter → env → (panner?) → trackGain
-          osc1.connect(filter);
-          osc2.connect(filter);
+          osc.connect(filter);
           filter.connect(env);
           if (panner) {
             env.connect(panner);
@@ -827,11 +835,9 @@ async function mixdownClipsAndMidi(
           }
 
           try {
-            osc1.start(start);
-            osc2.start(start);
+            osc.start(start);
             const stopTime = start + dur + 0.05; // stop slightly after envelope
-            osc1.stop(stopTime);
-            osc2.stop(stopTime);
+            osc.stop(stopTime);
           } catch {}
         }
       }
@@ -857,41 +863,34 @@ function createBasicSynth(audioContext) {
     playNote(midiNote, velocity = 1, time = 0) {
       const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
 
-      // Create two oscillators for richness
-      const osc1 = audioContext.createOscillator();
-      const osc2 = audioContext.createOscillator();
-      osc1.type = 'sawtooth';
-      osc2.type = 'sawtooth';
-      osc1.frequency.value = freq;
-      osc2.frequency.value = freq;
-      osc2.detune.value = 7; // Slight detune for thickness
+      // Single oscillator with gentler waveform to match mixdown improvements
+      const osc = audioContext.createOscillator();
+      osc.type = 'triangle'; // Gentler than dual sawtooth
+      osc.frequency.value = freq;
 
-      // Simple filter
+      // Darker filter with lower Q to prevent resonant peaks
       const filter = audioContext.createBiquadFilter();
       filter.type = 'lowpass';
-      filter.frequency.value = 2000 + velocity * 2000;
-      filter.Q.value = 2;
+      filter.frequency.value = Math.min(1500, 800 + velocity * 700); // Match mixdown settings
+      filter.Q.value = 0.8; // Lower Q
 
-      // Envelope
+      // Gentler envelope with lower gain
       const envelope = audioContext.createGain();
       envelope.gain.setValueAtTime(0.0001, time);
-      envelope.gain.exponentialRampToValueAtTime(velocity * 0.3, time + 0.01);
-      envelope.gain.exponentialRampToValueAtTime(velocity * 0.2, time + 0.1);
+      envelope.gain.exponentialRampToValueAtTime(velocity * 0.15, time + 0.01); // Reduced gain
+      envelope.gain.exponentialRampToValueAtTime(velocity * 0.1, time + 0.1);
       envelope.gain.exponentialRampToValueAtTime(0.0001, time + 1);
 
       // Connect
-      osc1.connect(filter);
-      osc2.connect(filter);
+      osc.connect(filter);
       filter.connect(envelope);
       envelope.connect(this.output);
 
       // Start/stop
-      osc1.start(time);
-      osc2.start(time);
-      osc1.stop(time + 1.5);
-      osc2.stop(time + 1.5);
+      osc.start(time);
+      osc.stop(time + 1.5);
 
-      return { osc1, osc2, envelope };
+      return { osc, envelope };
     },
 
     stopNote(midiNote, time = 0) {
