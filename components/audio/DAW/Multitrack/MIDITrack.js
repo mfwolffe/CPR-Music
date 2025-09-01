@@ -16,6 +16,7 @@ import {
   FaPencilAlt,
   FaThLarge,
   FaTh,
+  FaDownload,
 } from 'react-icons/fa';
 import { useMIDITrackAudio } from './hooks/useMidiTrackAudio';
 import MIDIInputManager from './MIDIInputManager';
@@ -34,6 +35,7 @@ import { createInstrument } from './instruments/WebAudioInstruments';
 import PatternLibrary from './PatternLibrary';
 import PianoRollEditor from './PianoRollEditor';
 import StepSequencer from './StepSequencer';
+import audioContextManager from './AudioContextManager';
 import {
   drawPatternClips,
   resolvePatternArrangement,
@@ -401,6 +403,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       color: `#${Math.floor(Math.random() * 16777215).toString(16)}`,
     });
   };
+
 
   // Draw the preview (notes or patterns)
   useEffect(() => {
