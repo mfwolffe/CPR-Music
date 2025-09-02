@@ -79,12 +79,16 @@ export const MultitrackProvider = ({ children }) => {
     }
   }, []); // Run once on mount
 
-  // Debug: Log when instruments change
+  // Debug: Log when instruments change (only in development and when non-empty)
   useEffect(() => {
-    console.log(
-      '🎻 Registered instruments:',
-      Object.keys(trackInstrumentsRef.current),
-    );
+    const instrumentIds = Object.keys(trackInstrumentsRef.current);
+    if (process.env.NODE_ENV === 'development' && instrumentIds.length > 0) {
+      console.log(
+        '🎻 Registered instruments:',
+        instrumentIds,
+        trackInstrumentsRef.current
+      );
+    }
   }, [tracks]); // Re-log when tracks change
 
   // (removed interval-based timer effect for updating current time)

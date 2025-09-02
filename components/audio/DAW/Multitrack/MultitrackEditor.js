@@ -321,7 +321,9 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
         'multitrack-tracks-playhead',
       );
 
-      if (!duration || duration === 0) return;
+      // Allow playhead updates during recording even when project duration is 0
+      const isAnyTrackRecording = tracks.some(track => track.isRecording);
+      if ((!duration || duration === 0) && !isAnyTrackRecording) return;
 
       // Derive content width from the shared inner container so 1s = 1s across UI
       const inner = document.getElementById('multitrack-tracks-inner');
@@ -329,7 +331,8 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
         ? inner.offsetWidth
         : 280 + 3000 * (zoomLevel / 100);
       const contentWidth = Math.max(0, totalWidth - 280); // subtract left gutter (80+200)
-      const projectDuration = duration > 0 ? duration : 30;
+      // During recording with no content, use current time + buffer for duration
+      const projectDuration = duration > 0 ? duration : Math.max(30, currentTime + 10);
       const pixelsPerSecond = contentWidth / projectDuration;
       const x = currentTime * pixelsPerSecond;
 

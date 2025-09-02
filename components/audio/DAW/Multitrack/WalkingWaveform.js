@@ -15,12 +15,17 @@ export default function WalkingWaveform({
   zoomLevel = 100, // Zoom level percentage
   duration = 30, // Project duration
 }) {
+  const { currentTime: globalCurrentTime } = useMultitrack();
+  
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
   const startTimeRef = useRef(null);
   const waveformDataRef = useRef([]);
+  
+  // Viewport state for auto-scroll
+  const [viewportStartTime, setViewportStartTime] = useState(startPosition);
 
   useEffect(() => {
     console.log('WalkingWaveform effect:', {
@@ -122,35 +127,55 @@ export default function WalkingWaveform({
         const rms = Math.sqrt(sum / bufferLength);
         const amplitude = Math.min(rms * 3, 1); // Scale and clamp
 
-        // Store waveform data point
-        waveformDataRef.current.push(amplitude);
-
-        // Calculate time position
-        const elapsed = (Date.now() - startTimeRef.current) / 1000; // seconds since recording started
-        const absoluteTime = startPosition + elapsed; // absolute position in the timeline
-        const xPosition = absoluteTime * pixelsPerSecond;
-
-        // Draw waveform bars
+        // Calculate elapsed time since recording started (independent timing)
+        const elapsed = (Date.now() - startTimeRef.current) / 1000;
+        const currentTime = startPosition + elapsed; // absolute position in timeline
+        
+        // Store waveform data point with timestamp
+        waveformDataRef.current.push({
+          amplitude,
+          time: currentTime
+        });
+        
+        // Auto-scroll viewport to follow the playhead during recording
+        let viewportStart = viewportStartTime;
+        if (isRecording && currentTime > 0) {
+          const viewportDuration = width / pixelsPerSecond; // How many seconds fit in the viewport
+          const viewportEnd = viewportStart + viewportDuration;
+          const scrollThreshold = viewportDuration * 0.2; // Start scrolling at 20% from right edge
+          
+          if (currentTime > (viewportEnd - scrollThreshold)) {
+            // Playhead near right edge - scroll forward to keep it at 25% from left
+            const newViewportStart = Math.max(0, currentTime - viewportDuration * 0.25);
+            setViewportStartTime(newViewportStart);
+            viewportStart = newViewportStart;
+          }
+        }
+        
+        // Clear and redraw entire viewport
+        ctx.fillStyle = backgroundColor;
+        ctx.fillRect(0, 0, width, canvasHeight);
+        
+        // Draw all waveform data that's visible in the current viewport
         const barWidth = 2;
         const barSpacing = 1;
-        const currentBar = Math.floor(xPosition / (barWidth + barSpacing));
-
-        // Check if we're still within canvas bounds
-        if (currentBar * (barWidth + barSpacing) < width) {
-          const x = currentBar * (barWidth + barSpacing);
-
-          // Calculate bar height and center it vertically
-          const maxBarHeight = canvasHeight * 0.8; // Use 80% of canvas height
-          const barHeight = amplitude * maxBarHeight;
-          const y = (canvasHeight - barHeight) / 2; // Center vertically
-
-          ctx.fillStyle = color;
-          ctx.fillRect(x, y, barWidth, barHeight);
-        } else {
-          console.log('WalkingWaveform: Reached canvas edge', {
-            currentBar,
-            maxBars: width / (barWidth + barSpacing),
-          });
+        const samplesPerPixel = 1 / pixelsPerSecond * 60; // Assume ~60fps
+        
+        ctx.fillStyle = color;
+        for (let i = 0; i < waveformDataRef.current.length; i++) {
+          const sample = waveformDataRef.current[i];
+          const relativeTime = sample.time - viewportStart;
+          const xPosition = relativeTime * pixelsPerSecond;
+          
+          // Only draw if within viewport
+          if (xPosition >= 0 && xPosition < width) {
+            const x = Math.floor(xPosition);
+            const maxBarHeight = canvasHeight * 0.8;
+            const barHeight = sample.amplitude * maxBarHeight;
+            const y = (canvasHeight - barHeight) / 2;
+            
+            ctx.fillRect(x, y, barWidth, barHeight);
+          }
         }
 
         // Continue animation
