@@ -1,7 +1,8 @@
 // components/audio/DAW/Multitrack/WalkingWaveform.js
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useMultitrack } from '../../../../contexts/MultitrackContext';
 
 export default function WalkingWaveform({
   mediaStream,

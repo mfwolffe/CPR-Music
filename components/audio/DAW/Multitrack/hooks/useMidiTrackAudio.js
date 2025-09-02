@@ -246,9 +246,9 @@ export function useMIDITrackAudio(
       !track.muted && 
       track.midiData?.notes?.length > 0;
 
-    // Only log in development
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`🔊 MIDI Track ${track.id} playback decision:`, {
+    // Only log in development and when state changes to reduce spam
+    if (process.env.NODE_ENV === 'development' && shouldPlay !== lastPlayStateRef.current) {
+      console.log(`MIDI Track ${track.id} playback decision:`, {
         trackId: track.id,
         isMixdownActive,
         isGlobalPlaying,

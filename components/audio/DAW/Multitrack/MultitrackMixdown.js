@@ -913,14 +913,14 @@ async function renderMIDITrackToAudio(track, sampleRate = 44100, bpm = 120) {
     return cachedBuffer;
   }
 
-  console.log(`Auto-rendering MIDI track: ${track.name}`);
-
   const midiNotes = collectTrackMidiNotes(track, { bpm });
   if (midiNotes.length === 0) return null;
 
   // Calculate track duration
   const endTime = Math.max(...midiNotes.map(n => n.time + n.duration));
   const duration = Math.max(1, endTime + 1); // Add 1 second tail
+  
+  console.log(`Auto-rendering MIDI track: ${track.name} (${midiNotes.length} notes, duration: ${duration}s)`);
 
   // Create offline context for rendering
   const offline = new OfflineAudioContext(2, Math.ceil(duration * sampleRate), sampleRate);
@@ -962,18 +962,17 @@ async function renderMIDITrackToAudio(track, sampleRate = 44100, bpm = 120) {
     }
   }
 
-  // Use adaptive gain for individual MIDI track rendering
-  // Single MIDI track gets higher gain, but still conservative
+  // Use much more conservative gain for individual MIDI track rendering
   const masterGain = offline.createGain();
-  masterGain.gain.value = 0.7; // Single track can afford higher gain
+  masterGain.gain.value = 0.1; // Very conservative to prevent static
 
-  // Add gentle limiting to prevent clipping
+  // Add aggressive limiting to prevent clipping and static
   const limiter = offline.createDynamicsCompressor();
-  limiter.threshold.value = -12;
-  limiter.knee.value = 6;
-  limiter.ratio.value = 4;
+  limiter.threshold.value = -20; // Lower threshold
+  limiter.knee.value = 10;
+  limiter.ratio.value = 8; // Higher ratio for more limiting
   limiter.attack.value = 0.001;
-  limiter.release.value = 0.1;
+  limiter.release.value = 0.05; // Faster release
 
   masterGain.connect(limiter);
   limiter.connect(offline.destination);
@@ -991,18 +990,26 @@ async function renderMIDITrackToAudio(track, sampleRate = 44100, bpm = 120) {
       const duration = Math.max(0.01, note.duration);
       const midi = Math.round(69 + 12 * Math.log2(note.freq / 440));
       
+      // Scale velocity down significantly to prevent static
+      const originalVelocity = note.velocity || 100;
+      const scaledVelocity = Math.min(0.3, originalVelocity / 127 * 0.5);
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`Note ${midi}: velocity ${originalVelocity} -> ${scaledVelocity.toFixed(3)}, start: ${start.toFixed(2)}s, dur: ${duration.toFixed(2)}s`);
+      }
+      
       try {
         if (useEnhancedSynth) {
           // Enhanced synth uses our improved API
-          instrument.playNote(midi, note.velocity, start, duration);
+          instrument.playNote(midi, scaledVelocity, start, duration);
         } else {
           // Your existing instruments - check their API
           if (typeof instrument.playNote === 'function') {
             // Most instruments support playNote(midi, velocity, time, duration)
-            instrument.playNote(midi, note.velocity, start, duration);
+            instrument.playNote(midi, scaledVelocity, start, duration);
           } else if (typeof instrument.noteOn === 'function') {
             // Some might use noteOn/noteOff pattern
-            instrument.noteOn(midi, note.velocity, start);
+            instrument.noteOn(midi, scaledVelocity, start);
             if (typeof instrument.noteOff === 'function') {
               instrument.noteOff(midi, start + duration);
             }
@@ -1131,20 +1138,52 @@ async function mixdownClipsAndMidi(
     }),
   );
 
+  // Choose sample rate early (before MIDI rendering needs it)
+  const highestRate = Math.max(
+    sampleRateHint,
+    ...Array.from(bufferMap.values()).map((b) => b.sampleRate || 0),
+  );
+
   // Auto-render MIDI tracks to audio buffers
   onProgress(50);
   const midiBufferMap = new Map();
+  
+  // Debug: Check all tracks before filtering
+  console.log('All included tracks for mixdown:', included.map(t => ({
+    id: t.id,
+    name: t.name,
+    type: t.type,
+    notesInTrack: t.midiData?.notes?.length || 0,
+    notesCollected: t.type === 'midi' ? collectTrackMidiNotes(t, { bpm }).length : 'N/A'
+  })));
+  
   const midiTracks = included.filter(t => t.type === 'midi' && collectTrackMidiNotes(t, { bpm }).length > 0);
   
   console.log(`Auto-rendering ${midiTracks.length} MIDI tracks for mixdown...`);
+  
+  // Debug: Log each track's MIDI data
+  midiTracks.forEach((track, index) => {
+    const notes = collectTrackMidiNotes(track, { bpm });
+    console.log(`MIDI Track ${index + 1}: "${track.name}"`, {
+      trackId: track.id,
+      notesInTrack: track.midiData?.notes?.length || 0,
+      notesCollected: notes.length,
+      firstFewNotes: notes.slice(0, 3),
+      midiData: track.midiData,
+    });
+  });
   
   let midiDone = 0;
   await Promise.all(
     midiTracks.map(async (track) => {
       try {
+        console.log(`Starting render for track: ${track.name}`);
         const buffer = await renderMIDITrackToAudio(track, highestRate, bpm);
         if (buffer) {
+          console.log(`Successfully rendered MIDI track: ${track.name} (${buffer.length} samples)`);
           midiBufferMap.set(track.id, buffer);
+        } else {
+          console.log(`No buffer returned for MIDI track: ${track.name}`);
         }
       } catch (e) {
         console.error(`Failed to auto-render MIDI track ${track.name}:`, e);
@@ -1189,11 +1228,7 @@ async function mixdownClipsAndMidi(
   if (!(projectDuration > 0))
     throw new Error('Project duration is 0 — nothing to render.');
 
-  // Choose sample rate
-  const highestRate = Math.max(
-    sampleRateHint,
-    ...Array.from(bufferMap.values()).map((b) => b.sampleRate || 0),
-  );
+  // Using the sample rate that was calculated earlier for MIDI rendering
 
   // Create OfflineAudioContext
   const length = Math.ceil(projectDuration * highestRate);

@@ -32,6 +32,8 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
     isPlaying,
     play,
     stop,
+    startRecordingTimer,
+    stopRecordingTimer,
   } = useMultitrack();
 
   const [mediaStream, setMediaStream] = useState(null);
@@ -271,6 +273,9 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
     setIsRecording(true);
     console.log('RecordingTrack: Recording started');
 
+    // Start the recording timer to advance playhead during recording
+    startRecordingTimer();
+
     // Update track to show recording state AND store start position
     updateTrack(track.id, {
       isRecording: true,
@@ -285,6 +290,10 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
     ) {
       mediaRecorderRef.current.stop();
     }
+    
+    // Stop the recording timer
+    stopRecordingTimer();
+    
     setIsRecording(false);
   };
 

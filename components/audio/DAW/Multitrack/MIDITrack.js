@@ -120,6 +120,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     setSoloTrackId,
     isPlaying: globalIsPlaying,
     currentTime: globalCurrentTime,
+    duration,
     registerTrackInstrument,
     playNoteOnSelectedTrack,
     stopNoteOnSelectedTrack,
@@ -604,23 +605,28 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
 
       // Draw playhead if playing or recording
       if (globalIsPlaying || isRecording) {
+        // Use the SAME timing calculation as MultitrackEditor for consistent playhead movement
+        const projectDuration = duration > 0 ? duration : 30; // Match MultitrackEditor
+        const pixelsPerSecond = displayWidth / projectDuration;
+        
+        // Calculate playhead position using seconds directly (not beats)
         const tempo = track.midiData?.tempo || 120;
         const secPerBeat = 60 / tempo;
-        const currentBeat = globalCurrentTime / secPerBeat;
-        const playheadX =
-          ((currentBeat - firstBeat) / beatsVisible) * displayWidth;
+        const firstBeatInSeconds = firstBeat * secPerBeat;
+        const playheadX = (globalCurrentTime - firstBeatInSeconds) * pixelsPerSecond;
         
         // Debug logging for playhead movement (development only)
         if (isRecording && process.env.NODE_ENV === 'development') {
-          console.log(`🔴 PLAYHEAD DEBUG:`, {
+          console.log(`🔴 PLAYHEAD DEBUG (FIXED):`, {
             globalCurrentTime,
-            currentBeat: currentBeat.toFixed(3),
+            projectDuration,
+            pixelsPerSecond: pixelsPerSecond.toFixed(3),
             firstBeat: firstBeat.toFixed(3),
-            beatsVisible,
+            firstBeatInSeconds: firstBeatInSeconds.toFixed(3),
             playheadX: playheadX.toFixed(1),
             displayWidth,
             isRecording,
-            viewportFirstBeat: viewportFirstBeat.toFixed(3),
+            'OLD_CALC_REMOVED': 'Now using seconds-based calculation like MultitrackEditor'
           });
         }
         
