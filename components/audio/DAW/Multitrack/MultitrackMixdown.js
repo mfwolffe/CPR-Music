@@ -5,7 +5,7 @@ import { Button, Modal, Form, ProgressBar, Alert } from 'react-bootstrap';
 import { FaMixcloud } from 'react-icons/fa';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import { decodeAudioFromURL } from './AudioEngine';
-import { createInstrument } from './instruments/WebAudioInstruments';
+import { createInstrument } from './Instruments/WebAudioInstruments';
 import VoiceManager from '../../../../lib/VoiceManager';
 import midiRenderCache from '../../../../lib/MIDIRenderCache';
 import EnhancedSynth from '../../../../lib/EnhancedSynth';
@@ -515,6 +515,298 @@ function collectTrackMidiNotes(track, tempo = { bpm: 120, stepsPerBeat: 4 }) {
 }
 
 /**
+ * Calculate adaptive gain staging based on mix complexity
+ */
+function calculateAdaptiveGain(trackCount, midiTrackCount, analogTrackCount) {
+  // Base gain starts conservative
+  let baseGain = 0.6;
+  
+  // Reduce gain as track count increases (logarithmic scaling)
+  const trackScale = Math.max(0.2, 1 - (Math.log(trackCount + 1) / Math.log(16)) * 0.5);
+  
+  // MIDI tracks generally have more consistent levels than analog
+  const midiRatio = midiTrackCount / Math.max(1, trackCount);
+  const analogRatio = analogTrackCount / Math.max(1, trackCount);
+  
+  // Analog tracks need more headroom due to peaks/transients
+  const headroomAdjust = analogRatio * 0.15; // Extra headroom for analog content
+  
+  // Final adaptive gain
+  const adaptiveGain = Math.max(0.15, baseGain * trackScale - headroomAdjust);
+  
+  console.log(`Adaptive Gain: ${trackCount} tracks (${midiTrackCount} MIDI, ${analogTrackCount} analog) → ${adaptiveGain.toFixed(3)}`);
+  
+  return adaptiveGain;
+}
+
+/**
+ * Create intelligent EQ compensation for dense mixes
+ */
+function createMixEQ(audioContext, trackCount, midiTrackCount) {
+  const eq = {
+    lowCut: audioContext.createBiquadFilter(),
+    lowShelf: audioContext.createBiquadFilter(),
+    midBoost: audioContext.createBiquadFilter(),
+    highShelf: audioContext.createBiquadFilter(),
+    highCut: audioContext.createBiquadFilter()
+  };
+  
+  // DC blocking high-pass (always active)
+  eq.lowCut.type = 'highpass';
+  eq.lowCut.frequency.value = 20;
+  eq.lowCut.Q.value = 0.707;
+  
+  // Low-frequency cleanup for dense mixes
+  eq.lowShelf.type = 'lowshelf';
+  eq.lowShelf.frequency.value = 80;
+  if (trackCount > 6) {
+    // Reduce muddiness in dense mixes
+    eq.lowShelf.gain.value = -2; // Gentle low cut
+    eq.lowShelf.Q.value = 0.707;
+  } else {
+    eq.lowShelf.gain.value = 0; // No change for sparse mixes
+  }
+  
+  // Mid-frequency presence adjustment
+  eq.midBoost.type = 'peaking';
+  eq.midBoost.frequency.value = 2500;
+  eq.midBoost.Q.value = 1.4;
+  if (midiTrackCount > trackCount * 0.6) {
+    // MIDI-heavy mixes benefit from midrange clarity
+    eq.midBoost.gain.value = 1.5;
+  } else {
+    eq.midBoost.gain.value = 0;
+  }
+  
+  // High-frequency management
+  eq.highShelf.type = 'highshelf';
+  eq.highShelf.frequency.value = 8000;
+  if (trackCount > 8) {
+    // Reduce harshness in very dense mixes
+    eq.highShelf.gain.value = -1.5;
+    eq.highShelf.Q.value = 0.707;
+  } else {
+    // Gentle presence boost for normal mixes
+    eq.highShelf.gain.value = 0.5;
+    eq.highShelf.Q.value = 0.707;
+  }
+  
+  // Anti-aliasing/harsh digital high cut
+  eq.highCut.type = 'lowpass';
+  eq.highCut.frequency.value = 18000;
+  eq.highCut.Q.value = 0.707;
+  
+  // Chain the EQ stages
+  eq.lowCut.connect(eq.lowShelf);
+  eq.lowShelf.connect(eq.midBoost);
+  eq.midBoost.connect(eq.highShelf);
+  eq.highShelf.connect(eq.highCut);
+  
+  console.log(`Mix EQ: ${trackCount} tracks, ${midiTrackCount} MIDI - Low: ${eq.lowShelf.gain.value}dB, Mid: ${eq.midBoost.gain.value}dB, High: ${eq.highShelf.gain.value}dB`);
+  
+  return {
+    input: eq.lowCut,
+    output: eq.highCut,
+    chain: eq
+  };
+}
+
+/**
+ * Calculate intelligent panning to reduce center channel buildup
+ */
+function calculateIntelligentPanning(tracks) {
+  const panAdjustments = new Map();
+  
+  // Count tracks by type for intelligent distribution
+  const tracksByType = {
+    midi: tracks.filter(t => t.type === 'midi'),
+    analog: tracks.filter(t => t.type !== 'midi'),
+    all: tracks
+  };
+  
+  // If 4 or fewer tracks, keep original panning (user preference respected)
+  if (tracks.length <= 4) {
+    tracks.forEach(track => {
+      panAdjustments.set(track.id, track.pan || 0);
+    });
+    console.log('Intelligent Panning: Few tracks detected, preserving user panning');
+    return panAdjustments;
+  }
+  
+  // For dense mixes, apply intelligent distribution
+  const centerThreshold = 0.1; // Tracks within ±10% are considered "center"
+  const centerTracks = tracks.filter(t => Math.abs(t.pan || 0) <= centerThreshold);
+  
+  if (centerTracks.length <= 2) {
+    // Light center buildup - minor adjustments
+    tracks.forEach(track => {
+      panAdjustments.set(track.id, track.pan || 0);
+    });
+    console.log('Intelligent Panning: Light center buildup, preserving user panning');
+    return panAdjustments;
+  }
+  
+  // Heavy center buildup - apply intelligent spreading
+  console.log(`Intelligent Panning: ${centerTracks.length} center tracks detected, applying intelligent spread`);
+  
+  const panPositions = [];
+  const spreadWidth = 0.7; // Max spread ±70%
+  
+  // Create spread positions (avoid extreme L/R for most content)
+  for (let i = 0; i < centerTracks.length; i++) {
+    const position = (i / Math.max(1, centerTracks.length - 1) - 0.5) * spreadWidth;
+    panPositions.push(position);
+  }
+  
+  // Apply intelligent panning based on track characteristics
+  centerTracks.forEach((track, index) => {
+    let newPan = panPositions[index];
+    
+    // MIDI tracks can be spread wider as they're more predictable
+    if (track.type === 'midi') {
+      newPan *= 1.2; // Slightly wider spread for MIDI
+    }
+    
+    // Clamp to valid range
+    newPan = Math.max(-0.9, Math.min(0.9, newPan));
+    panAdjustments.set(track.id, newPan);
+    
+    console.log(`  → Track ${track.name}: ${(track.pan || 0).toFixed(2)} → ${newPan.toFixed(2)}`);
+  });
+  
+  // Keep non-center tracks as they are (user deliberately panned them)
+  tracks.filter(t => Math.abs(t.pan || 0) > centerThreshold).forEach(track => {
+    panAdjustments.set(track.id, track.pan || 0);
+  });
+  
+  return panAdjustments;
+}
+
+/**
+ * Create automatic headroom management system
+ */
+function createHeadroomManager(audioContext, trackCount, midiTrackCount) {
+  // Calculate optimal headroom based on mix complexity
+  let targetHeadroom = -3; // Default -3dB headroom
+  
+  // Adjust based on track count
+  if (trackCount > 12) {
+    targetHeadroom = -6; // More headroom for very dense mixes
+  } else if (trackCount > 8) {
+    targetHeadroom = -4.5; // Extra headroom for dense mixes
+  } else if (trackCount <= 4) {
+    targetHeadroom = -1.5; // Less headroom needed for sparse mixes
+  }
+  
+  // MIDI tracks have more predictable levels
+  const midiRatio = midiTrackCount / Math.max(1, trackCount);
+  if (midiRatio > 0.7) {
+    targetHeadroom += 1.5; // Less headroom needed for MIDI-heavy mixes
+  }
+  
+  // Create adaptive compressor for headroom management
+  const headroomCompressor = audioContext.createDynamicsCompressor();
+  
+  // Configure compressor for transparent headroom control
+  headroomCompressor.threshold.value = targetHeadroom;
+  headroomCompressor.knee.value = 6; // Soft knee for transparent compression
+  headroomCompressor.ratio.value = 4; // Moderate ratio to preserve dynamics
+  headroomCompressor.attack.value = 0.003; // Fast enough to catch peaks
+  headroomCompressor.release.value = 0.1; // Quick release to avoid pumping
+  
+  // Create makeup gain to compensate for compression
+  const makeupGain = audioContext.createGain();
+  const compressionAmount = Math.abs(targetHeadroom) / 4; // Estimate compression
+  makeupGain.gain.value = Math.pow(10, compressionAmount / 20); // Convert dB to linear
+  
+  // Chain compressor -> makeup gain
+  headroomCompressor.connect(makeupGain);
+  
+  console.log(`Headroom Manager: ${trackCount} tracks (${midiTrackCount} MIDI) → Target: ${targetHeadroom}dB, Makeup: +${compressionAmount.toFixed(1)}dB`);
+  
+  return {
+    input: headroomCompressor,
+    output: makeupGain,
+    targetHeadroom: targetHeadroom,
+    compressor: headroomCompressor,
+    makeupGain: makeupGain
+  };
+}
+
+/**
+ * Analyze mix quality and provide feedback
+ */
+function analyzeMixQuality(tracks, duration, adaptiveGain, targetHeadroom, panAdjustments) {
+  const analysis = {
+    trackCount: tracks.length,
+    midiTracks: tracks.filter(t => t.type === 'midi').length,
+    analogTracks: tracks.filter(t => t.type !== 'midi').length,
+    duration: duration,
+    adaptiveGain: adaptiveGain,
+    targetHeadroom: targetHeadroom,
+    quality: 'good',
+    recommendations: [],
+    panningChanges: 0
+  };
+  
+  // Count panning changes made
+  let panChanges = 0;
+  for (const [trackId, newPan] of panAdjustments) {
+    const track = tracks.find(t => t.id === trackId);
+    if (track && Math.abs(newPan - (track.pan || 0)) > 0.01) {
+      panChanges++;
+    }
+  }
+  analysis.panningChanges = panChanges;
+  
+  // Assess overall quality based on mix complexity
+  if (analysis.trackCount <= 4) {
+    analysis.quality = 'excellent';
+    analysis.recommendations.push('✓ Clean, focused mix with good headroom');
+  } else if (analysis.trackCount <= 8) {
+    analysis.quality = 'very-good';
+    analysis.recommendations.push('✓ Well-balanced mix with adequate complexity');
+  } else if (analysis.trackCount <= 12) {
+    analysis.quality = 'good';
+    analysis.recommendations.push('• Dense mix handled with intelligent processing');
+    if (panChanges > 0) {
+      analysis.recommendations.push(`• Applied intelligent panning to ${panChanges} tracks to reduce center buildup`);
+    }
+  } else {
+    analysis.quality = 'complex';
+    analysis.recommendations.push('• Very dense mix - extra processing applied for clarity');
+    analysis.recommendations.push(`• Reduced gain to ${adaptiveGain.toFixed(2)} for optimal headroom`);
+    if (panChanges > 0) {
+      analysis.recommendations.push(`• Redistributed panning on ${panChanges} tracks to improve stereo image`);
+    }
+  }
+  
+  // MIDI-specific feedback
+  const midiRatio = analysis.midiTracks / Math.max(1, analysis.trackCount);
+  if (midiRatio > 0.8) {
+    analysis.recommendations.push('• MIDI-heavy mix optimized with enhanced synthesis fallbacks');
+  } else if (midiRatio > 0.5) {
+    analysis.recommendations.push('• Hybrid MIDI/analog mix balanced with adaptive processing');
+  }
+  
+  // Duration feedback
+  if (duration > 300) { // 5+ minutes
+    analysis.recommendations.push('• Long-form content processed with consistent quality');
+  } else if (duration < 30) {
+    analysis.recommendations.push('• Short-form content optimized for immediate impact');
+  }
+  
+  // Headroom feedback
+  if (targetHeadroom < -5) {
+    analysis.recommendations.push('• Conservative headroom preserved for mastering flexibility');
+  } else if (targetHeadroom > -2) {
+    analysis.recommendations.push('• Tight headroom for maximum loudness - check for distortion');
+  }
+  
+  return analysis;
+}
+
+/**
  * Map instrument types to enhanced synthesizer presets
  */
 function mapInstrumentToSynthPreset(instrumentType, instrumentPreset) {
@@ -670,9 +962,10 @@ async function renderMIDITrackToAudio(track, sampleRate = 44100, bpm = 120) {
     }
   }
 
-  // Master gain with our improved settings
+  // Use adaptive gain for individual MIDI track rendering
+  // Single MIDI track gets higher gain, but still conservative
   const masterGain = offline.createGain();
-  masterGain.gain.value = 0.6; // Conservative gain for clean mixing
+  masterGain.gain.value = 0.7; // Single track can afford higher gain
 
   // Add gentle limiting to prevent clipping
   const limiter = offline.createDynamicsCompressor();
@@ -905,19 +1198,22 @@ async function mixdownClipsAndMidi(
   const length = Math.ceil(projectDuration * highestRate);
   const offline = new OfflineAudioContext(2, length, highestRate);
 
-  // Master bus: headroom + DC block + EQ + limiter + stronger soft-clip
+  // Calculate adaptive gain based on mix complexity (reuse midiTracks from above)
+  const analogTracks = included.filter(t => t.type !== 'midi');
+  const adaptiveGain = calculateAdaptiveGain(included.length, midiTracks.length, analogTracks.length);
+  
+  // Master bus: adaptive headroom + DC block + EQ + limiter + stronger soft-clip
   const masterGain = offline.createGain();
-  masterGain.gain.value = 0.4; // More headroom for MIDI content
+  masterGain.gain.value = adaptiveGain;
 
-  const dcBlock = offline.createBiquadFilter();
-  dcBlock.type = 'highpass';
-  dcBlock.frequency.value = 20;
-
-  // Add high-frequency roll-off to reduce MIDI harshness
-  const highCut = offline.createBiquadFilter();
-  highCut.type = 'lowpass';
-  highCut.frequency.value = 8000; // Roll off above 8kHz
-  highCut.Q.value = 0.707; // Butterworth response
+  // Create intelligent EQ compensation for mix density
+  const mixEQ = createMixEQ(offline, included.length, midiTracks.length);
+  
+  // Calculate intelligent panning to reduce center buildup
+  const intelligentPanning = calculateIntelligentPanning(included);
+  
+  // Create automatic headroom management
+  const headroomManager = createHeadroomManager(offline, included.length, midiTracks.length);
 
   const masterLimiter = offline.createDynamicsCompressor();
   masterLimiter.threshold.value = -6; // Much lower threshold to catch MIDI transients
@@ -929,9 +1225,9 @@ async function mixdownClipsAndMidi(
   const masterShaper = offline.createWaveShaper();
   masterShaper.curve = makeSoftClipCurve(4096, 0.6); // More aggressive soft clipping
 
-  masterGain.connect(dcBlock);
-  dcBlock.connect(highCut);
-  highCut.connect(masterLimiter);
+  masterGain.connect(mixEQ.input);
+  mixEQ.output.connect(headroomManager.input);
+  headroomManager.output.connect(masterLimiter);
   masterLimiter.connect(masterShaper);
   masterShaper.connect(offline.destination);
 
@@ -963,12 +1259,18 @@ async function mixdownClipsAndMidi(
     const midiBuffer = midiBufferMap.get(track.id);
     const isMidiTrack = track.type === 'midi' && midiBuffer;
 
-    // Set up panning
+    // Set up intelligent panning
     const panner = offline.createStereoPanner
       ? offline.createStereoPanner()
       : null;
     if (panner) {
-      panner.pan.value = typeof track.pan === 'number' ? track.pan : 0;
+      const intelligentPan = intelligentPanning.get(track.id) || 0;
+      panner.pan.value = intelligentPan;
+      
+      // Log panning adjustments if different from original
+      if (Math.abs(intelligentPan - (track.pan || 0)) > 0.01) {
+        console.log(`Track ${track.name}: Pan adjusted ${(track.pan || 0).toFixed(2)} → ${intelligentPan.toFixed(2)}`);
+      }
     }
 
     // Connect audio chain (simplified - no special MIDI processing needed)
@@ -1021,6 +1323,28 @@ async function mixdownClipsAndMidi(
   
   try {
     const rendered = await offline.startRendering();
+    
+    // Analyze mix quality and provide feedback
+    const mixAnalysis = analyzeMixQuality(
+      included,
+      projectDuration,
+      adaptiveGain,
+      headroomManager.targetHeadroom,
+      intelligentPanning
+    );
+    
+    console.log('\nMix Quality Analysis:');
+    console.log(`Quality Rating: ${mixAnalysis.quality.toUpperCase()}`);
+    console.log(`Tracks: ${mixAnalysis.trackCount} (${mixAnalysis.midiTracks} MIDI, ${mixAnalysis.analogTracks} analog)`);
+    console.log(`Duration: ${Math.round(mixAnalysis.duration)}s`);
+    console.log(`Adaptive Gain: ${mixAnalysis.adaptiveGain.toFixed(2)}`);
+    console.log(`Target Headroom: ${mixAnalysis.targetHeadroom}dB`);
+    if (mixAnalysis.panningChanges > 0) {
+      console.log(`Panning Adjustments: ${mixAnalysis.panningChanges} tracks`);
+    }
+    console.log('\nProcessing Applied:');
+    mixAnalysis.recommendations.forEach(rec => console.log(`  ${rec}`));
+    
     onProgress(100);
     return rendered;
   } finally {

@@ -31,7 +31,7 @@ if (typeof window !== 'undefined' && !window.__midiInputManager) {
 import { MdPanTool, MdMusicNote, MdPiano } from 'react-icons/md';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import InstrumentSelector from './InstrumentSelector';
-import { createInstrument } from './instruments/WebAudioInstruments';
+import { createInstrument } from './Instruments/WebAudioInstruments';
 import PatternLibrary from './PatternLibrary';
 import PianoRollEditor from './PianoRollEditor';
 import StepSequencer from './StepSequencer';

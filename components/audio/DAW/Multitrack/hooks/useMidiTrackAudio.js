@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import audioContextManager from '../AudioContextManager';
-import { createInstrument } from '../instruments/WebAudioInstruments';
+import { createInstrument } from '../Instruments/WebAudioInstruments';
 import ImprovedNoteScheduler from '../ImprovedNoteScheduler';
 import ImprovedMIDIRecorder from '../MIDIRecorder';
 
