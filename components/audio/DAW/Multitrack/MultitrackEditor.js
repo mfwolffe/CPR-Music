@@ -346,9 +346,10 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
 
     updatePlayheads();
 
-    // Update on animation frame if playing
+    // Update on animation frame if playing OR if any track is recording
     let animationId;
-    if (isPlaying) {
+    const isAnyTrackRecording = tracks.some(track => track.isRecording);
+    if (isPlaying || isAnyTrackRecording) {
       const animate = () => {
         updatePlayheads();
         animationId = requestAnimationFrame(animate);
@@ -361,7 +362,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
         cancelAnimationFrame(animationId);
       }
     };
-  }, [duration, zoomLevel, isPlaying]); // Remove currentTime dependency to prevent constant re-runs
+  }, [duration, zoomLevel, isPlaying, tracks, currentTime]); // Include tracks to detect recording state changes and currentTime for playhead updates
 
   return (
     <Container fluid className="multitrack-editor p-3">
