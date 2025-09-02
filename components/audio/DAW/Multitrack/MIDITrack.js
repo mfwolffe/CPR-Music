@@ -244,11 +244,11 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
             });
             // Start recording timer to move playhead
             startRecordingTimer();
-            // Initialize viewport to center on current position
+            // Initialize viewport with playhead near left edge for recording
             const tempo = track.midiData?.tempo || 120;
             const secPerBeat = 60 / tempo;
             const currentBeat = globalCurrentTime / secPerBeat;
-            setViewportFirstBeat(Math.max(0, currentBeat - 8)); // Center playhead
+            setViewportFirstBeat(Math.max(0, currentBeat - 2)); // Playhead near left edge with room to advance
             // Update track state
             updateTrack(track.id, { isRecording: true });
             return 0;
@@ -469,6 +469,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     } else {
       // Draw piano roll preview
       const notes = track.midiData.notes || [];
+      const allNotes = track.midiData.notes || []; // Make allNotes available throughout
 
       if (notes.length === 0) {
         ctx.fillStyle = '#666';
@@ -487,22 +488,26 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       let firstBeat, beatsVisible;
       
       if (isRecording && globalCurrentTime > 0) {
-        // Follow playhead during recording with smooth scrolling
+        // Follow playhead during recording with auto-scroll
         const tempo = track.midiData?.tempo || 120;
         const secPerBeat = 60 / tempo;
         const currentBeat = globalCurrentTime / secPerBeat;
         
-        // Show 8 beats behind and 8 beats ahead of playhead (16 beat window)
-        beatsVisible = 16;
+        // Use a dynamic window that expands as recording progresses
+        beatsVisible = Math.max(16, Math.ceil(currentBeat + 4));
         
-        // Smooth scroll: only move viewport when playhead gets close to edges
-        const scrollMargin = 2; // Start scrolling when 2 beats from edge
-        const currentCenter = viewportFirstBeat + beatsVisible / 2;
-        const playheadOffset = currentBeat - currentCenter;
+        // Auto-scroll when playhead reaches the right edge of canvas
+        const viewportEnd = viewportFirstBeat + beatsVisible;
+        const scrollThreshold = 2; // Start scrolling 2 beats before edge
         
-        if (Math.abs(playheadOffset) > (beatsVisible / 2 - scrollMargin)) {
-          // Need to scroll - center on playhead
-          const newFirstBeat = Math.max(0, currentBeat - beatsVisible / 2);
+        if (currentBeat > (viewportEnd - scrollThreshold)) {
+          // Playhead near right edge - scroll forward
+          const newFirstBeat = Math.max(0, currentBeat - beatsVisible * 0.25); // Keep playhead at 25% from left
+          setViewportFirstBeat(newFirstBeat);
+          firstBeat = newFirstBeat;
+        } else if (currentBeat < (viewportFirstBeat + scrollThreshold)) {
+          // Playhead near left edge - scroll backward 
+          const newFirstBeat = Math.max(0, currentBeat - beatsVisible * 0.75); // Keep playhead at 75% from left
           setViewportFirstBeat(newFirstBeat);
           firstBeat = newFirstBeat;
         } else {
@@ -511,7 +516,6 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
         }
       } else {
         // Normal mode: show all existing notes
-        const allNotes = track.midiData.notes || [];
         const lastBeat = allNotes.length
           ? Math.max(...allNotes.map((n) => n.startTime + n.duration))
           : 16;
@@ -541,14 +545,12 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       const instrumentColor = track.midiData.instrument?.color || '#92ce84';
 
       // Compute dynamic pitch range with bounds to MIDI (A0..C8)
-      const minPitch = Math.max(
-        21,
-        Math.min(...allNotes.map((n) => n.note)) - 1,
-      );
-      const maxPitch = Math.min(
-        108,
-        Math.max(...allNotes.map((n) => n.note)) + 1,
-      );
+      const minPitch = allNotes.length > 0 
+        ? Math.max(21, Math.min(...allNotes.map((n) => n.note)) - 1)
+        : 60; // Default to C4 if no notes
+      const maxPitch = allNotes.length > 0
+        ? Math.min(108, Math.max(...allNotes.map((n) => n.note)) + 1)
+        : 72; // Default to C5 if no notes
       const noteRange = { min: minPitch, max: maxPitch };
       const lanes = Math.max(1, noteRange.max - noteRange.min + 1);
       const laneHeight = displayHeight / lanes;
@@ -628,6 +630,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     globalCurrentTime,
     globalIsPlaying,
     isRecording, // Add this so viewport updates when recording starts/stops
+    viewportFirstBeat, // Add this so canvas redraws when viewport scrolls
     track.midiData?.notes,
     track.midiData?.patterns,
     track.midiData?.arrangement,
