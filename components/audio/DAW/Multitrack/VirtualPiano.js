@@ -51,11 +51,11 @@ export default function VirtualPiano({ show, onHide }) {
     }
   }, [selectedTrack?.isRecording, currentTime]);
 
-  // Convert current time to beat position
+  // Convert current time to beat position (MUST match MIDITrack playhead calculation)
   const convertTimeToBeat = useCallback(
     (timeInSeconds) => {
-      const secondsPerBeat = 60 / tempo;
-      return timeInSeconds / secondsPerBeat;
+      const secPerBeat = 60 / tempo;  // Match MIDITrack variable name
+      return timeInSeconds / secPerBeat;
     },
     [tempo],
   );
@@ -150,6 +150,14 @@ export default function VirtualPiano({ show, onHide }) {
           const beatPosition = convertTimeToBeat(currentTime);
           const quantizedBeat = quantizeBeat(beatPosition);
 
+          console.log(`🎹 TIMING DEBUG:`, {
+            currentTime: currentTime,
+            tempo: tempo,
+            beatPosition: beatPosition,
+            quantizedBeat: quantizedBeat,
+            secondsPerBeat: 60 / tempo,
+          });
+
           const noteData = {
             id: generateNoteId(),
             note: note,
@@ -160,7 +168,7 @@ export default function VirtualPiano({ show, onHide }) {
 
           notesInProgressRef.current.set(note, noteData);
           console.log(
-            `Recording note ${note} at beat ${quantizedBeat.toFixed(3)}`,
+            `🎵 Recording note ${note} at beat ${quantizedBeat.toFixed(3)} (time: ${currentTime.toFixed(3)}s)`,
           );
         }
       } else if (type === 'up') {

@@ -42,6 +42,10 @@ export const MultitrackProvider = ({ children }) => {
 
   // Playback timer
   const playbackTimerRef = useRef(null);
+  
+  // Recording timer for MIDI recording
+  const recordingTimerRef = useRef(null);
+  const recordingStartTimeRef = useRef(0);
 
   // MIDI-specific refs
   const trackInstrumentsRef = useRef({}); // Store instrument references for each track
@@ -618,6 +622,28 @@ export const MultitrackProvider = ({ children }) => {
     [selectedTrackId, tracks, soloTrackId],
   );
 
+  // Recording timer functions for MIDI recording
+  const startRecordingTimer = useCallback(() => {
+    if (recordingTimerRef.current) return; // Already running
+    
+    recordingStartTimeRef.current = performance.now() / 1000;
+    const initialTime = currentTime;
+    
+    recordingTimerRef.current = requestAnimationFrame(function updateRecordingTime() {
+      const now = performance.now() / 1000;
+      const elapsed = now - recordingStartTimeRef.current;
+      setCurrentTime(initialTime + elapsed);
+      recordingTimerRef.current = requestAnimationFrame(updateRecordingTime);
+    });
+  }, [currentTime]);
+  
+  const stopRecordingTimer = useCallback(() => {
+    if (recordingTimerRef.current) {
+      cancelAnimationFrame(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+  }, []);
+
   const addNoteToSelectedTrack = useCallback(
     (note, velocity01, startBeat, durationBeats) => {
       if (!selectedTrackId) return;
@@ -1027,6 +1053,10 @@ export const MultitrackProvider = ({ children }) => {
     playNoteOnSelectedTrack,
     stopNoteOnSelectedTrack,
     addNoteToSelectedTrack,
+    
+    // Recording timer for MIDI
+    startRecordingTimer,
+    stopRecordingTimer,
   };
 
   return (

@@ -60,6 +60,9 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
   // Local countdown states (separate from hook states)
   const [isCountingDown, setIsCountingDown] = useState(false);
   const [countdownBeat, setCountdownBeat] = useState(0);
+  
+  // Viewport tracking for smooth auto-scroll
+  const [viewportFirstBeat, setViewportFirstBeat] = useState(0);
   // const scheduledNotesRef = useRef([]);
   // const audioContextRef = useRef(null);
   // const instrumentRef = useRef(null);
@@ -122,6 +125,8 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     stopNoteOnSelectedTrack,
     play,
     stop,
+    startRecordingTimer,
+    stopRecordingTimer,
     setTracks,
   } = useMultitrack();
 
@@ -212,8 +217,8 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       // Stop recording or cancel countdown
       if (isRecording) {
         stopRecording();
-        // Stop playback when recording stops
-        stop();
+        // Stop recording timer
+        stopRecordingTimer();
       }
       setIsCountingDown(false);
       setCountdownBeat(0);
@@ -237,10 +242,13 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
               countIn: false,
               overdub: false,
             });
-            // Start playback to move the playhead
-            if (!globalIsPlaying) {
-              play();
-            }
+            // Start recording timer to move playhead
+            startRecordingTimer();
+            // Initialize viewport to center on current position
+            const tempo = track.midiData?.tempo || 120;
+            const secPerBeat = 60 / tempo;
+            const currentBeat = globalCurrentTime / secPerBeat;
+            setViewportFirstBeat(Math.max(0, currentBeat - 8)); // Center playhead
             // Update track state
             updateTrack(track.id, { isRecording: true });
             return 0;
@@ -475,16 +483,45 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
         return;
       }
 
-      // Compute content-aware time window
-      const allNotes = track.midiData.notes || [];
-      const lastBeat = allNotes.length
-        ? Math.max(...allNotes.map((n) => n.startTime + n.duration))
-        : 16;
-      const firstBeat = allNotes.length
-        ? Math.min(...allNotes.map((n) => n.startTime))
-        : 0;
-      // Keep a minimum window so very short clips still show structure
-      const beatsVisible = Math.max(16, lastBeat - firstBeat || 16);
+      // Compute content-aware time window - follow playhead during recording
+      let firstBeat, beatsVisible;
+      
+      if (isRecording && globalCurrentTime > 0) {
+        // Follow playhead during recording with smooth scrolling
+        const tempo = track.midiData?.tempo || 120;
+        const secPerBeat = 60 / tempo;
+        const currentBeat = globalCurrentTime / secPerBeat;
+        
+        // Show 8 beats behind and 8 beats ahead of playhead (16 beat window)
+        beatsVisible = 16;
+        
+        // Smooth scroll: only move viewport when playhead gets close to edges
+        const scrollMargin = 2; // Start scrolling when 2 beats from edge
+        const currentCenter = viewportFirstBeat + beatsVisible / 2;
+        const playheadOffset = currentBeat - currentCenter;
+        
+        if (Math.abs(playheadOffset) > (beatsVisible / 2 - scrollMargin)) {
+          // Need to scroll - center on playhead
+          const newFirstBeat = Math.max(0, currentBeat - beatsVisible / 2);
+          setViewportFirstBeat(newFirstBeat);
+          firstBeat = newFirstBeat;
+        } else {
+          // Use existing viewport position
+          firstBeat = viewportFirstBeat;
+        }
+      } else {
+        // Normal mode: show all existing notes
+        const allNotes = track.midiData.notes || [];
+        const lastBeat = allNotes.length
+          ? Math.max(...allNotes.map((n) => n.startTime + n.duration))
+          : 16;
+        firstBeat = allNotes.length
+          ? Math.min(...allNotes.map((n) => n.startTime))
+          : 0;
+        // Keep a minimum window so very short clips still show structure
+        beatsVisible = Math.max(16, lastBeat - firstBeat || 16);
+      }
+      
       const pixelsPerBeat = displayWidth / beatsVisible;
 
       // Draw grid
@@ -563,20 +600,23 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
         ctx.fillRect(x, y, visibleWidth, laneHeight - 1);
       });
 
-      // Draw playhead if playing
-      // if (globalIsPlaying) {
-      //   const tempo = track.midiData?.tempo || 120;
-      //   const secPerBeat = 60 / tempo;
-      //   const currentBeat = globalCurrentTime / secPerBeat;
-      //   const playheadX =
-      //     ((currentBeat - firstBeat) / beatsVisible) * displayWidth;
-      //   ctx.strokeStyle = '#ff3030';
-      //   ctx.lineWidth = 2;
-      //   ctx.beginPath();
-      //   ctx.moveTo(playheadX, 0);
-      //   ctx.lineTo(playheadX, displayHeight);
-      //   ctx.stroke();
-      // }
+      // Draw playhead if playing or recording
+      if (globalIsPlaying || isRecording) {
+        const tempo = track.midiData?.tempo || 120;
+        const secPerBeat = 60 / tempo;
+        const currentBeat = globalCurrentTime / secPerBeat;
+        const playheadX =
+          ((currentBeat - firstBeat) / beatsVisible) * displayWidth;
+        
+        if (playheadX >= 0 && playheadX <= displayWidth) {
+          ctx.strokeStyle = isRecording ? '#ff6060' : '#ff3030';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(playheadX, 0);
+          ctx.lineTo(playheadX, displayHeight);
+          ctx.stroke();
+        }
+      }
     }
 
     // Restore context state
@@ -587,6 +627,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     zoomLevel,
     globalCurrentTime,
     globalIsPlaying,
+    isRecording, // Add this so viewport updates when recording starts/stops
     track.midiData?.notes,
     track.midiData?.patterns,
     track.midiData?.arrangement,
