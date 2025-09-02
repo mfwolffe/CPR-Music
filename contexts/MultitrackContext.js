@@ -622,6 +622,18 @@ export const MultitrackProvider = ({ children }) => {
     [selectedTrackId, tracks, soloTrackId],
   );
 
+  // Get real-time current time for precise note placement
+  const getPreciseCurrentTime = useCallback(() => {
+    if (recordingTimerRef.current && recordingStartTimeRef.current) {
+      // If recording timer is active, calculate precise time
+      const now = performance.now() / 1000;
+      const elapsed = now - recordingStartTimeRef.current;
+      const initialTime = currentTime - elapsed; // Back-calculate initial time
+      return initialTime + elapsed;
+    }
+    return currentTime;
+  }, [currentTime]);
+
   // Recording timer functions for MIDI recording
   const startRecordingTimer = useCallback(() => {
     if (recordingTimerRef.current) return; // Already running
@@ -1057,6 +1069,7 @@ export const MultitrackProvider = ({ children }) => {
     // Recording timer for MIDI
     startRecordingTimer,
     stopRecordingTimer,
+    getPreciseCurrentTime,
   };
 
   return (

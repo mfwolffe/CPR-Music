@@ -17,6 +17,7 @@ export default function VirtualPiano({ show, onHide }) {
     playNoteOnSelectedTrack,
     stopNoteOnSelectedTrack,
     updateTrack,
+    getPreciseCurrentTime,
   } = useMultitrack();
 
   // State
@@ -119,8 +120,9 @@ export default function VirtualPiano({ show, onHide }) {
   // Handle when playback is stopped with notes still held
   const handlePlaybackStopped = useCallback(() => {
     notesInProgressRef.current.forEach((noteData, note) => {
-      // Finalize any held notes
-      const endBeat = convertTimeToBeat(currentTime);
+      // Finalize any held notes using precise timing
+      const preciseEndTime = getPreciseCurrentTime();
+      const endBeat = convertTimeToBeat(preciseEndTime);
       noteData.duration = Math.max(0.125, endBeat - noteData.startTime);
       addNoteToTrack(noteData);
 
@@ -130,7 +132,7 @@ export default function VirtualPiano({ show, onHide }) {
 
     notesInProgressRef.current.clear();
     setActiveNotes([]);
-  }, [currentTime, convertTimeToBeat, addNoteToTrack, stopNoteOnSelectedTrack]);
+  }, [getPreciseCurrentTime, convertTimeToBeat, addNoteToTrack, stopNoteOnSelectedTrack]);
 
   // Main note event handler
   const handleNoteClick = useCallback(
@@ -147,15 +149,19 @@ export default function VirtualPiano({ show, onHide }) {
 
         // If recording, start tracking this note
         if (isRecording) {
-          const beatPosition = convertTimeToBeat(currentTime);
+          // Use precise timing that matches the recording timer
+          const preciseTime = getPreciseCurrentTime();
+          const beatPosition = convertTimeToBeat(preciseTime);
           const quantizedBeat = quantizeBeat(beatPosition);
 
           console.log(`🎹 TIMING DEBUG:`, {
             currentTime: currentTime,
+            preciseTime: preciseTime,
             tempo: tempo,
             beatPosition: beatPosition,
             quantizedBeat: quantizedBeat,
             secondsPerBeat: 60 / tempo,
+            timeDifference: preciseTime - currentTime,
           });
 
           const noteData = {
@@ -179,7 +185,8 @@ export default function VirtualPiano({ show, onHide }) {
         // If we were recording this note, finalize it
         if (isRecording && notesInProgressRef.current.has(note)) {
           const noteData = notesInProgressRef.current.get(note);
-          const endBeat = convertTimeToBeat(currentTime);
+          const preciseEndTime = getPreciseCurrentTime();
+          const endBeat = convertTimeToBeat(preciseEndTime);
           const quantizedEndBeat =
             quantizeValue > 0 ? quantizeBeat(endBeat) : endBeat;
 
