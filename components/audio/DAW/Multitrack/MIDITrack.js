@@ -485,61 +485,71 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
         return;
       }
 
-      // Compute content-aware time window - follow playhead during recording
-      let firstBeat, beatsVisible;
+      // Compute content-aware time window - UNIFIED SECONDS-BASED SYSTEM (matches MultitrackEditor)
+      let firstSecond, secondsVisible;
+      const tempo = track.midiData?.tempo || 120;
+      const secPerBeat = 60 / tempo;
       
       if (isRecording && globalCurrentTime > 0) {
         // Follow playhead during recording with auto-scroll
-        const tempo = track.midiData?.tempo || 120;
-        const secPerBeat = 60 / tempo;
-        const currentBeat = globalCurrentTime / secPerBeat;
+        const currentSecond = globalCurrentTime;
         
-        // Use a dynamic window that expands as recording progresses
-        beatsVisible = Math.max(16, Math.ceil(currentBeat + 4));
+        // Use a dynamic window that expands as recording progresses (convert from beats to seconds)
+        const equivalentBeats = Math.max(16, Math.ceil(currentSecond / secPerBeat + 4));
+        secondsVisible = equivalentBeats * secPerBeat;
         
         // Auto-scroll when playhead reaches the right edge of canvas
-        const viewportEnd = viewportFirstBeat + beatsVisible;
-        const scrollThreshold = 2; // Start scrolling 2 beats before edge
+        const viewportEndTime = (viewportFirstBeat * secPerBeat) + secondsVisible;
+        const scrollThreshold = 2 * secPerBeat; // Start scrolling 2 beats before edge (in seconds)
         
-        if (currentBeat > (viewportEnd - scrollThreshold)) {
+        if (currentSecond > (viewportEndTime - scrollThreshold)) {
           // Playhead near right edge - scroll forward
-          const newFirstBeat = Math.max(0, currentBeat - beatsVisible * 0.25); // Keep playhead at 25% from left
-          setViewportFirstBeat(newFirstBeat);
-          firstBeat = newFirstBeat;
-        } else if (currentBeat < (viewportFirstBeat + scrollThreshold)) {
+          const newFirstSecond = Math.max(0, currentSecond - secondsVisible * 0.25); // Keep playhead at 25% from left
+          setViewportFirstBeat(newFirstSecond / secPerBeat); // Store as beats for state consistency
+          firstSecond = newFirstSecond;
+        } else if (currentSecond < (viewportFirstBeat * secPerBeat + scrollThreshold)) {
           // Playhead near left edge - scroll backward 
-          const newFirstBeat = Math.max(0, currentBeat - beatsVisible * 0.75); // Keep playhead at 75% from left
-          setViewportFirstBeat(newFirstBeat);
-          firstBeat = newFirstBeat;
+          const newFirstSecond = Math.max(0, currentSecond - secondsVisible * 0.75); // Keep playhead at 75% from left
+          setViewportFirstBeat(newFirstSecond / secPerBeat); // Store as beats for state consistency
+          firstSecond = newFirstSecond;
         } else {
-          // Use existing viewport position
-          firstBeat = viewportFirstBeat;
+          // Use existing viewport position (convert beats to seconds)
+          firstSecond = viewportFirstBeat * secPerBeat;
         }
       } else {
-        // Normal mode: show all existing notes
+        // Normal mode: show all existing notes (convert beats to seconds)
         const lastBeat = allNotes.length
           ? Math.max(...allNotes.map((n) => n.startTime + n.duration))
           : 16;
-        firstBeat = allNotes.length
+        const firstBeat = allNotes.length
           ? Math.min(...allNotes.map((n) => n.startTime))
           : 0;
+          
+        // Convert beats to seconds for unified coordinate system
+        firstSecond = firstBeat * secPerBeat;
+        const lastSecond = lastBeat * secPerBeat;
+        
         // Keep a minimum window so very short clips still show structure
-        beatsVisible = Math.max(16, lastBeat - firstBeat || 16);
+        secondsVisible = Math.max(16 * secPerBeat, lastSecond - firstSecond || 16 * secPerBeat);
       }
       
-      const pixelsPerBeat = displayWidth / beatsVisible;
+      const pixelsPerSecond = displayWidth / secondsVisible;
 
-      // Draw grid
+      // Draw grid - using seconds-based coordinates
       ctx.strokeStyle = '#333';
       ctx.lineWidth = 0.5;
 
-      // Vertical grid (beats)
-      for (let beat = 0; beat <= beatsVisible; beat++) {
-        const x = (beat / beatsVisible) * displayWidth;
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, displayHeight);
-        ctx.stroke();
+      // Vertical grid (beats) - convert beat positions to seconds, then to pixels
+      const beatsToShow = Math.ceil(secondsVisible / secPerBeat);
+      for (let beat = 0; beat <= beatsToShow; beat++) {
+        const beatTimeInSeconds = firstSecond + (beat * secPerBeat);
+        const x = (beatTimeInSeconds - firstSecond) * pixelsPerSecond;
+        if (x >= 0 && x <= displayWidth) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, displayHeight);
+          ctx.stroke();
+        }
       }
 
       // Draw notes
@@ -576,12 +586,14 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
         // Skip notes outside the computed pitch range
         if (note.note < noteRange.min || note.note > noteRange.max) return;
 
-        // Calculate note position
-        const x = (note.startTime - firstBeat) * pixelsPerBeat;
+        // Calculate note position - UNIFIED SECONDS-BASED COORDINATES
+        const noteStartTimeInSeconds = note.startTime * secPerBeat; // Convert beats to seconds
+        const x = (noteStartTimeInSeconds - firstSecond) * pixelsPerSecond;
         const y = displayHeight - (note.note - noteRange.min + 1) * laneHeight;
 
-        // Calculate width with proper duration scaling
-        const noteWidth = Math.max(1, note.duration * pixelsPerBeat);
+        // Calculate width with proper duration scaling - UNIFIED SECONDS-BASED COORDINATES
+        const noteDurationInSeconds = note.duration * secPerBeat; // Convert beat duration to seconds
+        const noteWidth = Math.max(1, noteDurationInSeconds * pixelsPerSecond);
 
         // Clip note width if it extends beyond canvas
         const visibleWidth = Math.min(noteWidth, displayWidth - x);

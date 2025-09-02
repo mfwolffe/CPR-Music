@@ -175,14 +175,17 @@ export default function VirtualPiano({ show, onHide }) {
           const quantizedBeat = quantizeBeat(beatPosition);
 
           if (process.env.NODE_ENV === 'development') {
-            console.log(`🎹 TIMING DEBUG:`, {
-              currentTime: currentTime,
-              preciseTime: preciseTime,
+            console.log(`🎹 UNIFIED COORDINATE DEBUG - Note Start:`, {
+              currentTime: currentTime.toFixed(3),
+              preciseTime: preciseTime.toFixed(3),
               tempo: tempo,
-              beatPosition: beatPosition,
-              quantizedBeat: quantizedBeat,
-              secondsPerBeat: 60 / tempo,
-              timeDifference: preciseTime - currentTime,
+              beatPosition: beatPosition.toFixed(3),
+              quantizedBeat: quantizedBeat.toFixed(3),
+              coordinateSystem: 'BEATS_TO_SECONDS_IN_MIDITRACK',
+              expectedSecondsInMIDITrack: (quantizedBeat * (60 / tempo)).toFixed(3),
+              secondsPerBeat: (60 / tempo).toFixed(3),
+              timeDifference: (preciseTime - currentTime).toFixed(3),
+              note: note,
             });
           }
 
@@ -190,8 +193,9 @@ export default function VirtualPiano({ show, onHide }) {
             id: generateNoteId(),
             note: note,
             velocity: 100,
-            startTime: quantizedBeat,
-            duration: 0, // Will be set on note up
+            startTime: quantizedBeat, // Store in beats - will be converted to seconds in MIDITrack rendering
+            startTimeSeconds: quantizedBeat * (60 / tempo), // Store seconds for debugging
+            duration: 0, // Will be set on note up in beats - will be converted to seconds in MIDITrack rendering
           };
 
           notesInProgressRef.current.set(note, noteData);
@@ -221,11 +225,16 @@ export default function VirtualPiano({ show, onHide }) {
           );
 
           if (process.env.NODE_ENV === 'development') {
-            console.log(`🎹 VirtualPiano: Finalizing note ${note}`, {
-              startBeat: noteData.startTime,
-              endBeat: quantizedEndBeat,
-              duration: noteData.duration,
-              noteData: noteData,
+            console.log(`🎹 UNIFIED COORDINATE DEBUG - Note End:`, {
+              note: note,
+              preciseEndTime: preciseEndTime.toFixed(3),
+              endBeat: endBeat.toFixed(3),
+              quantizedEndBeat: quantizedEndBeat.toFixed(3),
+              startBeat: noteData.startTime.toFixed(3),
+              duration: noteData.duration.toFixed(3),
+              coordinateSystem: 'BEATS_TO_SECONDS_IN_MIDITRACK',
+              expectedDurationInSeconds: (noteData.duration * (60 / tempo)).toFixed(3),
+              currentTime: currentTime.toFixed(3),
             });
           }
 

@@ -46,6 +46,8 @@ export const MultitrackProvider = ({ children }) => {
   // Recording timer for MIDI recording
   const recordingTimerRef = useRef(null);
   const recordingStartTimeRef = useRef(0);
+  const recordingInitialTimeRef = useRef(0);
+  const currentTimeRef = useRef(currentTime);
 
   // MIDI-specific refs
   const trackInstrumentsRef = useRef({}); // Store instrument references for each track
@@ -635,16 +637,21 @@ export const MultitrackProvider = ({ children }) => {
   );
 
   // Get real-time current time for precise note placement
+  // Keep currentTime ref updated
+  useEffect(() => {
+    currentTimeRef.current = currentTime;
+  }, [currentTime]);
+
   const getPreciseCurrentTime = useCallback(() => {
     if (recordingTimerRef.current && recordingStartTimeRef.current) {
-      // If recording timer is active, calculate precise time
+      // If recording timer is active, use the same calculation as the recording timer
       const now = performance.now() / 1000;
       const elapsed = now - recordingStartTimeRef.current;
-      const initialTime = currentTime - elapsed; // Back-calculate initial time
-      return initialTime + elapsed;
+      // Use the stored initial time from when recording started + precise elapsed time
+      return recordingInitialTimeRef.current + elapsed;
     }
-    return currentTime;
-  }, [currentTime]);
+    return currentTimeRef.current; // Use ref to avoid callback recreation
+  }, []); // No dependencies = stable callback
 
   // Recording timer functions for MIDI recording
   const startRecordingTimer = useCallback(() => {
@@ -652,6 +659,7 @@ export const MultitrackProvider = ({ children }) => {
     
     recordingStartTimeRef.current = performance.now() / 1000;
     const initialTime = currentTime;
+    recordingInitialTimeRef.current = initialTime; // Store for precise timing
     
     const startTime = recordingStartTimeRef.current;
     recordingTimerRef.current = requestAnimationFrame(function updateRecordingTime() {

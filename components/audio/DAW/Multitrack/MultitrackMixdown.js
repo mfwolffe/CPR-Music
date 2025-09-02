@@ -990,9 +990,19 @@ async function renderMIDITrackToAudio(track, sampleRate = 44100, bpm = 120) {
       const duration = Math.max(0.01, note.duration);
       const midi = Math.round(69 + 12 * Math.log2(note.freq / 440));
       
-      // Scale velocity down significantly to prevent static
+      // Smart velocity scaling - handle both low and normal MIDI velocities
       const originalVelocity = note.velocity || 100;
-      const scaledVelocity = Math.min(0.3, originalVelocity / 127 * 0.5);
+      
+      // If velocity is very low (0-10), treat as normalized (0-1) and boost appropriately
+      // If velocity is normal MIDI range (11-127), scale down to prevent overdrive
+      let scaledVelocity;
+      if (originalVelocity <= 10) {
+        // Low velocity (likely normalized 0-1) - boost to audible level
+        scaledVelocity = Math.min(0.4, originalVelocity * 0.4);
+      } else {
+        // Normal MIDI velocity (11-127) - scale down conservatively  
+        scaledVelocity = Math.min(0.4, originalVelocity / 127 * 0.6);
+      }
       
       if (process.env.NODE_ENV === 'development') {
         console.log(`Note ${midi}: velocity ${originalVelocity} -> ${scaledVelocity.toFixed(3)}, start: ${start.toFixed(2)}s, dur: ${duration.toFixed(2)}s`);
@@ -1051,23 +1061,27 @@ async function renderMIDIWithFallbackSynth(offline, midiNotes, destination) {
     osc.type = 'triangle';
     osc.frequency.setValueAtTime(n.freq, start);
 
-    // Improved filter settings
+    // Clean filter settings (no resonance to prevent artifacts)
     const filter = offline.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(
-      Math.min(1500, 800 + (n.velocity ?? 1) * 700),
-      start,
-    );
-    filter.Q.setValueAtTime(0.8, start);
+    filter.frequency.setValueAtTime(2000, start); // Fixed frequency, no velocity modulation
+    filter.Q.setValueAtTime(0.3, start); // Very low Q to prevent resonance buildup
 
-    // Gentle envelope
+    // Proper ADSR envelope with guaranteed note-off
     const env = offline.createGain();
-    const baseGain = 0.05;
-    const peak = baseGain * (n.velocity ?? 1);
+    const baseGain = 0.02; // Lower gain to prevent accumulation
+    const peak = baseGain * Math.min(0.8, (n.velocity ?? 0.5)); // Cap velocity scaling
+
+    // Attack - Decay - Sustain - Release
+    const attackTime = 0.01;
+    const decayTime = 0.05; 
+    const sustainLevel = peak * 0.4; // Lower sustain
+    const releaseTime = 0.2;
 
     env.gain.setValueAtTime(0.0001, start);
-    env.gain.linearRampToValueAtTime(peak, start + 0.005);
-    env.gain.exponentialRampToValueAtTime(peak * 0.6, start + 0.05);
+    env.gain.linearRampToValueAtTime(peak, start + attackTime);
+    env.gain.exponentialRampToValueAtTime(sustainLevel, start + attackTime + decayTime);
+    env.gain.setValueAtTime(sustainLevel, start + dur - releaseTime);
     env.gain.exponentialRampToValueAtTime(0.0001, start + dur);
 
     // Connect and manage voice

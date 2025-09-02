@@ -361,7 +361,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
         cancelAnimationFrame(animationId);
       }
     };
-  }, [currentTime, duration, zoomLevel, isPlaying]);
+  }, [duration, zoomLevel, isPlaying]); // Remove currentTime dependency to prevent constant re-runs
 
   return (
     <Container fluid className="multitrack-editor p-3">
