@@ -30,6 +30,8 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
     currentTime,
     duration,
     isPlaying,
+    play,
+    stop,
   } = useMultitrack();
 
   const [mediaStream, setMediaStream] = useState(null);
@@ -185,6 +187,11 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
     // Capture current playhead position when recording starts
     const recordingStartPosition = currentTime;
 
+    // Start playback to move the playhead
+    if (!isPlaying) {
+      play();
+    }
+
     // Determine MIME type
     const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
       ? 'audio/webm;codecs=opus'
@@ -282,7 +289,10 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
       mediaRecorderRef.current.state === 'recording'
     ) {
       mediaRecorderRef.current.stop();
+      // Stop playback when recording stops
+      stop();
     }
+    setIsRecording(false);
   };
 
   // Handlers to mirror Audio Track controls

@@ -212,6 +212,8 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       // Stop recording or cancel countdown
       if (isRecording) {
         stopRecording();
+        // Stop playback when recording stops
+        stop();
       }
       setIsCountingDown(false);
       setCountdownBeat(0);
@@ -235,6 +237,10 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
               countIn: false,
               overdub: false,
             });
+            // Start playback to move the playhead
+            if (!globalIsPlaying) {
+              play();
+            }
             // Update track state
             updateTrack(track.id, { isRecording: true });
             return 0;
