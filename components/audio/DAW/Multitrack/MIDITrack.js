@@ -610,6 +610,20 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
         const playheadX =
           ((currentBeat - firstBeat) / beatsVisible) * displayWidth;
         
+        // Debug logging for playhead movement (development only)
+        if (isRecording && process.env.NODE_ENV === 'development') {
+          console.log(`🔴 PLAYHEAD DEBUG:`, {
+            globalCurrentTime,
+            currentBeat: currentBeat.toFixed(3),
+            firstBeat: firstBeat.toFixed(3),
+            beatsVisible,
+            playheadX: playheadX.toFixed(1),
+            displayWidth,
+            isRecording,
+            viewportFirstBeat: viewportFirstBeat.toFixed(3),
+          });
+        }
+        
         if (playheadX >= 0 && playheadX <= displayWidth) {
           ctx.strokeStyle = isRecording ? '#ff6060' : '#ff3030';
           ctx.lineWidth = 2;

@@ -81,24 +81,42 @@ export default function VirtualPiano({ show, onHide }) {
     (noteData) => {
       if (!selectedTrack) return;
 
-      // Ensure minimum duration
-      const minDuration = 0.125; // 1/32 note
-      if (noteData.duration < minDuration) {
-        noteData.duration = minDuration;
+      // Validate and sanitize note data
+      const sanitizedNote = {
+        id: noteData.id || generateNoteId(),
+        note: Math.max(0, Math.min(127, Math.round(Number(noteData.note) || 60))), // Clamp to MIDI range
+        velocity: Math.max(1, Math.min(127, Math.round(Number(noteData.velocity) || 100))), // Clamp velocity
+        startTime: Math.max(0, Number(noteData.startTime) || 0), // Ensure positive
+        duration: Math.max(0.125, Number(noteData.duration) || 0.125), // Minimum 1/32 note
+      };
+
+      // Validate required fields
+      if (!sanitizedNote.id || isNaN(sanitizedNote.note) || isNaN(sanitizedNote.startTime)) {
+        console.warn('Invalid note data, skipping:', noteData);
+        return;
       }
 
-      // Debug logging
-      console.log('🎹 VirtualPiano: Adding note to track', {
-        trackId: selectedTrack.id,
-        trackName: selectedTrack.name,
-        noteData: noteData,
-        existingNotes: selectedTrack.midiData?.notes?.length || 0,
-        midiData: selectedTrack.midiData,
-      });
+      // Debug logging (development only)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🎹 VirtualPiano: Adding note to track', {
+          trackId: selectedTrack.id,
+          trackName: selectedTrack.name,
+          noteData: sanitizedNote,
+          existingNotes: selectedTrack.midiData?.notes?.length || 0,
+        });
+      }
 
-      // Create the updated notes array
+      // Create the updated notes array with memory limit
       const existingNotes = selectedTrack.midiData?.notes || [];
-      const updatedNotes = [...existingNotes, noteData];
+      
+      // Prevent memory issues by limiting total notes (configurable)
+      const MAX_NOTES_PER_TRACK = 10000; // ~10k notes should be plenty for most use cases
+      if (existingNotes.length >= MAX_NOTES_PER_TRACK) {
+        console.warn(`Track ${selectedTrack.id} has reached maximum note limit (${MAX_NOTES_PER_TRACK}), ignoring new note`);
+        return;
+      }
+      
+      const updatedNotes = [...existingNotes, sanitizedNote];
 
       // Update the track
       updateTrack(selectedTrack.id, {
@@ -108,9 +126,11 @@ export default function VirtualPiano({ show, onHide }) {
         },
       });
 
-      console.log('🎹 VirtualPiano: After update call', {
-        updatedNotesLength: updatedNotes.length,
-      });
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🎹 VirtualPiano: After update call', {
+          updatedNotesLength: updatedNotes.length,
+        });
+      }
 
       setNoteCount((prev) => prev + 1);
     },
@@ -154,15 +174,17 @@ export default function VirtualPiano({ show, onHide }) {
           const beatPosition = convertTimeToBeat(preciseTime);
           const quantizedBeat = quantizeBeat(beatPosition);
 
-          console.log(`🎹 TIMING DEBUG:`, {
-            currentTime: currentTime,
-            preciseTime: preciseTime,
-            tempo: tempo,
-            beatPosition: beatPosition,
-            quantizedBeat: quantizedBeat,
-            secondsPerBeat: 60 / tempo,
-            timeDifference: preciseTime - currentTime,
-          });
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`🎹 TIMING DEBUG:`, {
+              currentTime: currentTime,
+              preciseTime: preciseTime,
+              tempo: tempo,
+              beatPosition: beatPosition,
+              quantizedBeat: quantizedBeat,
+              secondsPerBeat: 60 / tempo,
+              timeDifference: preciseTime - currentTime,
+            });
+          }
 
           const noteData = {
             id: generateNoteId(),
@@ -173,9 +195,11 @@ export default function VirtualPiano({ show, onHide }) {
           };
 
           notesInProgressRef.current.set(note, noteData);
-          console.log(
-            `🎵 Recording note ${note} at beat ${quantizedBeat.toFixed(3)} (time: ${currentTime.toFixed(3)}s)`,
-          );
+          if (process.env.NODE_ENV === 'development') {
+            console.log(
+              `🎵 Recording note ${note} at beat ${quantizedBeat.toFixed(3)} (time: ${currentTime.toFixed(3)}s)`,
+            );
+          }
         }
       } else if (type === 'up') {
         // Always stop the note sound
@@ -196,12 +220,14 @@ export default function VirtualPiano({ show, onHide }) {
             quantizedEndBeat - noteData.startTime,
           );
 
-          console.log(`🎹 VirtualPiano: Finalizing note ${note}`, {
-            startBeat: noteData.startTime,
-            endBeat: quantizedEndBeat,
-            duration: noteData.duration,
-            noteData: noteData,
-          });
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`🎹 VirtualPiano: Finalizing note ${note}`, {
+              startBeat: noteData.startTime,
+              endBeat: quantizedEndBeat,
+              duration: noteData.duration,
+              noteData: noteData,
+            });
+          }
 
           // Add to track
           addNoteToTrack(noteData);

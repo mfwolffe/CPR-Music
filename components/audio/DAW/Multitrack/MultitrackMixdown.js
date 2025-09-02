@@ -1094,6 +1094,7 @@ async function mixdownClipsAndMidi(
   // Signal to the app that we're in mixdown mode to prevent dual synthesis
   if (typeof window !== 'undefined') {
     window.__MIXDOWN_ACTIVE__ = true;
+    console.log('🎛️ Mixdown: Set __MIXDOWN_ACTIVE__ = true');
   }
   onProgress(5);
   const soloIds = new Set(tracks.filter((t) => t.soloed).map((t) => t.id));
@@ -1351,6 +1352,7 @@ async function mixdownClipsAndMidi(
     // Always clear the mixdown flag, even if rendering fails
     if (typeof window !== 'undefined') {
       window.__MIXDOWN_ACTIVE__ = false;
+      console.log('🎛️ Mixdown: Cleared __MIXDOWN_ACTIVE__ = false');
     }
   }
 }

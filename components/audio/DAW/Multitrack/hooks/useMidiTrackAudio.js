@@ -45,19 +45,38 @@ export function useMIDITrackAudio(
     pannerRef.current.connect(audioContextManager.getDestination());
 
     return () => {
-      // Cleanup
-      if (instrumentRef.current) {
-        instrumentRef.current.stopAllNotes?.();
-        instrumentRef.current.dispose?.();
+      // Robust cleanup with error handling
+      try {
+        if (instrumentRef.current) {
+          instrumentRef.current.stopAllNotes?.();
+          instrumentRef.current.dispose?.();
+        }
+      } catch (error) {
+        console.warn('Error disposing instrument:', error);
       }
-      if (schedulerRef.current) {
-        schedulerRef.current.stop();
+      
+      try {
+        if (schedulerRef.current) {
+          schedulerRef.current.stop();
+        }
+      } catch (error) {
+        console.warn('Error stopping scheduler:', error);
       }
-      if (recorderRef.current) {
-        recorderRef.current.stop();
+      
+      try {
+        if (recorderRef.current) {
+          recorderRef.current.stop();
+        }
+      } catch (error) {
+        console.warn('Error stopping recorder:', error);
       }
-      masterGainRef.current?.disconnect();
-      pannerRef.current?.disconnect();
+      
+      try {
+        masterGainRef.current?.disconnect();
+        pannerRef.current?.disconnect();
+      } catch (error) {
+        console.warn('Error disconnecting audio nodes:', error);
+      }
     };
   }, []);
 
@@ -98,13 +117,15 @@ export function useMIDITrackAudio(
       };
 
       const { type, preset, name, id } = instrument;
-      console.log('🎹 Creating instrument', {
-        trackId: track.id,
-        type,
-        preset,
-        name,
-        id,
-      });
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🎹 Creating instrument', {
+          trackId: track.id,
+          type,
+          preset,
+          name,
+          id,
+        });
+      }
 
       let inst = null;
       try {
@@ -196,7 +217,18 @@ export function useMIDITrackAudio(
   // Update scheduler with notes and tempo
   useEffect(() => {
     if (schedulerRef.current) {
-      schedulerRef.current.setNotes(track.midiData?.notes || []);
+      const notes = track.midiData?.notes || [];
+      // Only log in development
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`🎼 MIDI Track ${track.id}: Setting ${notes.length} notes on scheduler`, {
+          trackId: track.id,
+          trackName: track.name,
+          notesCount: notes.length,
+          notes: notes.slice(0, 3),
+          tempo: track.midiData?.tempo || 120,
+        });
+      }
+      schedulerRef.current.setNotes(notes);
       schedulerRef.current.setTempo(track.midiData?.tempo || 120);
     }
   }, [track.midiData?.notes, track.midiData?.tempo]);
@@ -214,13 +246,32 @@ export function useMIDITrackAudio(
       !track.muted && 
       track.midiData?.notes?.length > 0;
 
+    // Only log in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`🔊 MIDI Track ${track.id} playback decision:`, {
+        trackId: track.id,
+        isMixdownActive,
+        isGlobalPlaying,
+        trackMuted: track.muted,
+        notesLength: track.midiData?.notes?.length || 0,
+        shouldPlay,
+        lastPlayState: lastPlayStateRef.current,
+      });
+    }
+
     if (shouldPlay && !lastPlayStateRef.current) {
       // Start playback
       const beatPosition =
         (globalCurrentTime * (track.midiData?.tempo || 120)) / 60;
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`▶️ Starting MIDI playback for track ${track.id} at beat ${beatPosition.toFixed(3)}`);
+      }
       schedulerRef.current.start(beatPosition);
     } else if (!shouldPlay && lastPlayStateRef.current) {
       // Stop playback
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`⏹️ Stopping MIDI playback for track ${track.id}`);
+      }
       schedulerRef.current.stop();
     } else if (shouldPlay) {
       // Update position during playback

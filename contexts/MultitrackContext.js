@@ -71,6 +71,14 @@ export const MultitrackProvider = ({ children }) => {
 
   // (removed tick and useEffect for old transport)
 
+  // Clear any stuck mixdown state on component mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.__MIXDOWN_ACTIVE__) {
+      window.__MIXDOWN_ACTIVE__ = false;
+      console.log('🔧 Startup: Cleared stuck mixdown state from previous session');
+    }
+  }, []); // Run once on mount
+
   // Debug: Log when instruments change
   useEffect(() => {
     console.log(
@@ -641,11 +649,42 @@ export const MultitrackProvider = ({ children }) => {
     recordingStartTimeRef.current = performance.now() / 1000;
     const initialTime = currentTime;
     
+    const startTime = recordingStartTimeRef.current;
     recordingTimerRef.current = requestAnimationFrame(function updateRecordingTime() {
-      const now = performance.now() / 1000;
-      const elapsed = now - recordingStartTimeRef.current;
-      setCurrentTime(initialTime + elapsed);
-      recordingTimerRef.current = requestAnimationFrame(updateRecordingTime);
+      // Check if timer was cancelled during frame
+      if (!recordingTimerRef.current || recordingStartTimeRef.current !== startTime) {
+        return; // Timer was cancelled, don't continue
+      }
+      
+      try {
+        const now = performance.now() / 1000;
+        const elapsed = now - recordingStartTimeRef.current;
+        const newTime = initialTime + elapsed;
+        
+        // Only log in development
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`⏱️ RECORDING TIMER:`, {
+            elapsed: elapsed.toFixed(3),
+            initialTime: initialTime.toFixed(3),
+            newTime: newTime.toFixed(3),
+            performanceNow: now.toFixed(3),
+          });
+        }
+        
+        setCurrentTime(newTime);
+        
+        // Schedule next frame if still active
+        if (recordingTimerRef.current) {
+          recordingTimerRef.current = requestAnimationFrame(updateRecordingTime);
+        }
+      } catch (error) {
+        console.error('Recording timer error:', error);
+        // Clean up on error
+        if (recordingTimerRef.current) {
+          cancelAnimationFrame(recordingTimerRef.current);
+          recordingTimerRef.current = null;
+        }
+      }
     });
   }, [currentTime]);
   
@@ -653,6 +692,14 @@ export const MultitrackProvider = ({ children }) => {
     if (recordingTimerRef.current) {
       cancelAnimationFrame(recordingTimerRef.current);
       recordingTimerRef.current = null;
+    }
+  }, []);
+
+  // Emergency reset function to clear stuck mixdown state
+  const resetMixdownState = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      window.__MIXDOWN_ACTIVE__ = false;
+      console.log('🔧 Emergency: Cleared stuck mixdown state');
     }
   }, []);
 
@@ -1070,6 +1117,7 @@ export const MultitrackProvider = ({ children }) => {
     startRecordingTimer,
     stopRecordingTimer,
     getPreciseCurrentTime,
+    resetMixdownState,
   };
 
   return (
