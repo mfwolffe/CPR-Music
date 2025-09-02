@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { Button, Form, Card, Alert, ProgressBar } from 'react-bootstrap';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
-import TrackEffectsProcessor from './trackEffectsProcessor';
+import TrackEffectsProcessor from './TrackEffectsProcessor';
 
 const AVAILABLE_EFFECTS = [
   { id: 'reverb', name: 'Reverb', category: 'Space' },

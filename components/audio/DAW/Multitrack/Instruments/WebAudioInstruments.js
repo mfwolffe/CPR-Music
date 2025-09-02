@@ -1,4 +1,4 @@
-// components/audio/DAW/Multitrack/instruments/WebAudioInstruments.js
+// components/audio/DAW/Multitrack/Instruments/WebAudioInstruments.js
 
 /**
  * playNote returns a handle (voice object); stopNote accepts either a handle (to stop one voice) or a time (to stop all voices for the note).

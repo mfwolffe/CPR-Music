@@ -5,7 +5,10 @@ import { Button, Modal, Form, ProgressBar, Alert } from 'react-bootstrap';
 import { FaMixcloud } from 'react-icons/fa';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import { decodeAudioFromURL } from './AudioEngine';
-import { createInstrument } from './instruments/WebAudioInstruments';
+import { createInstrument } from './Instruments/WebAudioInstruments';
+import VoiceManager from '../../../../lib/VoiceManager';
+import midiRenderCache from '../../../../lib/MIDIRenderCache';
+import EnhancedSynth from '../../../../lib/EnhancedSynth';
 
 /** Numeric helper: safe conversion with default */
 function toNumber(val, def = 0) {
@@ -512,6 +515,574 @@ function collectTrackMidiNotes(track, tempo = { bpm: 120, stepsPerBeat: 4 }) {
 }
 
 /**
+ * Calculate adaptive gain staging based on mix complexity
+ */
+function calculateAdaptiveGain(trackCount, midiTrackCount, analogTrackCount) {
+  // Base gain starts conservative
+  let baseGain = 0.6;
+  
+  // Reduce gain as track count increases (logarithmic scaling)
+  const trackScale = Math.max(0.2, 1 - (Math.log(trackCount + 1) / Math.log(16)) * 0.5);
+  
+  // MIDI tracks generally have more consistent levels than analog
+  const midiRatio = midiTrackCount / Math.max(1, trackCount);
+  const analogRatio = analogTrackCount / Math.max(1, trackCount);
+  
+  // Analog tracks need more headroom due to peaks/transients
+  const headroomAdjust = analogRatio * 0.15; // Extra headroom for analog content
+  
+  // Final adaptive gain
+  const adaptiveGain = Math.max(0.15, baseGain * trackScale - headroomAdjust);
+  
+  console.log(`Adaptive Gain: ${trackCount} tracks (${midiTrackCount} MIDI, ${analogTrackCount} analog) → ${adaptiveGain.toFixed(3)}`);
+  
+  return adaptiveGain;
+}
+
+/**
+ * Create intelligent EQ compensation for dense mixes
+ */
+function createMixEQ(audioContext, trackCount, midiTrackCount) {
+  const eq = {
+    lowCut: audioContext.createBiquadFilter(),
+    lowShelf: audioContext.createBiquadFilter(),
+    midBoost: audioContext.createBiquadFilter(),
+    highShelf: audioContext.createBiquadFilter(),
+    highCut: audioContext.createBiquadFilter()
+  };
+  
+  // DC blocking high-pass (always active)
+  eq.lowCut.type = 'highpass';
+  eq.lowCut.frequency.value = 20;
+  eq.lowCut.Q.value = 0.707;
+  
+  // Low-frequency cleanup for dense mixes
+  eq.lowShelf.type = 'lowshelf';
+  eq.lowShelf.frequency.value = 80;
+  if (trackCount > 6) {
+    // Reduce muddiness in dense mixes
+    eq.lowShelf.gain.value = -2; // Gentle low cut
+    eq.lowShelf.Q.value = 0.707;
+  } else {
+    eq.lowShelf.gain.value = 0; // No change for sparse mixes
+  }
+  
+  // Mid-frequency presence adjustment
+  eq.midBoost.type = 'peaking';
+  eq.midBoost.frequency.value = 2500;
+  eq.midBoost.Q.value = 1.4;
+  if (midiTrackCount > trackCount * 0.6) {
+    // MIDI-heavy mixes benefit from midrange clarity
+    eq.midBoost.gain.value = 1.5;
+  } else {
+    eq.midBoost.gain.value = 0;
+  }
+  
+  // High-frequency management
+  eq.highShelf.type = 'highshelf';
+  eq.highShelf.frequency.value = 8000;
+  if (trackCount > 8) {
+    // Reduce harshness in very dense mixes
+    eq.highShelf.gain.value = -1.5;
+    eq.highShelf.Q.value = 0.707;
+  } else {
+    // Gentle presence boost for normal mixes
+    eq.highShelf.gain.value = 0.5;
+    eq.highShelf.Q.value = 0.707;
+  }
+  
+  // Anti-aliasing/harsh digital high cut
+  eq.highCut.type = 'lowpass';
+  eq.highCut.frequency.value = 18000;
+  eq.highCut.Q.value = 0.707;
+  
+  // Chain the EQ stages
+  eq.lowCut.connect(eq.lowShelf);
+  eq.lowShelf.connect(eq.midBoost);
+  eq.midBoost.connect(eq.highShelf);
+  eq.highShelf.connect(eq.highCut);
+  
+  console.log(`Mix EQ: ${trackCount} tracks, ${midiTrackCount} MIDI - Low: ${eq.lowShelf.gain.value}dB, Mid: ${eq.midBoost.gain.value}dB, High: ${eq.highShelf.gain.value}dB`);
+  
+  return {
+    input: eq.lowCut,
+    output: eq.highCut,
+    chain: eq
+  };
+}
+
+/**
+ * Calculate intelligent panning to reduce center channel buildup
+ */
+function calculateIntelligentPanning(tracks) {
+  const panAdjustments = new Map();
+  
+  // Count tracks by type for intelligent distribution
+  const tracksByType = {
+    midi: tracks.filter(t => t.type === 'midi'),
+    analog: tracks.filter(t => t.type !== 'midi'),
+    all: tracks
+  };
+  
+  // If 4 or fewer tracks, keep original panning (user preference respected)
+  if (tracks.length <= 4) {
+    tracks.forEach(track => {
+      panAdjustments.set(track.id, track.pan || 0);
+    });
+    console.log('Intelligent Panning: Few tracks detected, preserving user panning');
+    return panAdjustments;
+  }
+  
+  // For dense mixes, apply intelligent distribution
+  const centerThreshold = 0.1; // Tracks within ±10% are considered "center"
+  const centerTracks = tracks.filter(t => Math.abs(t.pan || 0) <= centerThreshold);
+  
+  if (centerTracks.length <= 2) {
+    // Light center buildup - minor adjustments
+    tracks.forEach(track => {
+      panAdjustments.set(track.id, track.pan || 0);
+    });
+    console.log('Intelligent Panning: Light center buildup, preserving user panning');
+    return panAdjustments;
+  }
+  
+  // Heavy center buildup - apply intelligent spreading
+  console.log(`Intelligent Panning: ${centerTracks.length} center tracks detected, applying intelligent spread`);
+  
+  const panPositions = [];
+  const spreadWidth = 0.7; // Max spread ±70%
+  
+  // Create spread positions (avoid extreme L/R for most content)
+  for (let i = 0; i < centerTracks.length; i++) {
+    const position = (i / Math.max(1, centerTracks.length - 1) - 0.5) * spreadWidth;
+    panPositions.push(position);
+  }
+  
+  // Apply intelligent panning based on track characteristics
+  centerTracks.forEach((track, index) => {
+    let newPan = panPositions[index];
+    
+    // MIDI tracks can be spread wider as they're more predictable
+    if (track.type === 'midi') {
+      newPan *= 1.2; // Slightly wider spread for MIDI
+    }
+    
+    // Clamp to valid range
+    newPan = Math.max(-0.9, Math.min(0.9, newPan));
+    panAdjustments.set(track.id, newPan);
+    
+    console.log(`  → Track ${track.name}: ${(track.pan || 0).toFixed(2)} → ${newPan.toFixed(2)}`);
+  });
+  
+  // Keep non-center tracks as they are (user deliberately panned them)
+  tracks.filter(t => Math.abs(t.pan || 0) > centerThreshold).forEach(track => {
+    panAdjustments.set(track.id, track.pan || 0);
+  });
+  
+  return panAdjustments;
+}
+
+/**
+ * Create automatic headroom management system
+ */
+function createHeadroomManager(audioContext, trackCount, midiTrackCount) {
+  // Calculate optimal headroom based on mix complexity
+  let targetHeadroom = -3; // Default -3dB headroom
+  
+  // Adjust based on track count
+  if (trackCount > 12) {
+    targetHeadroom = -6; // More headroom for very dense mixes
+  } else if (trackCount > 8) {
+    targetHeadroom = -4.5; // Extra headroom for dense mixes
+  } else if (trackCount <= 4) {
+    targetHeadroom = -1.5; // Less headroom needed for sparse mixes
+  }
+  
+  // MIDI tracks have more predictable levels
+  const midiRatio = midiTrackCount / Math.max(1, trackCount);
+  if (midiRatio > 0.7) {
+    targetHeadroom += 1.5; // Less headroom needed for MIDI-heavy mixes
+  }
+  
+  // Create adaptive compressor for headroom management
+  const headroomCompressor = audioContext.createDynamicsCompressor();
+  
+  // Configure compressor for transparent headroom control
+  headroomCompressor.threshold.value = targetHeadroom;
+  headroomCompressor.knee.value = 6; // Soft knee for transparent compression
+  headroomCompressor.ratio.value = 4; // Moderate ratio to preserve dynamics
+  headroomCompressor.attack.value = 0.003; // Fast enough to catch peaks
+  headroomCompressor.release.value = 0.1; // Quick release to avoid pumping
+  
+  // Create makeup gain to compensate for compression
+  const makeupGain = audioContext.createGain();
+  const compressionAmount = Math.abs(targetHeadroom) / 4; // Estimate compression
+  makeupGain.gain.value = Math.pow(10, compressionAmount / 20); // Convert dB to linear
+  
+  // Chain compressor -> makeup gain
+  headroomCompressor.connect(makeupGain);
+  
+  console.log(`Headroom Manager: ${trackCount} tracks (${midiTrackCount} MIDI) → Target: ${targetHeadroom}dB, Makeup: +${compressionAmount.toFixed(1)}dB`);
+  
+  return {
+    input: headroomCompressor,
+    output: makeupGain,
+    targetHeadroom: targetHeadroom,
+    compressor: headroomCompressor,
+    makeupGain: makeupGain
+  };
+}
+
+/**
+ * Analyze mix quality and provide feedback
+ */
+function analyzeMixQuality(tracks, duration, adaptiveGain, targetHeadroom, panAdjustments) {
+  const analysis = {
+    trackCount: tracks.length,
+    midiTracks: tracks.filter(t => t.type === 'midi').length,
+    analogTracks: tracks.filter(t => t.type !== 'midi').length,
+    duration: duration,
+    adaptiveGain: adaptiveGain,
+    targetHeadroom: targetHeadroom,
+    quality: 'good',
+    recommendations: [],
+    panningChanges: 0
+  };
+  
+  // Count panning changes made
+  let panChanges = 0;
+  for (const [trackId, newPan] of panAdjustments) {
+    const track = tracks.find(t => t.id === trackId);
+    if (track && Math.abs(newPan - (track.pan || 0)) > 0.01) {
+      panChanges++;
+    }
+  }
+  analysis.panningChanges = panChanges;
+  
+  // Assess overall quality based on mix complexity
+  if (analysis.trackCount <= 4) {
+    analysis.quality = 'excellent';
+    analysis.recommendations.push('✓ Clean, focused mix with good headroom');
+  } else if (analysis.trackCount <= 8) {
+    analysis.quality = 'very-good';
+    analysis.recommendations.push('✓ Well-balanced mix with adequate complexity');
+  } else if (analysis.trackCount <= 12) {
+    analysis.quality = 'good';
+    analysis.recommendations.push('• Dense mix handled with intelligent processing');
+    if (panChanges > 0) {
+      analysis.recommendations.push(`• Applied intelligent panning to ${panChanges} tracks to reduce center buildup`);
+    }
+  } else {
+    analysis.quality = 'complex';
+    analysis.recommendations.push('• Very dense mix - extra processing applied for clarity');
+    analysis.recommendations.push(`• Reduced gain to ${adaptiveGain.toFixed(2)} for optimal headroom`);
+    if (panChanges > 0) {
+      analysis.recommendations.push(`• Redistributed panning on ${panChanges} tracks to improve stereo image`);
+    }
+  }
+  
+  // MIDI-specific feedback
+  const midiRatio = analysis.midiTracks / Math.max(1, analysis.trackCount);
+  if (midiRatio > 0.8) {
+    analysis.recommendations.push('• MIDI-heavy mix optimized with enhanced synthesis fallbacks');
+  } else if (midiRatio > 0.5) {
+    analysis.recommendations.push('• Hybrid MIDI/analog mix balanced with adaptive processing');
+  }
+  
+  // Duration feedback
+  if (duration > 300) { // 5+ minutes
+    analysis.recommendations.push('• Long-form content processed with consistent quality');
+  } else if (duration < 30) {
+    analysis.recommendations.push('• Short-form content optimized for immediate impact');
+  }
+  
+  // Headroom feedback
+  if (targetHeadroom < -5) {
+    analysis.recommendations.push('• Conservative headroom preserved for mastering flexibility');
+  } else if (targetHeadroom > -2) {
+    analysis.recommendations.push('• Tight headroom for maximum loudness - check for distortion');
+  }
+  
+  return analysis;
+}
+
+/**
+ * Map instrument types to enhanced synthesizer presets
+ */
+function mapInstrumentToSynthPreset(instrumentType, instrumentPreset) {
+  // Map instrument types to wavetable and synthesis settings
+  const typeMap = {
+    piano: { 
+      wavetable: 'sine', 
+      filterFrequency: 3000, 
+      filterResonance: 0.5,
+      velocitySensitivity: 0.9
+    },
+    organ: { 
+      wavetable: 'organ', 
+      filterFrequency: 4000, 
+      filterResonance: 0.3,
+      velocitySensitivity: 0.5
+    },
+    strings: { 
+      wavetable: 'strings', 
+      filterFrequency: 2500, 
+      filterResonance: 0.7,
+      velocitySensitivity: 0.8
+    },
+    brass: { 
+      wavetable: 'brass', 
+      filterFrequency: 3500, 
+      filterResonance: 1.2,
+      velocitySensitivity: 0.9
+    },
+    synth: {
+      wavetable: 'sawtooth',
+      filterFrequency: 2000,
+      filterResonance: 0.8,
+      velocitySensitivity: 0.7
+    },
+    pad: {
+      wavetable: 'pad',
+      filterFrequency: 1500,
+      filterResonance: 0.4,
+      velocitySensitivity: 0.6
+    },
+    lead: {
+      wavetable: 'sawtooth',
+      filterFrequency: 4000,
+      filterResonance: 1.5,
+      velocitySensitivity: 0.8
+    },
+    bass: {
+      wavetable: 'sawtooth',
+      filterFrequency: 800,
+      filterResonance: 0.6,
+      velocitySensitivity: 0.7
+    },
+    bell: {
+      wavetable: 'bell',
+      filterFrequency: 5000,
+      filterResonance: 0.8,
+      velocitySensitivity: 1.0
+    },
+    pluck: {
+      wavetable: 'pluck',
+      filterFrequency: 2000,
+      filterResonance: 0.6,
+      velocitySensitivity: 0.8
+    }
+  };
+
+  // Get base settings
+  let settings = typeMap[instrumentType] || typeMap.synth;
+
+  // Apply preset modifications
+  if (instrumentPreset) {
+    switch (instrumentPreset.toLowerCase()) {
+      case 'bright':
+        settings = { ...settings, filterFrequency: settings.filterFrequency * 1.5 };
+        break;
+      case 'warm':
+        settings = { ...settings, filterFrequency: settings.filterFrequency * 0.7 };
+        break;
+      case 'fat':
+        settings = { ...settings, filterResonance: settings.filterResonance * 1.3 };
+        break;
+      case 'thin':
+        settings = { ...settings, filterResonance: settings.filterResonance * 0.6 };
+        break;
+    }
+  }
+
+  return {
+    maxVoices: 8,
+    filterType: 'lowpass',
+    ...settings
+  };
+}
+
+/**
+ * Automatically render a MIDI track to audio buffer for mixdown
+ */
+async function renderMIDITrackToAudio(track, sampleRate = 44100, bpm = 120) {
+  // Check cache first
+  const cachedBuffer = midiRenderCache.getCached(track);
+  if (cachedBuffer) {
+    console.log(`Using cached MIDI render for track ${track.name}`);
+    return cachedBuffer;
+  }
+
+  console.log(`Auto-rendering MIDI track: ${track.name}`);
+
+  const midiNotes = collectTrackMidiNotes(track, { bpm });
+  if (midiNotes.length === 0) return null;
+
+  // Calculate track duration
+  const endTime = Math.max(...midiNotes.map(n => n.time + n.duration));
+  const duration = Math.max(1, endTime + 1); // Add 1 second tail
+
+  // Create offline context for rendering
+  const offline = new OfflineAudioContext(2, Math.ceil(duration * sampleRate), sampleRate);
+
+  // Try to use existing virtual instruments first, then fall back to enhanced synth
+  let instrument = null;
+  let useEnhancedSynth = false;
+  
+  try {
+    // Determine instrument type
+    const instrumentType = track.midiData?.instrument?.type || 'synth';
+    const instrumentPreset = track.midiData?.instrument?.preset || 'default';
+    
+    console.log(`Auto-render: Attempting to use existing ${instrumentType} instrument for track ${track.name}`);
+    
+    // Try to create your existing virtual instrument first
+    instrument = createInstrument(offline, instrumentType, instrumentPreset);
+    
+    if (instrument && typeof instrument.playNote === 'function') {
+      console.log(`Auto-render: Successfully using existing ${instrumentType} virtual instrument`);
+    } else {
+      throw new Error('Existing instrument not compatible with auto-render');
+    }
+  } catch (e) {
+    console.warn(`Failed to use existing instrument, falling back to enhanced synth:`, e);
+    
+    try {
+      // Fall back to enhanced synthesizer
+      const instrumentType = track.midiData?.instrument?.type || 'synth';
+      const instrumentPreset = track.midiData?.instrument?.preset || 'default';
+      const synthOptions = mapInstrumentToSynthPreset(instrumentType, instrumentPreset);
+      
+      instrument = new EnhancedSynth(offline, synthOptions);
+      useEnhancedSynth = true;
+      
+      console.log(`Auto-render: Using enhanced synth with ${synthOptions.wavetable} wavetable as fallback`);
+    } catch (enhancedError) {
+      console.warn('Both existing and enhanced synth failed:', enhancedError);
+    }
+  }
+
+  // Use adaptive gain for individual MIDI track rendering
+  // Single MIDI track gets higher gain, but still conservative
+  const masterGain = offline.createGain();
+  masterGain.gain.value = 0.7; // Single track can afford higher gain
+
+  // Add gentle limiting to prevent clipping
+  const limiter = offline.createDynamicsCompressor();
+  limiter.threshold.value = -12;
+  limiter.knee.value = 6;
+  limiter.ratio.value = 4;
+  limiter.attack.value = 0.001;
+  limiter.release.value = 0.1;
+
+  masterGain.connect(limiter);
+  limiter.connect(offline.destination);
+  
+  // Connect the instrument to masterGain (moved from above for clarity)
+  if (instrument) {
+    instrument.connect(masterGain);
+  }
+
+  // Schedule notes using the appropriate instrument
+  if (instrument) {
+    // Schedule notes
+    for (const note of midiNotes) {
+      const start = Math.max(0, note.time);
+      const duration = Math.max(0.01, note.duration);
+      const midi = Math.round(69 + 12 * Math.log2(note.freq / 440));
+      
+      try {
+        if (useEnhancedSynth) {
+          // Enhanced synth uses our improved API
+          instrument.playNote(midi, note.velocity, start, duration);
+        } else {
+          // Your existing instruments - check their API
+          if (typeof instrument.playNote === 'function') {
+            // Most instruments support playNote(midi, velocity, time, duration)
+            instrument.playNote(midi, note.velocity, start, duration);
+          } else if (typeof instrument.noteOn === 'function') {
+            // Some might use noteOn/noteOff pattern
+            instrument.noteOn(midi, note.velocity, start);
+            if (typeof instrument.noteOff === 'function') {
+              instrument.noteOff(midi, start + duration);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn(`Failed to play note ${midi} on ${useEnhancedSynth ? 'enhanced synth' : 'existing instrument'}:`, e);
+      }
+    }
+  } else {
+    // Use improved fallback synthesis if no instrument worked
+    await renderMIDIWithFallbackSynth(offline, midiNotes, masterGain);
+  }
+
+  // Render and cache
+  try {
+    const rendered = await offline.startRendering();
+    midiRenderCache.setCached(track, rendered);
+    return rendered;
+  } catch (e) {
+    console.error('MIDI auto-render failed:', e);
+    return null;
+  }
+}
+
+/**
+ * Fallback synthesis for auto-rendering (uses our improved settings)
+ */
+async function renderMIDIWithFallbackSynth(offline, midiNotes, destination) {
+  const voiceManager = new VoiceManager(8);
+  
+  for (const n of midiNotes) {
+    const start = Math.max(0, n.time);
+    const dur = Math.max(0.01, n.duration);
+    const midiNote = Math.round(69 + 12 * Math.log2(n.freq / 440));
+
+    // Single triangle oscillator (from our Phase 1 improvements)
+    const osc = offline.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(n.freq, start);
+
+    // Improved filter settings
+    const filter = offline.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(
+      Math.min(1500, 800 + (n.velocity ?? 1) * 700),
+      start,
+    );
+    filter.Q.setValueAtTime(0.8, start);
+
+    // Gentle envelope
+    const env = offline.createGain();
+    const baseGain = 0.05;
+    const peak = baseGain * (n.velocity ?? 1);
+
+    env.gain.setValueAtTime(0.0001, start);
+    env.gain.linearRampToValueAtTime(peak, start + 0.005);
+    env.gain.exponentialRampToValueAtTime(peak * 0.6, start + 0.05);
+    env.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+
+    // Connect and manage voice
+    osc.connect(filter);
+    filter.connect(env);
+    env.connect(destination);
+
+    const stopCallback = () => {
+      try {
+        osc.stop(start + dur + 0.05);
+      } catch {}
+    };
+
+    voiceManager.allocateVoice(midiNote, stopCallback, env);
+    
+    try {
+      osc.start(start);
+    } catch {}
+  }
+}
+
+/**
  * Mixdown engine — clip & MIDI aware, independent of WaveSurfer
  */
 async function mixdownClipsAndMidi(
@@ -520,6 +1091,10 @@ async function mixdownClipsAndMidi(
   onProgress = () => {},
   bpm = 120,
 ) {
+  // Signal to the app that we're in mixdown mode to prevent dual synthesis
+  if (typeof window !== 'undefined') {
+    window.__MIXDOWN_ACTIVE__ = true;
+  }
   onProgress(5);
   const soloIds = new Set(tracks.filter((t) => t.soloed).map((t) => t.id));
   const included = tracks.filter((t) => {
@@ -555,6 +1130,32 @@ async function mixdownClipsAndMidi(
     }),
   );
 
+  // Auto-render MIDI tracks to audio buffers
+  onProgress(50);
+  const midiBufferMap = new Map();
+  const midiTracks = included.filter(t => t.type === 'midi' && collectTrackMidiNotes(t, { bpm }).length > 0);
+  
+  console.log(`Auto-rendering ${midiTracks.length} MIDI tracks for mixdown...`);
+  
+  let midiDone = 0;
+  await Promise.all(
+    midiTracks.map(async (track) => {
+      try {
+        const buffer = await renderMIDITrackToAudio(track, highestRate, bpm);
+        if (buffer) {
+          midiBufferMap.set(track.id, buffer);
+        }
+      } catch (e) {
+        console.error(`Failed to auto-render MIDI track ${track.name}:`, e);
+      } finally {
+        midiDone += 1;
+        onProgress(
+          50 + Math.round((midiDone / Math.max(1, midiTracks.length)) * 15),
+        );
+      }
+    }),
+  );
+
   // Compute project duration
   const projectDuration = included.reduce((maxT, track) => {
     let endAudio = 0;
@@ -570,9 +1171,16 @@ async function mixdownClipsAndMidi(
     });
 
     let endMidi = 0;
-    collectTrackMidiNotes(track, { bpm }).forEach((n) => {
-      endMidi = Math.max(endMidi, n.time + n.duration);
-    });
+    // Use pre-rendered MIDI buffer duration if available
+    const midiBuffer = midiBufferMap.get(track.id);
+    if (midiBuffer) {
+      endMidi = midiBuffer.duration;
+    } else {
+      // Fallback to calculated duration
+      collectTrackMidiNotes(track, { bpm }).forEach((n) => {
+        endMidi = Math.max(endMidi, n.time + n.duration);
+      });
+    }
 
     return Math.max(maxT, Math.max(endAudio, endMidi));
   }, 0);
@@ -590,26 +1198,36 @@ async function mixdownClipsAndMidi(
   const length = Math.ceil(projectDuration * highestRate);
   const offline = new OfflineAudioContext(2, length, highestRate);
 
-  // Master bus: headroom + DC block + limiter + gentle soft-clip
+  // Calculate adaptive gain based on mix complexity (reuse midiTracks from above)
+  const analogTracks = included.filter(t => t.type !== 'midi');
+  const adaptiveGain = calculateAdaptiveGain(included.length, midiTracks.length, analogTracks.length);
+  
+  // Master bus: adaptive headroom + DC block + EQ + limiter + stronger soft-clip
   const masterGain = offline.createGain();
-  masterGain.gain.value = 0.5; // a little more headroom
+  masterGain.gain.value = adaptiveGain;
 
-  const dcBlock = offline.createBiquadFilter();
-  dcBlock.type = 'highpass';
-  dcBlock.frequency.value = 20;
+  // Create intelligent EQ compensation for mix density
+  const mixEQ = createMixEQ(offline, included.length, midiTracks.length);
+  
+  // Calculate intelligent panning to reduce center buildup
+  const intelligentPanning = calculateIntelligentPanning(included);
+  
+  // Create automatic headroom management
+  const headroomManager = createHeadroomManager(offline, included.length, midiTracks.length);
 
   const masterLimiter = offline.createDynamicsCompressor();
-  masterLimiter.threshold.value = -1; // ceiling
+  masterLimiter.threshold.value = -6; // Much lower threshold to catch MIDI transients
   masterLimiter.knee.value = 0;
   masterLimiter.ratio.value = 20; // behave like a limiter
-  masterLimiter.attack.value = 0.003;
-  masterLimiter.release.value = 0.1;
+  masterLimiter.attack.value = 0.001; // Faster attack for MIDI spikes
+  masterLimiter.release.value = 0.08; // Faster release
 
   const masterShaper = offline.createWaveShaper();
-  masterShaper.curve = makeSoftClipCurve(4096, 0.25); // gentler than before
+  masterShaper.curve = makeSoftClipCurve(4096, 0.6); // More aggressive soft clipping
 
-  masterGain.connect(dcBlock);
-  dcBlock.connect(masterLimiter);
+  masterGain.connect(mixEQ.input);
+  mixEQ.output.connect(headroomManager.input);
+  headroomManager.output.connect(masterLimiter);
   masterLimiter.connect(masterShaper);
   masterShaper.connect(offline.destination);
 
@@ -637,54 +1255,41 @@ async function mixdownClipsAndMidi(
       offlineInstrument = null; // factory not offline-safe → fallback
     }
 
-    // Collect MIDI notes for this track
-    const midiNotes = collectTrackMidiNotes(track, { bpm });
-    const isMidiTrack = track.type === 'midi' && midiNotes.length > 0;
+    // Check if this is a pre-rendered MIDI track
+    const midiBuffer = midiBufferMap.get(track.id);
+    const isMidiTrack = track.type === 'midi' && midiBuffer;
 
-    // Create compressor AND additional gain reduction for MIDI
-    let midiProcessingChain = null;
-
-    if (isMidiTrack) {
-      // First: Gain reduction to prevent overload
-      const midiInputGain = offline.createGain();
-      midiInputGain.gain.value = 0.3; // Significantly reduce MIDI volume
-
-      // Then: Compressor to handle peaks
-      const midiCompressor = offline.createDynamicsCompressor();
-      midiCompressor.threshold.value = -24; // Lower threshold
-      midiCompressor.knee.value = 6; // Softer knee
-      midiCompressor.ratio.value = 4; // Gentler ratio
-      midiCompressor.attack.value = 0.003;
-      midiCompressor.release.value = 0.1;
-
-      // Connect: trackGain -> inputGain -> compressor
-      trackGain.connect(midiInputGain);
-      midiInputGain.connect(midiCompressor);
-      midiProcessingChain = midiCompressor;
-    }
-
-    // Set up panning
+    // Set up intelligent panning
     const panner = offline.createStereoPanner
       ? offline.createStereoPanner()
       : null;
     if (panner) {
-      panner.pan.value = typeof track.pan === 'number' ? track.pan : 0;
+      const intelligentPan = intelligentPanning.get(track.id) || 0;
+      panner.pan.value = intelligentPan;
+      
+      // Log panning adjustments if different from original
+      if (Math.abs(intelligentPan - (track.pan || 0)) > 0.01) {
+        console.log(`Track ${track.name}: Pan adjusted ${(track.pan || 0).toFixed(2)} → ${intelligentPan.toFixed(2)}`);
+      }
     }
 
-    // Connect audio chain
-    if (isMidiTrack && midiProcessingChain) {
-      if (panner) {
-        midiProcessingChain.connect(panner);
-        panner.connect(masterGain);
-      } else {
-        midiProcessingChain.connect(masterGain);
-      }
+    // Connect audio chain (simplified - no special MIDI processing needed)
+    if (panner) {
+      trackGain.connect(panner);
+      panner.connect(masterGain);
     } else {
-      if (panner) {
-        trackGain.connect(panner);
-        panner.connect(masterGain);
-      } else {
-        trackGain.connect(masterGain);
+      trackGain.connect(masterGain);
+    }
+
+    // Process pre-rendered MIDI audio buffer
+    if (isMidiTrack) {
+      const src = offline.createBufferSource();
+      src.buffer = midiBuffer;
+      src.connect(trackGain);
+      try {
+        src.start(0); // Start at beginning of mixdown timeline
+      } catch (e) {
+        console.warn(`Failed to start MIDI buffer for ${track.name}:`, e);
       }
     }
 
@@ -710,138 +1315,44 @@ async function mixdownClipsAndMidi(
       }
     });
 
-    // Process MIDI notes with simplified approach
-    if (isMidiTrack) {
-      // Sort notes by start time for better scheduling
-      const sortedNotes = [...midiNotes].sort((a, b) => a.time - b.time);
-
-      // Count simultaneous notes for simple polyphony compensation
-      const simultaneousNotes = new Map(); // time(ms) -> count
-      sortedNotes.forEach((n) => {
-        const key = Math.round(n.time * 1000);
-        simultaneousNotes.set(key, (simultaneousNotes.get(key) || 0) + 1);
-      });
-
-      // Prefer the project's instrument if available
-      if (
-        offlineInstrument &&
-        typeof offlineInstrument.playNote === 'function'
-      ) {
-        for (const n of sortedNotes) {
-          const start = Math.max(0, n.time);
-          const dur = Math.max(0.01, n.duration);
-          const midi = Math.round(69 + 12 * Math.log2(n.freq / 440));
-          const velocity = n.velocity ?? 1;
-          const token = offlineInstrument.playNote(midi, velocity, start);
-          if (typeof offlineInstrument.stopNote === 'function') {
-            offlineInstrument.stopNote(midi, start + dur);
-          }
-        }
-      } else {
-        // Fallback: dual-osc synth with gentle tone & stereo spread
-        const instrumentType = track.midiData?.instrument?.type || 'synth';
-        const instrumentPreset =
-          track.midiData?.instrument?.preset || 'default';
-
-        for (const n of sortedNotes) {
-          const start = Math.max(0, n.time);
-          const dur = Math.max(0.01, n.duration);
-          if (dur < 0.01) continue;
-
-          // Two oscillators for richness
-          const osc1 = offline.createOscillator();
-          const osc2 = offline.createOscillator();
-
-          // Types by preset for a touch of color
-          if (instrumentType === 'piano') {
-            osc1.type = 'sine';
-            osc2.type = 'sine';
-          } else if (instrumentPreset === 'bass') {
-            osc1.type = 'sawtooth';
-            osc2.type = 'square';
-          } else if (instrumentPreset === 'lead') {
-            osc1.type = 'sawtooth';
-            osc2.type = 'sawtooth';
-          } else {
-            osc1.type = 'sawtooth';
-            osc2.type = 'triangle';
-          }
-
-          osc1.frequency.setValueAtTime(n.freq, start);
-          osc2.frequency.setValueAtTime(n.freq, start);
-          osc2.detune.setValueAtTime(7, start);
-
-          // Slightly darker filter & lower Q to keep chords clean
-          const filter = offline.createBiquadFilter();
-          filter.type = 'lowpass';
-          filter.frequency.setValueAtTime(
-            Math.min(20000, 1000 + (n.velocity ?? 1) * 2000),
-            start,
-          );
-          filter.Q.setValueAtTime(1.2, start);
-
-          // Envelope with polyphony compensation
-          const env = offline.createGain();
-          const key = Math.round(start * 1000);
-          const sim = simultaneousNotes.get(key) || 1;
-          const polyComp = Math.min(1, 1 / Math.sqrt(sim));
-          const baseGain = 0.1; // lower base prevents overload
-          const vel = n.velocity ?? 1;
-          const peak = baseGain * polyComp * vel;
-
-          const attack = 0.005;
-          const decay = 0.05;
-          const sustain = 0.6;
-          const release = Math.min(0.3, dur * 0.3);
-
-          env.gain.setValueAtTime(0.0001, start);
-          env.gain.linearRampToValueAtTime(peak, start + attack);
-          env.gain.exponentialRampToValueAtTime(
-            Math.max(0.0001, peak * sustain),
-            start + attack + decay,
-          );
-          const relStart = start + dur - release;
-          if (relStart > start + attack + decay) {
-            env.gain.setValueAtTime(peak * sustain, relStart);
-          }
-          env.gain.exponentialRampToValueAtTime(0.0001, start + dur);
-
-          // Per-note stereo spread to reduce masking in chords
-          const panner = offline.createStereoPanner
-            ? offline.createStereoPanner()
-            : null;
-          if (panner) {
-            const pan = ((n.freq % 50) / 50) * 0.4 - 0.2; // -0.2 .. +0.2
-            panner.pan.setValueAtTime(pan, start);
-          }
-
-          // Connect: osc → filter → env → (panner?) → trackGain
-          osc1.connect(filter);
-          osc2.connect(filter);
-          filter.connect(env);
-          if (panner) {
-            env.connect(panner);
-            panner.connect(trackGain);
-          } else {
-            env.connect(trackGain);
-          }
-
-          try {
-            osc1.start(start);
-            osc2.start(start);
-            const stopTime = start + dur + 0.05; // stop slightly after envelope
-            osc1.stop(stopTime);
-            osc2.stop(stopTime);
-          } catch {}
-        }
-      }
-    }
+    // MIDI tracks are now handled as pre-rendered audio buffers above
+    // No complex synthesis needed during mixdown!
   });
 
-  onProgress(65);
-  const rendered = await offline.startRendering();
-  onProgress(100);
-  return rendered;
+  onProgress(80);
+  
+  try {
+    const rendered = await offline.startRendering();
+    
+    // Analyze mix quality and provide feedback
+    const mixAnalysis = analyzeMixQuality(
+      included,
+      projectDuration,
+      adaptiveGain,
+      headroomManager.targetHeadroom,
+      intelligentPanning
+    );
+    
+    console.log('\nMix Quality Analysis:');
+    console.log(`Quality Rating: ${mixAnalysis.quality.toUpperCase()}`);
+    console.log(`Tracks: ${mixAnalysis.trackCount} (${mixAnalysis.midiTracks} MIDI, ${mixAnalysis.analogTracks} analog)`);
+    console.log(`Duration: ${Math.round(mixAnalysis.duration)}s`);
+    console.log(`Adaptive Gain: ${mixAnalysis.adaptiveGain.toFixed(2)}`);
+    console.log(`Target Headroom: ${mixAnalysis.targetHeadroom}dB`);
+    if (mixAnalysis.panningChanges > 0) {
+      console.log(`Panning Adjustments: ${mixAnalysis.panningChanges} tracks`);
+    }
+    console.log('\nProcessing Applied:');
+    mixAnalysis.recommendations.forEach(rec => console.log(`  ${rec}`));
+    
+    onProgress(100);
+    return rendered;
+  } finally {
+    // Always clear the mixdown flag, even if rendering fails
+    if (typeof window !== 'undefined') {
+      window.__MIXDOWN_ACTIVE__ = false;
+    }
+  }
 }
 
 // Fallback basic synth that's still better than single oscillator
@@ -857,41 +1368,34 @@ function createBasicSynth(audioContext) {
     playNote(midiNote, velocity = 1, time = 0) {
       const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
 
-      // Create two oscillators for richness
-      const osc1 = audioContext.createOscillator();
-      const osc2 = audioContext.createOscillator();
-      osc1.type = 'sawtooth';
-      osc2.type = 'sawtooth';
-      osc1.frequency.value = freq;
-      osc2.frequency.value = freq;
-      osc2.detune.value = 7; // Slight detune for thickness
+      // Single oscillator with gentler waveform to match mixdown improvements
+      const osc = audioContext.createOscillator();
+      osc.type = 'triangle'; // Gentler than dual sawtooth
+      osc.frequency.value = freq;
 
-      // Simple filter
+      // Darker filter with lower Q to prevent resonant peaks
       const filter = audioContext.createBiquadFilter();
       filter.type = 'lowpass';
-      filter.frequency.value = 2000 + velocity * 2000;
-      filter.Q.value = 2;
+      filter.frequency.value = Math.min(1500, 800 + velocity * 700); // Match mixdown settings
+      filter.Q.value = 0.8; // Lower Q
 
-      // Envelope
+      // Gentler envelope with lower gain
       const envelope = audioContext.createGain();
       envelope.gain.setValueAtTime(0.0001, time);
-      envelope.gain.exponentialRampToValueAtTime(velocity * 0.3, time + 0.01);
-      envelope.gain.exponentialRampToValueAtTime(velocity * 0.2, time + 0.1);
+      envelope.gain.exponentialRampToValueAtTime(velocity * 0.15, time + 0.01); // Reduced gain
+      envelope.gain.exponentialRampToValueAtTime(velocity * 0.1, time + 0.1);
       envelope.gain.exponentialRampToValueAtTime(0.0001, time + 1);
 
       // Connect
-      osc1.connect(filter);
-      osc2.connect(filter);
+      osc.connect(filter);
       filter.connect(envelope);
       envelope.connect(this.output);
 
       // Start/stop
-      osc1.start(time);
-      osc2.start(time);
-      osc1.stop(time + 1.5);
-      osc2.stop(time + 1.5);
+      osc.start(time);
+      osc.stop(time + 1.5);
 
-      return { osc1, osc2, envelope };
+      return { osc, envelope };
     },
 
     stopNote(midiNote, time = 0) {

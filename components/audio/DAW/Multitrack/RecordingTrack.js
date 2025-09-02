@@ -3,19 +3,33 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Button, Form, ButtonGroup } from 'react-bootstrap';
-import { FaCircle, FaStop, FaMicrophone, FaVolumeUp } from 'react-icons/fa';
+import {
+  FaCircle,
+  FaStop,
+  FaVolumeUp,
+  FaFileImport,
+  FaTrash,
+} from 'react-icons/fa';
 import { MdPanTool } from 'react-icons/md';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import WalkingWaveform from './WalkingWaveform';
-import Track from './Track';
+import TrackClipCanvas from '../../../../contexts/TrackClipCanvas';
+import ClipPlayer from './ClipPlayer';
+import audioContextManager from './AudioContextManager';
+import { decodeAudioFromURL } from './AudioEngine';
+import waveformCache from './WaveformCache';
 
 export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
   const {
     updateTrack,
+    removeTrack,
     setSelectedTrackId,
     selectedTrackId,
+    soloTrackId,
+    setSoloTrackId,
     currentTime,
     duration,
+    isPlaying,
   } = useMultitrack();
 
   const [mediaStream, setMediaStream] = useState(null);
@@ -25,6 +39,8 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
 
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
+  const fileInputRef = useRef(null);
+  const clipPlayerRef = useRef(null);
 
   // Initialize media stream
   useEffect(() => {
@@ -48,6 +64,70 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
       }
     };
   }, []); // Only run once on mount
+
+  // Initialize clip player for playback when not recording
+  useEffect(() => {
+    const initPlayer = async () => {
+      try {
+        const audioContext = audioContextManager.getContext();
+        clipPlayerRef.current = new ClipPlayer(audioContext);
+      } catch (error) {
+        console.error('RecordingTrack: Error initializing clip player:', error);
+      }
+    };
+
+    initPlayer();
+
+    return () => {
+      if (clipPlayerRef.current) {
+        clipPlayerRef.current.dispose();
+      }
+    };
+  }, []);
+
+  // Update clips/params on player
+  useEffect(() => {
+    if (!clipPlayerRef.current || !track.clips) return;
+    (async () => {
+      try {
+        await clipPlayerRef.current.updateClips(
+          track.clips,
+          track.muted ? 0 : track.volume || 1,
+          track.pan || 0,
+        );
+        if (isPlaying && clipPlayerRef.current) {
+          clipPlayerRef.current.play(currentTime);
+        }
+      } catch (error) {
+        console.error(
+          `RecordingTrack: Error updating clips for ${track.id}:`,
+          error,
+        );
+      }
+    })();
+  }, [track.clips, track.volume, track.pan, track.muted]);
+
+  // Handle global play/stop
+  useEffect(() => {
+    if (!clipPlayerRef.current) return;
+    const shouldPlay = soloTrackId ? track.id === soloTrackId : !track.muted;
+    if (isPlaying && shouldPlay && !isRecording) {
+      const ctx = audioContextManager.getContext();
+      if (ctx.state === 'suspended') {
+        ctx.resume().then(() => clipPlayerRef.current.play(currentTime));
+      } else {
+        clipPlayerRef.current.play(currentTime);
+      }
+    } else {
+      clipPlayerRef.current.stop();
+    }
+  }, [isPlaying, currentTime, track.id, track.muted, soloTrackId, isRecording]);
+
+  // Seek when paused
+  useEffect(() => {
+    if (!clipPlayerRef.current || isPlaying || isRecording) return;
+    clipPlayerRef.current.seek(currentTime);
+  }, [currentTime, isPlaying, isRecording]);
 
   // No need to calculate pixelsPerSecond here - let WalkingWaveform handle it
   // to ensure consistency with TrackClipCanvas
@@ -130,9 +210,9 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
         audioURL: url,
         isRecording: false,
         isEmpty: false,
-        clips: [...(track.clips || []), newClip], // Add the new clip
-        type: 'audio', // Convert from recording to audio track
-        recordingStartPosition: undefined, // Clear the start position
+        clips: [...(track.clips || []), newClip],
+        // Keep type as 'recording' to avoid component swap
+        recordingStartPosition: undefined,
       });
 
       setRecordedBlob(blob);
@@ -173,12 +253,55 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
     }
   };
 
-  const isSelected = selectedTrackId === track.id;
+  // Handlers to mirror Audio Track controls
+  const handleRemove = () => {
+    if (window.confirm('Remove this track?')) {
+      removeTrack(track.id);
+    }
+  };
 
-  // If we have recorded audio, render the normal track
-  if (track.audioURL && !track.isEmpty && !isRecording) {
-    return <Track track={track} index={index} zoomLevel={zoomLevel} />;
-  }
+  const handleFileImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const url = URL.createObjectURL(file);
+
+      // Decode to get duration
+      const audioBuffer = await decodeAudioFromURL(url);
+      const duration = audioBuffer ? audioBuffer.duration : 0;
+
+      const clipId = `clip-${track.id}-${Date.now()}`;
+      const clips = [
+        {
+          id: clipId,
+          start: 0,
+          duration,
+          color: track.color || '#7bafd4',
+          src: url,
+          offset: 0,
+          name: file.name.replace(/\.[^/.]+$/, ''),
+        },
+      ];
+
+      updateTrack(track.id, {
+        audioURL: url,
+        isRecording: false,
+        isEmpty: false,
+        clips,
+      });
+
+      // Preload waveform peaks
+      waveformCache.preloadURL(url).catch(() => {});
+
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch {
+      // noop
+    }
+  };
+
+  const isSelected = selectedTrackId === track.id;
+  const isSolo = soloTrackId === track.id;
 
   // Otherwise, render the recording interface
   return (
@@ -243,14 +366,100 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
             />
           </div>
 
+          {/* Vol/Pan toggle - align with Track.js */}
+          <ButtonGroup
+            size="sm"
+            className="control-tabs"
+            style={{ marginBottom: 4 }}
+          >
+            <Button
+              variant={controlTab === 'vol' ? 'secondary' : 'outline-secondary'}
+              onClick={(e) => {
+                e.stopPropagation();
+                setControlTab('vol');
+              }}
+            >
+              Vol
+            </Button>
+            <Button
+              variant={controlTab === 'pan' ? 'secondary' : 'outline-secondary'}
+              onClick={(e) => {
+                e.stopPropagation();
+                setControlTab('pan');
+              }}
+            >
+              Pan
+            </Button>
+          </ButtonGroup>
+
+          {controlTab === 'vol' ? (
+            <div
+              className="track-control-row"
+              style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+            >
+              <FaVolumeUp size={12} className="control-icon" />
+              <input
+                type="range"
+                className="track-volume-slider"
+                min="0"
+                max="1"
+                step="0.01"
+                value={track.volume || 1}
+                onChange={(e) =>
+                  updateTrack(track.id, {
+                    volume: parseFloat(e.target.value),
+                  })
+                }
+                disabled={track.muted}
+                style={{ flex: 1 }}
+              />
+              <span
+                className="control-value"
+                style={{ fontSize: '11px', width: 30 }}
+              >
+                {Math.round((track.volume || 1) * 100)}
+              </span>
+            </div>
+          ) : (
+            <div
+              className="track-control-row"
+              style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+            >
+              <MdPanTool size={12} className="control-icon" />
+              <input
+                type="range"
+                className="track-pan-slider"
+                min="-1"
+                max="1"
+                step="0.01"
+                value={track.pan || 0}
+                onChange={(e) =>
+                  updateTrack(track.id, { pan: parseFloat(e.target.value) })
+                }
+                disabled={track.muted}
+                style={{ flex: 1 }}
+              />
+              <span
+                className="control-value"
+                style={{ fontSize: '11px', width: 30 }}
+              >
+                {track.pan > 0
+                  ? `R${Math.round((track.pan || 0) * 100)}`
+                  : track.pan < 0
+                    ? `L${Math.round(Math.abs((track.pan || 0) * 100))}`
+                    : 'C'}
+              </span>
+            </div>
+          )}
+
           {/* Three-button row: Solo / Mute / Record */}
           <div className="track-button-row" style={{ display: 'flex', gap: 4 }}>
             <Button
-              variant="outline-secondary"
+              variant={isSolo ? 'warning' : 'outline-secondary'}
               size="sm"
               onClick={(e) => {
                 e.stopPropagation();
-                // Solo is managed globally; placeholder if needed later
+                setSoloTrackId(isSolo ? null : track.id);
               }}
               title="Solo"
               style={{ flex: 1 }}
@@ -298,81 +507,42 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
             )}
           </div>
 
-          {/* Vol/Pan toggle like MIDI */}
-          <ButtonGroup
-            size="sm"
-            className="control-tabs"
-            style={{ marginTop: 4 }}
-          >
+          {/* Import and Delete Row - side by side */}
+          <div className="track-button-row" style={{ display: 'flex', gap: 4 }}>
             <Button
-              variant={controlTab === 'vol' ? 'secondary' : 'outline-secondary'}
+              variant="outline-secondary"
+              size="sm"
               onClick={(e) => {
                 e.stopPropagation();
-                setControlTab('vol');
+                fileInputRef.current?.click();
               }}
+              title="Import Audio"
+              style={{ flex: 1 }}
+              disabled={isRecording}
             >
-              Vol
+              <FaFileImport />
             </Button>
             <Button
-              variant={controlTab === 'pan' ? 'secondary' : 'outline-secondary'}
+              variant="outline-danger"
+              size="sm"
               onClick={(e) => {
                 e.stopPropagation();
-                setControlTab('pan');
+                handleRemove();
               }}
+              title="Delete Track"
+              style={{ flex: 1 }}
             >
-              Pan
+              <FaTrash />
             </Button>
-          </ButtonGroup>
+          </div>
 
-          {controlTab === 'vol' ? (
-            <div className="slider-group">
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <FaMicrophone size={12} />
-                <Form.Range
-                  value={track.volume || 1}
-                  onChange={(e) =>
-                    updateTrack(track.id, {
-                      volume: parseFloat(e.target.value),
-                    })
-                  }
-                  onClick={(e) => e.stopPropagation()}
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  className="track-volume-slider"
-                  style={{ flex: 1 }}
-                />
-                <span style={{ fontSize: '11px', width: 30 }}>
-                  {Math.round((track.volume || 1) * 100)}
-                </span>
-              </label>
-            </div>
-          ) : (
-            <div className="slider-group">
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <MdPanTool size={12} />
-                <Form.Range
-                  value={track.pan || 0}
-                  onChange={(e) =>
-                    updateTrack(track.id, { pan: parseFloat(e.target.value) })
-                  }
-                  onClick={(e) => e.stopPropagation()}
-                  min={-1}
-                  max={1}
-                  step={0.01}
-                  className="track-pan-slider"
-                  style={{ flex: 1 }}
-                />
-                <span style={{ fontSize: '11px', width: 30 }}>
-                  {track.pan > 0
-                    ? `R${Math.round((track.pan || 0) * 100)}`
-                    : track.pan < 0
-                      ? `L${Math.round(Math.abs((track.pan || 0) * 100))}`
-                      : 'C'}
-                </span>
-              </label>
-            </div>
-          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="audio/*"
+            onChange={handleFileImport}
+            style={{ display: 'none' }}
+          />
         </div>
 
         {/* Track Waveform - takes remaining space */}
@@ -406,18 +576,35 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
               />
             </>
           ) : (
-            <div
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                color: '#666',
-                fontSize: '12px',
-              }}
-            >
-              {mediaStream ? 'Ready to record' : 'Initializing microphone...'}
-            </div>
+            <>
+              {track.clips && track.clips.length > 0 ? (
+                <TrackClipCanvas
+                  track={track}
+                  clips={track.clips}
+                  zoomLevel={zoomLevel}
+                  height={200}
+                />
+              ) : (
+                <div
+                  className="empty-waveform-state"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100%',
+                    color: '#666',
+                  }}
+                >
+                  <FaFileImport size={24} />
+                  <div>
+                    {mediaStream
+                      ? 'Ready to record'
+                      : 'Initializing microphone...'}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

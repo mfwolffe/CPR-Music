@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import audioContextManager from '../AudioContextManager';
-import { createInstrument } from '../instruments/WebAudioInstruments';
+import { createInstrument } from '../Instruments/WebAudioInstruments';
 import ImprovedNoteScheduler from '../ImprovedNoteScheduler';
 import ImprovedMIDIRecorder from '../MIDIRecorder';
 
@@ -202,8 +202,14 @@ export function useMIDITrackAudio(
   useEffect(() => {
     if (!schedulerRef.current) return;
 
+    // Don't play live synthesis during mixdown to prevent dual synthesis
+    const isMixdownActive = typeof window !== 'undefined' && window.__MIXDOWN_ACTIVE__;
+    
     const shouldPlay =
-      isGlobalPlaying && !track.muted && track.midiData?.notes?.length > 0;
+      !isMixdownActive && 
+      isGlobalPlaying && 
+      !track.muted && 
+      track.midiData?.notes?.length > 0;
 
     if (shouldPlay && !lastPlayStateRef.current) {
       // Start playback

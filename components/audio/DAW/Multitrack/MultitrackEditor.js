@@ -564,8 +564,9 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
             }}
             style={{
               overflowX: 'auto',
-              overflowY: 'hidden',
+              overflowY: 'auto',
               position: 'relative',
+              paddingBottom: '60px', // space for fixed transport
             }}
           >
             <div

@@ -587,23 +587,23 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
 
 /* Recording track specific styles */
 .track.recording-track {
-  height: 160px !important;
-  min-height: 160px !important;
-  max-height: 160px !important;
+  height: 200px !important;
+  min-height: 200px !important;
+  max-height: 200px !important;
 }
 
 .track.recording-track .track-controls {
   background-color: #2a1a1a;
-  height: 160px !important;
-  min-height: 160px !important;
-  max-height: 160px !important;
+  height: 200px !important;
+  min-height: 200px !important;
+  max-height: 200px !important;
 }
 
 .track.recording-track .track-waveform {
   background-color: #1f1a1a;
-  height: 160px !important;
-  min-height: 160px !important;
-  max-height: 160px !important;
+  height: 200px !important;
+  min-height: 200px !important;
+  max-height: 200px !important;
 }
 
 /* Playhead styling */
@@ -2478,16 +2478,27 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
 
 /* Audio track height slightly taller than 120 to fit unified controls */
 .track.audio-track {
-  height: 160px !important;
-  min-height: 160px !important;
-  max-height: 160px !important;
+  height: 200px !important;
+  min-height: 200px !important;
+  max-height: 200px !important;
 }
 
 .track.audio-track .track-controls,
 .track.audio-track .track-waveform {
-  height: 160px !important;
-  min-height: 160px !important;
-  max-height: 160px !important;
+  height: 200px !important;
+  min-height: 200px !important;
+  max-height: 200px !important;
+}
+
+/* Allow audio waveform canvas to fill taller audio tracks */
+.track.audio-track .track-waveform canvas {
+  position: relative !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+  display: block !important;
 }
   top: 4px;
   left: 4px;

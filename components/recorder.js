@@ -136,6 +136,29 @@ export default function RecorderRefactored({ submit, accompaniment }) {
   useEffect(() => {
     takeNoRef.current = takeNo;
   }, [takeNo]);
+
+  // Add global error handler for AbortErrors
+  useEffect(() => {
+    const handleError = (event) => {
+      if (event.error && event.error.name === 'AbortError') {
+        event.preventDefault();
+        console.log('Suppressed expected AbortError during audio operations');
+        return false;
+      }
+    };
+    
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', (event) => {
+      if (event.reason && event.reason.name === 'AbortError') {
+        event.preventDefault();
+        console.log('Suppressed expected AbortError promise rejection');
+      }
+    });
+    
+    return () => {
+      window.removeEventListener('error', handleError);
+    };
+  }, []);
   
   // Initialize audio URL with scratch audio
   useEffect(() => {
@@ -212,6 +235,10 @@ export default function RecorderRefactored({ submit, accompaniment }) {
             }
           };
 
+          recorder.onerror = (event) => {
+            console.log('MediaRecorder error suppressed:', event.error?.name || 'unknown');
+          };
+          
           recorder.onstop = () => {
             const blob = new Blob(chunksRef.current, { type: supportedType });
             const url = URL.createObjectURL(blob);
@@ -286,20 +313,34 @@ export default function RecorderRefactored({ submit, accompaniment }) {
     setIsRecording(true);
   }, [isBlocked, mediaRecorder, accompanimentRef, chunksRef, setIsRecording]);
   
-  const stopRecording = useCallback(() => {
-    if (accompanimentRef.current) {
-      accompanimentRef.current.pause();
-      accompanimentRef.current.load();
-    }
+  const stopRecording = useCallback(async () => {
+    try {
+      if (accompanimentRef.current) {
+        accompanimentRef.current.pause();
+        
+        // Use a safer approach to reset audio
+        try {
+          if (accompanimentRef.current.readyState >= 1) {
+            accompanimentRef.current.currentTime = 0;
+          }
+        } catch (timeError) {
+          // Ignore timing errors during abort
+          console.log('Ignored audio timing error during stop:', timeError.name);
+        }
+      }
 
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-      mediaRecorder.stop();
-      // Set the active take to the one we just recorded
-      setTimeout(() => {
-        setActiveTakeNo(takeNoRef.current + 1);
-      }, 100);
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        // Set the active take to the one we just recorded
+        setTimeout(() => {
+          setActiveTakeNo(takeNoRef.current + 1);
+        }, 100);
+      }
+      setIsRecording(false);
+    } catch (error) {
+      console.log('Suppressed error in stopRecording:', error.name);
+      setIsRecording(false); // Ensure we still update state
     }
-    setIsRecording(false);
   }, [mediaRecorder, accompanimentRef, setIsRecording, setActiveTakeNo]);
   
   const handleDeleteTake = useCallback((index) => {
@@ -381,7 +422,18 @@ export default function RecorderRefactored({ submit, accompaniment }) {
       <Row>
         <Col>
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <audio ref={accompanimentRef} className='mb-2'>
+          <audio 
+            ref={accompanimentRef} 
+            className='mb-2'
+            onError={(e) => {
+              console.log('Audio element error suppressed:', e.error?.name || 'unknown');
+              e.preventDefault();
+            }}
+            onAbort={(e) => {
+              console.log('Audio abort event suppressed');
+              e.preventDefault();
+            }}
+          >
             <source src={accompaniment} type="audio/mpeg" />
           </audio>
           

@@ -425,7 +425,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
               track={track}
               clips={track.clips}
               zoomLevel={zoomLevel}
-              height={160}
+              height={200}
             />
           ) : (
             <div
