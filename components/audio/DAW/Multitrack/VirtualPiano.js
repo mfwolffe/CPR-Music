@@ -36,18 +36,20 @@ export default function VirtualPiano({ show, onHide }) {
   );
   const tempo = selectedTrack?.midiData?.tempo || 120;
 
-  // Update recording state when playback starts/stops
+  // Update recording state based on track's recording state
   useEffect(() => {
-    setIsRecording(isPlaying && selectedTrack !== undefined);
+    // Only record if the selected track is actually in recording mode
+    const trackIsRecording = selectedTrack?.isRecording || false;
+    setIsRecording(trackIsRecording);
 
-    if (isPlaying && !recordingStartTimeRef.current) {
+    if (trackIsRecording && !recordingStartTimeRef.current) {
       recordingStartTimeRef.current = currentTime;
-    } else if (!isPlaying) {
-      // Clean up any notes that were held when playback stopped
+    } else if (!trackIsRecording) {
+      // Clean up any notes that were held when recording stopped
       handlePlaybackStopped();
       recordingStartTimeRef.current = null;
     }
-  }, [isPlaying, selectedTrack]);
+  }, [selectedTrack?.isRecording, currentTime]);
 
   // Convert current time to beat position
   const convertTimeToBeat = useCallback(
@@ -143,8 +145,8 @@ export default function VirtualPiano({ show, onHide }) {
         playNoteOnSelectedTrack(note, 100);
         setActiveNotes((prev) => [...prev, note]);
 
-        // If recording (playing), start tracking this note
-        if (isRecording && isPlaying) {
+        // If recording, start tracking this note
+        if (isRecording) {
           const beatPosition = convertTimeToBeat(currentTime);
           const quantizedBeat = quantizeBeat(beatPosition);
 
@@ -414,10 +416,10 @@ export default function VirtualPiano({ show, onHide }) {
             <strong>Tips:</strong> Click and drag across keys to play
             glissandos. Press number keys 1-5 to change quantization.
           </p>
-          {isPlaying && !isRecording && selectedTrack && (
+          {!isRecording && selectedTrack && (
             <p className="mb-0 text-warning">
-              ⚠️ Playback is active but not recording - notes will play but
-              won't be saved to the track.
+              ⚠️ Not recording - notes will play but won't be saved to the track.
+              Click the record button on the track to start recording with countdown.
             </p>
           )}
         </div>

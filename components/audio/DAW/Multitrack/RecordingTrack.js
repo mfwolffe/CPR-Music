@@ -34,6 +34,8 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
 
   const [mediaStream, setMediaStream] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [isCountingIn, setIsCountingIn] = useState(false);
+  const [countInBeat, setCountInBeat] = useState(0);
   const [controlTab, setControlTab] = useState('vol'); // 'vol' | 'pan'
   const [recordedBlob, setRecordedBlob] = useState(null);
 
@@ -131,6 +133,36 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
 
   // No need to calculate pixelsPerSecond here - let WalkingWaveform handle it
   // to ensure consistency with TrackClipCanvas
+
+  const handleRecord = () => {
+    if (isRecording || isCountingIn) {
+      // Stop recording or cancel countdown
+      if (isRecording) {
+        stopRecording();
+      }
+      setIsCountingIn(false);
+      setCountInBeat(0);
+    } else {
+      // Start countdown
+      setIsCountingIn(true);
+      setCountInBeat(3);
+      
+      // Countdown timer
+      const countdownInterval = setInterval(() => {
+        setCountInBeat((prev) => {
+          if (prev <= 1) {
+            // Start recording
+            clearInterval(countdownInterval);
+            setIsCountingIn(false);
+            setCountInBeat(0);
+            startRecording();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+  };
 
   const startRecording = () => {
     console.log('RecordingTrack: startRecording called', {
@@ -481,15 +513,15 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
             {!isRecording ? (
               <Button
                 size="sm"
-                variant="danger"
+                variant={isCountingIn ? 'danger' : 'outline-danger'}
                 onClick={(e) => {
                   e.stopPropagation();
-                  startRecording();
+                  handleRecord();
                 }}
-                title="Record"
+                title={isCountingIn ? 'Cancel Countdown' : 'Record'}
                 style={{ flex: 1 }}
               >
-                <FaCircle />
+                {isCountingIn ? countInBeat : <FaCircle />}
               </Button>
             ) : (
               <Button
@@ -497,7 +529,7 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
                 variant="warning"
                 onClick={(e) => {
                   e.stopPropagation();
-                  stopRecording();
+                  handleRecord();
                 }}
                 title="Stop"
                 style={{ flex: 1 }}

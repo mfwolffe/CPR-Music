@@ -55,11 +55,11 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
   const [draggedPattern, setDraggedPattern] = useState(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [editingPatternId, setEditingPatternId] = useState(null);
-
-  // const [isRecording, setIsRecording] = useState(false);
-  // const [isCountingIn, setIsCountingIn] = useState(false);
-  // const [countInBeat, setCountInBeat] = useState(0);
   const [controlTab, setControlTab] = useState('vol'); // 'vol' or 'pan'
+  
+  // Local countdown states (separate from hook states)
+  const [isCountingDown, setIsCountingDown] = useState(false);
+  const [countdownBeat, setCountdownBeat] = useState(0);
   // const scheduledNotesRef = useRef([]);
   // const audioContextRef = useRef(null);
   // const instrumentRef = useRef(null);
@@ -127,8 +127,6 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
 
   const {
     isRecording,
-    isCountingIn,
-    countInBeat,
     playNote,
     stopNote,
     startRecording,
@@ -210,37 +208,40 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
   }, []);
 
   const handleRecord = () => {
-    if (isRecording) {
-      // Stop the recorder; the onNotesRecorded callback already committed notes
-      stopRecording();
+    if (isRecording || isCountingDown) {
+      // Stop recording or cancel countdown
+      if (isRecording) {
+        stopRecording();
+      }
+      setIsCountingDown(false);
+      setCountdownBeat(0);
+      // Update track state
       updateTrack(track.id, { isRecording: false });
     } else {
-      startRecording({
-        countIn: true,
-        overdub: false,
-        onNotesRecorded: (notes) => {
-          // Append to the latest state to avoid clobbering live-captured notes
-          setTracks((prev) =>
-            prev.map((t) =>
-              t.id === track.id
-                ? {
-                    ...t,
-                    midiData: {
-                      ...t.midiData,
-                      notes: [
-                        ...(Array.isArray(t.midiData?.notes)
-                          ? t.midiData.notes
-                          : []),
-                        ...notes,
-                      ],
-                    },
-                  }
-                : t,
-            ),
-          );
-        },
-      });
-      updateTrack(track.id, { isRecording: true });
+      // Start countdown
+      setIsCountingDown(true);
+      setCountdownBeat(3);
+      
+      // Countdown timer
+      const countdownInterval = setInterval(() => {
+        setCountdownBeat((prev) => {
+          if (prev <= 1) {
+            // Start recording
+            clearInterval(countdownInterval);
+            setIsCountingDown(false);
+            setCountdownBeat(0);
+            // Start the actual recording via the hook
+            startRecording({
+              countIn: false,
+              overdub: false,
+            });
+            // Update track state
+            updateTrack(track.id, { isRecording: true });
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     }
   };
 
@@ -765,15 +766,23 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
               S
             </Button>
             <Button
-              variant={isRecording ? 'danger' : 'outline-danger'}
+              variant={
+                isRecording || isCountingDown ? 'danger' : 'outline-danger'
+              }
               size="sm"
               onClick={(e) => {
                 e.stopPropagation();
                 handleRecord();
               }}
-              title={isRecording ? 'Stop Recording' : 'Record'}
+              title={
+                isRecording 
+                  ? 'Stop Recording' 
+                  : isCountingDown 
+                  ? 'Cancel Countdown' 
+                  : 'Record'
+              }
             >
-              {isRecording ? <FaStop /> : <FaCircle />}
+              {isRecording ? <FaStop /> : isCountingDown ? countdownBeat : <FaCircle />}
             </Button>
           </div>
 
@@ -867,8 +876,8 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
               }}
             />
             {isRecording && <div className="midi-recording-indicator">REC</div>}
-            {isCountingIn && (
-              <div className="count-in-indicator">{countInBeat}</div>
+            {isCountingDown && (
+              <div className="count-in-indicator">{countdownBeat}</div>
             )}
             <div className="midi-indicator">
               <MdMusicNote /> MIDI

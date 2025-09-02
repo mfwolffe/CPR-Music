@@ -81,11 +81,6 @@ export function useMIDITrackAudio(
     const audioContext = audioContextManager.getContext();
 
     const setup = async () => {
-      if (!track.midiData?.instrument) {
-        registerTrackInstrument(track.id, null);
-        return;
-      }
-
       // Dispose previous instrument
       if (instrumentRef.current) {
         try {
@@ -94,7 +89,15 @@ export function useMIDITrackAudio(
         } catch {}
       }
 
-      const { type, preset, name, id } = track.midiData.instrument || {};
+      // Use default instrument if none specified
+      const instrument = track.midiData?.instrument || {
+        type: 'synth',
+        preset: 'default',
+        name: 'Basic Synth',
+        id: 'basic-synth'
+      };
+
+      const { type, preset, name, id } = instrument;
       console.log('🎹 Creating instrument', {
         trackId: track.id,
         type,
