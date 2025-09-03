@@ -491,30 +491,38 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       const secPerBeat = 60 / tempo;
       
       if (isRecording && globalCurrentTime > 0) {
-        // Follow playhead during recording with auto-scroll
+        // Follow playhead during recording with AGGRESSIVE auto-scroll
         const currentSecond = globalCurrentTime;
         
-        // Use a dynamic window that expands as recording progresses (convert from beats to seconds)
-        const equivalentBeats = Math.max(16, Math.ceil(currentSecond / secPerBeat + 4));
-        secondsVisible = equivalentBeats * secPerBeat;
+        // Fixed window size for consistent behavior - about 16 beats worth of time
+        secondsVisible = 16 * secPerBeat;
         
-        // Auto-scroll when playhead reaches the right edge of canvas
-        const viewportEndTime = (viewportFirstBeat * secPerBeat) + secondsVisible;
-        const scrollThreshold = 2 * secPerBeat; // Start scrolling 2 beats before edge (in seconds)
+        // Current viewport bounds
+        const currentViewportStart = viewportFirstBeat * secPerBeat;
+        const currentViewportEnd = currentViewportStart + secondsVisible;
         
-        if (currentSecond > (viewportEndTime - scrollThreshold)) {
-          // Playhead near right edge - scroll forward
-          const newFirstSecond = Math.max(0, currentSecond - secondsVisible * 0.25); // Keep playhead at 25% from left
-          setViewportFirstBeat(newFirstSecond / secPerBeat); // Store as beats for state consistency
-          firstSecond = newFirstSecond;
-        } else if (currentSecond < (viewportFirstBeat * secPerBeat + scrollThreshold)) {
-          // Playhead near left edge - scroll backward 
-          const newFirstSecond = Math.max(0, currentSecond - secondsVisible * 0.75); // Keep playhead at 75% from left
-          setViewportFirstBeat(newFirstSecond / secPerBeat); // Store as beats for state consistency
-          firstSecond = newFirstSecond;
+        // Always keep playhead centered during recording for best UX
+        const targetFirstSecond = Math.max(0, currentSecond - secondsVisible * 0.5); // Keep playhead centered
+        
+        // Update viewport if playhead has moved significantly or is approaching edges
+        const playheadPosition = (currentSecond - currentViewportStart) / secondsVisible;
+        
+        if (playheadPosition < 0.2 || playheadPosition > 0.8 || Math.abs(targetFirstSecond - currentViewportStart) > secPerBeat) {
+          // Playhead is outside comfortable zone or has moved significantly - recenter it
+          setViewportFirstBeat(targetFirstSecond / secPerBeat);
+          firstSecond = targetFirstSecond;
+          
+          if (process.env.NODE_ENV === 'development') {
+            console.log('🎬 MIDI Auto-scroll:', {
+              currentSecond: currentSecond.toFixed(3),
+              playheadPosition: playheadPosition.toFixed(3),
+              newViewportStart: targetFirstSecond.toFixed(3),
+              secondsVisible: secondsVisible.toFixed(3)
+            });
+          }
         } else {
-          // Use existing viewport position (convert beats to seconds)
-          firstSecond = viewportFirstBeat * secPerBeat;
+          // Use existing viewport position
+          firstSecond = currentViewportStart;
         }
       } else {
         // Normal mode: show all existing notes (convert beats to seconds)
@@ -648,7 +656,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
         }, 0);
       }
     }
-  }, [track.midiData?.notes?.length]);
+  }, [track.midiData?.notes?.length, viewportFirstBeat, isRecording]); // Removed globalCurrentTime to prevent excessive re-renders
 
   // Handle volume change
   const handleVolumeChange = (e) => {
