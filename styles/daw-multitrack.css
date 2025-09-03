@@ -51,6 +51,9 @@
   color: #d0d0d0 !important;
   font-size: 0.875rem;
   transition: all 0.15s ease;
+  white-space: nowrap;
+  padding: 0.5rem 0.75rem;
+  min-width: fit-content;
 }
 
 .multitrack-toolbar .btn:hover:not(:disabled) {
@@ -130,8 +133,8 @@
 }
 
 .timeline-scale {
-  width: 200px; /* Match track controls width */
-  min-width: 200px;
+  width: 220px; /* Match track controls width */
+  min-width: 220px;
   background-color: #232323;
   border-right: 1px solid #444;
   display: flex;

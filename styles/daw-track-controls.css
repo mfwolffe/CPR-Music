@@ -38,8 +38,8 @@
 
 /* Track Controls (Left Side) */
 .track-controls {
-  width: 200px;
-  min-width: 200px;
+  width: 220px;
+  min-width: 220px;
   padding: 0.5rem 0.5rem;
   background-color: #232323;
   border-right: 1px solid #444;
@@ -330,4 +330,9 @@
   height: 200px !important;
   min-height: 200px !important;
   max-height: 200px !important;
+  width: 220px;
+  min-width: 220px;
+  padding: 0.75rem 0.5rem;
+  overflow-x: visible;
+  overflow-y: auto;
 }

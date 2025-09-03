@@ -33,12 +33,22 @@
 .track.midi-track .track-waveform canvas {
   mix-blend-mode: screen;
   opacity: 0.9;
+  position: relative !important;
+  top: 0 !important;
+  left: 0 !important;
+  transform: none !important;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .track.midi-track canvas {
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
+  position: relative !important;
+  top: 0 !important;
+  left: 0 !important;
+  transform: none !important;
 }
 
 /* MIDI Track Header */
@@ -159,6 +169,24 @@
   font-size: 0.8rem;
   text-align: center;
   padding: 1rem;
+}
+
+/* Empty MIDI track waveform with piano roll grid */
+.track.midi-track .track-waveform.empty-midi::after {
+  content: 'Click Notes or Patterns to add MIDI';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #4a6ed4;
+  font-size: 0.8rem;
+  text-align: center;
+  pointer-events: none;
+  z-index: 1;
+  background: rgba(26, 26, 42, 0.8);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  border: 1px solid rgba(100, 149, 237, 0.3);
 }
 
 /* MIDI Playhead */
@@ -304,30 +332,32 @@
 
 /* MIDI Track Layout Adjustments */
 .track.midi-track {
-  min-height: 100px;
-  height: 100px !important;
-  max-height: 100px !important;
+  min-height: 160px;
+  height: 160px !important;
+  max-height: 160px !important;
 }
 
 .track.midi-track .track-controls {
-  width: 180px;
-  min-width: 180px;
+  width: 220px;
+  min-width: 220px;
+  padding: 0.75rem 0.5rem;
+  gap: 8px;
 }
 
 .track.midi-track .track-waveform {
-  height: 100px !important;
-  max-height: 100px !important;
-  min-height: 100px !important;
+  height: 160px !important;
+  max-height: 160px !important;
+  min-height: 160px !important;
 }
 
 .track.midi-track .track-waveform canvas {
   height: 100% !important;
-  max-height: 100px !important;
+  max-height: 160px !important;
 }
 
 .track.midi-track .midi-track-display {
   height: 100%;
-  min-height: 100px;
+  min-height: 160px;
 }
 
 /* Transport and Piano Integration */
