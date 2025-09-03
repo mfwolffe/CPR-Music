@@ -92,8 +92,62 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
     };
   }, [clips, duration, zoomLevel, track?.color]);
 
+  // Draw loading state for clips that are still processing
+  const drawLoadingState = (ctx, clip, rect, dpr) => {
+    const clipH = rect.h;
+    const centerY = rect.y + clipH / 2;
+    
+    ctx.save();
+    
+    // Set up clipping region
+    ctx.beginPath();
+    ctx.rect(rect.x, rect.y, rect.w, clipH);
+    ctx.clip();
+    
+    // Draw loading background
+    ctx.fillStyle = hexToRgba(rect.color, 0.1);
+    ctx.fillRect(rect.x, rect.y, rect.w, clipH);
+    
+    // Draw animated loading bars or pulse
+    const time = Date.now() / 1000;
+    const animOffset = (Math.sin(time * 2) + 1) * 0.5; // 0-1 sine wave
+    
+    if (clip.loadingState === 'reading' || clip.loadingState === 'decoding') {
+      // Animated bars for heavy processing
+      ctx.fillStyle = hexToRgba(rect.color, 0.3 + animOffset * 0.2);
+      const barCount = 8;
+      const barWidth = rect.w / barCount;
+      
+      for (let i = 0; i < barCount; i++) {
+        const phase = (time * 3 + i * 0.5) % (Math.PI * 2);
+        const barHeight = (Math.sin(phase) + 1) * 0.3 + 0.1;
+        const barY = centerY - (clipH * barHeight) / 2;
+        
+        ctx.fillRect(
+          rect.x + i * barWidth + barWidth * 0.1,
+          barY,
+          barWidth * 0.8,
+          clipH * barHeight
+        );
+      }
+    } else if (clip.loadingState === 'generating-waveform') {
+      // Smooth pulse for waveform generation
+      ctx.fillStyle = hexToRgba(rect.color, 0.2 + animOffset * 0.3);
+      const pulseHeight = clipH * (0.3 + animOffset * 0.4);
+      ctx.fillRect(rect.x, centerY - pulseHeight/2, rect.w, pulseHeight);
+    }
+    
+    ctx.restore();
+  };
+
   // Draw waveform for a clip
   const drawWaveform = (ctx, clip, rect, dpr) => {
+    // If clip is loading, show loading state instead
+    if (clip.isLoading) {
+      drawLoadingState(ctx, clip, rect, dpr);
+      return;
+    }
+    
     const peaks = peaksCache.get(clip.id);
     if (!peaks || peaks.length === 0) return;
     
@@ -186,6 +240,18 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
     const ro = new ResizeObserver(() => draw());
     ro.observe(canvas);
     window.addEventListener('resize', draw);
+    
+    // Set up animation for loading clips
+    let animationId = null;
+    const hasLoadingClips = clips.some(clip => clip.isLoading);
+    
+    if (hasLoadingClips) {
+      const animate = () => {
+        draw();
+        animationId = requestAnimationFrame(animate);
+      };
+      animationId = requestAnimationFrame(animate);
+    }
 
     function draw() {
       const { dpr, width: W, height: H } = resizeToCSS(canvas);
@@ -231,13 +297,29 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
           ctx.fillRect(r.x + r.w - handleW, 0, handleW, H);
         }
         
-        // Clip label (optional)
+        // Clip label (optional) - Enhanced for loading states
         if (r.w > 50 * dpr) {
           ctx.fillStyle = hexToRgba('#ffffff', 0.8);
           ctx.font = `${Math.floor(11 * dpr)}px Inter, system-ui, sans-serif`;
           ctx.textAlign = 'left';
           ctx.textBaseline = 'top';
-          const label = clip.name || `Clip ${i + 1}`;
+          
+          let label = clip.name || `Clip ${i + 1}`;
+          
+          // Show loading state in label
+          if (clip.isLoading) {
+            const loadingStates = {
+              reading: '📖 Reading...',
+              decoding: '🔧 Decoding...',
+              'generating-waveform': '🌊 Generating waveform...'
+            };
+            const loadingText = loadingStates[clip.loadingState] || '⏳ Processing...';
+            label = `${label} - ${loadingText}`;
+          } else if (clip.hasError) {
+            label = `${label} - ❌ Error`;
+            ctx.fillStyle = hexToRgba('#ff6b6b', 0.9);
+          }
+          
           ctx.fillText(label, r.x + 6 * dpr, Math.floor(10 * dpr));
         }
       }
@@ -402,6 +484,10 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
+      // Clean up animation
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
     };
   }, [clipRects, currentTime, duration, zoomLevel, interactive, selectedClipId, selectedTrackId, 
       snapEnabled, gridSizeSec, setSelectedTrackId, setSelectedClipId, setTracks, track?.id, 

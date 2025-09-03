@@ -137,18 +137,32 @@ export default function WalkingWaveform({
           time: currentTime
         });
         
-        // Auto-scroll viewport to follow the playhead during recording
+        // PRO DAW-STYLE AUTO-SCROLL: Playhead stays at fixed 75% position, waveform scrolls past
         let viewportStart = viewportStartTime;
         if (isRecording && currentTime > 0) {
           const viewportDuration = width / pixelsPerSecond; // How many seconds fit in the viewport
-          const viewportEnd = viewportStart + viewportDuration;
-          const scrollThreshold = viewportDuration * 0.2; // Start scrolling at 20% from right edge
           
-          if (currentTime > (viewportEnd - scrollThreshold)) {
-            // Playhead near right edge - scroll forward to keep it at 25% from left
-            const newViewportStart = Math.max(0, currentTime - viewportDuration * 0.25);
-            setViewportStartTime(newViewportStart);
-            viewportStart = newViewportStart;
+          // FIXED PLAYHEAD POSITION: Keep playhead at 75% from left edge (like Pro Tools/Logic)
+          const playheadScreenPosition = 0.75; // 75% from left
+          
+          // Calculate where viewport should start so currentTime appears at 75% position
+          const targetViewportStart = Math.max(0, currentTime - (viewportDuration * playheadScreenPosition));
+          
+          // Smooth viewport updates to avoid jank - only update if significantly different
+          const timeDifference = Math.abs(targetViewportStart - viewportStart);
+          
+          if (timeDifference > 0.1) { // Update if >100ms difference
+            setViewportStartTime(targetViewportStart);
+            viewportStart = targetViewportStart;
+            
+            if (process.env.NODE_ENV === 'development') {
+              console.log('🎬 Audio Auto-scroll (Fixed Playhead @ 75%):', {
+                currentTime: currentTime.toFixed(3),
+                viewportStart: targetViewportStart.toFixed(3),
+                playheadWillAppearAt: `${(playheadScreenPosition * 100)}%`,
+                timeDiff: timeDifference.toFixed(3)
+              });
+            }
           }
         }
         

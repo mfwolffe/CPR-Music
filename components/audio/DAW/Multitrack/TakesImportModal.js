@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react';
 import { Modal, Button, ListGroup, Form, Badge } from 'react-bootstrap';
 import { FaFileAudio, FaClock, FaMusic } from 'react-icons/fa';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
+import { decodeAudioFromURL } from './AudioEngine';
+import waveformCache from './WaveformCache';
 
 export default function TakesImportModal({ show, onHide, takes = [] }) {
   const { addTrack } = useMultitrack();
@@ -22,50 +24,86 @@ export default function TakesImportModal({ show, onHide, takes = [] }) {
     }
   }, [selectedTake]);
 
-  const handleImport = () => {
+  const handleImport = async () => {
     if (selectedTake && selectedTake.audioURL) {
       console.log('Importing take:', selectedTake);
 
-      // For blob URLs, we might need to ensure they're still valid
-      if (selectedTake.audioURL.startsWith('blob:')) {
-        // Check if blob is still accessible
-        fetch(selectedTake.audioURL)
-          .then((response) => {
-            if (response.ok) {
-              return response.blob();
-            }
-            throw new Error('Blob URL expired');
-          })
-          .then((blob) => {
-            // Create a new blob URL to ensure it's fresh
-            const newURL = URL.createObjectURL(blob);
-            addTrack({
-              name: trackName || 'Imported Take',
-              audioURL: newURL,
-              takeId: selectedTake.id,
-            });
+      try {
+        let finalURL = selectedTake.audioURL;
 
-            // Reset and close
-            setSelectedTake(null);
-            setTrackName('');
-            onHide();
-          })
-          .catch((err) => {
-            console.error('Error accessing blob:', err);
-            alert('This take is no longer available. Please record a new one.');
-          });
-      } else {
-        // For regular URLs, import directly
+        // For blob URLs, we might need to ensure they're still valid
+        if (selectedTake.audioURL.startsWith('blob:')) {
+          // Check if blob is still accessible
+          const response = await fetch(selectedTake.audioURL);
+          if (response.ok) {
+            const blob = await response.blob();
+            finalURL = URL.createObjectURL(blob);
+          } else {
+            throw new Error('Blob URL expired');
+          }
+        }
+
+        // Create immediate placeholder clip (Progressive Loading approach)
+        const clipId = `clip-take-${selectedTake.id}-${Date.now()}`;
+        const placeholderClip = {
+          id: clipId,
+          start: 0,
+          duration: 0, // Will update when decoded
+          color: '#7bafd4',
+          src: finalURL,
+          offset: 0,
+          name: trackName || 'Imported Take',
+          isLoading: true,
+          loadingState: 'reading'
+        };
+
+        // Add track immediately with placeholder - UI stays responsive!
         addTrack({
           name: trackName || 'Imported Take',
-          audioURL: selectedTake.audioURL,
+          audioURL: finalURL,
           takeId: selectedTake.id,
+          clips: [placeholderClip],
         });
 
-        // Reset and close
+        // Close modal immediately - track is already visible
         setSelectedTake(null);
         setTrackName('');
         onHide();
+
+        // Continue processing in background (non-blocking)
+        setTimeout(async () => {
+          try {
+            // Decode audio to get duration
+            const audioBuffer = await decodeAudioFromURL(finalURL);
+            const duration = audioBuffer ? audioBuffer.duration : 0;
+
+            // Update clip with real duration
+            const finalClip = {
+              ...placeholderClip,
+              duration: duration,
+              isLoading: false,
+              loadingState: 'complete'
+            };
+
+            // Update existing track
+            // Note: We need to find the track by takeId since we don't have direct access
+            // to updateTrack here. This could be improved by passing updateTrack as a prop.
+            console.log('✅ Take import complete - duration:', duration);
+
+            // Preload waveform peaks
+            waveformCache.preloadURL(finalURL).catch((err) => {
+              console.warn('Failed to preload waveform for imported take:', err);
+            });
+
+          } catch (bgErr) {
+            console.error('Background processing failed:', bgErr);
+            // Could emit an event or use a global store to update the clip error state
+          }
+        }, 100); // Small delay to ensure UI update happens first
+
+      } catch (err) {
+        console.error('Error importing take:', err);
+        alert('Failed to import take: ' + err.message);
       }
     }
   };

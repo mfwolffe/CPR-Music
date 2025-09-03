@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Button, Form, ButtonGroup } from 'react-bootstrap';
+import { Button, Form, ButtonGroup, ProgressBar, Alert } from 'react-bootstrap';
 import {
   FaTrash,
   FaFileImport,
@@ -32,9 +32,12 @@ export default function Track({ track, index, zoomLevel = 100 }) {
   } = useMultitrack();
 
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingState, setLoadingState] = useState('idle'); // 'idle', 'reading', 'decoding', 'generating-waveform', 'complete', 'error'
   const fileInputRef = useRef(null);
   const clipPlayerRef = useRef(null);
   const [controlTab, setControlTab] = useState('vol'); // 'vol' | 'pan'
+  const [isDragOver, setIsDragOver] = useState(false);
 
   // Resume audio context if needed
   const resumeAudioContextIfNeeded = async () => {
@@ -124,52 +127,137 @@ export default function Track({ track, index, zoomLevel = 100 }) {
     clipPlayerRef.current.setPan(track.pan);
   }, [track.pan]);
 
-  // Handle file import
-  const handleFileImport = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Progress update helper
+  const updateLoadingProgress = (state, progress) => {
+    setLoadingState(state);
+    setLoadingProgress(progress);
+    console.log(`🔄 Loading ${state}: ${Math.round(progress)}%`);
+  };
+
+  // Handle file import (shared logic for file input and drag-and-drop) - Progressive Loading
+  const processAudioFile = async (file) => {
+    if (!file || !file.type.startsWith('audio/')) return;
 
     setIsLoading(true);
+    updateLoadingProgress('reading', 0);
+    
+    let clipId = null; // Declare outside try block for error handler
 
     try {
       const url = URL.createObjectURL(file);
+      updateLoadingProgress('reading', 25);
 
-      // Decode to get duration
+      // Phase 1: Create immediate placeholder clip
+      clipId = `clip-${track.id}-${Date.now()}`;
+      const placeholderClip = {
+        id: clipId,
+        start: 0,
+        duration: 0, // Will update when decoded
+        color: track.color || '#7bafd4',
+        src: url,
+        offset: 0,
+        name: file.name.replace(/\.[^/.]+$/, ''), // Remove extension
+        isLoading: true,
+        loadingState: 'reading'
+      };
+
+      // Immediately add track with placeholder - UI stays responsive!
+      updateTrack(track.id, {
+        audioURL: url,
+        clips: [placeholderClip]
+      });
+
+      updateLoadingProgress('reading', 50);
+
+      // Phase 2: Decode audio in background (this is the heavy operation)
+      updateLoadingProgress('decoding', 60);
       const audioBuffer = await decodeAudioFromURL(url);
       const duration = audioBuffer ? audioBuffer.duration : 0;
 
-      // Initialize a clip for the new audio
-      const clipId = `clip-${track.id}-${Date.now()}`;
-      const clips = [
-        {
-          id: clipId,
-          start: 0,
-          duration: duration,
-          color: track.color || '#7bafd4',
-          src: url,
-          offset: 0,
-          name: file.name.replace(/\.[^/.]+$/, ''), // Remove extension
-        },
-      ];
+      updateLoadingProgress('decoding', 80);
+
+      // Phase 3: Update clip with real duration
+      const finalClip = {
+        ...placeholderClip,
+        duration: duration,
+        isLoading: false,
+        loadingState: 'complete'
+      };
 
       updateTrack(track.id, {
-        audioURL: url,
-        clips: clips,
+        clips: [finalClip]
       });
 
-      // Preload waveform peaks
-      waveformCache.preloadURL(url).catch((err) => {
+      updateLoadingProgress('generating-waveform', 90);
+
+      // Phase 4: Preload waveform peaks in background (non-blocking)
+      waveformCache.preloadURL(url).then(() => {
+        updateLoadingProgress('complete', 100);
+        console.log('✅ Waveform generation complete');
+      }).catch((err) => {
         console.warn('Failed to preload waveform:', err);
+        updateLoadingProgress('error', 100);
       });
 
       // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+
     } catch (err) {
       console.error('Error importing file:', err);
+      updateLoadingProgress('error', 100);
+      
+      // Update clip to show error state if clipId exists
+      if (clipId) {
+        updateTrack(track.id, (prevTrack) => ({
+          ...prevTrack,
+          clips: prevTrack.clips.map(clip => 
+            clip.id === clipId 
+              ? { ...clip, isLoading: false, loadingState: 'error', hasError: true }
+              : clip
+          )
+        }));
+      }
     } finally {
-      setIsLoading(false);
+      // Keep loading indicators for a moment to show completion
+      setTimeout(() => {
+        setIsLoading(false);
+        setLoadingProgress(0);
+        setLoadingState('idle');
+      }, 1000);
+    }
+  };
+
+  const handleFileImport = async (e) => {
+    const file = e.target.files?.[0];
+    await processAudioFile(file);
+  };
+
+  // Drag and drop handlers
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.type.startsWith('audio/')) {
+        await processAudioFile(file);
+      }
     }
   };
 
@@ -400,11 +488,16 @@ export default function Track({ track, index, zoomLevel = 100 }) {
         {/* Track Waveform - takes remaining space */}
         <div
           className="track-waveform"
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
           style={{
             flex: 1,
-            backgroundColor: '#2a2a2a',
+            backgroundColor: isDragOver ? '#3a3a3a' : '#2a2a2a',
             position: 'relative',
             overflow: 'hidden',
+            border: isDragOver ? '2px dashed #7bafd4' : 'none',
+            transition: 'background-color 0.2s, border 0.2s',
           }}
         >
           {isLoading ? (
@@ -412,13 +505,39 @@ export default function Track({ track, index, zoomLevel = 100 }) {
               className="waveform-loading"
               style={{
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
                 height: '100%',
                 color: '#666',
+                padding: '20px',
+                gap: '10px',
               }}
             >
-              Loading...
+              {/* Loading state indicator */}
+              <div style={{ fontSize: '14px', marginBottom: '5px' }}>
+                {loadingState === 'reading' && '📖 Reading file...'}
+                {loadingState === 'decoding' && '🔧 Decoding audio...'}
+                {loadingState === 'generating-waveform' && '🌊 Generating waveform...'}
+                {loadingState === 'complete' && '✅ Complete!'}
+                {loadingState === 'error' && '❌ Error occurred'}
+                {loadingState === 'idle' && 'Processing...'}
+              </div>
+              
+              {/* Progress bar */}
+              <ProgressBar 
+                now={loadingProgress} 
+                style={{ width: '200px', height: '8px' }}
+                variant={loadingState === 'error' ? 'danger' : 
+                        loadingState === 'complete' ? 'success' : 'primary'}
+                striped={loadingState !== 'complete' && loadingState !== 'error'}
+                animated={loadingState !== 'complete' && loadingState !== 'error'}
+              />
+              
+              {/* Percentage */}
+              <small style={{ color: '#888', fontSize: '12px' }}>
+                {Math.round(loadingProgress)}%
+              </small>
             </div>
           ) : track.clips && track.clips.length > 0 ? (
             <TrackClipCanvas
@@ -436,11 +555,12 @@ export default function Track({ track, index, zoomLevel = 100 }) {
                 alignItems: 'center',
                 justifyContent: 'center',
                 height: '100%',
-                color: '#666',
+                color: isDragOver ? '#7bafd4' : '#666',
+                transition: 'color 0.2s',
               }}
             >
               <FaFileImport size={24} />
-              <div>Import audio file</div>
+              <div>{isDragOver ? 'Drop audio file here' : 'Import or drop audio file'}</div>
             </div>
           )}
         </div>
