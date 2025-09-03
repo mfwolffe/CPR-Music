@@ -491,37 +491,36 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       const secPerBeat = 60 / tempo;
       
       if (isRecording && globalCurrentTime > 0) {
-        // Follow playhead during recording with AGGRESSIVE auto-scroll
+        // PRO DAW-STYLE AUTO-SCROLL: Playhead stays at fixed 75% position, content scrolls past
         const currentSecond = globalCurrentTime;
         
         // Fixed window size for consistent behavior - about 16 beats worth of time
         secondsVisible = 16 * secPerBeat;
         
-        // Current viewport bounds
+        // FIXED PLAYHEAD POSITION: Keep playhead at 75% from left edge (like Pro Tools/Logic)
+        const playheadScreenPosition = 0.75; // 75% from left
+        
+        // Calculate where viewport should start so currentTime appears at 75% position
+        const targetFirstSecond = Math.max(0, currentSecond - (secondsVisible * playheadScreenPosition));
+        
+        // Smooth the viewport updates to avoid jank - only update if significantly different
         const currentViewportStart = viewportFirstBeat * secPerBeat;
-        const currentViewportEnd = currentViewportStart + secondsVisible;
+        const timeDifference = Math.abs(targetFirstSecond - currentViewportStart);
         
-        // Always keep playhead centered during recording for best UX
-        const targetFirstSecond = Math.max(0, currentSecond - secondsVisible * 0.5); // Keep playhead centered
-        
-        // Update viewport if playhead has moved significantly or is approaching edges
-        const playheadPosition = (currentSecond - currentViewportStart) / secondsVisible;
-        
-        if (playheadPosition < 0.2 || playheadPosition > 0.8 || Math.abs(targetFirstSecond - currentViewportStart) > secPerBeat) {
-          // Playhead is outside comfortable zone or has moved significantly - recenter it
+        if (timeDifference > 0.1) { // Update if >100ms difference
           setViewportFirstBeat(targetFirstSecond / secPerBeat);
           firstSecond = targetFirstSecond;
           
           if (process.env.NODE_ENV === 'development') {
-            console.log('🎬 MIDI Auto-scroll:', {
-              currentSecond: currentSecond.toFixed(3),
-              playheadPosition: playheadPosition.toFixed(3),
-              newViewportStart: targetFirstSecond.toFixed(3),
-              secondsVisible: secondsVisible.toFixed(3)
+            console.log('🎬 DAW Auto-scroll (Fixed Playhead @ 75%):', {
+              currentTime: currentSecond.toFixed(3),
+              viewportStart: targetFirstSecond.toFixed(3),
+              playheadWillAppearAt: `${(playheadScreenPosition * 100)}%`,
+              timeDiff: timeDifference.toFixed(3)
             });
           }
         } else {
-          // Use existing viewport position
+          // Use existing viewport position (no significant change needed)
           firstSecond = currentViewportStart;
         }
       } else {
