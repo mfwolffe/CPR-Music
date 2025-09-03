@@ -518,23 +518,24 @@ function collectTrackMidiNotes(track, tempo = { bpm: 120, stepsPerBeat: 4 }) {
  * Calculate adaptive gain staging based on mix complexity
  */
 function calculateAdaptiveGain(trackCount, midiTrackCount, analogTrackCount) {
-  // Base gain starts conservative
-  let baseGain = 0.6;
+  // PROFESSIONAL CONSERVATIVE GAIN STAGING
+  // Start very conservative to prevent any clipping or distortion
+  let baseGain = 0.3; // Much more conservative starting point
   
-  // Reduce gain as track count increases (logarithmic scaling)
-  const trackScale = Math.max(0.2, 1 - (Math.log(trackCount + 1) / Math.log(16)) * 0.5);
+  // More gentle reduction as track count increases
+  const trackScale = Math.max(0.4, 1 - (Math.log(trackCount + 1) / Math.log(20)) * 0.3); // Less aggressive scaling
   
-  // MIDI tracks generally have more consistent levels than analog
+  // MIDI vs analog considerations
   const midiRatio = midiTrackCount / Math.max(1, trackCount);
   const analogRatio = analogTrackCount / Math.max(1, trackCount);
   
-  // Analog tracks need more headroom due to peaks/transients
-  const headroomAdjust = analogRatio * 0.15; // Extra headroom for analog content
+  // Less headroom adjustment - let the safety limiter handle peaks gracefully
+  const headroomAdjust = analogRatio * 0.05; // Much smaller adjustment
   
-  // Final adaptive gain
-  const adaptiveGain = Math.max(0.15, baseGain * trackScale - headroomAdjust);
+  // Final adaptive gain with higher minimum
+  const adaptiveGain = Math.max(0.2, baseGain * trackScale - headroomAdjust); // Higher minimum
   
-  console.log(`Adaptive Gain: ${trackCount} tracks (${midiTrackCount} MIDI, ${analogTrackCount} analog) → ${adaptiveGain.toFixed(3)}`);
+  console.log(`🎚️ Conservative Adaptive Gain: ${trackCount} tracks (${midiTrackCount} MIDI, ${analogTrackCount} analog) → ${adaptiveGain.toFixed(3)}`);
   
   return adaptiveGain;
 }
@@ -556,39 +557,40 @@ function createMixEQ(audioContext, trackCount, midiTrackCount) {
   eq.lowCut.frequency.value = 20;
   eq.lowCut.Q.value = 0.707;
   
-  // Low-frequency cleanup for dense mixes
+  // VERY SUBTLE Low-frequency cleanup for dense mixes
   eq.lowShelf.type = 'lowshelf';
-  eq.lowShelf.frequency.value = 80;
-  if (trackCount > 6) {
-    // Reduce muddiness in dense mixes
-    eq.lowShelf.gain.value = -2; // Gentle low cut
-    eq.lowShelf.Q.value = 0.707;
+  eq.lowShelf.frequency.value = 60; // Lower frequency, more subtle
+  eq.lowShelf.Q.value = 0.5; // Gentler slope
+  if (trackCount > 8) {
+    // Very gentle reduction only for very dense mixes
+    eq.lowShelf.gain.value = -0.5; // Much more subtle
   } else {
-    eq.lowShelf.gain.value = 0; // No change for sparse mixes
+    eq.lowShelf.gain.value = 0; // No change for most mixes
   }
   
-  // Mid-frequency presence adjustment
+  // VERY SUBTLE Mid-frequency presence adjustment
   eq.midBoost.type = 'peaking';
-  eq.midBoost.frequency.value = 2500;
-  eq.midBoost.Q.value = 1.4;
-  if (midiTrackCount > trackCount * 0.6) {
-    // MIDI-heavy mixes benefit from midrange clarity
-    eq.midBoost.gain.value = 1.5;
+  eq.midBoost.frequency.value = 3000; // Slightly higher for clarity
+  eq.midBoost.Q.value = 0.7; // Much broader, more musical
+  if (midiTrackCount > trackCount * 0.7) {
+    // Very subtle boost only for heavily MIDI mixes
+    eq.midBoost.gain.value = 0.5; // Much more subtle
   } else {
     eq.midBoost.gain.value = 0;
   }
   
-  // High-frequency management
+  // VERY SUBTLE High-frequency management  
   eq.highShelf.type = 'highshelf';
-  eq.highShelf.frequency.value = 8000;
-  if (trackCount > 8) {
-    // Reduce harshness in very dense mixes
-    eq.highShelf.gain.value = -1.5;
-    eq.highShelf.Q.value = 0.707;
+  eq.highShelf.frequency.value = 10000; // Higher frequency, more subtle
+  eq.highShelf.Q.value = 0.5; // Gentler slope
+  if (trackCount > 10) {
+    // Very dense mixes only - tiny high reduction
+    eq.highShelf.gain.value = -0.25; // Much more subtle
+  } else if (midiTrackCount > 3) {
+    // MIDI tracks - tiny presence boost
+    eq.highShelf.gain.value = 0.25; // Much more subtle
   } else {
-    // Gentle presence boost for normal mixes
-    eq.highShelf.gain.value = 0.5;
-    eq.highShelf.Q.value = 0.707;
+    eq.highShelf.gain.value = 0; // Most mixes get no processing
   }
   
   // Anti-aliasing/harsh digital high cut
@@ -990,22 +992,27 @@ async function renderMIDITrackToAudio(track, sampleRate = 44100, bpm = 120) {
       const duration = Math.max(0.01, note.duration);
       const midi = Math.round(69 + 12 * Math.log2(note.freq / 440));
       
-      // Smart velocity scaling - handle both low and normal MIDI velocities
+      // PROFESSIONAL VELOCITY SCALING: Consistent and musical
       const originalVelocity = note.velocity || 100;
       
-      // If velocity is very low (0-10), treat as normalized (0-1) and boost appropriately
-      // If velocity is normal MIDI range (11-127), scale down to prevent overdrive
-      let scaledVelocity;
-      if (originalVelocity <= 10) {
-        // Low velocity (likely normalized 0-1) - boost to audible level
-        scaledVelocity = Math.min(0.4, originalVelocity * 0.4);
+      // Normalize MIDI velocity (0-127) to professional audio levels (0-1)
+      // Use musical velocity curve that preserves dynamics but prevents clipping
+      let normalizedVelocity;
+      if (originalVelocity <= 1) {
+        // Already normalized (0-1 range) - use directly
+        normalizedVelocity = Math.max(0.1, Math.min(1, originalVelocity));
       } else {
-        // Normal MIDI velocity (11-127) - scale down conservatively  
-        scaledVelocity = Math.min(0.4, originalVelocity / 127 * 0.6);
+        // Standard MIDI velocity (1-127) - apply musical curve
+        const midiNormalized = Math.max(1, Math.min(127, originalVelocity)) / 127;
+        // Apply slight curve to preserve quiet notes but control loud ones
+        normalizedVelocity = Math.pow(midiNormalized, 0.8); // Gentle compression curve
       }
       
+      // Scale to safe mixing level (much more conservative)
+      const scaledVelocity = normalizedVelocity * 0.15; // Very conservative scaling for mixdown
+      
       if (process.env.NODE_ENV === 'development') {
-        console.log(`Note ${midi}: velocity ${originalVelocity} -> ${scaledVelocity.toFixed(3)}, start: ${start.toFixed(2)}s, dur: ${duration.toFixed(2)}s`);
+        console.log(`🎵 Note ${midi}: velocity ${originalVelocity} -> ${scaledVelocity.toFixed(3)} (normalized: ${normalizedVelocity.toFixed(3)}), start: ${start.toFixed(2)}s, dur: ${duration.toFixed(2)}s`);
       }
       
       try {
@@ -1252,34 +1259,38 @@ async function mixdownClipsAndMidi(
   const analogTracks = included.filter(t => t.type !== 'midi');
   const adaptiveGain = calculateAdaptiveGain(included.length, midiTracks.length, analogTracks.length);
   
-  // Master bus: adaptive headroom + DC block + EQ + limiter + stronger soft-clip
+  // PROFESSIONAL MASTER BUS: Clean gain staging → gentle EQ → minimal limiting
   const masterGain = offline.createGain();
   masterGain.gain.value = adaptiveGain;
 
-  // Create intelligent EQ compensation for mix density
+  // Create subtle EQ compensation for mix density (reduced processing)
   const mixEQ = createMixEQ(offline, included.length, midiTracks.length);
   
   // Calculate intelligent panning to reduce center buildup
   const intelligentPanning = calculateIntelligentPanning(included);
   
-  // Create automatic headroom management
-  const headroomManager = createHeadroomManager(offline, included.length, midiTracks.length);
+  // SIMPLIFIED MASTER BUS: Only essential processing to prevent artifacts
+  // Remove excessive compression stages that cause pumping and static
+  
+  // Professional safety limiter: gentle settings to catch only extreme peaks
+  const safetyLimiter = offline.createDynamicsCompressor();
+  safetyLimiter.threshold.value = -1; // High threshold - only catch peaks above -1dB
+  safetyLimiter.knee.value = 2; // Soft knee for musical limiting
+  safetyLimiter.ratio.value = 8; // Moderate ratio, not extreme
+  safetyLimiter.attack.value = 0.003; // Slower attack to preserve transients
+  safetyLimiter.release.value = 0.15; // Slower release to avoid pumping
 
-  const masterLimiter = offline.createDynamicsCompressor();
-  masterLimiter.threshold.value = -6; // Much lower threshold to catch MIDI transients
-  masterLimiter.knee.value = 0;
-  masterLimiter.ratio.value = 20; // behave like a limiter
-  masterLimiter.attack.value = 0.001; // Faster attack for MIDI spikes
-  masterLimiter.release.value = 0.08; // Faster release
+  // Gentle soft clipper for final peak control (much less aggressive)
+  const gentleClipper = offline.createWaveShaper();
+  gentleClipper.curve = makeSoftClipCurve(4096, 0.9); // Much gentler clipping
 
-  const masterShaper = offline.createWaveShaper();
-  masterShaper.curve = makeSoftClipCurve(4096, 0.6); // More aggressive soft clipping
-
+  // CLEAN SIGNAL CHAIN: masterGain → EQ → gentle limiter → soft clipper → output
   masterGain.connect(mixEQ.input);
-  mixEQ.output.connect(headroomManager.input);
-  headroomManager.output.connect(masterLimiter);
-  masterLimiter.connect(masterShaper);
-  masterShaper.connect(offline.destination);
+  mixEQ.output.connect(safetyLimiter);
+  safetyLimiter.connect(gentleClipper);
+  gentleClipper.connect(offline.destination);
+  
+  console.log('🎛️ Professional Master Bus: Clean signal chain with minimal processing');
 
   // Process each track
   included.forEach((track) => {
