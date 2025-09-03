@@ -40,6 +40,12 @@ export const MultitrackProvider = ({ children }) => {
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [gridSizeSec, setGridSizeSec] = useState(0.1);
 
+  // Effects modal state
+  const [showEffectSelectionModal, setShowEffectSelectionModal] = useState(false);
+  const [showEffectParametersModal, setShowEffectParametersModal] = useState(false);
+  const [selectedEffectType, setSelectedEffectType] = useState(null);
+  const [effectTargetTrackId, setEffectTargetTrackId] = useState(null);
+
   // Playback timer
   const playbackTimerRef = useRef(null);
   
@@ -1130,6 +1136,16 @@ export const MultitrackProvider = ({ children }) => {
     stopRecordingTimer,
     getPreciseCurrentTime,
     resetMixdownState,
+
+    // Effects modal system
+    showEffectSelectionModal,
+    setShowEffectSelectionModal,
+    showEffectParametersModal,
+    setShowEffectParametersModal,
+    selectedEffectType,
+    setSelectedEffectType,
+    effectTargetTrackId,
+    setEffectTargetTrackId,
   };
 
   return (

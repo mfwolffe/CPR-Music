@@ -35,6 +35,8 @@ import RecordingTrack from './RecordingTrack';
 import MIDITrack from './MIDITrack';
 import MultitrackTransport from './MultitrackTransport';
 import EffectsPanel from './EffectsPanel';
+import EffectSelectionModal from './EffectSelectionModal';
+import EffectParametersModal from './EffectParametersModal';
 import MultitrackTimeline from './MultitrackTimeline';
 import TakesImportModal from './TakesImportModal';
 import MultitrackMixdown from './MultitrackMixdown';
@@ -80,6 +82,9 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
     setSnapEnabled,
     gridSizeSec,
     setGridSizeSec,
+    // effects modal system
+    setShowEffectSelectionModal,
+    setEffectTargetTrackId,
   } = useMultitrack();
 
   const [showEffectsPanel, setShowEffectsPanel] = useState(false);
@@ -507,7 +512,16 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => setShowEffectsPanel(!showEffectsPanel)}
+                onClick={() => {
+                  if (selectedTrackId) {
+                    setEffectTargetTrackId(selectedTrackId);
+                    setShowEffectSelectionModal(true);
+                  } else {
+                    alert('Please select a track first to add effects.');
+                  }
+                }}
+                disabled={!selectedTrackId}
+                title={selectedTrackId ? "Add effects to selected track" : "Select a track first"}
               >
                 Effects
               </Button>
@@ -706,6 +720,10 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
           onHide={() => setShowEffectsPanel(false)}
         />
       )}
+
+      {/* Effects Modal System */}
+      <EffectSelectionModal />
+      <EffectParametersModal />
     </Container>
   );
 }
