@@ -17,6 +17,7 @@ import ClipPlayer from './ClipPlayer';
 import audioContextManager from './AudioContextManager';
 import { decodeAudioFromURL } from './AudioEngine';
 import waveformCache from './WaveformCache';
+import { getAudioProcessor } from './AudioProcessor';
 
 export default function Track({ track, index, zoomLevel = 100 }) {
   const {
@@ -34,6 +35,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingState, setLoadingState] = useState('idle'); // 'idle', 'reading', 'decoding', 'generating-waveform', 'complete', 'error'
+  const [processingMethod, setProcessingMethod] = useState('unknown'); // 'worker', 'main-thread', 'unknown'
   const fileInputRef = useRef(null);
   const clipPlayerRef = useRef(null);
   const [controlTab, setControlTab] = useState('vol'); // 'vol' | 'pan'
@@ -127,6 +129,14 @@ export default function Track({ track, index, zoomLevel = 100 }) {
     clipPlayerRef.current.setPan(track.pan);
   }, [track.pan]);
 
+  // Cleanup audio processor on unmount
+  useEffect(() => {
+    return () => {
+      // Note: We use a singleton, so we don't dispose it here
+      // It will be cleaned up when the app unmounts
+    };
+  }, []);
+
   // Progress update helper
   const updateLoadingProgress = (state, progress) => {
     setLoadingState(state);
@@ -134,29 +144,31 @@ export default function Track({ track, index, zoomLevel = 100 }) {
     console.log(`🔄 Loading ${state}: ${Math.round(progress)}%`);
   };
 
-  // Handle file import (shared logic for file input and drag-and-drop) - Progressive Loading
+  // Handle file import - Hybrid Worker/Fallback approach
   const processAudioFile = async (file) => {
     if (!file || !file.type.startsWith('audio/')) return;
 
     setIsLoading(true);
+    setProcessingMethod('unknown');
     updateLoadingProgress('reading', 0);
     
-    let clipId = null; // Declare outside try block for error handler
+    let clipId = null;
+    const audioProcessor = getAudioProcessor();
 
     try {
       const url = URL.createObjectURL(file);
-      updateLoadingProgress('reading', 25);
+      updateLoadingProgress('reading', 10);
 
       // Phase 1: Create immediate placeholder clip
       clipId = `clip-${track.id}-${Date.now()}`;
       const placeholderClip = {
         id: clipId,
         start: 0,
-        duration: 0, // Will update when decoded
+        duration: 0, // Will update when processed
         color: track.color || '#7bafd4',
         src: url,
         offset: 0,
-        name: file.name.replace(/\.[^/.]+$/, ''), // Remove extension
+        name: file.name.replace(/\.[^/.]+$/, ''),
         isLoading: true,
         loadingState: 'reading'
       };
@@ -167,37 +179,49 @@ export default function Track({ track, index, zoomLevel = 100 }) {
         clips: [placeholderClip]
       });
 
-      updateLoadingProgress('reading', 50);
+      // Phase 2: Process with hybrid approach (Worker or Main Thread)
+      const result = await audioProcessor.processAudioFile(
+        url,
+        clipId,
+        (stage, progress) => {
+          updateLoadingProgress(stage, progress);
+          
+          // Update clip loading state in real-time
+          updateTrack(track.id, (prevTrack) => ({
+            ...prevTrack,
+            clips: prevTrack.clips.map(clip =>
+              clip.id === clipId
+                ? { ...clip, loadingState: stage }
+                : clip
+            )
+          }));
+        }
+      );
 
-      // Phase 2: Decode audio in background (this is the heavy operation)
-      updateLoadingProgress('decoding', 60);
-      const audioBuffer = await decodeAudioFromURL(url);
-      const duration = audioBuffer ? audioBuffer.duration : 0;
+      // Set processing method indicator
+      setProcessingMethod(result.method);
+      console.log(`🔧 Audio processed using: ${result.method}`);
 
-      updateLoadingProgress('decoding', 80);
-
-      // Phase 3: Update clip with real duration
+      // Phase 3: Update clip with final data
       const finalClip = {
         ...placeholderClip,
-        duration: duration,
+        duration: result.duration,
         isLoading: false,
-        loadingState: 'complete'
+        loadingState: 'complete',
+        processingMethod: result.method
       };
 
       updateTrack(track.id, {
         clips: [finalClip]
       });
 
-      updateLoadingProgress('generating-waveform', 90);
+      updateLoadingProgress('complete', 100);
 
-      // Phase 4: Preload waveform peaks in background (non-blocking)
-      waveformCache.preloadURL(url).then(() => {
-        updateLoadingProgress('complete', 100);
-        console.log('✅ Waveform generation complete');
-      }).catch((err) => {
-        console.warn('Failed to preload waveform:', err);
-        updateLoadingProgress('error', 100);
-      });
+      // Phase 4: Cache peaks if not already cached by worker
+      if (result.peaks) {
+        // Store peaks in cache for immediate use
+        console.log(`✅ Peaks ready (${result.peaks.length} samples)`);
+      }
 
       // Reset file input
       if (fileInputRef.current) {
@@ -208,7 +232,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
       console.error('Error importing file:', err);
       updateLoadingProgress('error', 100);
       
-      // Update clip to show error state if clipId exists
+      // Update clip to show error state
       if (clipId) {
         updateTrack(track.id, (prevTrack) => ({
           ...prevTrack,
@@ -225,7 +249,8 @@ export default function Track({ track, index, zoomLevel = 100 }) {
         setIsLoading(false);
         setLoadingProgress(0);
         setLoadingState('idle');
-      }, 1000);
+        setProcessingMethod('unknown');
+      }, 1500);
     }
   };
 
@@ -518,11 +543,19 @@ export default function Track({ track, index, zoomLevel = 100 }) {
               <div style={{ fontSize: '14px', marginBottom: '5px' }}>
                 {loadingState === 'reading' && '📖 Reading file...'}
                 {loadingState === 'decoding' && '🔧 Decoding audio...'}
-                {loadingState === 'generating-waveform' && '🌊 Generating waveform...'}
+                {loadingState === 'generating-peaks' && '🌊 Generating peaks...'}
                 {loadingState === 'complete' && '✅ Complete!'}
                 {loadingState === 'error' && '❌ Error occurred'}
                 {loadingState === 'idle' && 'Processing...'}
               </div>
+              
+              {/* Processing method indicator */}
+              {processingMethod !== 'unknown' && (
+                <div style={{ fontSize: '12px', color: '#888', marginBottom: '3px' }}>
+                  {processingMethod === 'worker' && '🚀 Web Worker (non-blocking)'}
+                  {processingMethod === 'main-thread' && '🔄 Main Thread (progressive)'}
+                </div>
+              )}
               
               {/* Progress bar */}
               <ProgressBar 

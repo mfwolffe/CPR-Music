@@ -5,11 +5,10 @@ import { useState, useEffect } from 'react';
 import { Modal, Button, ListGroup, Form, Badge } from 'react-bootstrap';
 import { FaFileAudio, FaClock, FaMusic } from 'react-icons/fa';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
-import { decodeAudioFromURL } from './AudioEngine';
-import waveformCache from './WaveformCache';
+import { getAudioProcessor } from './AudioProcessor';
 
 export default function TakesImportModal({ show, onHide, takes = [] }) {
-  const { addTrack } = useMultitrack();
+  const { addTrack, updateTrack } = useMultitrack();
   const [selectedTake, setSelectedTake] = useState(null);
   const [trackName, setTrackName] = useState('');
 
@@ -25,86 +24,150 @@ export default function TakesImportModal({ show, onHide, takes = [] }) {
   }, [selectedTake]);
 
   const handleImport = async () => {
-    if (selectedTake && selectedTake.audioURL) {
-      console.log('Importing take:', selectedTake);
+    if (!selectedTake || !selectedTake.audioURL) return;
 
+    console.log('📥 TakesImportModal: Importing take:', selectedTake);
+
+    try {
+      let finalURL = selectedTake.audioURL;
+
+      // For blob URLs, we might need to ensure they're still valid
+      if (selectedTake.audioURL.startsWith('blob:')) {
+        console.log('🔄 TakesImportModal: Refreshing blob URL for take');
+        const response = await fetch(selectedTake.audioURL);
+        if (response.ok) {
+          const blob = await response.blob();
+          finalURL = URL.createObjectURL(blob);
+          console.log('✅ TakesImportModal: Blob URL refreshed');
+        } else {
+          throw new Error('Blob URL expired');
+        }
+      }
+
+      // Create immediate placeholder clip
+      const clipId = `clip-take-${selectedTake.id}-${Date.now()}`;
+      const placeholderClip = {
+        id: clipId,
+        start: 0,
+        duration: 0, // Will update when processed
+        color: '#7bafd4',
+        src: finalURL,
+        offset: 0,
+        name: trackName || 'Imported Take',
+        isLoading: true,
+        loadingState: 'reading'
+      };
+
+      // Add track immediately with placeholder - UI stays responsive!
+      const newTrack = addTrack({
+        name: trackName || 'Imported Take',
+        audioURL: finalURL,
+        takeId: selectedTake.id,
+        clips: [placeholderClip],
+      });
+
+      console.log('🎵 TakesImportModal: Track created immediately with ID:', newTrack.id);
+
+      // Close modal immediately - track is already visible
+      setSelectedTake(null);
+      setTrackName('');
+      onHide();
+
+      // Process in background - Try AudioProcessor first, fallback to old method
+      console.log('🔄 TakesImportModal: Starting background processing for take');
+      
       try {
-        let finalURL = selectedTake.audioURL;
+        const audioProcessor = getAudioProcessor();
+        
+        // Check if AudioProcessor is available and working
+        if (audioProcessor && typeof audioProcessor.processAudioFile === 'function') {
+          console.log('🚀 TakesImportModal: Using AudioProcessor for take processing');
+          
+          const result = await audioProcessor.processAudioFile(
+            finalURL,
+            clipId,
+            (stage, progress) => {
+              console.log(`📊 TakesImportModal: Background processing ${stage}: ${progress}%`);
+              
+              // Update clip loading state in real-time
+              updateTrack(newTrack.id, (prevTrack) => ({
+                ...prevTrack,
+                clips: prevTrack.clips.map(clip =>
+                  clip.id === clipId
+                    ? { ...clip, loadingState: stage }
+                    : clip
+                )
+              }));
+            }
+          );
 
-        // For blob URLs, we might need to ensure they're still valid
-        if (selectedTake.audioURL.startsWith('blob:')) {
-          // Check if blob is still accessible
-          const response = await fetch(selectedTake.audioURL);
-          if (response.ok) {
-            const blob = await response.blob();
-            finalURL = URL.createObjectURL(blob);
-          } else {
-            throw new Error('Blob URL expired');
-          }
+          console.log(`✅ TakesImportModal: Background processing complete using ${result.method}`);
+
+          // Update clip with final data
+          const finalClip = {
+            ...placeholderClip,
+            duration: result.duration,
+            isLoading: false,
+            loadingState: 'complete',
+            processingMethod: result.method
+          };
+
+          updateTrack(newTrack.id, {
+            clips: [finalClip]
+          });
+
+          console.log(`📊 TakesImportModal: Take import fully complete - duration: ${result.duration?.toFixed(2)}s`);
+
+        } else {
+          throw new Error('AudioProcessor not available, falling back to legacy method');
         }
 
-        // Create immediate placeholder clip (Progressive Loading approach)
-        const clipId = `clip-take-${selectedTake.id}-${Date.now()}`;
-        const placeholderClip = {
-          id: clipId,
-          start: 0,
-          duration: 0, // Will update when decoded
-          color: '#7bafd4',
-          src: finalURL,
-          offset: 0,
-          name: trackName || 'Imported Take',
-          isLoading: true,
-          loadingState: 'reading'
-        };
+      } catch (bgErr) {
+        console.warn('🔄 TakesImportModal: AudioProcessor failed, trying fallback method:', bgErr.message);
+        
+        // Fallback to original decodeAudioFromURL approach
+        try {
+          console.log('🔄 TakesImportModal: Using fallback audio processing');
+          
+          // Import fallback function
+          const { decodeAudioFromURL } = await import('./AudioEngine');
+          
+          const audioBuffer = await decodeAudioFromURL(finalURL);
+          const duration = audioBuffer ? audioBuffer.duration : 0;
 
-        // Add track immediately with placeholder - UI stays responsive!
-        addTrack({
-          name: trackName || 'Imported Take',
-          audioURL: finalURL,
-          takeId: selectedTake.id,
-          clips: [placeholderClip],
-        });
+          // Update clip with final data (fallback version)
+          const finalClip = {
+            ...placeholderClip,
+            duration: duration,
+            isLoading: false,
+            loadingState: 'complete',
+            processingMethod: 'fallback'
+          };
 
-        // Close modal immediately - track is already visible
-        setSelectedTake(null);
-        setTrackName('');
-        onHide();
+          updateTrack(newTrack.id, {
+            clips: [finalClip]
+          });
 
-        // Continue processing in background (non-blocking)
-        setTimeout(async () => {
-          try {
-            // Decode audio to get duration
-            const audioBuffer = await decodeAudioFromURL(finalURL);
-            const duration = audioBuffer ? audioBuffer.duration : 0;
+          console.log(`✅ TakesImportModal: Fallback processing complete - duration: ${duration?.toFixed(2)}s`);
 
-            // Update clip with real duration
-            const finalClip = {
-              ...placeholderClip,
-              duration: duration,
-              isLoading: false,
-              loadingState: 'complete'
-            };
-
-            // Update existing track
-            // Note: We need to find the track by takeId since we don't have direct access
-            // to updateTrack here. This could be improved by passing updateTrack as a prop.
-            console.log('✅ Take import complete - duration:', duration);
-
-            // Preload waveform peaks
-            waveformCache.preloadURL(finalURL).catch((err) => {
-              console.warn('Failed to preload waveform for imported take:', err);
-            });
-
-          } catch (bgErr) {
-            console.error('Background processing failed:', bgErr);
-            // Could emit an event or use a global store to update the clip error state
-          }
-        }, 100); // Small delay to ensure UI update happens first
-
-      } catch (err) {
-        console.error('Error importing take:', err);
-        alert('Failed to import take: ' + err.message);
+        } catch (fallbackErr) {
+          console.error('❌ TakesImportModal: Both AudioProcessor and fallback failed:', fallbackErr);
+          
+          // Update clip to show error state
+          updateTrack(newTrack.id, (prevTrack) => ({
+            ...prevTrack,
+            clips: prevTrack.clips.map(clip =>
+              clip.id === clipId
+                ? { ...clip, isLoading: false, loadingState: 'error', hasError: true }
+                : clip
+            )
+          }));
+        }
       }
+
+    } catch (err) {
+      console.error('❌ TakesImportModal: Take import failed:', err);
+      alert('Failed to import take: ' + err.message);
     }
   };
 

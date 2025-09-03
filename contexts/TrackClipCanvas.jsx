@@ -311,13 +311,18 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
             const loadingStates = {
               reading: '📖 Reading...',
               decoding: '🔧 Decoding...',
-              'generating-waveform': '🌊 Generating waveform...'
+              'generating-waveform': '🌊 Generating waveform...',
+              'generating-peaks': '🌊 Generating peaks...'
             };
             const loadingText = loadingStates[clip.loadingState] || '⏳ Processing...';
             label = `${label} - ${loadingText}`;
           } else if (clip.hasError) {
             label = `${label} - ❌ Error`;
             ctx.fillStyle = hexToRgba('#ff6b6b', 0.9);
+          } else if (clip.processingMethod) {
+            // Show processing method for completed clips (subtle indicator)
+            const methodIcon = clip.processingMethod === 'worker' ? '🚀' : '🔄';
+            label = `${methodIcon} ${label}`;
           }
           
           ctx.fillText(label, r.x + 6 * dpr, Math.floor(10 * dpr));
