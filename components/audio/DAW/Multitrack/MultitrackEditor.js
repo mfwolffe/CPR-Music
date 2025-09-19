@@ -663,7 +663,14 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                     top: 0,
                     left: 0,
                     width: '2px',
-                    height: '100%',
+                    height: `${tracks.reduce((totalHeight, track) => {
+                      // Calculate height based on track type
+                      if (track.type === 'midi') {
+                        return totalHeight + 240; // MIDI tracks are 240px (from daw-midi.css)
+                      } else {
+                        return totalHeight + 200; // Recording tracks are 200px
+                      }
+                    }, 0)}px`,
                     backgroundColor: '#ff3030',
                     boxShadow: '0 0 3px rgba(255, 48, 48, 0.8)',
                     pointerEvents: 'none',
