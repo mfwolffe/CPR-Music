@@ -573,8 +573,8 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
       </Row>
 
       {/* Tracks */}
-      <Row>
-        <Col>
+      <Row style={{ flex: 1, minHeight: 0 }}>
+        <Col style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div
             ref={tracksScrollRef}
             className="tracks-container"
@@ -594,15 +594,20 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
               overflowX: 'auto',
               overflowY: 'auto',
               position: 'relative',
-              paddingBottom: '60px', // space for fixed transport
+              paddingBottom: '120px', // space for fixed transport + MIDI tracks
             }}
           >
             <div
               id="multitrack-tracks-inner"
               style={{
                 position: 'relative',
-                minHeight: '100%',
+                minHeight: '600px', // Default space for 3 recording tracks (200px each)
                 width: `${280 + 3000 * (zoomLevel / 100)}px`,
+                backgroundImage: `
+                  linear-gradient(90deg, rgba(100, 149, 237, 0.1) 1px, transparent 1px),
+                  linear-gradient(rgba(100, 149, 237, 0.1) 1px, transparent 1px)
+                `,
+                backgroundSize: '40px 20px'
               }}
             >
               {tracks.map((track, index) => {

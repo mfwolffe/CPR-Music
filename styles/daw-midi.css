@@ -332,32 +332,38 @@
 
 /* MIDI Track Layout Adjustments */
 .track.midi-track {
-  min-height: 160px;
-  height: 160px !important;
-  max-height: 160px !important;
+  min-height: 240px !important;
+  height: 240px !important;
+  max-height: 240px !important;
 }
 
 .track.midi-track .track-controls {
-  width: 220px;
-  min-width: 220px;
+  width: 230px !important;
+  min-width: 230px !important;
+  max-width: 230px !important;
+  height: 240px !important;
+  min-height: 240px !important;
+  max-height: 240px !important;
   padding: 0.75rem 0.5rem;
-  gap: 8px;
+  gap: 6px;
+  overflow-y: hidden;
 }
 
 .track.midi-track .track-waveform {
-  height: 160px !important;
-  max-height: 160px !important;
-  min-height: 160px !important;
+  height: 240px !important;
+  max-height: 240px !important;
+  min-height: 240px !important;
 }
 
 .track.midi-track .track-waveform canvas {
   height: 100% !important;
-  max-height: 160px !important;
+  max-height: 240px !important;
 }
 
 .track.midi-track .midi-track-display {
   height: 100%;
-  min-height: 160px;
+  min-height: 240px;
+  max-height: 240px;
 }
 
 /* Transport and Piano Integration */

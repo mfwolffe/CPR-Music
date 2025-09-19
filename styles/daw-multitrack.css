@@ -6,10 +6,10 @@
 .multitrack-editor-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  min-height: 100vh;
   background-color: #1a1a1a;
   color: #fff;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 /* Fixed height variant */
@@ -218,8 +218,8 @@
 }
 
 .timeline-scale {
-  width: 220px; /* Match track controls width */
-  min-width: 220px;
+  width: 230px; /* Match track controls width */
+  min-width: 230px;
   background-color: #232323;
   border-right: 1px solid #444;
   display: flex;
@@ -248,9 +248,9 @@
 .tracks-layout {
   flex: 1;
   display: flex;
-  overflow: hidden;
+  overflow-y: auto;
   background-color: #242424; /* Match track background */
-  min-height: 0;
+  min-height: auto;
   position: relative;
 }
 

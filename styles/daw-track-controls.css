@@ -5,9 +5,8 @@
 /* Individual Track Container */
 .track {
   display: flex;
-  height: 120px !important;
-  max-height: 120px !important;
-  min-height: 120px !important;
+  height: 120px;
+  min-height: 120px;
   border-bottom: 1px solid #333;
   cursor: pointer;
   transition: background-color 0.2s ease;
@@ -38,8 +37,8 @@
 
 /* Track Controls (Left Side) */
 .track-controls {
-  width: 220px;
-  min-width: 220px;
+  width: 230px;
+  min-width: 230px;
   padding: 0.5rem 0.5rem;
   background-color: #232323;
   border-right: 1px solid #444;
@@ -47,7 +46,7 @@
   flex-direction: column;
   gap: 6px;
   justify-content: center;
-  overflow-y: auto;
+  overflow: hidden;
   height: 120px !important;
   box-sizing: border-box;
 }
@@ -197,7 +196,7 @@
   appearance: none;
   background: transparent;
   cursor: pointer;
-  margin: 0;
+  margin: 0 10px 0 0;
 }
 
 .track-pan-slider:focus,
@@ -330,9 +329,9 @@
   height: 200px !important;
   min-height: 200px !important;
   max-height: 200px !important;
-  width: 220px;
-  min-width: 220px;
+  width: 230px;
+  min-width: 230px;
   padding: 0.75rem 0.5rem;
-  overflow-x: visible;
-  overflow-y: auto;
+  overflow-x: hidden;
+  overflow-y: hidden;
 }

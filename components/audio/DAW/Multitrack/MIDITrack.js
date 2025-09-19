@@ -17,6 +17,7 @@ import {
   FaThLarge,
   FaTh,
   FaDownload,
+  FaFileImport,
 } from 'react-icons/fa';
 import { useMIDITrackAudio } from './hooks/useMidiTrackAudio';
 import MIDIInputManager from './MIDIInputManager';
@@ -184,7 +185,9 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     const resize = () => {
       const rect = parent.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      const displayW = Math.max(1, Math.floor(rect.width));
+      // Use the same width calculation as the timeline container
+      const timelineWidth = 280 + 3000 * (zoomLevel / 100);
+      const displayW = Math.max(1, Math.floor(timelineWidth - 230)); // Subtract control width
       const displayH = Math.max(1, Math.floor(rect.height));
 
       const targetW = Math.floor(displayW * dpr);
@@ -708,34 +711,12 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
           soloTrackId === track.id ? 'track-solo' : ''
         }`}
         onClick={() => setSelectedTrackId(track.id)}
-        style={{ display: 'flex', flex: 1 }}
       >
         <div
           className="track-controls"
-          style={{
-            width: '200px',
-            flexShrink: 0,
-            backgroundColor: '#232323',
-            borderRight: '1px solid #444',
-            padding: '10px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-          }}
         >
           <div className="track-header">
             <span className="track-name">{track.name}</span>
-            <Button
-              variant="link"
-              size="sm"
-              className="p-0 text-danger"
-              onClick={(e) => {
-                e.stopPropagation();
-                removeTrack(track.id);
-              }}
-            >
-              <FaTrash />
-            </Button>
           </div>
 
           {/* Instrument Display */}
@@ -838,6 +819,17 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
               }
             >
               {isRecording ? <FaStop /> : isCountingDown ? countdownBeat : <FaCircle />}
+            </Button>
+            <Button
+              variant="outline-danger"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                removeTrack(track.id);
+              }}
+              title="Delete Track"
+            >
+              <FaTrash />
             </Button>
           </div>
 
