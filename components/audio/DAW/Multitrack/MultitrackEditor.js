@@ -91,7 +91,10 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   const [showEffectsPanel, setShowEffectsPanel] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(100);
   const [showTakesModal, setShowTakesModal] = useState(false);
-  const [availableTakes] = useState(propTakes);
+  // Use propTakes directly instead of state since it's managed by RecordingContext
+  const availableTakes = propTakes;
+  
+  console.log('🎛️ MultitrackEditor: Available takes for modal:', availableTakes);
   const [midiInputActive, setMidiInputActive] = useState(false);
   const [selectedMidiDevice, setSelectedMidiDevice] = useState(null);
   const [showPiano, setShowPiano] = useState(false);

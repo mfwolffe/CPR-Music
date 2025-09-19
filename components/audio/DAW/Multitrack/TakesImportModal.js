@@ -187,6 +187,9 @@ export default function TakesImportModal({ show, onHide, takes = [] }) {
   // Mock data for testing if no takes provided
   const displayTakes = takes.length > 0 ? takes : [];
 
+  console.log('🎹 TakesImportModal: Received takes:', takes);
+  console.log('🎹 TakesImportModal: Display takes:', displayTakes);
+
   // Show helpful message if no takes
   if (displayTakes.length === 0 && takes.length === 0) {
     console.log('No takes available in TakesImportModal');
