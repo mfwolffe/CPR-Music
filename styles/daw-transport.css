@@ -4,16 +4,16 @@
 
 /* Transport Container */
 .multitrack-transport-container {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  position: relative;
   background-color: #2d2c29;
   border-top: 1px solid #444;
+  border-bottom: 1px solid #444;
   padding: 0.75rem 1rem;
   z-index: 100;
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
+
+/* No special positioning needed when piano is visible - transport stays in flow */
 
 .multitrack-transport-container::before {
   content: '';

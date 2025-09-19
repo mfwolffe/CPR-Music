@@ -22,6 +22,8 @@ import MIDIInputManager from './MIDIInputManager';
 export default function MultitrackTransport({
   showPiano: showPianoProp,
   setShowPiano: setShowPianoProp,
+  onPianoNoteHandler,
+  onActiveNotesChange,
 }) {
   const {
     play,
@@ -387,34 +389,24 @@ export default function MultitrackTransport({
         : null,
     });
   }, [selectedTrackId, selectedMidiTrack]);
-  return (
-    <>
-      {/* Piano Keyboard Section - Outside and above transport */}
-      {showPiano && selectedMidiTrack && (
-        <div className="piano-keyboard-section">
-          <div className="piano-keyboard-wrapper">
-            <div className="piano-keyboard-info">
-              <small>
-                Playing on: <strong>{selectedMidiTrack.name}</strong>
-              </small>
-              <small>
-                Click keys to play • Use Z/X/C… and Q/W/E… on your keyboard
-              </small>
-            </div>
-            <PianoKeyboard
-              startNote={36} // C2
-              endNote={84} // C6
-              activeNotes={activeNotes}
-              width={800}
-              height={100}
-              onNoteClick={handlePianoNote}
-              captureComputerKeyboard={true}
-            />
-          </div>
-        </div>
-      )}
 
-      {/* Transport Controls */}
+  // Expose piano note handler to parent
+  useEffect(() => {
+    if (onPianoNoteHandler) {
+      onPianoNoteHandler(handlePianoNote);
+    }
+  }, [onPianoNoteHandler, handlePianoNote]);
+
+  // Expose active notes to parent
+  useEffect(() => {
+    if (onActiveNotesChange) {
+      onActiveNotesChange(activeNotes);
+    }
+  }, [onActiveNotesChange, activeNotes]);
+
+  return (
+    <div className="multitrack-transport-container">
+      {/* Transport Controls Only - Piano moved to bottom of editor */}
       <div className="multitrack-transport d-flex align-items-center gap-3">
         {/* Transport Controls */}
         <div style={{ display: 'flex', gap: '5px' }}>
@@ -528,6 +520,6 @@ export default function MultitrackTransport({
           </small>
         </div>
       </div>
-    </>
+    </div>
   );
 }

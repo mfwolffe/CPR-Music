@@ -206,8 +206,10 @@
   min-height: 0;
   position: relative;
   margin-bottom: 0 !important;
-  padding-bottom: 60px; /* Space for transport controls */
+  padding-bottom: 0; /* No space needed - transport is in normal flow */
 }
+
+/* No additional spacing needed - transport is now in normal flow */
 
 /* Timeline Container */
 .timeline-container {
@@ -322,11 +324,13 @@
   background-color: #242424; /* Match track background */
   padding: 0;
   margin: 0;
-  padding-bottom: 60px; /* space for fixed transport at bottom */
+  padding-bottom: 0; /* No space needed - transport is in normal flow */
   min-height: 0;
   position: relative;
   z-index: 1;
 }
+
+/* No additional spacing needed for tracks area - transport is in normal flow */
 
 /* Tracks container for flex layout */
 .tracks-container {

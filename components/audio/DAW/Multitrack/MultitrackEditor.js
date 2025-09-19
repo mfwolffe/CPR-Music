@@ -42,6 +42,7 @@ import TakesImportModal from './TakesImportModal';
 import MultitrackMixdown from './MultitrackMixdown';
 import MIDIInputManager from './MIDIInputManager';
 import MIDIDeviceSelector from './MIDIDeviceSelector';
+import PianoKeyboard from './PianoKeyboard';
 import clipClipboard from './ClipClipboard';
 import {
   splitClipsAtTime,
@@ -93,6 +94,9 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   const [availableTakes] = useState(propTakes);
   const [midiInputActive, setMidiInputActive] = useState(false);
   const [selectedMidiDevice, setSelectedMidiDevice] = useState(null);
+  const [showPiano, setShowPiano] = useState(false);
+  const [activeNotes, setActiveNotes] = useState([]);
+  const pianoNoteHandlerRef = useRef(null);
 
   // Track undo/redo history
   const [history, setHistory] = useState([]);
@@ -370,7 +374,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   }, [duration, zoomLevel, isPlaying, tracks, currentTime]); // Include tracks to detect recording state changes and currentTime for playhead updates
 
   return (
-    <Container fluid className="multitrack-editor p-3">
+    <Container fluid className={`multitrack-editor multitrack-editor-container p-3 ${showPiano ? 'piano-visible' : ''}`}>
       <Row className="mb-3 main-controls-row">
         <Col>
           <div className="d-flex justify-content-between align-items-center">
@@ -542,10 +546,15 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
         </Col>
       </Row>
 
-      {/* Transport */}
-      <Row className="mb-3">
+      {/* Transport Controls - MOVED TO TOP */}
+      <Row className="mb-2">
         <Col>
-          <MultitrackTransport />
+          <MultitrackTransport 
+            showPiano={showPiano}
+            setShowPiano={setShowPiano}
+            onPianoNoteHandler={(handler) => { pianoNoteHandlerRef.current = handler; }}
+            onActiveNotesChange={setActiveNotes}
+          />
         </Col>
       </Row>
 
@@ -594,8 +603,9 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
               overflowX: 'auto',
               overflowY: 'auto',
               position: 'relative',
-              paddingBottom: '120px', // space for fixed transport + MIDI tracks
+              paddingBottom: '20px', // minimal space for scrolling
             }}
+            className={`tracks-container ${showPiano ? 'piano-visible' : ''}`}
           >
             <div
               id="multitrack-tracks-inner"
@@ -734,6 +744,39 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
           show={showEffectsPanel}
           onHide={() => setShowEffectsPanel(false)}
         />
+      )}
+
+      {/* Piano Section - Bottom of Editor */}
+      {showPiano && (
+        <Row className="mt-3">
+          <Col>
+            <div className="piano-keyboard-section">
+              <div className="piano-keyboard-wrapper">
+                <div className="piano-keyboard-info">
+                  <small>
+                    Playing on: <strong>{tracks.find(t => t.id === selectedTrackId && t.type === 'midi')?.name || 'No MIDI Track Selected'}</strong>
+                  </small>
+                  <small>
+                    Click keys to play • Use Z/X/C… and Q/W/E… on your keyboard
+                  </small>
+                </div>
+                <PianoKeyboard
+                  startNote={36} // C2
+                  endNote={84} // C6
+                  activeNotes={activeNotes}
+                  width={800}
+                  height={120}
+                  onNoteClick={(note, type) => {
+                    if (pianoNoteHandlerRef.current) {
+                      pianoNoteHandlerRef.current(note, type);
+                    }
+                  }}
+                  captureComputerKeyboard={true}
+                />
+              </div>
+            </div>
+          </Col>
+        </Row>
       )}
 
       {/* Effects Modal System */}
