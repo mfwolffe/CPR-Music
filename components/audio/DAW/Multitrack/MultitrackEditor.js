@@ -371,10 +371,10 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
 
   return (
     <Container fluid className="multitrack-editor p-3">
-      <Row className="mb-3">
+      <Row className="mb-3 main-controls-row">
         <Col>
           <div className="d-flex justify-content-between align-items-center">
-            <div className="d-flex gap-2 align-items-center">
+            <div className="d-flex gap-2 align-items-center controls-left">
               {/* Tool Selection */}
               <ButtonGroup size="sm">
                 <ToggleButton
@@ -487,12 +487,22 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
               </Button>
             </div>
 
-            <div className="d-flex gap-2">
-              <Dropdown>
+            <div className="d-flex gap-2 controls-right">
+              <Dropdown drop="down" align="end">
                 <Dropdown.Toggle variant="primary" size="sm">
                   <FaPlus /> Add Track
                 </Dropdown.Toggle>
-                <Dropdown.Menu>
+                <Dropdown.Menu renderOnMount={true} popperConfig={{
+                  strategy: 'fixed',
+                  modifiers: [
+                    {
+                      name: 'offset',
+                      options: {
+                        offset: [0, 4],
+                      },
+                    },
+                  ],
+                }}>
                   <Dropdown.Item onClick={handleAddAudioTrack}>
                     <FaMusic /> Audio Track
                   </Dropdown.Item>

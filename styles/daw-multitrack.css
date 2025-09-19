@@ -44,6 +44,91 @@
   vertical-align: middle;
 }
 
+/* Main Controls Row - Compact Layout */
+.multitrack-editor .main-controls-row {
+  min-height: 45px;
+  max-height: 45px;
+  overflow: hidden;
+  padding: 0.25rem 0;
+}
+
+.multitrack-editor .main-controls-row .d-flex {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+/* Compact Button Styling */
+.multitrack-editor .btn-sm,
+.multitrack-editor .btn-group .btn,
+.multitrack-editor .form-select-sm {
+  padding: 0.25rem 0.5rem !important;
+  font-size: 0.8rem !important;
+  line-height: 1.2 !important;
+  min-width: auto !important;
+  white-space: nowrap;
+}
+
+.multitrack-editor .btn-group .btn {
+  padding: 0.25rem 0.4rem !important;
+}
+
+.multitrack-editor .btn svg {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+/* Compact spacing for button groups */
+.multitrack-editor .gap-2 {
+  gap: 0.5rem !important;
+}
+
+.multitrack-editor .vr {
+  margin: 0 0.25rem !important;
+  width: 1px !important;
+  opacity: 0.3;
+}
+
+/* Dropdown compact styling */
+.multitrack-editor .dropdown-toggle {
+  padding: 0.25rem 0.5rem !important;
+}
+
+.multitrack-editor .dropdown-toggle::after {
+  margin-left: 0.25rem !important;
+}
+
+/* Fix dropdown z-index to appear above canvas elements */
+.multitrack-editor .dropdown-menu {
+  z-index: 1050 !important;
+}
+
+/* Ensure canvas elements stay below dropdowns */
+.multitrack-editor canvas {
+  position: relative;
+  z-index: 1 !important;
+}
+
+.multitrack-editor .track-waveform canvas {
+  z-index: 1 !important;
+}
+
+.multitrack-editor .track canvas {
+  z-index: 1 !important;
+}
+
+/* Prevent controls from running into timeline */
+.multitrack-editor .controls-left {
+  flex: 0 0 auto;
+  max-width: 60%;
+  overflow: hidden;
+}
+
+.multitrack-editor .controls-right {
+  flex: 0 0 auto;
+  max-width: 35%;
+  overflow: hidden;
+}
+
 /* Toolbar button styles */
 .multitrack-toolbar .btn {
   background-color: #3a3a3a !important;
