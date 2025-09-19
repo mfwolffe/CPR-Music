@@ -20,8 +20,9 @@ export default function Knob({
   const [isDragging, setIsDragging] = useState(false);
   const [internalValue, setInternalValue] = useState(value);
   const knobRef = useRef(null);
-  const startY = useRef(0);
+  const startAngle = useRef(0);
   const startValue = useRef(0);
+  const knobCenter = useRef({ x: 0, y: 0 });
   
   useEffect(() => {
     setInternalValue(value);
@@ -33,13 +34,38 @@ export default function Knob({
     return normalized * 270 - 135; // -135 to 135 degrees
   };
   
-  // Convert Y movement to value change
+  // Calculate angle from mouse position relative to knob center
+  const getAngleFromMouse = (mouseX, mouseY) => {
+    const deltaX = mouseX - knobCenter.current.x;
+    const deltaY = mouseY - knobCenter.current.y;
+    // atan2 returns angle in radians, convert to degrees
+    // Adjust by -90 degrees so 0° is at top of knob
+    let angle = (Math.atan2(deltaY, deltaX) * 180 / Math.PI) + 90;
+    // Normalize to 0-360 range
+    if (angle < 0) angle += 360;
+    return angle;
+  };
+
+  // Convert angle change to value change
   const handleMouseMove = (e) => {
     if (!isDragging) return;
     
-    const deltaY = startY.current - e.clientY;
-    const sensitivity = (max - min) / 100;
-    const newValue = startValue.current + (deltaY * sensitivity);
+    const currentAngle = getAngleFromMouse(e.clientX, e.clientY);
+    let angleDelta = currentAngle - startAngle.current;
+    
+    // Handle wrap-around at 0°/360° boundary
+    if (angleDelta > 180) {
+      angleDelta -= 360;
+    } else if (angleDelta < -180) {
+      angleDelta += 360;
+    }
+    
+    // Map 270 degrees of rotation to the full value range
+    const rotationRange = 270; // knob rotates 270 degrees total
+    const valueRange = max - min;
+    const valueDelta = (angleDelta / rotationRange) * valueRange;
+    
+    const newValue = startValue.current + valueDelta;
     const clampedValue = Math.max(min, Math.min(max, newValue));
     const steppedValue = Math.round(clampedValue / step) * step;
     
@@ -50,7 +76,16 @@ export default function Knob({
   const handleMouseDown = (e) => {
     e.preventDefault();
     setIsDragging(true);
-    startY.current = e.clientY;
+    
+    // Calculate knob center position
+    const rect = knobRef.current.getBoundingClientRect();
+    knobCenter.current = {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2
+    };
+    
+    // Store starting angle and value
+    startAngle.current = getAngleFromMouse(e.clientX, e.clientY);
     startValue.current = internalValue;
   };
   
