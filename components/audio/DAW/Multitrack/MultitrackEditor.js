@@ -30,8 +30,7 @@ import {
 import { RiScissors2Fill } from 'react-icons/ri';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import { Dropdown } from 'react-bootstrap';
-import Track from './Track';
-import RecordingTrack from './RecordingTrack';
+import AudioTrack from './AudioTrack';
 import MIDITrack from './MIDITrack';
 import MultitrackTransport from './MultitrackTransport';
 import EffectsPanel from './EffectsPanel';
@@ -292,9 +291,6 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
     });
   };
 
-  const handleAddRecordingTrack = () => {
-    addTrack({ type: 'recording' });
-  };
 
   const handleImportTake = (take) => {
     addTrack({
@@ -511,10 +507,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                   ],
                 }}>
                   <Dropdown.Item onClick={handleAddAudioTrack}>
-                    <FaMusic /> Audio Track
-                  </Dropdown.Item>
-                  <Dropdown.Item onClick={handleAddRecordingTrack}>
-                    <FaMicrophone /> Recording Track
+                    <FaMicrophone /> Audio Track
                   </Dropdown.Item>
                   <Dropdown.Item onClick={handleAddMIDITrack}>
                     <FaKeyboard /> MIDI Track
@@ -624,16 +617,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
               }}
             >
               {tracks.map((track, index) => {
-                if (track.type === 'recording') {
-                  return (
-                    <RecordingTrack
-                      key={track.id}
-                      track={track}
-                      index={index}
-                      zoomLevel={zoomLevel}
-                    />
-                  );
-                } else if (track.type === 'midi') {
+                if (track.type === 'midi') {
                   return (
                     <MIDITrack
                       key={track.id}
@@ -643,8 +627,10 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                     />
                   );
                 } else {
+                  // Use enhanced AudioTrack component for both 'audio' and 'recording' types
+                  // This provides backward compatibility while consolidating functionality
                   return (
-                    <Track
+                    <AudioTrack
                       key={track.id}
                       track={track}
                       index={index}
@@ -668,7 +654,8 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                       if (track.type === 'midi') {
                         return totalHeight + 240; // MIDI tracks are 240px (from daw-midi.css)
                       } else {
-                        return totalHeight + 200; // Recording tracks are 200px
+                        // Audio tracks (including legacy 'recording' type) are 200px
+                        return totalHeight + 200; 
                       }
                     }, 0)}px`,
                     backgroundColor: '#ff3030',

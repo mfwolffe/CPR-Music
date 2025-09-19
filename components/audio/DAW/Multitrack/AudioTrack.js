@@ -1,27 +1,26 @@
-// components/audio/DAW/Multitrack/Track.js
+// components/audio/DAW/Multitrack/AudioTrack.js
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Button, Form, ButtonGroup, ProgressBar, Alert } from 'react-bootstrap';
+import { Button, Form, ButtonGroup, ProgressBar } from 'react-bootstrap';
 import {
-  FaTrash,
-  FaFileImport,
-  FaVolumeUp,
-  FaVolumeMute,
   FaCircle,
   FaStop,
+  FaVolumeUp,
+  FaFileImport,
+  FaTrash,
 } from 'react-icons/fa';
 import { MdPanTool } from 'react-icons/md';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
+import WalkingWaveform from './WalkingWaveform';
 import TrackClipCanvas from '../../../../contexts/TrackClipCanvas';
 import ClipPlayer from './ClipPlayer';
 import audioContextManager from './AudioContextManager';
 import { decodeAudioFromURL } from './AudioEngine';
 import waveformCache from './WaveformCache';
 import { getAudioProcessor } from './AudioProcessor';
-import WalkingWaveform from './WalkingWaveform';
 
-export default function Track({ track, index, zoomLevel = 100 }) {
+export default function AudioTrack({ track, index, zoomLevel = 100 }) {
   const {
     updateTrack,
     removeTrack,
@@ -29,8 +28,8 @@ export default function Track({ track, index, zoomLevel = 100 }) {
     selectedTrackId,
     soloTrackId,
     setSoloTrackId,
-    duration,
     currentTime,
+    duration,
     isPlaying,
     play,
     stop,
@@ -38,51 +37,36 @@ export default function Track({ track, index, zoomLevel = 100 }) {
     stopRecordingTimer,
   } = useMultitrack();
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadingProgress, setLoadingProgress] = useState(0);
-  const [loadingState, setLoadingState] = useState('idle'); // 'idle', 'reading', 'decoding', 'generating-waveform', 'complete', 'error'
-  const [processingMethod, setProcessingMethod] = useState('unknown'); // 'worker', 'main-thread', 'unknown'
-  const fileInputRef = useRef(null);
-  const clipPlayerRef = useRef(null);
-  const [controlTab, setControlTab] = useState('vol'); // 'vol' | 'pan'
-  const [isDragOver, setIsDragOver] = useState(false);
-  
-  // Recording state from RecordingTrack.js
   const [mediaStream, setMediaStream] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isCountingIn, setIsCountingIn] = useState(false);
   const [countInBeat, setCountInBeat] = useState(0);
+  const [controlTab, setControlTab] = useState('vol'); // 'vol' | 'pan'
   const [recordedBlob, setRecordedBlob] = useState(null);
+
+  // Advanced import state from Track.js
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingState, setLoadingState] = useState('idle'); // 'idle', 'reading', 'decoding', 'generating-waveform', 'complete', 'error'
+  const [processingMethod, setProcessingMethod] = useState('unknown'); // 'worker', 'main-thread', 'unknown'
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
+  const fileInputRef = useRef(null);
+  const clipPlayerRef = useRef(null);
 
-  // Resume audio context if needed
-  const resumeAudioContextIfNeeded = async () => {
-    const ctx = audioContextManager.getContext();
-    if (ctx.state === 'suspended') {
-      await ctx.resume();
-    }
-  };
-
-  // Initialize media stream for recording
+  // Initialize media stream
   useEffect(() => {
     const initMediaStream = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-            channelCount: 1,
-            sampleRate: 48000,
-            latency: 0,
-          },
+          audio: true,
         });
         setMediaStream(stream);
-        console.log('Track: Media stream initialized');
+        console.log('AudioTrack: Media stream initialized');
       } catch (error) {
-        console.error('Track: Error accessing microphone:', error);
+        console.error('AudioTrack: Error accessing microphone:', error);
       }
     };
 
@@ -95,14 +79,14 @@ export default function Track({ track, index, zoomLevel = 100 }) {
     };
   }, []); // Only run once on mount
 
-  // Initialize clip player
+  // Initialize clip player for playback when not recording
   useEffect(() => {
     const initPlayer = async () => {
       try {
         const audioContext = audioContextManager.getContext();
         clipPlayerRef.current = new ClipPlayer(audioContext);
       } catch (error) {
-        console.error('Error initializing clip player:', error);
+        console.error('AudioTrack: Error initializing clip player:', error);
       }
     };
 
@@ -115,224 +99,53 @@ export default function Track({ track, index, zoomLevel = 100 }) {
     };
   }, []);
 
-  // Update clips when they change
+  // Update clips/params on player
   useEffect(() => {
-    const updateClips = async () => {
-      if (!clipPlayerRef.current || !track.clips) return;
-
+    if (!clipPlayerRef.current || !track.clips) return;
+    (async () => {
       try {
         await clipPlayerRef.current.updateClips(
           track.clips,
-          track.muted ? 0 : track.volume,
-          track.pan,
+          track.muted ? 0 : track.volume || 1,
+          track.pan || 0,
         );
-
-        // If we're playing, restart playback to include new clips
         if (isPlaying && clipPlayerRef.current) {
           clipPlayerRef.current.play(currentTime);
         }
       } catch (error) {
-        console.error(`Error updating clips for track ${track.id}:`, error);
+        console.error(
+          `AudioTrack: Error updating clips for ${track.id}:`,
+          error,
+        );
       }
-    };
-
-    updateClips();
+    })();
   }, [track.clips, track.volume, track.pan, track.muted]);
 
-  // Handle playback state changes
+  // Handle global play/stop
   useEffect(() => {
     if (!clipPlayerRef.current) return;
-
-    if (isPlaying) {
-      // Check if we should play this track (solo/mute logic)
-      const shouldPlay = soloTrackId ? track.id === soloTrackId : !track.muted;
-
-      if (shouldPlay && !isRecording) {
-        resumeAudioContextIfNeeded().then(() => {
-          clipPlayerRef.current.play(currentTime);
-        });
+    const shouldPlay = soloTrackId ? track.id === soloTrackId : !track.muted;
+    if (isPlaying && shouldPlay && !isRecording) {
+      const ctx = audioContextManager.getContext();
+      if (ctx.state === 'suspended') {
+        ctx.resume().then(() => clipPlayerRef.current.play(currentTime));
+      } else {
+        clipPlayerRef.current.play(currentTime);
       }
     } else {
       clipPlayerRef.current.stop();
     }
   }, [isPlaying, currentTime, track.id, track.muted, soloTrackId, isRecording]);
 
-  // Handle seek
+  // Seek when paused
   useEffect(() => {
     if (!clipPlayerRef.current || isPlaying || isRecording) return;
     clipPlayerRef.current.seek(currentTime);
   }, [currentTime, isPlaying, isRecording]);
 
-  // Handle volume changes
-  useEffect(() => {
-    if (!clipPlayerRef.current) return;
-    clipPlayerRef.current.setVolume(track.muted ? 0 : track.volume);
-  }, [track.volume, track.muted]);
+  // No need to calculate pixelsPerSecond here - let WalkingWaveform handle it
+  // to ensure consistency with TrackClipCanvas
 
-  // Handle pan changes
-  useEffect(() => {
-    if (!clipPlayerRef.current) return;
-    clipPlayerRef.current.setPan(track.pan);
-  }, [track.pan]);
-
-  // Cleanup audio processor on unmount
-  useEffect(() => {
-    return () => {
-      // Note: We use a singleton, so we don't dispose it here
-      // It will be cleaned up when the app unmounts
-    };
-  }, []);
-
-  // Progress update helper
-  const updateLoadingProgress = (state, progress) => {
-    setLoadingState(state);
-    setLoadingProgress(progress);
-    console.log(`🔄 Loading ${state}: ${Math.round(progress)}%`);
-  };
-
-  // Handle file import - Hybrid Worker/Fallback approach
-  const processAudioFile = async (file) => {
-    if (!file || !file.type.startsWith('audio/')) return;
-
-    setIsLoading(true);
-    setProcessingMethod('unknown');
-    updateLoadingProgress('reading', 0);
-    
-    let clipId = null;
-    const audioProcessor = getAudioProcessor();
-
-    try {
-      const url = URL.createObjectURL(file);
-      updateLoadingProgress('reading', 10);
-
-      // Phase 1: Create immediate placeholder clip
-      clipId = `clip-${track.id}-${Date.now()}`;
-      const placeholderClip = {
-        id: clipId,
-        start: 0,
-        duration: 0, // Will update when processed
-        color: track.color || '#7bafd4',
-        src: url,
-        offset: 0,
-        name: file.name.replace(/\.[^/.]+$/, ''),
-        isLoading: true,
-        loadingState: 'reading'
-      };
-
-      // Immediately add track with placeholder - UI stays responsive!
-      updateTrack(track.id, {
-        audioURL: url,
-        clips: [placeholderClip]
-      });
-
-      // Phase 2: Process with hybrid approach (Worker or Main Thread)
-      const result = await audioProcessor.processAudioFile(
-        url,
-        clipId,
-        (stage, progress) => {
-          updateLoadingProgress(stage, progress);
-          
-          // Update clip loading state in real-time
-          updateTrack(track.id, (prevTrack) => ({
-            ...prevTrack,
-            clips: prevTrack.clips.map(clip =>
-              clip.id === clipId
-                ? { ...clip, loadingState: stage }
-                : clip
-            )
-          }));
-        }
-      );
-
-      // Set processing method indicator
-      setProcessingMethod(result.method);
-      console.log(`🔧 Audio processed using: ${result.method}`);
-
-      // Phase 3: Update clip with final data
-      const finalClip = {
-        ...placeholderClip,
-        duration: result.duration,
-        isLoading: false,
-        loadingState: 'complete',
-        processingMethod: result.method
-      };
-
-      updateTrack(track.id, {
-        clips: [finalClip]
-      });
-
-      updateLoadingProgress('complete', 100);
-
-      // Phase 4: Cache peaks if not already cached by worker
-      if (result.peaks) {
-        // Store peaks in cache for immediate use
-        console.log(`✅ Peaks ready (${result.peaks.length} samples)`);
-      }
-
-      // Reset file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-
-    } catch (err) {
-      console.error('Error importing file:', err);
-      updateLoadingProgress('error', 100);
-      
-      // Update clip to show error state
-      if (clipId) {
-        updateTrack(track.id, (prevTrack) => ({
-          ...prevTrack,
-          clips: prevTrack.clips.map(clip => 
-            clip.id === clipId 
-              ? { ...clip, isLoading: false, loadingState: 'error', hasError: true }
-              : clip
-          )
-        }));
-      }
-    } finally {
-      // Keep loading indicators for a moment to show completion
-      setTimeout(() => {
-        setIsLoading(false);
-        setLoadingProgress(0);
-        setLoadingState('idle');
-        setProcessingMethod('unknown');
-      }, 1500);
-    }
-  };
-
-  const handleFileImport = async (e) => {
-    const file = e.target.files?.[0];
-    await processAudioFile(file);
-  };
-
-  // Drag and drop handlers
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(true);
-  };
-
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-  };
-
-  const handleDrop = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-    
-    const files = e.dataTransfer?.files;
-    if (files && files.length > 0) {
-      const file = files[0];
-      if (file.type.startsWith('audio/')) {
-        await processAudioFile(file);
-      }
-    }
-  };
-
-  // Recording functions from RecordingTrack.js
   const handleRecord = () => {
     if (isRecording || isCountingIn) {
       // Stop recording or cancel countdown
@@ -364,7 +177,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
   };
 
   const startRecording = () => {
-    console.log('Track: startRecording called', {
+    console.log('AudioTrack: startRecording called', {
       hasMediaStream: !!mediaStream,
       isAlreadyRecording: isRecording,
       canRecord: !isRecording && mediaStream,
@@ -372,7 +185,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
     });
 
     if (isRecording || !mediaStream) {
-      console.error('Track: Cannot start recording', {
+      console.error('AudioTrack: Cannot start recording', {
         isRecording,
         hasMediaStream: !!mediaStream,
       });
@@ -389,9 +202,9 @@ export default function Track({ track, index, zoomLevel = 100 }) {
       ? 'audio/webm;codecs=opus'
       : 'audio/webm';
 
-    console.log('Track: Using MIME type:', mimeType);
+    console.log('AudioTrack: Using MIME type:', mimeType);
     console.log(
-      'Track: Recording will start at position:',
+      'AudioTrack: Recording will start at position:',
       recordingStartPosition,
     );
 
@@ -442,6 +255,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
         isRecording: false,
         isEmpty: false,
         clips: [...(track.clips || []), newClip],
+        // Keep type as 'recording' to avoid component swap
         recordingStartPosition: undefined,
       });
 
@@ -465,7 +279,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
     // Start recording
     recorder.start(10); // Collect data every 10ms
     setIsRecording(true);
-    console.log('Track: Recording started');
+    console.log('AudioTrack: Recording started');
 
     // Start the recording timer to advance playhead during recording
     startRecordingTimer();
@@ -491,33 +305,169 @@ export default function Track({ track, index, zoomLevel = 100 }) {
     setIsRecording(false);
   };
 
-  const handleVolumeChange = (e) => {
-    const volume = parseFloat(e.target.value);
-    updateTrack(track.id, { volume });
-  };
-
-  const handlePanChange = (e) => {
-    const pan = parseFloat(e.target.value);
-    updateTrack(track.id, { pan });
-  };
-
-  const handleMute = () => {
-    updateTrack(track.id, { muted: !track.muted });
-  };
-
-  const handleSolo = () => {
-    setSoloTrackId(soloTrackId === track.id ? null : track.id);
-  };
-
+  // Handlers to mirror Audio Track controls
   const handleRemove = () => {
     if (window.confirm('Remove this track?')) {
       removeTrack(track.id);
     }
   };
 
+  // Progress update helper for advanced import
+  const updateLoadingProgress = (state, progress) => {
+    setLoadingState(state);
+    setLoadingProgress(progress);
+    console.log(`🔄 Loading ${state}: ${Math.round(progress)}%`);
+  };
+
+  // Advanced file import from Track.js - Hybrid Worker/Fallback approach
+  const processAudioFile = async (file) => {
+    if (!file || !file.type.startsWith('audio/')) return;
+
+    setIsLoading(true);
+    setProcessingMethod('unknown');
+    updateLoadingProgress('reading', 0);
+    
+    let clipId = null;
+    const audioProcessor = getAudioProcessor();
+
+    try {
+      const url = URL.createObjectURL(file);
+      updateLoadingProgress('reading', 10);
+
+      // Phase 1: Create immediate placeholder clip
+      clipId = `clip-${track.id}-${Date.now()}`;
+      const placeholderClip = {
+        id: clipId,
+        start: 0,
+        duration: 0, // Will update when processed
+        color: track.color || '#7bafd4',
+        src: url,
+        offset: 0,
+        name: file.name.replace(/\.[^/.]+$/, ''),
+        isLoading: true,
+        loadingState: 'reading'
+      };
+
+      // Immediately add track with placeholder - UI stays responsive!
+      updateTrack(track.id, {
+        audioURL: url,
+        clips: [...(track.clips || []), placeholderClip]
+      });
+
+      // Phase 2: Process with hybrid approach (Worker or Main Thread)
+      const result = await audioProcessor.processAudioFile(
+        url,
+        clipId,
+        (stage, progress) => {
+          updateLoadingProgress(stage, progress);
+          
+          // Update clip loading state in real-time
+          updateTrack(track.id, (prevTrack) => ({
+            ...prevTrack,
+            clips: prevTrack.clips.map(clip =>
+              clip.id === clipId
+                ? { ...clip, loadingState: stage }
+                : clip
+            )
+          }));
+        }
+      );
+
+      // Set processing method indicator
+      setProcessingMethod(result.method);
+      console.log(`🔧 Audio processed using: ${result.method}`);
+
+      // Phase 3: Update clip with final data
+      const finalClip = {
+        ...placeholderClip,
+        duration: result.duration,
+        isLoading: false,
+        loadingState: 'complete',
+        processingMethod: result.method
+      };
+
+      updateTrack(track.id, (prevTrack) => ({
+        ...prevTrack,
+        clips: prevTrack.clips.map(clip =>
+          clip.id === clipId ? finalClip : clip
+        )
+      }));
+
+      updateLoadingProgress('complete', 100);
+
+      // Phase 4: Cache peaks if not already cached by worker
+      if (result.peaks) {
+        // Store peaks in cache for immediate use
+        console.log(`✅ Peaks ready (${result.peaks.length} samples)`);
+      }
+
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+
+    } catch (err) {
+      console.error('Error importing file:', err);
+      updateLoadingProgress('error', 100);
+      
+      // Update clip to show error state
+      if (clipId) {
+        updateTrack(track.id, (prevTrack) => ({
+          ...prevTrack,
+          clips: prevTrack.clips.map(clip => 
+            clip.id === clipId 
+              ? { ...clip, isLoading: false, loadingState: 'error', hasError: true }
+              : clip
+          )
+        }));
+      }
+    } finally {
+      // Keep loading indicators for a moment to show completion
+      setTimeout(() => {
+        setIsLoading(false);
+        setLoadingProgress(0);
+        setLoadingState('idle');
+        setProcessingMethod('unknown');
+      }, 1500);
+    }
+  };
+
+  const handleFileImport = async (e) => {
+    const file = e.target.files?.[0];
+    await processAudioFile(file);
+  };
+
+  // Drag and drop handlers from Track.js
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.type.startsWith('audio/')) {
+        await processAudioFile(file);
+      }
+    }
+  };
+
   const isSelected = selectedTrackId === track.id;
   const isSolo = soloTrackId === track.id;
 
+  // Otherwise, render the recording interface
   return (
     <div className="track-container" style={{ display: 'flex' }}>
       {/* Sidebar spacer - matches timeline sidebar */}
@@ -551,9 +501,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
 
       {/* Main track div */}
       <div
-        className={`track ${isSelected ? 'track-selected' : ''} ${
-          track.type === 'recording' ? 'recording-track' : ''
-        } ${track.type === 'audio' ? 'audio-track' : ''}`}
+        className={`track recording-track ${isSelected ? 'track-selected' : ''}`}
         onClick={() => setSelectedTrackId(track.id)}
         style={{ display: 'flex', flex: 1 }}
       >
@@ -582,8 +530,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
             />
           </div>
 
-          {/* Audio Controls - Stacked Vertically */}
-          {/* Vol/Pan toggle like MIDI */}
+          {/* Vol/Pan toggle - align with Track.js */}
           <ButtonGroup
             size="sm"
             className="control-tabs"
@@ -621,8 +568,12 @@ export default function Track({ track, index, zoomLevel = 100 }) {
                 min="0"
                 max="1"
                 step="0.01"
-                value={track.volume}
-                onChange={handleVolumeChange}
+                value={track.volume || 1}
+                onChange={(e) =>
+                  updateTrack(track.id, {
+                    volume: parseFloat(e.target.value),
+                  })
+                }
                 disabled={track.muted}
                 style={{ flex: 1 }}
               />
@@ -630,7 +581,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
                 className="control-value"
                 style={{ fontSize: '11px', width: 30 }}
               >
-                {Math.round(track.volume * 100)}
+                {Math.round((track.volume || 1) * 100)}
               </span>
             </div>
           ) : (
@@ -645,8 +596,10 @@ export default function Track({ track, index, zoomLevel = 100 }) {
                 min="-1"
                 max="1"
                 step="0.01"
-                value={track.pan}
-                onChange={handlePanChange}
+                value={track.pan || 0}
+                onChange={(e) =>
+                  updateTrack(track.id, { pan: parseFloat(e.target.value) })
+                }
                 disabled={track.muted}
                 style={{ flex: 1 }}
               />
@@ -655,20 +608,23 @@ export default function Track({ track, index, zoomLevel = 100 }) {
                 style={{ fontSize: '11px', width: 30 }}
               >
                 {track.pan > 0
-                  ? `R${Math.round(track.pan * 100)}`
+                  ? `R${Math.round((track.pan || 0) * 100)}`
                   : track.pan < 0
-                    ? `L${Math.round(-track.pan * 100)}`
+                    ? `L${Math.round(Math.abs((track.pan || 0) * 100))}`
                     : 'C'}
               </span>
             </div>
           )}
 
-          {/* Three-button row like MIDI: Solo / Mute / Record */}
+          {/* Three-button row: Solo / Mute / Record */}
           <div className="track-button-row" style={{ display: 'flex', gap: 4 }}>
             <Button
               variant={isSolo ? 'warning' : 'outline-secondary'}
               size="sm"
-              onClick={handleSolo}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSoloTrackId(isSolo ? null : track.id);
+              }}
               title="Solo"
               style={{ flex: 1 }}
             >
@@ -677,7 +633,10 @@ export default function Track({ track, index, zoomLevel = 100 }) {
             <Button
               variant={track.muted ? 'danger' : 'outline-secondary'}
               size="sm"
-              onClick={handleMute}
+              onClick={(e) => {
+                e.stopPropagation();
+                updateTrack(track.id, { muted: !track.muted });
+              }}
               title={track.muted ? 'Unmute' : 'Mute'}
               style={{ flex: 1 }}
             >
@@ -693,7 +652,6 @@ export default function Track({ track, index, zoomLevel = 100 }) {
                 }}
                 title={isCountingIn ? 'Cancel Countdown' : 'Record'}
                 style={{ flex: 1 }}
-                disabled={!mediaStream}
               >
                 {isCountingIn ? countInBeat : <FaCircle />}
               </Button>
@@ -718,7 +676,10 @@ export default function Track({ track, index, zoomLevel = 100 }) {
             <Button
               variant="outline-secondary"
               size="sm"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={(e) => {
+                e.stopPropagation();
+                fileInputRef.current?.click();
+              }}
               title="Import Audio"
               style={{ flex: 1 }}
               disabled={isRecording}
@@ -728,7 +689,10 @@ export default function Track({ track, index, zoomLevel = 100 }) {
             <Button
               variant="outline-danger"
               size="sm"
-              onClick={handleRemove}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRemove();
+              }}
               title="Delete Track"
               style={{ flex: 1 }}
             >
@@ -762,7 +726,7 @@ export default function Track({ track, index, zoomLevel = 100 }) {
         >
           {isRecording ? (
             <>
-              {console.log('Track: Rendering WalkingWaveform', {
+              {console.log('AudioTrack: Rendering WalkingWaveform', {
                 mediaStream: !!mediaStream,
                 isRecording,
                 startPosition: track.recordingStartPosition || 0,
@@ -835,28 +799,28 @@ export default function Track({ track, index, zoomLevel = 100 }) {
               height={200}
             />
           ) : (
-            <div
-              className="empty-waveform-state"
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '100%',
-                color: isDragOver ? '#7bafd4' : '#666',
-                transition: 'color 0.2s',
-              }}
-            >
-              <FaFileImport size={24} />
-              <div>
-                {isDragOver 
-                  ? 'Drop audio file here' 
-                  : mediaStream
-                    ? 'Import audio or click record'
-                    : 'Initializing microphone...'}
-              </div>
-            </div>
-          )}
+                <div
+                  className="empty-waveform-state"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100%',
+                    color: isDragOver ? '#7bafd4' : '#666',
+                    transition: 'color 0.2s',
+                  }}
+                >
+                  <FaFileImport size={24} />
+                  <div>
+                    {isDragOver 
+                      ? 'Drop audio file here' 
+                      : mediaStream
+                        ? 'Record or import audio'
+                        : 'Initializing microphone...'}
+                  </div>
+                </div>
+              )}
         </div>
       </div>
     </div>

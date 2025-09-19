@@ -59,7 +59,9 @@ export default function TakesImportModal({ show, onHide, takes = [] }) {
       };
 
       // Add track immediately with placeholder - UI stays responsive!
+      // Creates an Audio track (with recording + import capabilities)
       const newTrack = addTrack({
+        type: 'audio', // Explicitly create Audio track (enhanced with recording capabilities)
         name: trackName || 'Imported Take',
         audioURL: finalURL,
         takeId: selectedTake.id,

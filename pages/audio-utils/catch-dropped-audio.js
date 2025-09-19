@@ -19,7 +19,7 @@ import {
 
 import Layout from '../../components/layout';
 import { catchSilence, loadFfmpeg } from '../../lib/dawUtils';
-import AudioDropModal from '../../components/audioDropWarning';
+import { AudioDropModal } from '../../components/audio/silenceDetect';
 
 const URL = '/sample_audio/uncso-bruckner4-1.mp3';
 
