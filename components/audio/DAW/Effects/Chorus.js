@@ -64,7 +64,7 @@ export async function processChorusRegion(audioBuffer, startSample, endSample, p
     
     // LFO configuration
     lfos[i].frequency.value = (parameters.speed || 0.5) + (i * 0.1); // Slight frequency offset
-    lfoGains[i].gain.value = (parameters.depth || 0.002) * 0.5; // Depth in seconds
+    lfoGains[i].gain.value = (parameters.depth || 0.002); // Depth already in seconds
     
     // Voice gain
     gains[i].gain.value = 1 / numVoices; // Equal mix of all voices
@@ -299,9 +299,10 @@ export default function Chorus({ width }) {
             value={depthsChr}
             onChange={setDepthsChr}
             min={0.01}
-            max={4}
+            max={0.1}
+            step={0.001}
             label="Depth"
-            displayValue={depthsChr.toFixed(2)}
+            displayValue={`${(depthsChr * 1000).toFixed(1)}ms`}
             size={45}
             color="#e75b5c"
           />

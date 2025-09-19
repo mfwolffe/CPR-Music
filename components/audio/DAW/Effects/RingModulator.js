@@ -243,7 +243,7 @@ export default function RingModulator({ width }) {
             value={ringModDepth}
             onChange={setRingModDepth}
             min={0}
-            max={2}
+            max={1}
             label="Depth"
             displayValue={`${(ringModDepth * 100).toFixed(0)}%`}
             size={45}

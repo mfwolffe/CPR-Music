@@ -37,7 +37,9 @@ export async function processFlangerRegion(audioBuffer, startSample, endSample, 
   const outputGain = offlineContext.createGain();
   
   // Set static parameters
-  feedbackGain.gain.value = parameters.feedback || 0.5;
+  // Limit feedback to prevent runaway oscillation  
+  const safeFeedback = Math.max(-0.95, Math.min(0.95, parameters.feedback || 0.5));
+  feedbackGain.gain.value = safeFeedback;
   wetGain.gain.value = parameters.mix || 0.5;
   dryGain.gain.value = 1 - (parameters.mix || 0.5);
   
