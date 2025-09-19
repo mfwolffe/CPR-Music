@@ -24,6 +24,7 @@ export default function Knob({
   const startValue = useRef(0);
   const knobCenter = useRef({ x: 0, y: 0 });
   const lastValidAngle = useRef(0);
+  const totalRotation = useRef(0);
   
   useEffect(() => {
     setInternalValue(value);
@@ -61,24 +62,15 @@ export default function Knob({
     }
     
     // Only apply angle change if it's reasonable (prevents massive jumps)
-    if (Math.abs(angleDelta) < 180) {
+    if (Math.abs(angleDelta) < 90) {
+      // Accumulate total rotation
+      totalRotation.current += angleDelta;
       lastValidAngle.current = currentAngle;
       
-      // Calculate total rotation from start
-      const totalAngleDelta = lastValidAngle.current - startAngle.current;
-      let normalizedDelta = totalAngleDelta;
-      
-      // Handle wrap-around for total delta
-      if (normalizedDelta > 180) {
-        normalizedDelta -= 360;
-      } else if (normalizedDelta < -180) {
-        normalizedDelta += 360;
-      }
-      
-      // Map angle change to value change
+      // Map total rotation to value change
       const rotationRange = 270; // knob rotates 270 degrees total
       const valueRange = max - min;
-      const valueDelta = (normalizedDelta / rotationRange) * valueRange;
+      const valueDelta = (totalRotation.current / rotationRange) * valueRange;
       
       const newValue = startValue.current + valueDelta;
       const clampedValue = Math.max(min, Math.min(max, newValue));
@@ -103,6 +95,7 @@ export default function Knob({
     // Store starting angle and value
     startAngle.current = getAngleFromMouse(e.clientX, e.clientY);
     lastValidAngle.current = startAngle.current;
+    totalRotation.current = 0; // Reset total rotation
     startValue.current = internalValue;
   };
   
