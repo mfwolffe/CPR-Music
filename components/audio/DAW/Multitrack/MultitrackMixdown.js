@@ -1269,6 +1269,22 @@ async function mixdownClipsAndMidi(
   // Calculate intelligent panning to reduce center buildup
   const intelligentPanning = calculateIntelligentPanning(included);
   
+  // Calculate target headroom for analysis (simplified approach)
+  let targetHeadroom = -3; // Default -3dB headroom
+  if (included.length > 12) {
+    targetHeadroom = -6; // More headroom for very dense mixes
+  } else if (included.length > 8) {
+    targetHeadroom = -4.5; // Extra headroom for dense mixes
+  } else if (included.length <= 4) {
+    targetHeadroom = -1.5; // Less headroom needed for sparse mixes
+  }
+  
+  // MIDI tracks have more predictable levels
+  const midiRatio = midiTracks.length / Math.max(1, included.length);
+  if (midiRatio > 0.7) {
+    targetHeadroom += 1.5; // Less headroom needed for MIDI-heavy mixes
+  }
+  
   // SIMPLIFIED MASTER BUS: Only essential processing to prevent artifacts
   // Remove excessive compression stages that cause pumping and static
   
@@ -1390,7 +1406,7 @@ async function mixdownClipsAndMidi(
       included,
       projectDuration,
       adaptiveGain,
-      headroomManager.targetHeadroom,
+      targetHeadroom,
       intelligentPanning
     );
     

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Modal, Button, Card, Row, Col, Badge, Form, InputGroup, Dropdown, OverlayTrigger, Tooltip } from 'react-bootstrap';
-import { FaMagic, FaVolumeDown, FaMusic, FaCog, FaWaveSquare, FaRandom, FaSearch, FaFilter, FaCpu, FaGraduationCap, FaInfoCircle } from 'react-icons/fa';
+import { FaMagic, FaVolumeDown, FaMusic, FaCog, FaWaveSquare, FaRandom, FaSearch, FaFilter, FaMicrochip, FaGraduationCap, FaInfoCircle } from 'react-icons/fa';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 
 // Complete effects library from mono editor with detailed metadata
@@ -522,7 +522,7 @@ export default function EffectSelectionModal() {
                             </span>
                           </div>
                           <div className="d-flex align-items-center gap-1">
-                            <FaCpu size={10} />
+                            <FaMicrochip size={10} />
                             <span className="small" style={{ fontSize: '0.7rem' }}>
                               {effect.cpuUsage}
                             </span>

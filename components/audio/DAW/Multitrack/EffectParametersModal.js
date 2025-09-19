@@ -1,60 +1,455 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Alert, Spinner } from 'react-bootstrap';
+import { Modal, Button, Alert, Spinner, Container, Row, Col, Form, Dropdown } from 'react-bootstrap';
 import { FaCog, FaCheck, FaTimes, FaArrowLeft } from 'react-icons/fa';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
+import Knob from '../../../Knob';
 
-// Import individual effect components from mono editor
-// TODO: These will be imported in Phase 3
-// import EQ from '../Effects/EQ';
-// import Reverb from '../Effects/Reverb';
-// import Compressor from '../Effects/Compressor';
-// ... etc
+// Import processing functions from mono editor effects
+// TODO: Import these when the processing functions are properly exported
+// import { processTremoloRegion } from '../Effects/Tremolo';
+// import { processReverbRegion } from '../Effects/Reverb';
+// import { processEQRegion } from '../Effects/EQ';
 
-const EFFECT_INFO = {
-  eq: { name: 'EQ', category: 'Frequency', description: 'Multi-band equalizer' },
-  reverb: { name: 'Reverb', category: 'Space', description: 'Algorithmic reverb' },
-  compressor: { name: 'Compressor', category: 'Dynamics', description: 'Dynamic range control' },
-  chorus: { name: 'Chorus', category: 'Modulation', description: 'Pitch modulation chorus' },
-  distortion: { name: 'Distortion', category: 'Dynamics', description: 'Harmonic distortion' },
-  phaser: { name: 'Phaser', category: 'Modulation', description: 'Phase shifting modulation' },
-  autoPan: { name: 'Auto Pan', category: 'Space', description: 'Automatic stereo panning' },
-  tremolo: { name: 'Tremolo', category: 'Modulation', description: 'Amplitude modulation' },
-  gate: { name: 'Gate', category: 'Dynamics', description: 'Noise gate' },
-  flanger: { name: 'Flanger', category: 'Modulation', description: 'Sweeping comb filter' },
-  echo: { name: 'Echo', category: 'Time', description: 'Simple echo delay' },
-  pitchShifter: { name: 'Pitch Shifter', category: 'Pitch', description: 'Pitch shifting without time change' },
-  // Add more as needed...
+// Effect parameter configurations based on mono editor components
+const EFFECT_CONFIGS = {
+  tremolo: {
+    name: 'Tremolo',
+    category: 'Modulation',
+    description: 'Amplitude modulation',
+    parameters: {
+      rate: { min: 0.1, max: 30, step: 0.1, default: 5, label: 'Rate', unit: 'Hz', color: '#e75b5c' },
+      depth: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Depth', unit: '%', color: '#7bafd4' },
+      phase: { min: 0, max: 360, step: 1, default: 0, label: 'Phase', unit: '°', color: '#cbb677' },
+      waveform: {
+        type: 'dropdown',
+        options: [
+          { key: 'sine', name: 'Sine' },
+          { key: 'triangle', name: 'Triangle' },
+          { key: 'square', name: 'Square' },
+          { key: 'sawtooth', name: 'Sawtooth' }
+        ],
+        default: 'sine',
+        label: 'Waveform'
+      }
+    }
+  },
+  reverb: {
+    name: 'Reverb',
+    category: 'Space',
+    description: 'Algorithmic reverb',
+    parameters: {
+      preset: {
+        type: 'dropdown',
+        options: [
+          { key: 'smallRoom', name: 'Small Room' },
+          { key: 'mediumHall', name: 'Medium Hall' },
+          { key: 'largeHall', name: 'Large Hall' },
+          { key: 'cathedral', name: 'Cathedral' },
+          { key: 'plate', name: 'Plate' },
+          { key: 'spring', name: 'Spring' }
+        ],
+        default: 'mediumHall',
+        label: 'Preset'
+      },
+      wetMix: { min: 0, max: 1, step: 0.01, default: 0.3, label: 'Mix', unit: '%', color: '#92ce84' },
+      preDelay: { min: 0, max: 200, step: 1, default: 0, label: 'Pre-Dly', unit: 'ms', color: '#7bafd4' },
+      highDamp: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Hi Damp', unit: '%', color: '#cbb677' },
+      lowDamp: { min: 0, max: 1, step: 0.01, default: 0.1, label: 'Lo Damp', unit: '%', color: '#cbb677' },
+      earlyLate: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'E/L Mix', unit: '%', color: '#92ceaa' },
+      stereoWidth: { min: 0, max: 2, step: 0.01, default: 1, label: 'Width', unit: '%', color: '#e75b5c' },
+      outputGain: { min: 0, max: 2, step: 0.01, default: 1, label: 'Output', unit: 'x', color: '#92ceaa' }
+    }
+  },
+  eq: {
+    name: 'EQ',
+    category: 'Frequency',
+    description: 'Multi-band equalizer',
+    parameters: {
+      bands: {
+        type: 'custom',
+        default: [
+          { frequency: 100, gain: 0, type: 'peaking', q: 1 },
+          { frequency: 250, gain: 0, type: 'peaking', q: 1 },
+          { frequency: 500, gain: 0, type: 'peaking', q: 1 },
+          { frequency: 1000, gain: 0, type: 'peaking', q: 1 },
+          { frequency: 2000, gain: 0, type: 'peaking', q: 1 },
+          { frequency: 4000, gain: 0, type: 'peaking', q: 1 },
+          { frequency: 8000, gain: 0, type: 'peaking', q: 1 },
+          { frequency: 16000, gain: 0, type: 'peaking', q: 1 }
+        ],
+        label: 'EQ Bands'
+      }
+    }
+  },
+  compressor: {
+    name: 'Compressor',
+    category: 'Dynamics',
+    description: 'Dynamic range control',
+    parameters: {
+      threshold: { min: -60, max: 0, step: 1, default: -24, label: 'Threshold', unit: 'dB', color: '#e75b5c' },
+      ratio: { min: 1, max: 20, step: 0.1, default: 4, label: 'Ratio', unit: ':1', color: '#7bafd4' },
+      attack: { min: 0, max: 1, step: 0.001, default: 0.003, label: 'Attack', unit: 'ms', color: '#92ce84', multiplier: 1000 },
+      release: { min: 0, max: 1, step: 0.001, default: 0.1, label: 'Release', unit: 'ms', color: '#92ce84', multiplier: 1000 },
+      knee: { min: 0, max: 40, step: 1, default: 30, label: 'Knee', unit: 'dB', color: '#cbb677' },
+      makeup: { min: 0, max: 24, step: 1, default: 0, label: 'Makeup', unit: 'dB', color: '#92ceaa' }
+    }
+  },
+  chorus: {
+    name: 'Chorus',
+    category: 'Modulation',
+    description: 'Pitch modulation chorus',
+    parameters: {
+      rate: { min: 0.1, max: 10, step: 0.1, default: 1, label: 'Rate', unit: 'Hz', color: '#e75b5c' },
+      depth: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Depth', unit: '%', color: '#7bafd4' },
+      delay: { min: 5, max: 50, step: 1, default: 20, label: 'Delay', unit: 'ms', color: '#cbb677' },
+      feedback: { min: 0, max: 0.9, step: 0.01, default: 0.2, label: 'Feedback', unit: '%', color: '#92ce84' },
+      wetMix: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Mix', unit: '%', color: '#92ceaa' }
+    }
+  },
+  distortion: {
+    name: 'Distortion',
+    category: 'Dynamics',
+    description: 'Harmonic distortion',
+    parameters: {
+      drive: { min: 1, max: 20, step: 0.1, default: 5, label: 'Drive', unit: 'x', color: '#e75b5c' },
+      tone: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Tone', unit: '%', color: '#7bafd4' },
+      output: { min: 0, max: 2, step: 0.01, default: 1, label: 'Output', unit: 'x', color: '#92ceaa' }
+    }
+  },
+  gate: {
+    name: 'Gate',
+    category: 'Dynamics', 
+    description: 'Noise gate',
+    parameters: {
+      threshold: { min: -80, max: 0, step: 1, default: -40, label: 'Threshold', unit: 'dB', color: '#e75b5c' },
+      range: { min: -80, max: 0, step: 1, default: -60, label: 'Range', unit: 'dB', color: '#7bafd4' },
+      attack: { min: 0.1, max: 10, step: 0.1, default: 1, label: 'Attack', unit: 'ms', color: '#92ce84' },
+      hold: { min: 0, max: 100, step: 1, default: 10, label: 'Hold', unit: 'ms', color: '#cbb677' },
+      release: { min: 10, max: 1000, step: 10, default: 100, label: 'Release', unit: 'ms', color: '#92ceaa' }
+    }
+  },
+  phaser: {
+    name: 'Phaser',
+    category: 'Modulation',
+    description: 'Phase shifting modulation',
+    parameters: {
+      rate: { min: 0.1, max: 10, step: 0.1, default: 1, label: 'Rate', unit: 'Hz', color: '#e75b5c' },
+      depth: { min: 0, max: 1, step: 0.01, default: 0.7, label: 'Depth', unit: '%', color: '#7bafd4' },
+      feedback: { min: 0, max: 0.95, step: 0.01, default: 0.5, label: 'Feedback', unit: '%', color: '#cbb677' },
+      stages: { min: 2, max: 8, step: 1, default: 4, label: 'Stages', unit: '', color: '#92ce84' },
+      wetMix: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Mix', unit: '%', color: '#92ceaa' }
+    }
+  },
+  flanger: {
+    name: 'Flanger',
+    category: 'Modulation',
+    description: 'Sweeping comb filter',
+    parameters: {
+      rate: { min: 0.1, max: 5, step: 0.1, default: 0.5, label: 'Rate', unit: 'Hz', color: '#e75b5c' },
+      depth: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Depth', unit: '%', color: '#7bafd4' },
+      delay: { min: 1, max: 20, step: 0.5, default: 5, label: 'Delay', unit: 'ms', color: '#cbb677' },
+      feedback: { min: 0, max: 0.9, step: 0.01, default: 0.3, label: 'Feedback', unit: '%', color: '#92ce84' },
+      wetMix: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Mix', unit: '%', color: '#92ceaa' }
+    }
+  },
+  echo: {
+    name: 'Echo',
+    category: 'Time',
+    description: 'Simple echo delay',
+    parameters: {
+      delayTime: { min: 50, max: 2000, step: 10, default: 250, label: 'Delay', unit: 'ms', color: '#e75b5c' },
+      feedback: { min: 0, max: 0.9, step: 0.01, default: 0.4, label: 'Feedback', unit: '%', color: '#7bafd4' },
+      wetMix: { min: 0, max: 1, step: 0.01, default: 0.3, label: 'Mix', unit: '%', color: '#92ceaa' }
+    }
+  },
+  autoPan: {
+    name: 'Auto Pan',
+    category: 'Space',
+    description: 'Automatic stereo panning',
+    parameters: {
+      rate: { min: 0.1, max: 10, step: 0.1, default: 1, label: 'Rate', unit: 'Hz', color: '#e75b5c' },
+      depth: { min: 0, max: 1, step: 0.01, default: 0.8, label: 'Depth', unit: '%', color: '#7bafd4' },
+      shape: {
+        type: 'dropdown',
+        options: [
+          { key: 'sine', name: 'Sine' },
+          { key: 'triangle', name: 'Triangle' },
+          { key: 'square', name: 'Square' },
+          { key: 'sawtooth', name: 'Sawtooth' }
+        ],
+        default: 'sine',
+        label: 'Shape'
+      }
+    }
+  },
+  stereoWidener: {
+    name: 'Stereo Widener',
+    category: 'Space',
+    description: 'Stereo field enhancement',
+    parameters: {
+      width: { min: 0, max: 2, step: 0.01, default: 1.5, label: 'Width', unit: '%', color: '#e75b5c' },
+      delay: { min: 0, max: 50, step: 0.5, default: 10, label: 'Haas Delay', unit: 'ms', color: '#7bafd4' },
+      bassFreq: { min: 50, max: 500, step: 10, default: 120, label: 'Bass Freq', unit: 'Hz', color: '#cbb677' }
+    }
+  },
+  pitchShifter: {
+    name: 'Pitch Shifter',
+    category: 'Pitch',
+    description: 'Pitch shifting without time change',
+    parameters: {
+      shift: { min: -24, max: 24, step: 1, default: 0, label: 'Shift', unit: 'st', color: '#e75b5c' },
+      wetMix: { min: 0, max: 1, step: 0.01, default: 1, label: 'Mix', unit: '%', color: '#92ceaa' }
+    }
+  },
+  reverseReverb: {
+    name: 'Reverse Reverb',
+    category: 'Space',
+    description: 'Reverse buildup reverb',
+    parameters: {
+      buildupTime: { min: 0.1, max: 2, step: 0.05, default: 0.5, label: 'Buildup', unit: 'ms', color: '#e75b5c', multiplier: 1000 },
+      wetMix: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Mix', unit: '%', color: '#92ce84' },
+      fadeTime: { min: 0.01, max: 0.5, step: 0.01, default: 0.1, label: 'Fade In', unit: 'ms', color: '#7bafd4', multiplier: 1000 },
+      predelay: { min: 0, max: 100, step: 1, default: 0, label: 'Pre-Delay', unit: 'ms', color: '#cbb677' }
+    }
+  },
+  advancedDelay: {
+    name: 'Advanced Delay',
+    category: 'Time',
+    description: 'Multi-tap delay with filtering',
+    parameters: {
+      delayTime: { min: 10, max: 2000, step: 10, default: 250, label: 'Delay', unit: 'ms', color: '#e75b5c' },
+      feedback: { min: 0, max: 0.9, step: 0.01, default: 0.4, label: 'Feedback', unit: '%', color: '#7bafd4' },
+      highCut: { min: 1000, max: 20000, step: 100, default: 8000, label: 'Hi Cut', unit: 'Hz', color: '#cbb677' },
+      lowCut: { min: 20, max: 1000, step: 10, default: 100, label: 'Lo Cut', unit: 'Hz', color: '#92ce84' },
+      wetMix: { min: 0, max: 1, step: 0.01, default: 0.3, label: 'Mix', unit: '%', color: '#92ceaa' }
+    }
+  },
+  ringModulator: {
+    name: 'Ring Modulator',
+    category: 'Modulation',
+    description: 'Ring modulation effect',
+    parameters: {
+      frequency: { min: 1, max: 1000, step: 1, default: 100, label: 'Frequency', unit: 'Hz', color: '#e75b5c' },
+      depth: { min: 0, max: 1, step: 0.01, default: 1, label: 'Depth', unit: '%', color: '#7bafd4' },
+      wetMix: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Mix', unit: '%', color: '#92ceaa' }
+    }
+  },
+  frequencyShifter: {
+    name: 'Frequency Shifter',
+    category: 'Pitch',
+    description: 'Frequency domain shifting',
+    parameters: {
+      shift: { min: -500, max: 500, step: 1, default: 0, label: 'Shift', unit: 'Hz', color: '#e75b5c' },
+      wetMix: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Mix', unit: '%', color: '#92ceaa' }
+    }
+  },
+  spectralFilter: {
+    name: 'Spectral Filter',
+    category: 'Frequency',
+    description: 'Spectral domain filtering',
+    parameters: {
+      freeze: { min: 0, max: 1, step: 0.01, default: 0, label: 'Freeze', unit: '%', color: '#e75b5c' },
+      blur: { min: 0, max: 1, step: 0.01, default: 0, label: 'Blur', unit: '%', color: '#7bafd4' },
+      shift: { min: -1, max: 1, step: 0.01, default: 0, label: 'Shift', unit: '', color: '#cbb677' },
+      wetMix: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Mix', unit: '%', color: '#92ceaa' }
+    }
+  },
+  granularFreeze: {
+    name: 'Granular Freeze',
+    category: 'Time',
+    description: 'Granular synthesis freeze',
+    parameters: {
+      freeze: { min: 0, max: 1, step: 0.01, default: 0, label: 'Freeze', unit: '%', color: '#e75b5c' },
+      grainSize: { min: 10, max: 500, step: 10, default: 100, label: 'Grain Size', unit: 'ms', color: '#7bafd4' },
+      density: { min: 0.1, max: 4, step: 0.1, default: 1, label: 'Density', unit: 'x', color: '#cbb677' },
+      wetMix: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Mix', unit: '%', color: '#92ceaa' }
+    }
+  },
+  autoWah: {
+    name: 'Auto Wah',
+    category: 'Filter',
+    description: 'Automatic wah filter',
+    parameters: {
+      sensitivity: { min: 0, max: 1, step: 0.01, default: 0.7, label: 'Sensitivity', unit: '%', color: '#e75b5c' },
+      frequency: { min: 200, max: 4000, step: 50, default: 800, label: 'Frequency', unit: 'Hz', color: '#7bafd4' },
+      q: { min: 0.5, max: 20, step: 0.5, default: 5, label: 'Q', unit: '', color: '#cbb677' },
+      wetMix: { min: 0, max: 1, step: 0.01, default: 1, label: 'Mix', unit: '%', color: '#92ceaa' }
+    }
+  },
+  glitch: {
+    name: 'Glitch',
+    category: 'Creative',
+    description: 'Digital glitch effects',
+    parameters: {
+      probability: { min: 0, max: 1, step: 0.01, default: 0.1, label: 'Probability', unit: '%', color: '#e75b5c' },
+      intensity: { min: 0, max: 1, step: 0.01, default: 0.5, label: 'Intensity', unit: '%', color: '#7bafd4' },
+      rate: { min: 1, max: 100, step: 1, default: 10, label: 'Rate', unit: 'Hz', color: '#cbb677' },
+      wetMix: { min: 0, max: 1, step: 0.01, default: 0.3, label: 'Mix', unit: '%', color: '#92ceaa' }
+    }
+  },
+  paulstretch: {
+    name: 'Paulstretch',
+    category: 'Time',
+    description: 'Extreme time stretching',
+    parameters: {
+      stretch: { min: 0.1, max: 10, step: 0.1, default: 2, label: 'Stretch', unit: 'x', color: '#e75b5c' },
+      windowSize: { min: 0.01, max: 1, step: 0.01, default: 0.25, label: 'Window', unit: 's', color: '#7bafd4' },
+      wetMix: { min: 0, max: 1, step: 0.01, default: 1, label: 'Mix', unit: '%', color: '#92ceaa' }
+    }
+  }
 };
 
-// Placeholder component for effect parameters
-function EffectParametersPlaceholder({ effectType, onParameterChange }) {
-  const effectInfo = EFFECT_INFO[effectType] || { 
-    name: effectType, 
-    category: 'Unknown', 
-    description: 'Effect parameters will be loaded here' 
+const EFFECT_INFO = EFFECT_CONFIGS;
+
+// Dynamic effect parameters component
+function EffectParametersComponent({ effectType, parameters, onParameterChange }) {
+  const config = EFFECT_CONFIGS[effectType];
+  
+  if (!config) {
+    return (
+      <div className="text-center py-5">
+        <FaCog size={48} className="text-muted mb-3" />
+        <h4>{effectType}</h4>
+        <Alert variant="warning">
+          <Alert.Heading>Effect Not Configured</Alert.Heading>
+          <p className="mb-0">
+            Parameters for {effectType} haven't been configured yet.
+            Available effects: {Object.keys(EFFECT_CONFIGS).join(', ')}
+          </p>
+        </Alert>
+      </div>
+    );
+  }
+
+  const renderParameter = (paramName, paramConfig) => {
+    if (paramConfig.type === 'dropdown') {
+      return (
+        <Col key={paramName} xs={12} sm={6} md={4} lg={3} className="mb-3">
+          <Form.Label className="text-white small mb-1">{paramConfig.label}</Form.Label>
+          <Dropdown
+            onSelect={(eventKey) => onParameterChange(paramName, eventKey)}
+            size="sm"
+          >
+            <Dropdown.Toggle variant="secondary" size="sm" className="w-100">
+              {paramConfig.options.find(opt => opt.key === parameters[paramName])?.name || 
+               paramConfig.options[0]?.name || 'Select'}
+            </Dropdown.Toggle>
+            <Dropdown.Menu className="bg-daw-toolbars">
+              {paramConfig.options.map((option) => (
+                <Dropdown.Item
+                  key={option.key}
+                  eventKey={option.key}
+                  className="text-white"
+                >
+                  {option.name}
+                </Dropdown.Item>
+              ))}
+            </Dropdown.Menu>
+          </Dropdown>
+        </Col>
+      );
+    }
+
+    if (paramConfig.type === 'custom' && paramName === 'bands') {
+      // Special EQ bands rendering
+      return (
+        <Col key={paramName} xs={12} className="mb-3">
+          <Form.Label className="text-white small mb-2">{paramConfig.label}</Form.Label>
+          <Row>
+            {parameters[paramName]?.map((band, index) => {
+              const freqLabel = band.frequency >= 1000 ? 
+                `${(band.frequency/1000).toFixed(1)}k` : 
+                band.frequency;
+              
+              return (
+                <Col key={index} xs={6} sm={4} md={3} lg={2} xl={1} className="mb-2 text-center">
+                  <Form.Range
+                    min={-26}
+                    max={26}
+                    step={0.1}
+                    value={band.gain}
+                    className="eq-slider"
+                    onChange={(e) => {
+                      const newBands = [...parameters[paramName]];
+                      newBands[index].gain = parseFloat(e.target.value);
+                      onParameterChange(paramName, newBands);
+                    }}
+                    style={{ width: '100%', writingMode: 'vertical-lr' }}
+                  />
+                  <small className="text-white d-block mt-1">{freqLabel}Hz</small>
+                  <small className="text-muted d-block">{band.gain.toFixed(1)}dB</small>
+                </Col>
+              );
+            })}
+          </Row>
+        </Col>
+      );
+    }
+
+    // Standard knob parameter
+    const value = parameters[paramName] !== undefined ? parameters[paramName] : paramConfig.default;
+    let displayValue = value;
+    
+    if (paramConfig.unit === '%') {
+      displayValue = `${Math.round(value * 100)}%`;
+    } else if (paramConfig.unit === '°') {
+      displayValue = `${value}°`;
+    } else if (paramConfig.unit === 'Hz') {
+      displayValue = `${value.toFixed(1)}Hz`;
+    } else if (paramConfig.unit === 'ms' && paramConfig.multiplier) {
+      displayValue = `${(value * paramConfig.multiplier).toFixed(0)}ms`;
+    } else if (paramConfig.unit === 'ms') {
+      displayValue = `${value}ms`;
+    } else if (paramConfig.unit === 'dB') {
+      displayValue = `${value.toFixed(0)}dB`;
+    } else if (paramConfig.unit === ':1') {
+      displayValue = `${value.toFixed(1)}:1`;
+    } else if (paramConfig.unit === 'x') {
+      displayValue = `${value.toFixed(1)}x`;
+    } else if (paramConfig.unit === 'st') {
+      displayValue = `${value > 0 ? '+' : ''}${value}st`;
+    } else if (paramConfig.unit === 's') {
+      displayValue = `${value.toFixed(2)}s`;
+    } else if (paramConfig.unit === '' || !paramConfig.unit) {
+      displayValue = value.toString();
+    } else {
+      displayValue = value.toString();
+    }
+
+    return (
+      <Col key={paramName} xs={6} sm={4} md={3} lg={2} className="mb-3">
+        <Knob
+          value={value}
+          onChange={(newValue) => onParameterChange(paramName, newValue)}
+          min={paramConfig.min}
+          max={paramConfig.max}
+          step={paramConfig.step}
+          label={paramConfig.label}
+          displayValue={displayValue}
+          size={45}
+          color={paramConfig.color}
+        />
+      </Col>
+    );
   };
 
   return (
-    <div className="text-center py-5">
-      <FaCog size={48} className="text-muted mb-3" />
-      <h4>{effectInfo.name}</h4>
-      <p className="text-muted mb-4">{effectInfo.description}</p>
-      
-      <Alert variant="info">
-        <Alert.Heading>Phase 3 Implementation</Alert.Heading>
-        <p className="mb-0">
-          This is where the {effectInfo.name} parameters will be loaded from the mono editor's EffectsRack.
-          The actual knobs, sliders, and controls will be imported and configured in Phase 3.
-        </p>
-      </Alert>
-
-      <div className="mt-4">
-        <small className="text-muted">
-          Category: <strong>{effectInfo.category}</strong>
-        </small>
+    <div>
+      <div className="text-center mb-4">
+        <h5>{config.name}</h5>
+        <p className="text-muted small">{config.description}</p>
+        <small className="text-muted">Category: <strong>{config.category}</strong></small>
       </div>
+      
+      <Container fluid className="p-2">
+        <Row className="align-items-end justify-content-center">
+          {Object.keys(config.parameters).map(paramName => 
+            renderParameter(paramName, config.parameters[paramName])
+          )}
+        </Row>
+      </Container>
     </div>
   );
 }
@@ -75,7 +470,8 @@ export default function EffectParametersModal() {
   const [isApplying, setIsApplying] = useState(false);
 
   const targetTrack = tracks.find(t => t.id === effectTargetTrackId);
-  const effectInfo = EFFECT_INFO[selectedEffectType] || { name: selectedEffectType, category: 'Unknown' };
+  const effectConfig = EFFECT_CONFIGS[selectedEffectType];
+  const effectInfo = effectConfig || { name: selectedEffectType, category: 'Unknown' };
 
   const handleParameterChange = (paramName, value) => {
     setEffectParameters(prev => ({
@@ -90,14 +486,15 @@ export default function EffectParametersModal() {
     setIsApplying(true);
 
     try {
-      // In Phase 4, we'll implement the actual effect application
-      // For now, we'll just add the effect configuration to the track
+      // Create effect configuration for real-time processing
       const newEffect = {
         id: `${selectedEffectType}-${Date.now()}`,
         type: selectedEffectType,
         parameters: effectParameters,
         enabled: true,
-        bypass: false
+        bypass: false,
+        // Store processing function reference for multitrack use
+        processingFunction: getProcessingFunction(selectedEffectType)
       };
 
       const updatedEffects = [...(targetTrack.effects || []), newEffect];
@@ -106,7 +503,10 @@ export default function EffectParametersModal() {
         effects: updatedEffects
       });
 
-      console.log(`🎛️ Added ${effectInfo.name} to track ${targetTrack.name}:`, newEffect);
+      console.log(`🎛️ Added ${effectInfo.name} to track ${targetTrack.name}:`, {
+        ...newEffect,
+        processingFunction: `${selectedEffectType}ProcessingFunction`
+      });
 
       // Close modal on success
       handleClose();
@@ -115,6 +515,13 @@ export default function EffectParametersModal() {
     } finally {
       setIsApplying(false);
     }
+  };
+
+  // Helper function to get the processing function for an effect type
+  const getProcessingFunction = (effectType) => {
+    // TODO: Add processing function mapping when imports are working
+    console.log(`Effect processing function for ${effectType} - to be implemented`);
+    return null;
   };
 
   const handleClose = () => {
@@ -129,10 +536,18 @@ export default function EffectParametersModal() {
     // Keep selectedEffectType and effectTargetTrackId for potential reuse
   };
 
-  // Reset parameters when effect type changes
+  // Initialize parameters when effect type changes
   useEffect(() => {
-    if (selectedEffectType) {
-      setEffectParameters({});
+    if (selectedEffectType && EFFECT_CONFIGS[selectedEffectType]) {
+      const config = EFFECT_CONFIGS[selectedEffectType];
+      const initialParams = {};
+      
+      Object.keys(config.parameters).forEach(key => {
+        const param = config.parameters[key];
+        initialParams[key] = param.default;
+      });
+      
+      setEffectParameters(initialParams);
     }
   }, [selectedEffectType]);
 
@@ -162,8 +577,9 @@ export default function EffectParametersModal() {
       </Modal.Header>
 
       <Modal.Body style={{ minHeight: '400px' }}>
-        <EffectParametersPlaceholder
+        <EffectParametersComponent
           effectType={selectedEffectType}
+          parameters={effectParameters}
           onParameterChange={handleParameterChange}
         />
       </Modal.Body>

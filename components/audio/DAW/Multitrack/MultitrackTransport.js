@@ -417,24 +417,54 @@ export default function MultitrackTransport({
       {/* Transport Controls */}
       <div className="multitrack-transport d-flex align-items-center gap-3">
         {/* Transport Controls */}
-        <ButtonGroup>
-          <Button
-            size="sm"
-            variant={isPlaying ? 'warning' : 'primary'}
-            onClick={isPlaying ? pause : play}
+        <div style={{ display: 'flex', gap: '5px' }}>
+          <button
+            onClick={() => {
+              try {
+                if (isPlaying) {
+                  pause && pause();
+                } else {
+                  play && play();
+                }
+              } catch (e) {
+                console.error('Transport error:', e);
+              }
+            }}
             disabled={tracks.length === 0}
+            style={{
+              backgroundColor: isPlaying ? '#d4910b' : '#4a7c9e',
+              border: '1px solid #5a8cae',
+              color: '#fff',
+              minWidth: '60px',
+              padding: '0.5rem 1rem',
+              borderRadius: '4px',
+              cursor: tracks.length === 0 ? 'not-allowed' : 'pointer'
+            }}
           >
             {isPlaying ? <FaPause /> : <FaPlay />}
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={stop}
+          </button>
+          <button
+            onClick={() => {
+              try {
+                stop && stop();
+              } catch (e) {
+                console.error('Stop error:', e);
+              }
+            }}
             disabled={tracks.length === 0}
+            style={{
+              backgroundColor: '#5a5a5a',
+              border: '1px solid #6a6a6a',
+              color: '#fff',
+              minWidth: '60px',
+              padding: '0.5rem 1rem',
+              borderRadius: '4px',
+              cursor: tracks.length === 0 ? 'not-allowed' : 'pointer'
+            }}
           >
             <FaStop />
-          </Button>
-        </ButtonGroup>
+          </button>
+        </div>
 
         {/* Progress Bar */}
         <div className="flex-grow-1 d-flex align-items-center gap-2">
