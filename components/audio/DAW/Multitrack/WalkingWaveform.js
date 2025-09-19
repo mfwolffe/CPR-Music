@@ -67,8 +67,8 @@ export default function WalkingWaveform({
       const inner = document.getElementById('multitrack-tracks-inner');
       const totalWidth = inner
         ? inner.offsetWidth
-        : 280 + 3000 * (zoomLevel / 100);
-      const contentWidth = Math.max(1, totalWidth - 280);
+        : 310 + 3000 * (zoomLevel / 100); // 80px sidebar + 230px track controls
+      const contentWidth = Math.max(1, totalWidth - 310);
       canvas.width = contentWidth;
       canvas.style.width = contentWidth + 'px';
       const width = contentWidth;

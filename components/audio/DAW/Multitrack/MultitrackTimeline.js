@@ -51,8 +51,8 @@ export default function MultitrackTimeline({
     // Calculate time based on the actual content width
     const scale = zoomLevel / 100;
     const inner = document.getElementById('multitrack-tracks-inner');
-    const totalWidth = inner ? inner.offsetWidth : 280 + 3000 * scale;
-    const contentWidth = Math.max(1, totalWidth - 280); // subtract left gutter
+    const totalWidth = inner ? inner.offsetWidth : 310 + 3000 * scale; // 80px sidebar + 230px track controls
+    const contentWidth = Math.max(1, totalWidth - 310); // subtract left gutter
     const projectDuration = duration > 0 ? duration : 30;
     const clickTime = (x / contentWidth) * projectDuration;
 
@@ -72,8 +72,8 @@ export default function MultitrackTimeline({
     // Calculate content width based on zoom and DOM
     const scale = zoomLevel / 100;
     const inner = document.getElementById('multitrack-tracks-inner');
-    const totalWidth = inner ? inner.offsetWidth : 280 + 3000 * scale;
-    const contentWidth = Math.max(1, totalWidth - 280);
+    const totalWidth = inner ? inner.offsetWidth : 310 + 3000 * scale; // 80px sidebar + 230px track controls
+    const contentWidth = Math.max(1, totalWidth - 310);
     const width = Math.max(containerWidth, contentWidth);
 
     canvas.width = width;
@@ -187,8 +187,8 @@ export default function MultitrackTimeline({
     typeof document !== 'undefined'
       ? document.getElementById('multitrack-tracks-inner')
       : null;
-  const totalWidth = innerEl ? innerEl.offsetWidth : 280 + 3000 * scale;
-  const contentWidth = Math.max(1, totalWidth - 280);
+  const totalWidth = innerEl ? innerEl.offsetWidth : 310 + 3000 * scale; // 80px sidebar + 230px track controls
+  const contentWidth = Math.max(1, totalWidth - 310);
   const timelineWidth = Math.max(containerWidth, contentWidth);
 
   return (
@@ -247,7 +247,7 @@ export default function MultitrackTimeline({
         <div
           className="timeline-controls-spacer"
           style={{
-            width: '200px',
+            width: '230px', /* Match actual track controls width */
             backgroundColor: '#232323',
             borderRight: '1px solid #444',
             flexShrink: 0,

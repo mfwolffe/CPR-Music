@@ -186,7 +186,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       const rect = parent.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
       // Use the same width calculation as the timeline container
-      const timelineWidth = 280 + 3000 * (zoomLevel / 100);
+      const timelineWidth = 310 + 3000 * (zoomLevel / 100); // 80px sidebar + 230px track controls
       const displayW = Math.max(1, Math.floor(timelineWidth - 230)); // Subtract control width
       const displayH = Math.max(1, Math.floor(rect.height));
 
