@@ -30,7 +30,16 @@ import Limiter from './Limiter';
 
 /**
  * Effects Rack - Tabbed container for all effects
- * Shows all effects in tabs below the DAW
+ * Shows all effects in tabs below the DAW.
+ * Hello. The above is no longer true, and I'm lazy. 
+ * Here's a quote:
+ * 
+ * 			A rich man's melk, is a poor man's tuba.
+ * - Doug. 
+ *
+ *
+ * Doug likes the guest suite.
+ * 
  */
 export default function EffectsRack({ width }) {
   const { 
