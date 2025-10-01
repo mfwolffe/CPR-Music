@@ -21,40 +21,136 @@ const DistortionTooltips = {
 };
 
 /**
- * Distortion/Saturation Types with different characteristics
+ * Distortion/Saturation Types with different characteristics and preset values
  */
 const DistortionTypes = {
-  tubeSaturation: { 
-    name: 'Tube Saturation', 
-    description: 'Warm, musical tube-style saturation' 
+  tubeSaturation: {
+    name: 'Tube Saturation',
+    description: 'Warm, musical tube-style saturation',
+    presets: {
+      drive: 8,
+      tone: 6000,
+      presence: 3,
+      asymmetry: 0.2,
+      harmonics: 0.7,
+      mix: 0.85,
+      bass: 2,
+      mid: 1,
+      treble: 2,
+      outputGain: 0.9
+    }
   },
-  transistorDistortion: { 
-    name: 'Transistor', 
-    description: 'Classic transistor distortion' 
+  transistorDistortion: {
+    name: 'Transistor',
+    description: 'Classic transistor distortion',
+    presets: {
+      drive: 12,
+      tone: 4500,
+      presence: 5,
+      asymmetry: 0.1,
+      harmonics: 0.5,
+      mix: 0.95,
+      bass: 3,
+      mid: 4,
+      treble: 3,
+      outputGain: 0.8
+    }
   },
-  digitalClipping: { 
-    name: 'Digital Clip', 
-    description: 'Hard digital clipping' 
+  digitalClipping: {
+    name: 'Digital Clip',
+    description: 'Hard digital clipping',
+    presets: {
+      drive: 15,
+      tone: 8000,
+      presence: 0,
+      asymmetry: 0,
+      harmonics: 0.2,
+      mix: 1.0,
+      bass: 0,
+      mid: 0,
+      treble: 0,
+      outputGain: 0.7
+    }
   },
-  tapeCompression: { 
-    name: 'Tape Compression', 
-    description: 'Analog tape saturation' 
+  tapeCompression: {
+    name: 'Tape Compression',
+    description: 'Analog tape saturation',
+    presets: {
+      drive: 5,
+      tone: 5500,
+      presence: 2,
+      asymmetry: 0.3,
+      harmonics: 0.6,
+      mix: 0.7,
+      bass: 1,
+      mid: 0,
+      treble: -1,
+      outputGain: 1.0
+    }
   },
-  fuzzBox: { 
-    name: 'Fuzz Box', 
-    description: 'Vintage fuzz pedal sound' 
+  fuzzBox: {
+    name: 'Fuzz Box',
+    description: 'Vintage fuzz pedal sound',
+    presets: {
+      drive: 18,
+      tone: 3000,
+      presence: 8,
+      asymmetry: 0.5,
+      harmonics: 1.0,
+      mix: 1.0,
+      bass: 5,
+      mid: 6,
+      treble: 4,
+      outputGain: 0.6
+    }
   },
-  bitCrusher: { 
-    name: 'Bit Crusher', 
-    description: 'Lo-fi bit reduction' 
+  bitCrusher: {
+    name: 'Bit Crusher',
+    description: 'Lo-fi bit reduction',
+    presets: {
+      drive: 10,
+      tone: 2000,
+      presence: -2,
+      asymmetry: 0,
+      harmonics: 0.3,
+      mix: 1.0,
+      bass: -2,
+      mid: 2,
+      treble: -5,
+      outputGain: 0.85
+    }
   },
-  waveShaper: { 
-    name: 'Wave Shaper', 
-    description: 'Waveshaping distortion' 
+  waveShaper: {
+    name: 'Wave Shaper',
+    description: 'Waveshaping distortion',
+    presets: {
+      drive: 14,
+      tone: 7000,
+      presence: 4,
+      asymmetry: 0.4,
+      harmonics: 0.8,
+      mix: 0.9,
+      bass: 1,
+      mid: 3,
+      treble: 1,
+      outputGain: 0.75
+    }
   },
-  asymmetricClip: { 
-    name: 'Asymmetric', 
-    description: 'Asymmetric clipping distortion' 
+  asymmetricClip: {
+    name: 'Asymmetric',
+    description: 'Asymmetric clipping distortion',
+    presets: {
+      drive: 10,
+      tone: 5000,
+      presence: 3,
+      asymmetry: 0.8,
+      harmonics: 0.5,
+      mix: 0.95,
+      bass: 2,
+      mid: 2,
+      treble: 1,
+      outputGain: 0.85
+    }
   }
 };
 
@@ -454,17 +550,40 @@ export default function Distortion({ width }) {
   const distortionProcessorRef = useRef(null);
   const canvasRef = useRef(null);
   const [showHelpModal, setShowHelpModal] = useState(false);
-  
+  const [hasInitialized, setHasInitialized] = useState(false);
+
   // Initialize audio context and distortion processor
   useEffect(() => {
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     }
-    
+
     if (!distortionProcessorRef.current) {
       distortionProcessorRef.current = new DistortionProcessor(audioContextRef.current);
     }
   }, []);
+
+  // Set initial preset values on first load
+  useEffect(() => {
+    if (!hasInitialized && distortionType) {
+      const presets = DistortionTypes[distortionType]?.presets;
+      if (presets) {
+        setDistortionDrive(presets.drive);
+        setDistortionTone(presets.tone);
+        setDistortionPresence(presets.presence);
+        setDistortionAsymmetry(presets.asymmetry);
+        setDistortionHarmonics(presets.harmonics);
+        setDistortionWetMix(presets.mix);
+        setDistortionBass(presets.bass);
+        setDistortionMid(presets.mid);
+        setDistortionTreble(presets.treble);
+        setDistortionOutputGain(presets.outputGain);
+        setHasInitialized(true);
+      }
+    }
+  }, [distortionType, hasInitialized, setDistortionDrive, setDistortionTone, setDistortionPresence,
+      setDistortionAsymmetry, setDistortionHarmonics, setDistortionWetMix, setDistortionBass,
+      setDistortionMid, setDistortionTreble, setDistortionOutputGain]);
   
   // Update distortion parameters
   useEffect(() => {
@@ -868,7 +987,27 @@ export default function Distortion({ width }) {
           <Form.Label className="text-white small">Distortion Type</Form.Label>
           <Form.Select
             value={distortionType}
-            onChange={(e) => setDistortionType(e.target.value)}
+            onChange={(e) => {
+              const selectedType = e.target.value;
+              const presets = DistortionTypes[selectedType]?.presets;
+
+              // Update all values based on the preset
+              if (presets) {
+                setDistortionType(selectedType);
+                setDistortionDrive(presets.drive);
+                setDistortionTone(presets.tone);
+                setDistortionPresence(presets.presence);
+                setDistortionAsymmetry(presets.asymmetry);
+                setDistortionHarmonics(presets.harmonics);
+                setDistortionWetMix(presets.mix);
+                setDistortionBass(presets.bass);
+                setDistortionMid(presets.mid);
+                setDistortionTreble(presets.treble);
+                setDistortionOutputGain(presets.outputGain);
+              } else {
+                setDistortionType(selectedType);
+              }
+            }}
             className="bg-secondary text-white border-0"
           >
             {Object.entries(DistortionTypes).map(([key, type]) => (
