@@ -16,7 +16,7 @@ import { ReactQueryDevtools } from 'react-query/devtools';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import wrapper from '../store';
 
-export function App({ Component, pageProps: { session, ...pageProps } }) {
+function App({ Component, pageProps: { session, ...pageProps } }) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
