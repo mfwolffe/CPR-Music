@@ -1,29 +1,45 @@
 'use client';
 
 import { useCallback, useRef, useEffect, useState } from 'react';
-import { Container, Row, Col, Form, Button } from 'react-bootstrap';
+import { Container, Row, Col, Form, Button, Modal, OverlayTrigger, Tooltip } from 'react-bootstrap';
+import { FaQuestionCircle } from 'react-icons/fa';
 import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
+
+/**
+ * Educational Tooltips
+ */
+const StereoTooltips = {
+  width: "Controls how wide the stereo image appears. 1.0x is original, <1.0 narrows, >1.0 widens. Be careful with values over 2.0x as they may cause phase issues.",
+  haasDelay: "Adds a small delay to one channel creating psychoacoustic widening. 10-30ms is typical. Only active in Haas mode.",
+  midGain: "Adjusts the center (mono) content level. Positive values emphasize vocals/bass, negative values create a 'hollow' center. Only in Mid/Side mode.",
+  sideGain: "Adjusts the side (stereo) content level. Positive values increase width and ambience, negative reduces stereo information. Only in Mid/Side mode.",
+  phase: "Rotates the stereo image. Small amounts (5-15°) can add subtle width. Large amounts may cause mono compatibility issues.",
+  outputGain: "Final output level adjustment. Reduce if widening causes clipping. Unity gain is 1.0x.",
+  bassFreq: "Frequencies below this point stay mono to maintain punch and avoid phase issues. Typical range is 100-200Hz.",
+  highLimit: "Frequencies above this are limited to prevent harsh widening artifacts. Usually set to 10-15kHz.",
+  correlation: "Target stereo correlation. +1 is mono, 0 is uncorrelated, -1 is out of phase. Normal stereo is 0.3-0.7."
+};
 
 /**
  * Stereo Processing Modes
  */
 const StereoModes = {
-  classic: { 
-    name: 'Classic Width', 
-    description: 'Traditional stereo width control' 
+  classic: {
+    name: 'Classic Width',
+    description: 'Traditional stereo width control'
   },
-  midside: { 
-    name: 'Mid/Side Processing', 
-    description: 'Independent mid and side channel control' 
+  midside: {
+    name: 'Mid/Side Processing',
+    description: 'Independent mid and side channel control'
   },
-  haas: { 
-    name: 'Haas Effect', 
-    description: 'Psychoacoustic delay-based widening' 
+  haas: {
+    name: 'Haas Effect',
+    description: 'Psychoacoustic delay-based widening'
   },
-  correlation: { 
-    name: 'Correlation Control', 
-    description: 'Stereo correlation adjustment' 
+  correlation: {
+    name: 'Correlation Control',
+    description: 'Stereo correlation adjustment'
   }
 };
 
@@ -491,6 +507,7 @@ export default function StereoWidener({ width }) {
   const processorRef = useRef(null);
   const canvasRef = useRef(null);
   const [correlationValue, setCorrelationValue] = useState(0);
+  const [showHelpModal, setShowHelpModal] = useState(false);
   
   // Initialize audio context and processor
   useEffect(() => {
@@ -524,103 +541,260 @@ export default function StereoWidener({ width }) {
       stereoWidenerCorrelation, stereoWidenerHighFreqLimit, stereoWidenerSafetyLimit,
       stereoWidenerOutputGain]);
   
-  // Draw stereo field visualization
+  // Draw stereo field visualization - vectorscope style
   const drawVisualization = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
+
     const ctx = canvas.getContext('2d');
     const width = canvas.width;
     const height = canvas.height;
     const centerX = width / 2;
     const centerY = height / 2;
-    
+
     // Clear canvas
     ctx.fillStyle = '#1a1a1a';
     ctx.fillRect(0, 0, width, height);
-    
-    // Draw grid
+
+    // Draw grid for vectorscope
     ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1;
-    
-    // Center lines
-    ctx.beginPath();
-    ctx.moveTo(centerX, 0);
-    ctx.lineTo(centerX, height);
-    ctx.moveTo(0, centerY);
-    ctx.lineTo(width, centerY);
-    ctx.stroke();
-    
-    // Draw stereo field circle
-    const radius = Math.min(width, height) * 0.4;
-    ctx.strokeStyle = '#555';
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-    ctx.stroke();
-    
-    // Draw original stereo image (before processing)
-    ctx.strokeStyle = '#7bafd4';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius * 0.6, 0, 2 * Math.PI);
-    ctx.stroke();
-    
-    // Draw processed stereo image
-    const processedRadius = radius * 0.6 * stereoWidenerWidth;
-    ctx.strokeStyle = '#e75b5c';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, Math.min(processedRadius, radius * 0.95), 0, 2 * Math.PI);
-    ctx.stroke();
-    
-    // Draw phase offset visualization
-    if (stereoWidenerPhase > 0) {
-      const phaseAngle = (stereoWidenerPhase * Math.PI) / 180;
-      const phaseX = centerX + Math.cos(phaseAngle) * radius * 0.3;
-      const phaseY = centerY + Math.sin(phaseAngle) * radius * 0.3;
-      
-      ctx.strokeStyle = '#dda0dd';
-      ctx.lineWidth = 2;
+    ctx.lineWidth = 0.5;
+
+    // Draw concentric circles (amplitude levels)
+    const maxRadius = Math.min(width, height) * 0.4;
+    for (let i = 0.25; i <= 1; i += 0.25) {
       ctx.beginPath();
-      ctx.moveTo(centerX, centerY);
-      ctx.lineTo(phaseX, phaseY);
+      ctx.arc(centerX, centerY, maxRadius * i, 0, 2 * Math.PI);
       ctx.stroke();
     }
-    
-    // Draw correlation indicator
-    const corrColor = correlationValue > 0.5 ? '#92ceaa' : 
-                     correlationValue < -0.5 ? '#e75b5c' : '#cbb677';
-    ctx.fillStyle = corrColor;
-    ctx.fillRect(10, height - 30, Math.abs(correlationValue) * 100, 10);
-    
-    // Draw labels
-    ctx.fillStyle = '#e75b5c';
-    ctx.font = '12px monospace';
-    ctx.fillText(`Width: ${stereoWidenerWidth.toFixed(1)}x`, 10, 20);
-    ctx.fillText(`Mode: ${StereoModes[stereoWidenerMode]?.name || 'Classic'}`, 10, 35);
-    
-    if (stereoWidenerMode === 'haas' && stereoWidenerDelay > 0) {
-      ctx.fillStyle = '#7bafd4';
-      ctx.fillText(`Haas: ${stereoWidenerDelay.toFixed(1)}ms`, 10, 50);
+
+    // Draw 45° diagonal lines (pure L and R reference)
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 5]);
+
+    // Left channel line (-45°)
+    ctx.beginPath();
+    ctx.moveTo(centerX - maxRadius, centerY + maxRadius);
+    ctx.lineTo(centerX + maxRadius, centerY - maxRadius);
+    ctx.stroke();
+
+    // Right channel line (+45°)
+    ctx.beginPath();
+    ctx.moveTo(centerX - maxRadius, centerY - maxRadius);
+    ctx.lineTo(centerX + maxRadius, centerY + maxRadius);
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+
+    // Draw vertical line (mono/center reference)
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY - maxRadius);
+    ctx.lineTo(centerX, centerY + maxRadius);
+    ctx.stroke();
+
+    // Draw horizontal line (stereo difference)
+    ctx.beginPath();
+    ctx.moveTo(centerX - maxRadius, centerY);
+    ctx.lineTo(centerX + maxRadius, centerY);
+    ctx.stroke();
+
+    // Draw safety zones
+    const safeRadius = maxRadius * 0.7;
+    const warnRadius = maxRadius * 0.9;
+
+    // Safe zone (green)
+    ctx.strokeStyle = 'rgba(146, 206, 170, 0.2)';
+    ctx.fillStyle = 'rgba(146, 206, 170, 0.05)';
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, safeRadius, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.stroke();
+
+    // Warning zone (yellow)
+    if (stereoWidenerWidth > 1.5) {
+      ctx.strokeStyle = 'rgba(203, 182, 119, 0.3)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, warnRadius, 0, 2 * Math.PI);
+      ctx.stroke();
     }
-    
+
+    // Danger zone indicator (red) for extreme widening
+    if (stereoWidenerWidth > 2.0) {
+      ctx.strokeStyle = 'rgba(231, 91, 92, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, maxRadius, 0, 2 * Math.PI);
+      ctx.stroke();
+    }
+
+    // Draw Lissajous pattern for stereo image
+    // Original signal
+    ctx.strokeStyle = '#7bafd4';
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.6;
+
+    // Simulate original stereo pattern (ellipse)
+    ctx.beginPath();
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.rotate(Math.PI / 4); // 45° for typical stereo
+    ctx.scale(0.6, 0.4); // Natural stereo width
+    ctx.beginPath();
+    ctx.arc(0, 0, maxRadius * 0.5, 0, 2 * Math.PI);
+    ctx.stroke();
+    ctx.restore();
+
+    // Processed signal
+    ctx.strokeStyle = '#e75b5c';
+    ctx.lineWidth = 3;
+    ctx.globalAlpha = 0.8;
+
+    // Apply width transformation
+    const widthScale = Math.min(stereoWidenerWidth, 2.5);
+    const midScale = stereoWidenerMode === 'midside' ?
+      Math.pow(10, stereoWidenerMidGain / 20) : 1;
+    const sideScale = stereoWidenerMode === 'midside' ?
+      Math.pow(10, stereoWidenerSideGain / 20) : 1;
+
+    ctx.save();
+    ctx.translate(centerX, centerY);
+
+    // Apply phase rotation if set
+    if (stereoWidenerPhase > 0) {
+      ctx.rotate((stereoWidenerPhase * Math.PI) / 180);
+    }
+
+    // Rotate for stereo angle
+    ctx.rotate(Math.PI / 4);
+
+    // Scale based on processing
+    const xScale = 0.6 * widthScale * (stereoWidenerMode === 'midside' ? sideScale : 1);
+    const yScale = 0.4 * (stereoWidenerMode === 'midside' ? midScale : 1);
+    ctx.scale(xScale, yScale);
+
+    ctx.beginPath();
+    ctx.arc(0, 0, maxRadius * 0.5, 0, 2 * Math.PI);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.globalAlpha = 1;
+
+    // Draw Haas delay visualization if active
+    if (stereoWidenerMode === 'haas' && stereoWidenerDelay > 0) {
+      ctx.strokeStyle = '#dda0dd';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+
+      // Show delay offset
+      const delayOffset = (stereoWidenerDelay / 50) * maxRadius * 0.2; // Scale delay to visual
+      ctx.beginPath();
+      ctx.arc(centerX + delayOffset, centerY, maxRadius * 0.3, 0, 2 * Math.PI);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Draw bass mono zone if enabled
+    if (stereoWidenerBassRetain) {
+      ctx.fillStyle = 'rgba(203, 182, 119, 0.1)';
+      ctx.strokeStyle = 'rgba(203, 182, 119, 0.3)';
+      ctx.lineWidth = 1;
+
+      // Draw center zone for bass
+      const bassRadius = maxRadius * 0.2;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, bassRadius, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // Draw correlation meter
+    const meterY = height - 40;
+    const meterWidth = 150;
+    const meterHeight = 8;
+
+    // Background
+    ctx.fillStyle = '#333';
+    ctx.fillRect(10, meterY, meterWidth, meterHeight);
+
+    // Correlation value
+    const corrColor = correlationValue > 0.5 ? '#92ceaa' :
+                     correlationValue < -0.5 ? '#e75b5c' : '#cbb677';
+    const corrPosition = ((correlationValue + 1) / 2) * meterWidth;
+
+    ctx.fillStyle = corrColor;
+    ctx.fillRect(10, meterY, corrPosition, meterHeight);
+
+    // Correlation markers
+    ctx.strokeStyle = '#666';
+    ctx.lineWidth = 1;
+
+    // Center line (0 correlation)
+    ctx.beginPath();
+    ctx.moveTo(10 + meterWidth / 2, meterY - 2);
+    ctx.lineTo(10 + meterWidth / 2, meterY + meterHeight + 2);
+    ctx.stroke();
+
+    // Labels
+    ctx.fillStyle = '#888';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Stereo Field Analysis', width / 2, 15);
+
+    // Axis labels
+    ctx.font = '10px monospace';
+    ctx.fillStyle = '#666';
+    ctx.textAlign = 'left';
+    ctx.fillText('-1', 10, meterY - 5);
+    ctx.textAlign = 'center';
+    ctx.fillText('0', 10 + meterWidth / 2, meterY - 5);
+    ctx.textAlign = 'right';
+    ctx.fillText('+1', 10 + meterWidth, meterY - 5);
+
+    // Mode and parameter info
+    ctx.fillStyle = '#e75b5c';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(`Width: ${stereoWidenerWidth.toFixed(2)}x`, width - 100, 20);
+    ctx.fillText(`Mode: ${StereoModes[stereoWidenerMode]?.name || 'Classic'}`, width - 100, 35);
+
+    if (stereoWidenerMode === 'haas' && stereoWidenerDelay > 0) {
+      ctx.fillStyle = '#dda0dd';
+      ctx.fillText(`Delay: ${stereoWidenerDelay.toFixed(1)}ms`, width - 100, 50);
+    }
+
     if (stereoWidenerBassRetain) {
       ctx.fillStyle = '#cbb677';
-      ctx.fillText(`Bass Mono: ${stereoWidenerBassFreq}Hz`, 10, height - 45);
+      ctx.fillText(`Bass: <${stereoWidenerBassFreq}Hz`, width - 100, 65);
     }
-    
+
+    // Correlation status
     ctx.fillStyle = corrColor;
-    ctx.fillText(`Correlation: ${correlationValue.toFixed(2)}`, 10, height - 15);
-    
-    // Labels for L/R
+    ctx.fillText(`Corr: ${correlationValue.toFixed(2)}`, 10, meterY + meterHeight + 20);
+    ctx.fillStyle = '#666';
+    ctx.fillText(
+      correlationValue > 0.7 ? 'Narrow' :
+      correlationValue > 0.3 ? 'Normal' :
+      correlationValue > -0.3 ? 'Wide' :
+      correlationValue > -0.7 ? 'Very Wide' : 'Phase Issue!',
+      80, meterY + meterHeight + 20
+    );
+
+    // L/M/S/R indicators
     ctx.fillStyle = '#fff';
-    ctx.font = '14px monospace';
-    ctx.fillText('L', 10, centerY + 5);
-    ctx.fillText('R', width - 20, centerY + 5);
-    ctx.fillText('C', centerX - 5, 15);
-    
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('L', centerX - maxRadius - 15, centerY + 5);
+    ctx.fillText('R', centerX + maxRadius + 15, centerY + 5);
+    ctx.fillText('M', centerX, centerY - maxRadius - 10);
+    ctx.fillText('S', centerX, centerY + maxRadius + 20);
+
   }, [stereoWidenerWidth, stereoWidenerMode, stereoWidenerDelay, stereoWidenerPhase,
-      stereoWidenerBassRetain, stereoWidenerBassFreq, correlationValue]);
+      stereoWidenerBassRetain, stereoWidenerBassFreq, stereoWidenerMidGain,
+      stereoWidenerSideGain, correlationValue]);
   
   // Update visualization
   useEffect(() => {
@@ -716,15 +890,33 @@ export default function StereoWidener({ width }) {
       <Row className="mb-3">
         <Col xs={12}>
           <div className="bg-dark border border-secondary rounded position-relative">
+            <div className="d-flex justify-content-between align-items-center mb-2 p-2">
+              <span className="text-white small">Stereo Field Analysis</span>
+              <OverlayTrigger
+                placement="left"
+                delay={{ show: 250, hide: 100 }}
+                overlay={
+                  <Tooltip>
+                    Click for detailed explanation of stereo imaging
+                  </Tooltip>
+                }
+              >
+                <Button
+                  size="sm"
+                  variant="link"
+                  className="p-0 text-info"
+                  onClick={() => setShowHelpModal(true)}
+                >
+                  <FaQuestionCircle size={16} />
+                </Button>
+              </OverlayTrigger>
+            </div>
             <canvas
               ref={canvasRef}
               width={400}
-              height={200}
-              style={{ width: '100%', height: '200px' }}
+              height={250}
+              style={{ width: '100%', height: '250px' }}
             />
-            <div className="position-absolute top-0 right-0 p-2">
-              <small className="text-muted">Stereo Field</small>
-            </div>
           </div>
         </Col>
       </Row>
@@ -771,90 +963,138 @@ export default function StereoWidener({ width }) {
       {/* Main Controls */}
       <Row className="mb-2">
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={stereoWidenerWidth}
-            onChange={setStereoWidenerWidth}
-            min={0}
-            max={3}
-            step={0.01}
-            label="Width"
-            displayValue={`${stereoWidenerWidth.toFixed(2)}x`}
-            size={50}
-            color="#e75b5c"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{StereoTooltips.width}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={stereoWidenerWidth}
+                onChange={setStereoWidenerWidth}
+                min={0}
+                max={3}
+                step={0.01}
+                label="Width"
+                displayValue={`${stereoWidenerWidth.toFixed(2)}x`}
+                size={50}
+                color="#e75b5c"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={stereoWidenerDelay}
-            onChange={setStereoWidenerDelay}
-            min={0}
-            max={50}
-            step={0.1}
-            label="Haas Delay"
-            displayValue={`${stereoWidenerDelay.toFixed(1)}ms`}
-            size={50}
-            color="#7bafd4"
-            disabled={stereoWidenerMode !== 'haas'}
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{StereoTooltips.haasDelay}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={stereoWidenerDelay}
+                onChange={setStereoWidenerDelay}
+                min={0}
+                max={50}
+                step={0.1}
+                label="Haas Delay"
+                displayValue={`${stereoWidenerDelay.toFixed(1)}ms`}
+                size={50}
+                color="#7bafd4"
+                disabled={stereoWidenerMode !== 'haas'}
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={stereoWidenerMidGain}
-            onChange={setStereoWidenerMidGain}
-            min={-12}
-            max={12}
-            step={0.1}
-            label="Mid Gain"
-            displayValue={`${stereoWidenerMidGain > 0 ? '+' : ''}${stereoWidenerMidGain.toFixed(1)}dB`}
-            size={50}
-            color="#cbb677"
-            disabled={stereoWidenerMode !== 'midside'}
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{StereoTooltips.midGain}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={stereoWidenerMidGain}
+                onChange={setStereoWidenerMidGain}
+                min={-12}
+                max={12}
+                step={0.1}
+                label="Mid Gain"
+                displayValue={`${stereoWidenerMidGain > 0 ? '+' : ''}${stereoWidenerMidGain.toFixed(1)}dB`}
+                size={50}
+                color="#cbb677"
+                disabled={stereoWidenerMode !== 'midside'}
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={stereoWidenerSideGain}
-            onChange={setStereoWidenerSideGain}
-            min={-12}
-            max={12}
-            step={0.1}
-            label="Side Gain"
-            displayValue={`${stereoWidenerSideGain > 0 ? '+' : ''}${stereoWidenerSideGain.toFixed(1)}dB`}
-            size={50}
-            color="#dda0dd"
-            disabled={stereoWidenerMode !== 'midside'}
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{StereoTooltips.sideGain}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={stereoWidenerSideGain}
+                onChange={setStereoWidenerSideGain}
+                min={-12}
+                max={12}
+                step={0.1}
+                label="Side Gain"
+                displayValue={`${stereoWidenerSideGain > 0 ? '+' : ''}${stereoWidenerSideGain.toFixed(1)}dB`}
+                size={50}
+                color="#dda0dd"
+                disabled={stereoWidenerMode !== 'midside'}
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={stereoWidenerPhase}
-            onChange={setStereoWidenerPhase}
-            min={0}
-            max={180}
-            step={1}
-            label="Phase"
-            displayValue={`${stereoWidenerPhase}°`}
-            size={50}
-            color="#92ceaa"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{StereoTooltips.phase}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={stereoWidenerPhase}
+                onChange={setStereoWidenerPhase}
+                min={0}
+                max={180}
+                step={1}
+                label="Phase"
+                displayValue={`${stereoWidenerPhase}°`}
+                size={50}
+                color="#92ceaa"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={stereoWidenerOutputGain}
-            onChange={setStereoWidenerOutputGain}
-            min={0}
-            max={2}
-            step={0.01}
-            label="Output"
-            displayValue={`${stereoWidenerOutputGain.toFixed(2)}x`}
-            size={50}
-            color="#ffa500"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{StereoTooltips.outputGain}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={stereoWidenerOutputGain}
+                onChange={setStereoWidenerOutputGain}
+                min={0}
+                max={2}
+                step={0.01}
+                label="Output"
+                displayValue={`${stereoWidenerOutputGain.toFixed(2)}x`}
+                size={50}
+                color="#ffa500"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
       </Row>
       
@@ -865,66 +1105,72 @@ export default function StereoWidener({ width }) {
         </Col>
         
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={stereoWidenerBassFreq}
-            onChange={setStereoWidenerBassFreq}
-            min={20}
-            max={500}
-            step={5}
-            label="Bass Freq"
-            displayValue={`${stereoWidenerBassFreq}Hz`}
-            size={45}
-            color="#cbb677"
-            disabled={!stereoWidenerBassRetain}
-          />
-        </Col>
-        
-        <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={stereoWidenerHighFreqLimit}
-            onChange={setStereoWidenerHighFreqLimit}
-            min={1000}
-            max={20000}
-            step={100}
-            label="High Limit"
-            displayValue={stereoWidenerHighFreqLimit >= 1000 ? `${(stereoWidenerHighFreqLimit/1000).toFixed(1)}k` : `${stereoWidenerHighFreqLimit}Hz`}
-            size={45}
-            color="#7bafd4"
-            logarithmic={true}
-          />
-        </Col>
-        
-        <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={stereoWidenerCorrelation}
-            onChange={setStereoWidenerCorrelation}
-            min={-1}
-            max={1}
-            step={0.01}
-            label="Correlation"
-            displayValue={`${stereoWidenerCorrelation > 0 ? '+' : ''}${stereoWidenerCorrelation.toFixed(2)}`}
-            size={45}
-            color="#dda0dd"
-            disabled={stereoWidenerMode !== 'correlation'}
-          />
-        </Col>
-        
-        <Col xs={6} sm={4} md={3}>
-          <div className="text-white small">Current Correlation</div>
-          <div className="bg-secondary rounded p-2">
-            <div 
-              className={`small ${correlationValue > 0.5 ? 'text-success' : 
-                             correlationValue < -0.5 ? 'text-danger' : 'text-warning'}`}
-            >
-              {correlationValue.toFixed(3)}
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{StereoTooltips.bassFreq}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={stereoWidenerBassFreq}
+                onChange={setStereoWidenerBassFreq}
+                min={20}
+                max={500}
+                step={5}
+                label="Bass Freq"
+                displayValue={`${stereoWidenerBassFreq}Hz`}
+                size={45}
+                color="#cbb677"
+                disabled={!stereoWidenerBassRetain}
+              />
             </div>
-            <div className="small text-muted">
-              {correlationValue > 0.7 ? 'Mono' : 
-               correlationValue > 0.3 ? 'Narrow' :
-               correlationValue > -0.3 ? 'Normal' :
-               correlationValue > -0.7 ? 'Wide' : 'Uncorrelated'}
+          </OverlayTrigger>
+        </Col>
+
+        <Col xs={6} sm={4} md={2}>
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{StereoTooltips.highLimit}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={stereoWidenerHighFreqLimit}
+                onChange={setStereoWidenerHighFreqLimit}
+                min={1000}
+                max={20000}
+                step={100}
+                label="High Limit"
+                displayValue={stereoWidenerHighFreqLimit >= 1000 ? `${(stereoWidenerHighFreqLimit/1000).toFixed(1)}k` : `${stereoWidenerHighFreqLimit}Hz`}
+                size={45}
+                color="#7bafd4"
+                logarithmic={true}
+              />
             </div>
-          </div>
+          </OverlayTrigger>
+        </Col>
+
+        <Col xs={6} sm={4} md={2}>
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{StereoTooltips.correlation}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={stereoWidenerCorrelation}
+                onChange={setStereoWidenerCorrelation}
+                min={-1}
+                max={1}
+                step={0.01}
+                label="Correlation"
+                displayValue={`${stereoWidenerCorrelation > 0 ? '+' : ''}${stereoWidenerCorrelation.toFixed(2)}`}
+                size={45}
+                color="#dda0dd"
+                disabled={stereoWidenerMode !== 'correlation'}
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
       </Row>
       
@@ -940,6 +1186,99 @@ export default function StereoWidener({ width }) {
           </Button>
         </Col>
       </Row>
+
+      {/* Help Modal */}
+      <Modal show={showHelpModal} onHide={() => setShowHelpModal(false)} size="lg" centered>
+        <Modal.Header closeButton className="bg-dark text-white">
+          <Modal.Title>Understanding Stereo Imaging</Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="bg-dark text-white">
+          <h5 className="text-info mb-3">What is Stereo Imaging?</h5>
+          <p>
+            Stereo imaging refers to the perceived width and spatial positioning of sounds in a stereo field.
+            The stereo field spans from hard left to hard right, with the center position in between.
+            A good stereo image creates width and space without losing mono compatibility.
+          </p>
+
+          <h5 className="text-info mt-4 mb-3">The Vectorscope Display</h5>
+          <p>
+            The vectorscope shows your stereo signal as a Lissajous pattern - a visual representation of the
+            relationship between left and right channels:
+          </p>
+          <ul>
+            <li><strong>Vertical line:</strong> Pure mono signal (L=R)</li>
+            <li><strong>45° diagonal lines:</strong> Pure left or right signal</li>
+            <li><strong>Horizontal spread:</strong> Stereo width</li>
+            <li><strong>Ellipse shape:</strong> Normal stereo content</li>
+          </ul>
+
+          <h5 className="text-info mt-4 mb-3">Mid/Side Processing</h5>
+          <p>
+            Mid/Side (M/S) processing separates audio into:
+          </p>
+          <ul>
+            <li><strong>Mid (M):</strong> The center/mono content (L+R)</li>
+            <li><strong>Side (S):</strong> The stereo difference (L-R)</li>
+          </ul>
+          <p>
+            This allows independent control of center content (vocals, bass) and stereo width (ambience, effects).
+          </p>
+
+          <h5 className="text-info mt-4 mb-3">The Haas Effect</h5>
+          <p>
+            The Haas effect uses small delays (5-40ms) between channels to create psychoacoustic widening.
+            Our brain interprets these delays as spatial information, making sounds appear wider without
+            changing their frequency content.
+          </p>
+
+          <h5 className="text-info mt-4 mb-3">Why Keep Bass Mono?</h5>
+          <p>
+            Low frequencies below 100-200Hz are typically kept mono because:
+          </p>
+          <ul>
+            <li>Bass frequencies are omnidirectional - we can't locate them spatially</li>
+            <li>Stereo bass can cause phase cancellation issues</li>
+            <li>Mono bass provides more punch and power</li>
+            <li>Vinyl cutting requires mono bass to prevent needle jumping</li>
+          </ul>
+
+          <h5 className="text-info mt-4 mb-3">Stereo Correlation</h5>
+          <p>
+            Correlation measures the similarity between left and right channels:
+          </p>
+          <ul>
+            <li><strong>+1:</strong> Perfect mono (L=R)</li>
+            <li><strong>0:</strong> Completely uncorrelated (maximum width)</li>
+            <li><strong>-1:</strong> Out of phase (will cancel in mono)</li>
+            <li><strong>Normal range:</strong> +0.3 to +0.7</li>
+          </ul>
+
+          <div className="alert alert-warning mt-4">
+            <strong>⚠️ Width Warning:</strong> Excessive widening (&gt;2.0x) can cause:
+            <ul className="mb-0 mt-2">
+              <li>Phase cancellation when summed to mono</li>
+              <li>Unnatural, disconnected sound</li>
+              <li>Loss of center image focus</li>
+              <li>Playback issues on mono systems</li>
+            </ul>
+          </div>
+
+          <h5 className="text-info mt-4 mb-3">Tips for Using Stereo Widener</h5>
+          <ul>
+            <li>Start with subtle widths (1.2-1.5x) for natural enhancement</li>
+            <li>Use Mid/Side mode for surgical control</li>
+            <li>Always check mono compatibility</li>
+            <li>Keep important elements (vocals, bass) centered</li>
+            <li>Use Haas delays sparingly (10-20ms typical)</li>
+            <li>Monitor correlation to avoid phase issues</li>
+          </ul>
+        </Modal.Body>
+        <Modal.Footer className="bg-dark">
+          <Button variant="secondary" onClick={() => setShowHelpModal(false)}>
+            Close
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </Container>
   );
 }

@@ -296,7 +296,7 @@ const EFFECTS_LIBRARY = [
     description: 'Enhance stereo width',
     detailedDescription: 'Widen or narrow the stereo image',
     tooltip: 'Adjusts the perceived width of the stereo image',
-    hasVisualization: false,
+    hasVisualization: true,
     color: '#9370db'
   }
 ];
