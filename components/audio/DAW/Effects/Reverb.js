@@ -142,12 +142,24 @@ export default function Reverb({ width }) {
     }
   }, [reverbWetMix, reverbPreDelay, reverbOutputGain, reverbHighDamp, reverbLowDamp, reverbStereoWidth, reverbEarlyLate]);
   
-  // Update preset
+  // Update preset and apply preset parameters to knobs
   useEffect(() => {
     if (reverbProcessorRef.current && reverbPreset) {
       reverbProcessorRef.current.loadPreset(reverbPreset);
+
+      // Apply preset parameters to knobs
+      const preset = impulseResponsePresets[reverbPreset];
+      if (preset && preset.parameters) {
+        setReverbWetMix(preset.parameters.wetMix);
+        setReverbPreDelay(preset.parameters.preDelay);
+        setReverbHighDamp(preset.parameters.highDamp);
+        setReverbLowDamp(preset.parameters.lowDamp);
+        setReverbEarlyLate(preset.parameters.earlyLate);
+        setReverbStereoWidth(preset.parameters.stereoWidth);
+        setReverbOutputGain(preset.parameters.outputGain);
+      }
     }
-  }, [reverbPreset]);
+  }, [reverbPreset, setReverbWetMix, setReverbPreDelay, setReverbHighDamp, setReverbLowDamp, setReverbEarlyLate, setReverbStereoWidth, setReverbOutputGain]);
   
   // Apply reverb permanently to selected region
   const applyReverb = useCallback(async () => {

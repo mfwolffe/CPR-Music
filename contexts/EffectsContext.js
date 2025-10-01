@@ -190,8 +190,10 @@ export const EffectsProvider = ({ children }) => {
   const [glitchPresent, setGlitchPresent] = useState(false);
   const [glitchDivision, setGlitchDivision] = useState(16);
   const [glitchProbability, setGlitchProbability] = useState(0.3);
+  const [glitchRepeats, setGlitchRepeats] = useState(2);
   const [glitchReverse, setGlitchReverse] = useState(0.2);
   const [glitchPitch, setGlitchPitch] = useState(0);
+  const [glitchCrush, setGlitchCrush] = useState(false);
   const [glitchGate, setGlitchGate] = useState(1);
   
   // Frequency Shifter state
@@ -200,8 +202,14 @@ export const EffectsProvider = ({ children }) => {
   const [freqShiftFeedback, setFreqShiftFeedback] = useState(0);
   const [freqShiftMix, setFreqShiftMix] = useState(0.5);
   
-  // Granular Freeze state (legacy - reusing Sound Lab parameters)
-  
+  // Granular Freeze state
+  const [granularGrainSize, setGranularGrainSize] = useState(100);
+  const [granularPosition, setGranularPosition] = useState(0.5);
+  const [granularSpray, setGranularSpray] = useState(50);
+  const [granularPitch, setGranularPitch] = useState(0);
+  const [granularDensity, setGranularDensity] = useState(0.5);
+  const [granularReverse, setGranularReverse] = useState(0);
+
   // Paulstretch state
   const [paulstretchPresent, setPaulstretchPresent] = useState(false);
   const [paulstretchFactor, setPaulstretchFactor] = useState(8);
@@ -479,8 +487,10 @@ export const EffectsProvider = ({ children }) => {
     // Glitch/Beat Repeat
     setGlitchDivision(16);
     setGlitchProbability(0.3);
+    setGlitchRepeats(2);
     setGlitchReverse(0.2);
     setGlitchPitch(0);
+    setGlitchCrush(false);
     setGlitchGate(1);
     
     // Frequency Shifter
@@ -491,9 +501,10 @@ export const EffectsProvider = ({ children }) => {
     // Granular Freeze
     setGranularGrainSize(100);
     setGranularPosition(0.5);
-    setGranularSpray(0);
+    setGranularSpray(50);
     setGranularPitch(0);
-    setGranularDensity(10);
+    setGranularDensity(0.5);
+    setGranularReverse(0);
     
     // Paulstretch
     setPaulstretchFactor(8);
@@ -983,10 +994,14 @@ export const EffectsProvider = ({ children }) => {
     setGlitchDivision,
     glitchProbability,
     setGlitchProbability,
+    glitchRepeats,
+    setGlitchRepeats,
     glitchReverse,
     setGlitchReverse,
     glitchPitch,
     setGlitchPitch,
+    glitchCrush,
+    setGlitchCrush,
     glitchGate,
     setGlitchGate,
     
@@ -1021,6 +1036,18 @@ export const EffectsProvider = ({ children }) => {
     granularPresent,
     setGranularPresent,
     toggleGranular,
+    granularGrainSize,
+    setGranularGrainSize,
+    granularPosition,
+    setGranularPosition,
+    granularSpray,
+    setGranularSpray,
+    granularPitch,
+    setGranularPitch,
+    granularDensity,
+    setGranularDensity,
+    granularReverse,
+    setGranularReverse,
 
     // Reverse Reverb
     reverseReverbPresent,
