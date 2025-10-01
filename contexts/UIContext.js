@@ -19,11 +19,17 @@ export const UIProvider = ({ children }) => {
   
   // Effects display mode
   const [useEffectsRack, setUseEffectsRack] = useState(false);
-  
+
   // Modal states
   const [showHelp, setShowHelp] = useState(false);
   const [showRename, setShowRename] = useState(false);
   const [activeNaming, setActiveNaming] = useState(-1);
+
+  // Effects Modal states
+  const [showEffectsModal, setShowEffectsModal] = useState(false);
+  const [showEffectControlModal, setShowEffectControlModal] = useState(false);
+  const [selectedEffect, setSelectedEffect] = useState(null);
+  const [effectPreviewMode, setEffectPreviewMode] = useState(false);
   
   // Hover states for effects buttons
   const [eqHvr, setEqHvr] = useState(false);
@@ -68,6 +74,16 @@ export const UIProvider = ({ children }) => {
     setShowRename,
     activeNaming,
     setActiveNaming,
+
+    // Effects Modals
+    showEffectsModal,
+    setShowEffectsModal,
+    showEffectControlModal,
+    setShowEffectControlModal,
+    selectedEffect,
+    setSelectedEffect,
+    effectPreviewMode,
+    setEffectPreviewMode,
     
     // Hover states
     eqHvr,
