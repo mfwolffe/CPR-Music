@@ -21,7 +21,7 @@ const dawSpinner = <Spinner animation="grow" size="sm" />;
  * Timeline toolbar with effects toggles and edit controls
  */
 export default function Timeline() {
-  const { 
+  const {
     wavesurferRef,
     audioURL,
     setAudioURL,
@@ -32,22 +32,26 @@ export default function Timeline() {
     canUndo,
     canRedo
   } = useAudio();
-  
+
   const {
     cutRegion,
     setCutRegion
   } = useEffects();
-  
+
   const { ffmpegRef, loaded: ffmpegLoaded } = useFFmpeg();
-  
+
   const {
     mapPresent,
     toggleMinimap,
     mapHvr,
     setMapHvr,
     useEffectsRack,
-    setUseEffectsRack
+    setUseEffectsRack,
+    setShowEffectsModal
   } = useUI();
+
+  // Add state for effects button hover
+  const [effectsHvr, setEffectsHvr] = useState(false);
   
   const wavesurfer = wavesurferRef?.current;
   
@@ -117,11 +121,13 @@ export default function Timeline() {
           />
         </Button>
         
-        {/* Effects Rack toggle - single button */}
-        <Button className="prog-button" onClick={() => setUseEffectsRack(!useEffectsRack)}>
+        {/* Effects Modal toggle - single button */}
+        <Button className="prog-button" onClick={() => setShowEffectsModal(true)}>
           <RiEqualizerLine
             fontSize={icoSize}
-            style={{ color: useEffectsRack ? 'aqua' : 'white' }}
+            onPointerEnter={() => setEffectsHvr(true)}
+            onPointerLeave={() => setEffectsHvr(false)}
+            style={{ color: effectsHvr ? 'aqua' : 'white' }}
           />
         </Button>
         

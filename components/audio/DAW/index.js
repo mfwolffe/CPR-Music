@@ -20,7 +20,8 @@ import {
 import Waveform from './Waveform';
 import Transport from './Transport';
 import Timeline from './Timeline';
-import EffectsRack from './Effects/EffectsRack';
+import EffectsModal from './Effects/EffectsModal';
+import EffectControlModal from './Effects/EffectControlModal';
 import HelpModal from '../daw-old/dawHelp';
 import MultitrackWithTakes from './Multitrack/MultitrackWithTakes';
 import { GrHelpBook } from 'react-icons/gr';
@@ -102,6 +103,8 @@ export default function DAW({
                 <MdLayers fontSize="1rem" />
               </Button>
             </ButtonGroup>
+
+            {/* Sound Laboratory Toggle */}
           </div>
 
           <Button
@@ -120,12 +123,7 @@ export default function DAW({
             <Transport />
           </div>
 
-          {/* Effects rack below waveform when toggled */}
-          {useEffectsRack && (
-            <div className="mt-2">
-              <EffectsRack width={100} />
-            </div>
-          )}
+
         </CardBody>
 
         {showSubmitButton && (
@@ -139,6 +137,10 @@ export default function DAW({
           </CardFooter>
         )}
       </Card>
+
+      {/* Effects Modals */}
+      <EffectsModal />
+      <EffectControlModal />
     </>
   );
 }
