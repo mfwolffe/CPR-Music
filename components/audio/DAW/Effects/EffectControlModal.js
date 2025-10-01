@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { Modal, Button, Row, Col, Spinner, Alert } from 'react-bootstrap';
-import { FaArrowLeft, FaTimes, FaPlay, FaStop, FaMagic } from 'react-icons/fa';
+import React, { lazy, Suspense } from 'react';
+import { Modal, Button, Spinner, Alert } from 'react-bootstrap';
+import { FaArrowLeft, FaTimes } from 'react-icons/fa';
 import { useUI } from '../../../../contexts/DAWProvider';
 
 // Dynamically import effect components
@@ -42,8 +42,6 @@ export default function EffectControlModal() {
     setSelectedEffect
   } = useUI();
 
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [error, setError] = useState(null);
 
   const handleBack = () => {
     setShowEffectControlModal(false);
@@ -55,15 +53,6 @@ export default function EffectControlModal() {
     setSelectedEffect(null);
   };
 
-  const handleApply = () => {
-    // This would trigger the actual effect application
-    // For now, just close the modal
-    setIsProcessing(true);
-    setTimeout(() => {
-      setIsProcessing(false);
-      handleClose();
-    }, 1000);
-  };
 
   if (!selectedEffect) {
     return null;
@@ -88,7 +77,6 @@ export default function EffectControlModal() {
             variant="outline-secondary"
             size="sm"
             onClick={handleBack}
-            disabled={isProcessing}
           >
             <FaArrowLeft className="me-2" />
             Back
@@ -109,7 +97,6 @@ export default function EffectControlModal() {
           variant="outline-secondary"
           size="sm"
           onClick={handleClose}
-          disabled={isProcessing}
         >
           <FaTimes />
         </Button>
@@ -144,35 +131,9 @@ export default function EffectControlModal() {
               <Button
                 variant="outline-secondary"
                 onClick={handleClose}
-                disabled={isProcessing}
                 style={{ minWidth: '120px' }}
               >
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                onClick={handleApply}
-                disabled={isProcessing}
-                style={{ minWidth: '120px' }}
-              >
-                {isProcessing ? (
-                  <>
-                    <Spinner
-                      as="span"
-                      animation="border"
-                      size="sm"
-                      role="status"
-                      aria-hidden="true"
-                      className="me-2"
-                    />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <FaPlay className="me-2" />
-                    Apply Effect
-                  </>
-                )}
+                Close
               </Button>
             </div>
           </div>
