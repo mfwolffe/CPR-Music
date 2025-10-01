@@ -12,12 +12,14 @@ import {
   FaStepForward,
   FaVolumeUp,
   FaVolumeMute,
+  FaKeyboard,
 } from 'react-icons/fa';
 import { MdPiano } from 'react-icons/md';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import Metronome from './Metronome';
 import PianoKeyboard from './PianoKeyboard';
 import MIDIInputManager from './MIDIInputManager';
+import MIDIDeviceSelector from './MIDIDeviceSelector';
 
 export default function MultitrackTransport({
   showPiano: showPianoProp,
@@ -47,6 +49,11 @@ export default function MultitrackTransport({
   const setShowPiano = setShowPianoProp ?? setShowPianoState;
   const [activeNotes, setActiveNotes] = useState([]);
   const previewTokensRef = useRef(new Map()); // note -> token
+
+  // MIDI device management state
+  const [showMidiDeviceSelector, setShowMidiDeviceSelector] = useState(false);
+  const [connectedMidiDevices, setConnectedMidiDevices] = useState([]);
+  const [selectedMidiDevice, setSelectedMidiDevice] = useState(null);
 
   // Ref to track previous isPlaying state for edge-triggered cleanup
   const prevIsPlayingRef = useRef(isPlaying);
@@ -286,6 +293,10 @@ export default function MultitrackTransport({
       const connectAll = () => {
         try {
           const inputs = mm.getInputDevices();
+          // Update connected devices state
+          if (mounted) {
+            setConnectedMidiDevices(inputs);
+          }
           inputs.forEach((d) => {
             try {
               mm.connectInput(d.id, handleExternalMIDIMessage);
@@ -474,6 +485,22 @@ export default function MultitrackTransport({
         {/* Metronome */}
         <Metronome tempo={120} />
 
+        {/* MIDI Device Button */}
+        <Button
+          size="sm"
+          variant={connectedMidiDevices.length > 0 ? 'success' : 'outline-secondary'}
+          onClick={() => setShowMidiDeviceSelector(true)}
+          title={connectedMidiDevices.length > 0
+            ? `${connectedMidiDevices.length} MIDI device(s) connected`
+            : 'No MIDI devices connected'
+          }
+        >
+          <FaKeyboard />
+          {connectedMidiDevices.length > 0 && (
+            <span className="ms-1">({connectedMidiDevices.length})</span>
+          )}
+        </Button>
+
         {/* Piano Toggle */}
         <Button
           size="sm"
@@ -520,6 +547,18 @@ export default function MultitrackTransport({
           </small>
         </div>
       </div>
+
+      {/* MIDI Device Selector Modal */}
+      <MIDIDeviceSelector
+        show={showMidiDeviceSelector}
+        onHide={() => setShowMidiDeviceSelector(false)}
+        onDeviceSelect={(deviceId) => {
+          setSelectedMidiDevice(deviceId);
+          console.log('Selected MIDI device:', deviceId);
+        }}
+        midiInputManager={window.__midiInputManager || new MIDIInputManager()}
+        currentDevice={selectedMidiDevice}
+      />
     </div>
   );
 }

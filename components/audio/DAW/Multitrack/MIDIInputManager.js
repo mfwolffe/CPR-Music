@@ -10,27 +10,44 @@ class MIDIInputManager {
     if (MIDIInputManager.instance) {
       return MIDIInputManager.instance;
     }
-    
+
     this.midiAccess = null;
+    this.initializationPromise = null; // Track initialization in progress
     this.inputs = new Map();
     this.outputs = new Map();
     this.listeners = new Map();
     this.activeInputs = new Set();
     this.midiLearnTarget = null;
     this.midiLearnCallback = null;
-    
+
     MIDIInputManager.instance = this;
   }
 
   async initialize() {
+    // If already initialized, return success
     if (this.midiAccess) return true;
-    
+
+    // If initialization is already in progress, wait for it
+    if (this.initializationPromise) {
+      return await this.initializationPromise;
+    }
+
+    // Start new initialization
+    this.initializationPromise = this._doInitialize();
+    const result = await this.initializationPromise;
+    this.initializationPromise = null;
+    return result;
+  }
+
+  async _doInitialize() {
     try {
+      console.log('Requesting MIDI access...');
       this.midiAccess = await navigator.requestMIDIAccess();
-      
+      console.log('MIDI access granted');
+
       // Setup initial devices
       this.updateDevices();
-      
+
       // Listen for device changes
       this.midiAccess.onstatechange = (e) => {
         console.log(`MIDI device ${e.port.name} ${e.port.state}`);
@@ -40,7 +57,7 @@ class MIDIInputManager {
           state: e.port.state
         });
       };
-      
+
       return true;
     } catch (error) {
       console.error('MIDI access denied:', error);
