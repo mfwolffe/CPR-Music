@@ -13,6 +13,7 @@ import {
   FaVolumeUp,
   FaVolumeMute,
   FaKeyboard,
+  FaCircle,
 } from 'react-icons/fa';
 import { MdPiano } from 'react-icons/md';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
@@ -54,6 +55,7 @@ export default function MultitrackTransport({
   const [showMidiDeviceSelector, setShowMidiDeviceSelector] = useState(false);
   const [connectedMidiDevices, setConnectedMidiDevices] = useState([]);
   const [selectedMidiDevice, setSelectedMidiDevice] = useState(null);
+  const [midiActivity, setMidiActivity] = useState(false);
 
   // Ref to track previous isPlaying state for edge-triggered cleanup
   const prevIsPlayingRef = useRef(isPlaying);
@@ -201,6 +203,10 @@ export default function MultitrackTransport({
   // External MIDI device capture: preview/record just like the piano
   const handleExternalMIDIMessage = useCallback(
     (message) => {
+      // Flash MIDI activity indicator
+      setMidiActivity(true);
+      setTimeout(() => setMidiActivity(false), 100);
+
       const id = selectedTrackIdRef.current;
       const tr = tracksRef.current.find(
         (t) => t.id === id && t.type === 'midi',
@@ -209,7 +215,8 @@ export default function MultitrackTransport({
 
       const tempo = tr.midiData?.tempo || 120;
       const secPerBeat = 60 / tempo;
-      const shouldCapture = isPlayingRef.current || showPianoRef.current;
+      // External MIDI records when: transport playing OR track is armed (independent of piano visibility)
+      const shouldCapture = isPlayingRef.current || tr.armed;
 
       if (message.type === 'noteon' && (message.velocity ?? 0) > 0) {
         const velocity01 = Math.max(
@@ -387,6 +394,9 @@ export default function MultitrackTransport({
     (t) => t.id === selectedTrackId && t.type === 'midi',
   );
 
+  // Check if we're currently capturing MIDI (either playing or track is armed)
+  const isMidiCapturing = isPlaying || (selectedMidiTrack?.armed);
+
   // Debug: Log when selected track changes
   useEffect(() => {
     console.log('🎯 Selected track changed:', {
@@ -488,17 +498,22 @@ export default function MultitrackTransport({
         {/* MIDI Device Button */}
         <Button
           size="sm"
-          variant={connectedMidiDevices.length > 0 ? 'success' : 'outline-secondary'}
+          variant={midiActivity ? 'warning' : connectedMidiDevices.length > 0 ? 'success' : 'outline-secondary'}
           onClick={() => setShowMidiDeviceSelector(true)}
           title={connectedMidiDevices.length > 0
             ? `${connectedMidiDevices.length} MIDI device(s) connected`
             : 'No MIDI devices connected'
           }
+          style={{
+            transition: 'all 0.1s ease',
+            boxShadow: midiActivity ? '0 0 10px rgba(255, 193, 7, 0.5)' : 'none'
+          }}
         >
           <FaKeyboard />
           {connectedMidiDevices.length > 0 && (
             <span className="ms-1">({connectedMidiDevices.length})</span>
           )}
+          {midiActivity && <span className="ms-1">●</span>}
         </Button>
 
         {/* Piano Toggle */}
@@ -545,6 +560,12 @@ export default function MultitrackTransport({
           <small className="text-muted">
             {tracks.length} track{tracks.length !== 1 ? 's' : ''}
           </small>
+          {isMidiCapturing && selectedMidiTrack && (
+            <small className="text-danger ms-2">
+              <FaCircle size={8} className="me-1" />
+              MIDI REC
+            </small>
+          )}
         </div>
       </div>
 

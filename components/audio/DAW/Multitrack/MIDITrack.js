@@ -226,8 +226,8 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       }
       setIsCountingDown(false);
       setCountdownBeat(0);
-      // Update track state
-      updateTrack(track.id, { isRecording: false });
+      // Update track state - clear both isRecording and armed
+      updateTrack(track.id, { isRecording: false, armed: false });
     } else {
       // Start countdown
       setIsCountingDown(true);
@@ -253,8 +253,8 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
             const secPerBeat = 60 / tempo;
             const currentBeat = globalCurrentTime / secPerBeat;
             setViewportFirstBeat(Math.max(0, currentBeat - 2)); // Playhead near left edge with room to advance
-            // Update track state
-            updateTrack(track.id, { isRecording: true });
+            // Update track state - set both isRecording and armed
+            updateTrack(track.id, { isRecording: true, armed: true });
             return 0;
           }
           return prev - 1;
