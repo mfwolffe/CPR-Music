@@ -1,14 +1,25 @@
 'use client';
 
 import { useCallback, useRef, useEffect, useState } from 'react';
-import { Container, Row, Col, Button, Dropdown, Form } from 'react-bootstrap';
-import { 
-  useAudio, 
-  useEffects 
+import { Container, Row, Col, Button, Dropdown, Form, OverlayTrigger, Tooltip } from 'react-bootstrap';
+import {
+  useAudio,
+  useEffects
 } from '../../../../contexts/DAWProvider';
 import { ReverbProcessor } from '../../../../lib/ReverbProcessor';
 import { getPresetNames, impulseResponsePresets } from '../../../../lib/impulseResponses';
 import Knob from '../../../Knob';
+
+/**
+ * Educational Tooltips
+ */
+const ReverseReverbTooltips = {
+  preset: "Choose reverb space character. Larger spaces (halls, chambers) create more dramatic swells. Smaller spaces (rooms) create tighter buildups.",
+  buildup: "Duration of the pre-echo swell before the sound. Longer times (1-2s) create dramatic cinematic effects, shorter times (0.2-0.5s) add subtle tension.",
+  mix: "Balance between dry signal and reverse reverb effect. Higher values create more pronounced swelling pre-echo. Use 50-80% for obvious effect.",
+  fadeIn: "How quickly the reverse reverb fades in. Shorter fades create sudden swells, longer fades make the buildup more gradual and smooth.",
+  preDelay: "Gap between the reverse reverb buildup and the original sound. Can be used to separate the swell from the attack for rhythmic effects."
+};
 
 /**
  * Process reverse reverb on an audio buffer region
@@ -242,85 +253,123 @@ export default function ReverseReverb({ width }) {
         {/* Preset selector */}
         <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
           <Form.Label className="text-white small mb-1">Reverb Type</Form.Label>
-          <Dropdown
-            onSelect={(eventKey) => setPreset(eventKey)}
-            size="sm"
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ReverseReverbTooltips.preset}</Tooltip>}
           >
-            <Dropdown.Toggle
-              variant="secondary"
+            <Dropdown
+              onSelect={(eventKey) => setPreset(eventKey)}
               size="sm"
-              className="w-100"
             >
-              {impulseResponsePresets[preset]?.name || 'Select Preset'}
-            </Dropdown.Toggle>
-            <Dropdown.Menu className="bg-daw-toolbars" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-              {presetNames.map(key => (
-                <Dropdown.Item
-                  key={key}
-                  eventKey={key}
-                  className="text-white"
-                >
-                  {impulseResponsePresets[key].name}
-                </Dropdown.Item>
-              ))}
-            </Dropdown.Menu>
-          </Dropdown>
+              <Dropdown.Toggle
+                variant="secondary"
+                size="sm"
+                className="w-100"
+              >
+                {impulseResponsePresets[preset]?.name || 'Select Preset'}
+              </Dropdown.Toggle>
+              <Dropdown.Menu className="bg-daw-toolbars" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                {presetNames.map(key => (
+                  <Dropdown.Item
+                    key={key}
+                    eventKey={key}
+                    className="text-white"
+                  >
+                    {impulseResponsePresets[key].name}
+                  </Dropdown.Item>
+                ))}
+              </Dropdown.Menu>
+            </Dropdown>
+          </OverlayTrigger>
         </Col>
-        
+
         {/* Knobs */}
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={buildupTime}
-            onChange={setBuildupTime}
-            min={0.1}
-            max={2}
-            step={0.05}
-            label="Buildup"
-            displayValue={`${(buildupTime * 1000).toFixed(0)}ms`}
-            size={45}
-            color="#e75b5c"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ReverseReverbTooltips.buildup}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={buildupTime}
+                onChange={setBuildupTime}
+                min={0.1}
+                max={2}
+                step={0.05}
+                label="Buildup"
+                displayValue={`${(buildupTime * 1000).toFixed(0)}ms`}
+                size={45}
+                color="#e75b5c"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={wetMix}
-            onChange={setWetMix}
-            min={0}
-            max={1}
-            label="Mix"
-            displayValue={`${Math.round(wetMix * 100)}%`}
-            size={45}
-            color="#92ce84"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ReverseReverbTooltips.mix}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={wetMix}
+                onChange={setWetMix}
+                min={0}
+                max={1}
+                label="Mix"
+                displayValue={`${Math.round(wetMix * 100)}%`}
+                size={45}
+                color="#92ce84"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={fadeTime}
-            onChange={setFadeTime}
-            min={0.01}
-            max={0.5}
-            step={0.01}
-            label="Fade In"
-            displayValue={`${(fadeTime * 1000).toFixed(0)}ms`}
-            size={45}
-            color="#7bafd4"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ReverseReverbTooltips.fadeIn}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={fadeTime}
+                onChange={setFadeTime}
+                min={0.01}
+                max={0.5}
+                step={0.01}
+                label="Fade In"
+                displayValue={`${(fadeTime * 1000).toFixed(0)}ms`}
+                size={45}
+                color="#7bafd4"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={predelay}
-            onChange={setPredelay}
-            min={0}
-            max={100}
-            step={1}
-            label="Pre-Delay"
-            displayValue={`${predelay}ms`}
-            size={45}
-            color="#cbb677"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ReverseReverbTooltips.preDelay}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={predelay}
+                onChange={setPredelay}
+                min={0}
+                max={100}
+                step={1}
+                label="Pre-Delay"
+                displayValue={`${predelay}ms`}
+                size={45}
+                color="#cbb677"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
         
         {/* Apply Button */}

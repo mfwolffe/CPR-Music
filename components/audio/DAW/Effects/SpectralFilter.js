@@ -2,9 +2,19 @@
 'use client';
 
 import { useCallback, useRef, useEffect, useState } from 'react';
-import { Container, Row, Col, Button, Dropdown } from 'react-bootstrap';
+import { Container, Row, Col, Button, Dropdown, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
+
+/**
+ * Educational Tooltips
+ */
+const SpectralFilterTooltips = {
+  mode: "Filtering algorithm. Bandpass isolates frequencies, Notch removes them, Comb creates harmonic series, Smear blurs spectral content.",
+  frequency: "Center frequency for spectral operation. Determines which frequencies are affected by the filtering or manipulation.",
+  bandwidth: "Width of affected frequency range. Narrow bandwidth creates surgical filtering, wide bandwidth affects broad spectral regions.",
+  amount: "Intensity of spectral processing. Higher values create more dramatic filtering or smearing effects. Use subtly for natural results."
+};
 
 // Create window function for spectral processing
 function createWindow(length) {
@@ -409,32 +419,40 @@ export default function SpectralFilter({ width }) {
       <Row className="text-center align-items-end">
         {/* Filter Type Selector */}
         <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
-          <Dropdown onSelect={(e) => setFilterType(e)}>
-            <Dropdown.Toggle size="sm" className="w-100">
-              {filterType === 'robot' && 'Robot Voice'}
-              {filterType === 'whisper' && 'Whisper'}
-              {filterType === 'harmonicBoost' && 'Harmonic Boost'}
-              {filterType === 'frequencyShift' && 'Frequency Shift'}
-              {filterType === 'spectralGate' && 'Spectral Gate'}
-              {filterType === 'oddHarmonics' && 'Odd Harmonics'}
-            </Dropdown.Toggle>
-            <Dropdown.Menu>
-              <Dropdown.Item eventKey="robot">Robot Voice</Dropdown.Item>
-              <Dropdown.Item eventKey="whisper">Whisper</Dropdown.Item>
-              <Dropdown.Item eventKey="harmonicBoost">
-                Harmonic Boost
-              </Dropdown.Item>
-              <Dropdown.Item eventKey="frequencyShift">
-                Frequency Shift
-              </Dropdown.Item>
-              <Dropdown.Item eventKey="spectralGate">
-                Spectral Gate
-              </Dropdown.Item>
-              <Dropdown.Item eventKey="oddHarmonics">
-                Odd Harmonics
-              </Dropdown.Item>
-            </Dropdown.Menu>
-          </Dropdown>
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{SpectralFilterTooltips.mode}</Tooltip>}
+          >
+            <div>
+              <Dropdown onSelect={(e) => setFilterType(e)}>
+                <Dropdown.Toggle size="sm" className="w-100">
+                  {filterType === 'robot' && 'Robot Voice'}
+                  {filterType === 'whisper' && 'Whisper'}
+                  {filterType === 'harmonicBoost' && 'Harmonic Boost'}
+                  {filterType === 'frequencyShift' && 'Frequency Shift'}
+                  {filterType === 'spectralGate' && 'Spectral Gate'}
+                  {filterType === 'oddHarmonics' && 'Odd Harmonics'}
+                </Dropdown.Toggle>
+                <Dropdown.Menu>
+                  <Dropdown.Item eventKey="robot">Robot Voice</Dropdown.Item>
+                  <Dropdown.Item eventKey="whisper">Whisper</Dropdown.Item>
+                  <Dropdown.Item eventKey="harmonicBoost">
+                    Harmonic Boost
+                  </Dropdown.Item>
+                  <Dropdown.Item eventKey="frequencyShift">
+                    Frequency Shift
+                  </Dropdown.Item>
+                  <Dropdown.Item eventKey="spectralGate">
+                    Spectral Gate
+                  </Dropdown.Item>
+                  <Dropdown.Item eventKey="oddHarmonics">
+                    Odd Harmonics
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown>
+            </div>
+          </OverlayTrigger>
         </Col>
 
         {/* Parameters based on filter type */}

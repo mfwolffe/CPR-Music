@@ -1,9 +1,20 @@
 'use client';
 
 import { useCallback, useRef, useEffect } from 'react';
-import { Container, Row, Col, Button, Dropdown, Form } from 'react-bootstrap';
+import { Container, Row, Col, Button, Dropdown, Form, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
+
+/**
+ * Educational Tooltips
+ */
+const AutoPanTooltips = {
+  rate: "Speed of panning movement. Slow rates (0.1-0.5Hz) create gentle stereo sweeps, fast rates (2-5Hz) create rhythmic bouncing effects.",
+  depth: "Amount of stereo movement. Higher values move sound further between left and right. 100% creates full left-to-right panning.",
+  waveform: "Shape of panning motion. Sine creates smooth sweeps, triangle is linear, square creates hard jumps, sawtooth ramps gradually.",
+  phase: "Starting position of panning cycle. 0° starts center, 90° starts left/right, 180° inverts the pattern. Use to create stereo width variations.",
+  tempoSync: "Locks panning rate to project tempo using musical note divisions. Essential for rhythmic auto-pan that stays in time with your music."
+};
 
 /**
  * Generate LFO waveform
@@ -243,80 +254,118 @@ export default function AutoPan({ width }) {
         {/* Waveform selector */}
         <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
           <Form.Label className="text-white small mb-1">Waveform</Form.Label>
-          <Dropdown
-            onSelect={(eventKey) => setAutoPanWaveform(eventKey)}
-            size="sm"
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AutoPanTooltips.waveform}</Tooltip>}
           >
-            <Dropdown.Toggle variant="secondary" size="sm" className="w-100">
-              {waveformTypes.find((t) => t.key === autoPanWaveform)?.name ||
-                'Sine'}
-            </Dropdown.Toggle>
-            <Dropdown.Menu className="bg-daw-toolbars">
-              {waveformTypes.map((type) => (
-                <Dropdown.Item
-                  key={type.key}
-                  eventKey={type.key}
-                  className="text-white"
-                >
-                  {type.name}
-                </Dropdown.Item>
-              ))}
-            </Dropdown.Menu>
-          </Dropdown>
+            <Dropdown
+              onSelect={(eventKey) => setAutoPanWaveform(eventKey)}
+              size="sm"
+            >
+              <Dropdown.Toggle variant="secondary" size="sm" className="w-100">
+                {waveformTypes.find((t) => t.key === autoPanWaveform)?.name ||
+                  'Sine'}
+              </Dropdown.Toggle>
+              <Dropdown.Menu className="bg-daw-toolbars">
+                {waveformTypes.map((type) => (
+                  <Dropdown.Item
+                    key={type.key}
+                    eventKey={type.key}
+                    className="text-white"
+                  >
+                    {type.name}
+                  </Dropdown.Item>
+                ))}
+              </Dropdown.Menu>
+            </Dropdown>
+          </OverlayTrigger>
         </Col>
 
         {/* Knobs */}
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={autoPanRate}
-            onChange={setAutoPanRate}
-            min={0.1}
-            max={20}
-            step={0.1}
-            label="Rate"
-            displayValue={`${autoPanRate.toFixed(1)}Hz`}
-            size={45}
-            color="#e75b5c"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AutoPanTooltips.rate}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={autoPanRate}
+                onChange={setAutoPanRate}
+                min={0.1}
+                max={20}
+                step={0.1}
+                label="Rate"
+                displayValue={`${autoPanRate.toFixed(1)}Hz`}
+                size={45}
+                color="#e75b5c"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
 
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={autoPanDepth}
-            onChange={setAutoPanDepth}
-            min={0}
-            max={1}
-            label="Depth"
-            displayValue={`${Math.round(autoPanDepth * 100)}%`}
-            size={45}
-            color="#7bafd4"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AutoPanTooltips.depth}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={autoPanDepth}
+                onChange={setAutoPanDepth}
+                min={0}
+                max={1}
+                label="Depth"
+                displayValue={`${Math.round(autoPanDepth * 100)}%`}
+                size={45}
+                color="#7bafd4"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
 
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={autoPanPhase}
-            onChange={setAutoPanPhase}
-            min={0}
-            max={360}
-            step={1}
-            label="Phase"
-            displayValue={`${autoPanPhase}°`}
-            size={45}
-            color="#cbb677"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AutoPanTooltips.phase}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={autoPanPhase}
+                onChange={setAutoPanPhase}
+                min={0}
+                max={360}
+                step={1}
+                label="Phase"
+                displayValue={`${autoPanPhase}°`}
+                size={45}
+                color="#cbb677"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
 
         {/* Tempo Sync Controls */}
         <Col xs={6} sm={4} md={2} lg={1} className="mb-2">
-          <Form.Check
-            type="switch"
-            id="auto-pan-tempo-sync"
-            label="Sync"
-            checked={autoPanTempoSync}
-            onChange={(e) => setAutoPanTempoSync(e.target.checked)}
-            className="text-white"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AutoPanTooltips.tempoSync}</Tooltip>}
+          >
+            <div>
+              <Form.Check
+                type="switch"
+                id="auto-pan-tempo-sync"
+                label="Sync"
+                checked={autoPanTempoSync}
+                onChange={(e) => setAutoPanTempoSync(e.target.checked)}
+                className="text-white"
+              />
+            </div>
+          </OverlayTrigger>
           {autoPanTempoSync && (
             <Dropdown onSelect={(division) => setAutoPanNoteDivision(Number(division))}>
               <Dropdown.Toggle size="sm" variant="outline-light">

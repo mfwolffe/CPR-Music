@@ -2,9 +2,18 @@
 'use client';
 
 import { useCallback, useRef, useEffect } from 'react';
-import { Container, Row, Col, Button, Dropdown, Form } from 'react-bootstrap';
+import { Container, Row, Col, Button, Dropdown, Form, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
+
+/**
+ * Educational Tooltips
+ */
+const FrequencyShifterTooltips = {
+  shift: "Amount to shift all frequencies linearly. Unlike pitch shifting, this creates inharmonic, metallic tones. 50-200Hz creates subtle dissonance, 500Hz+ creates alien effects.",
+  feedback: "Routes output back through the shifter. Creates cascading frequency shifts and resonances. Use sparingly (10-40%) as it intensifies the effect dramatically.",
+  mix: "Balance between dry and wet signal. Lower values (20-50%) add subtle shimmer and movement. Higher values (70-100%) create complete transformation."
+};
 
 /**
  * Hilbert transform using FFT for proper frequency shifting
@@ -396,43 +405,67 @@ export default function FrequencyShifter({ width }) {
 
         {/* Knobs */}
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={freqShiftAmount}
-            onChange={setFreqShiftAmount}
-            min={-500}
-            max={500}
-            step={1}
-            label="Shift"
-            displayValue={`${freqShiftAmount > 0 ? '+' : ''}${freqShiftAmount}Hz`}
-            size={45}
-            color="#e75b5c"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{FrequencyShifterTooltips.shift}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={freqShiftAmount}
+                onChange={setFreqShiftAmount}
+                min={-500}
+                max={500}
+                step={1}
+                label="Shift"
+                displayValue={`${freqShiftAmount > 0 ? '+' : ''}${freqShiftAmount}Hz`}
+                size={45}
+                color="#e75b5c"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
 
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={freqShiftMix}
-            onChange={setFreqShiftMix}
-            min={0}
-            max={1}
-            label="Mix"
-            displayValue={`${Math.round(freqShiftMix * 100)}%`}
-            size={45}
-            color="#7bafd4"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{FrequencyShifterTooltips.mix}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={freqShiftMix}
+                onChange={setFreqShiftMix}
+                min={0}
+                max={1}
+                label="Mix"
+                displayValue={`${Math.round(freqShiftMix * 100)}%`}
+                size={45}
+                color="#7bafd4"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
 
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={freqShiftFeedback}
-            onChange={setFreqShiftFeedback}
-            min={0}
-            max={0.9}
-            label="Feedback"
-            displayValue={`${Math.round(freqShiftFeedback * 100)}%`}
-            size={45}
-            color="#cbb677"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{FrequencyShifterTooltips.feedback}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={freqShiftFeedback}
+                onChange={setFreqShiftFeedback}
+                min={0}
+                max={0.9}
+                label="Feedback"
+                displayValue={`${Math.round(freqShiftFeedback * 100)}%`}
+                size={45}
+                color="#cbb677"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
 
         {/* Apply Button */}

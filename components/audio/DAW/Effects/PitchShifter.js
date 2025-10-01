@@ -1,9 +1,20 @@
 'use client';
 
 import { useCallback, useRef, useEffect, useState } from 'react';
-import { Container, Row, Col, Form, Button } from 'react-bootstrap';
+import { Container, Row, Col, Form, Button, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
+
+/**
+ * Educational Tooltips
+ */
+const PitchShifterTooltips = {
+  pitch: "Amount of pitch shift in semitones. +12 is one octave up, -12 is one octave down. Use whole numbers for musical intervals, decimals for detuning.",
+  cents: "Fine tuning in cents (100 cents = 1 semitone). Use for subtle detuning effects or precise pitch correction. ±50 cents creates chorus-like doubling.",
+  formantPreserve: "Preserves vocal character when shifting pitch. Essential for natural-sounding vocal pitch correction. Disable for creative robotic effects.",
+  quality: "Processing quality vs speed trade-off. High/Ultra for final mixes, Medium for real-time, Low for quick previews. Higher quality = less artifacts.",
+  mix: "Balance between dry and wet signal. 100% replaces original pitch entirely. 50% creates harmony. Lower values add subtle pitch character."
+};
 
 /**
  * Quality settings for pitch shifting
@@ -725,57 +736,87 @@ export default function PitchShifter({ width }) {
       <Row className="mb-2">
         <Col xs={12} md={6}>
           <Form.Label className="text-white small">Quality</Form.Label>
-          <Form.Select
-            value={pitchShiftQuality}
-            onChange={(e) => setPitchShiftQuality(e.target.value)}
-            className="bg-secondary text-white border-0"
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{PitchShifterTooltips.quality}</Tooltip>}
           >
-            {Object.entries(QualitySettings).map(([key, setting]) => (
-              <option key={key} value={key}>{setting.name}</option>
-            ))}
-          </Form.Select>
+            <Form.Select
+              value={pitchShiftQuality}
+              onChange={(e) => setPitchShiftQuality(e.target.value)}
+              className="bg-secondary text-white border-0"
+            >
+              {Object.entries(QualitySettings).map(([key, setting]) => (
+                <option key={key} value={key}>{setting.name}</option>
+              ))}
+            </Form.Select>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={12} md={6} className="d-flex align-items-end">
-          <Form.Check
-            type="switch"
-            id="formant-correction"
-            label="Formant Correction"
-            checked={pitchShiftFormantCorrection}
-            onChange={(e) => setPitchShiftFormantCorrection(e.target.checked)}
-            className="text-white"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{PitchShifterTooltips.formantPreserve}</Tooltip>}
+          >
+            <div>
+              <Form.Check
+                type="switch"
+                id="formant-correction"
+                label="Formant Correction"
+                checked={pitchShiftFormantCorrection}
+                onChange={(e) => setPitchShiftFormantCorrection(e.target.checked)}
+                className="text-white"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
       </Row>
-      
+
       {/* Main Pitch Controls */}
       <Row className="mb-2">
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={pitchShiftSemitones}
-            onChange={setPitchShiftSemitones}
-            min={-24}
-            max={24}
-            step={1}
-            label="Semitones"
-            displayValue={`${pitchShiftSemitones > 0 ? '+' : ''}${pitchShiftSemitones}`}
-            size={50}
-            color="#e75b5c"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{PitchShifterTooltips.pitch}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={pitchShiftSemitones}
+                onChange={setPitchShiftSemitones}
+                min={-24}
+                max={24}
+                step={1}
+                label="Semitones"
+                displayValue={`${pitchShiftSemitones > 0 ? '+' : ''}${pitchShiftSemitones}`}
+                size={50}
+                color="#e75b5c"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={pitchShiftCents}
-            onChange={setPitchShiftCents}
-            min={-100}
-            max={100}
-            step={1}
-            label="Fine Tune"
-            displayValue={`${pitchShiftCents > 0 ? '+' : ''}${pitchShiftCents}¢`}
-            size={50}
-            color="#7bafd4"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{PitchShifterTooltips.cents}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={pitchShiftCents}
+                onChange={setPitchShiftCents}
+                min={-100}
+                max={100}
+                step={1}
+                label="Fine Tune"
+                displayValue={`${pitchShiftCents > 0 ? '+' : ''}${pitchShiftCents}¢`}
+                size={50}
+                color="#7bafd4"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
         
         <Col xs={6} sm={4} md={2}>

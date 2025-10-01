@@ -2,9 +2,19 @@
 'use client';
 
 import { useCallback, useRef, useEffect } from 'react';
-import { Container, Row, Col, Button } from 'react-bootstrap';
+import { Container, Row, Col, Button, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
+
+/**
+ * Educational Tooltips
+ */
+const GranularFreezeTooltips = {
+  grainSize: "Size of audio grains. Tiny grains (10-50ms) create smooth textures, large grains (100-500ms) preserve more original character.",
+  density: "Number of simultaneous grains. Higher density creates thicker, more continuous textures. Lower density creates sparse, pointillistic effects.",
+  spread: "Random variation in grain timing. Creates more organic, less mechanical textures. Higher values add shimmer and movement.",
+  pitch: "Pitch shift of frozen grains. Can create harmonies or ambient drones. Use subtle shifts (±2-5 semitones) for textures, extreme for effects."
+};
 
 /**
  * Process granular freeze on an audio buffer region
@@ -242,84 +252,120 @@ export default function GranularFreeze({ width }) {
     <Container fluid className="p-2">
       <Row className="text-center align-items-end">
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={granularGrainSize}
-            onChange={setGranularGrainSize}
-            min={10}
-            max={500}
-            step={10}
-            label="Grain Size"
-            displayValue={`${granularGrainSize}ms`}
-            size={45}
-            color="#e75b5c"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{GranularFreezeTooltips.grainSize}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={granularGrainSize}
+                onChange={setGranularGrainSize}
+                min={10}
+                max={500}
+                step={10}
+                label="Grain Size"
+                displayValue={`${granularGrainSize}ms`}
+                size={45}
+                color="#e75b5c"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
 
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={granularPosition}
-            onChange={setGranularPosition}
-            min={0}
-            max={1}
-            label="Position"
-            displayValue={`${Math.round(granularPosition * 100)}%`}
-            size={45}
-            color="#7bafd4"
-          />
+          <div>
+            <Knob
+              value={granularPosition}
+              onChange={setGranularPosition}
+              min={0}
+              max={1}
+              label="Position"
+              displayValue={`${Math.round(granularPosition * 100)}%`}
+              size={45}
+              color="#7bafd4"
+            />
+          </div>
         </Col>
 
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={granularSpray}
-            onChange={setGranularSpray}
-            min={0}
-            max={200}
-            step={5}
-            label="Spray"
-            displayValue={`${granularSpray}ms`}
-            size={45}
-            color="#cbb677"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{GranularFreezeTooltips.spread}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={granularSpray}
+                onChange={setGranularSpray}
+                min={0}
+                max={200}
+                step={5}
+                label="Spray"
+                displayValue={`${granularSpray}ms`}
+                size={45}
+                color="#cbb677"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
 
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={granularPitch}
-            onChange={setGranularPitch}
-            min={-24}
-            max={24}
-            step={1}
-            label="Pitch"
-            displayValue={`${granularPitch > 0 ? '+' : ''}${granularPitch}`}
-            size={45}
-            color="#92ce84"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{GranularFreezeTooltips.pitch}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={granularPitch}
+                onChange={setGranularPitch}
+                min={-24}
+                max={24}
+                step={1}
+                label="Pitch"
+                displayValue={`${granularPitch > 0 ? '+' : ''}${granularPitch}`}
+                size={45}
+                color="#92ce84"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
 
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={granularDensity}
-            onChange={setGranularDensity}
-            min={0.1}
-            max={1}
-            label="Density"
-            displayValue={`${Math.round(granularDensity * 100)}%`}
-            size={45}
-            color="#92ceaa"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{GranularFreezeTooltips.density}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={granularDensity}
+                onChange={setGranularDensity}
+                min={0.1}
+                max={1}
+                label="Density"
+                displayValue={`${Math.round(granularDensity * 100)}%`}
+                size={45}
+                color="#92ceaa"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
 
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={granularReverse}
-            onChange={setGranularReverse}
-            min={0}
-            max={1}
-            label="Reverse"
-            displayValue={`${Math.round(granularReverse * 100)}%`}
-            size={45}
-            color="#b999aa"
-          />
+          <div>
+            <Knob
+              value={granularReverse}
+              onChange={setGranularReverse}
+              min={0}
+              max={1}
+              label="Reverse"
+              displayValue={`${Math.round(granularReverse * 100)}%`}
+              size={45}
+              color="#b999aa"
+            />
+          </div>
         </Col>
 
         {/* Apply Button */}

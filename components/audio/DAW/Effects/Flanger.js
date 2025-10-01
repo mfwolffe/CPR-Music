@@ -1,12 +1,26 @@
 'use client';
 
 import { useCallback, useRef, useEffect } from 'react';
-import { Container, Row, Col, Button, Form } from 'react-bootstrap';
-import { 
-  useAudio, 
-  useEffects 
+import { Container, Row, Col, Button, Form, OverlayTrigger, Tooltip } from 'react-bootstrap';
+import {
+  useAudio,
+  useEffects
 } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
+
+/**
+ * Educational Tooltips
+ */
+const FlangerTooltips = {
+  rate: "Speed of the sweeping motion. Slow rates (0.1-0.5Hz) create gentle jet-plane swooshes, fast rates (2-5Hz) create vibrato-like warbling.",
+  depth: "How far the sweep travels. Shallow depth (0.5-2ms) is subtle, deep sweeps (3-5ms) create dramatic jet-plane effects. Higher depth = more pitch variation.",
+  feedback: "Routes output back through the effect. Positive feedback creates metallic resonance, negative feedback (below 0%) creates hollower tones. Use sparingly (20-50%).",
+  delay: "Center point of the sweep. Shorter delays (1-5ms) create tight, metallic flanging. Longer delays (10-20ms) create chorus-like effects with resonance.",
+  mix: "Balance between dry and wet signal. 50% is classic flanging, 30-40% is subtle, 70-90% is intense. Higher mix emphasizes the sweeping effect.",
+  throughZero: "Enables through-zero flanging for classic tape-style jet sounds. Creates more dramatic sweeps by allowing the delay to cross zero. Iconic 70s sound.",
+  stereoPhase: "Phase offset between left and right channels. 90° creates wide stereo movement, 180° creates ping-pong effect. 0° is mono flanging.",
+  manualOffset: "Manually shifts the sweep range. Use to find sweet spots or create asymmetric stereo flanging. Adds manual control beyond LFO modulation."
+};
 
 /**
  * Process flanger on an audio buffer region
@@ -263,111 +277,175 @@ export default function Flanger({ width }) {
     <Container fluid className="p-2">
       <Row className="text-center align-items-end">
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={flangerRate}
-            onChange={setFlangerRate}
-            min={0.1}
-            max={10}
-            step={0.1}
-            label="Rate"
-            displayValue={`${flangerRate.toFixed(1)}Hz`}
-            size={45}
-            color="#e75b5c"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{FlangerTooltips.rate}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={flangerRate}
+                onChange={setFlangerRate}
+                min={0.1}
+                max={10}
+                step={0.1}
+                label="Rate"
+                displayValue={`${flangerRate.toFixed(1)}Hz`}
+                size={45}
+                color="#e75b5c"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={flangerDepth * 1000}
-            onChange={(v) => setFlangerDepth(v / 1000)}
-            min={0.1}
-            max={5}
-            step={0.1}
-            label="Depth"
-            displayValue={`${(flangerDepth * 1000).toFixed(1)}ms`}
-            size={45}
-            color="#7bafd4"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{FlangerTooltips.depth}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={flangerDepth * 1000}
+                onChange={(v) => setFlangerDepth(v / 1000)}
+                min={0.1}
+                max={5}
+                step={0.1}
+                label="Depth"
+                displayValue={`${(flangerDepth * 1000).toFixed(1)}ms`}
+                size={45}
+                color="#7bafd4"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={flangerFeedback}
-            onChange={setFlangerFeedback}
-            min={-0.95}
-            max={0.95}
-            label="Feedback"
-            displayValue={`${Math.round(flangerFeedback * 100)}%`}
-            size={45}
-            color="#cbb677"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{FlangerTooltips.feedback}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={flangerFeedback}
+                onChange={setFlangerFeedback}
+                min={-0.95}
+                max={0.95}
+                label="Feedback"
+                displayValue={`${Math.round(flangerFeedback * 100)}%`}
+                size={45}
+                color="#cbb677"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={flangerDelay * 1000}
-            onChange={(v) => setFlangerDelay(v / 1000)}
-            min={1}
-            max={20}
-            step={0.5}
-            label="Delay"
-            displayValue={`${(flangerDelay * 1000).toFixed(1)}ms`}
-            size={45}
-            color="#92ceaa"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{FlangerTooltips.delay}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={flangerDelay * 1000}
+                onChange={(v) => setFlangerDelay(v / 1000)}
+                min={1}
+                max={20}
+                step={0.5}
+                label="Delay"
+                displayValue={`${(flangerDelay * 1000).toFixed(1)}ms`}
+                size={45}
+                color="#92ceaa"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={flangerMix}
-            onChange={setFlangerMix}
-            min={0}
-            max={1}
-            label="Mix"
-            displayValue={`${Math.round(flangerMix * 100)}%`}
-            size={45}
-            color="#92ce84"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{FlangerTooltips.mix}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={flangerMix}
+                onChange={setFlangerMix}
+                min={0}
+                max={1}
+                label="Mix"
+                displayValue={`${Math.round(flangerMix * 100)}%`}
+                size={45}
+                color="#92ce84"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         {/* Professional Controls */}
         <Col xs={6} sm={4} md={2} lg={1} className="mb-2">
-          <Form.Check
-            type="switch"
-            id="flanger-through-zero"
-            label="Thru-0"
-            checked={flangerThroughZero}
-            onChange={(e) => setFlangerThroughZero(e.target.checked)}
-            className="text-white small"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{FlangerTooltips.throughZero}</Tooltip>}
+          >
+            <div>
+              <Form.Check
+                type="switch"
+                id="flanger-through-zero"
+                label="Thru-0"
+                checked={flangerThroughZero}
+                onChange={(e) => setFlangerThroughZero(e.target.checked)}
+                className="text-white small"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={flangerStereoPhase}
-            onChange={setFlangerStereoPhase}
-            min={0}
-            max={180}
-            step={5}
-            label="Phase"
-            displayValue={`${flangerStereoPhase}°`}
-            size={45}
-            color="#9b59b6"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{FlangerTooltips.stereoPhase}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={flangerStereoPhase}
+                onChange={setFlangerStereoPhase}
+                min={0}
+                max={180}
+                step={5}
+                label="Phase"
+                displayValue={`${flangerStereoPhase}°`}
+                size={45}
+                color="#9b59b6"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={flangerManualOffset}
-            onChange={setFlangerManualOffset}
-            min={0}
-            max={1}
-            step={0.01}
-            label="Offset"
-            displayValue={`${Math.round(flangerManualOffset * 100)}%`}
-            size={45}
-            color="#e67e22"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{FlangerTooltips.manualOffset}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={flangerManualOffset}
+                onChange={setFlangerManualOffset}
+                min={0}
+                max={1}
+                step={0.01}
+                label="Offset"
+                displayValue={`${Math.round(flangerManualOffset * 100)}%`}
+                size={45}
+                color="#e67e22"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
         
         {/* Apply Button */}

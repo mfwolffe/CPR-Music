@@ -2,9 +2,20 @@
 'use client';
 
 import { useCallback, useRef, useEffect } from 'react';
-import { Container, Row, Col, Button, Dropdown, Form } from 'react-bootstrap';
+import { Container, Row, Col, Button, Dropdown, Form, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
+
+/**
+ * Educational Tooltips
+ */
+const TremoloTooltips = {
+  rate: "Speed of volume modulation. Slow rates (1-3Hz) create gentle pulsing, fast rates (8-15Hz) create vibrato-like effects. Classic tremolo is 4-6Hz.",
+  depth: "Amount of volume variation. Higher values create more pronounced pulsing. 50-70% is natural, 80-100% creates dramatic on/off effects.",
+  waveform: "Shape of modulation. Sine is smooth and natural, triangle is linear, square creates hard on/off pulses, sawtooth ramps up gradually.",
+  phase: "Starting point of the waveform cycle. Use to sync tremolo with other effects or create rhythmic variations. 180° inverts the pulse.",
+  tempoSync: "Locks tremolo rate to project tempo using musical note values. Essential for rhythmic tremolo effects that stay in time with your music."
+};
 
 /**
  * Generate LFO waveform for tremolo
@@ -228,80 +239,118 @@ export default function Tremolo({ width }) {
         {/* Waveform selector */}
         <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
           <Form.Label className="text-white small mb-1">Waveform</Form.Label>
-          <Dropdown
-            onSelect={(eventKey) => setTremoloWaveform(eventKey)}
-            size="sm"
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{TremoloTooltips.waveform}</Tooltip>}
           >
-            <Dropdown.Toggle variant="secondary" size="sm" className="w-100">
-              {waveformTypes.find((t) => t.key === tremoloWaveform)?.name ||
-                'Sine'}
-            </Dropdown.Toggle>
-            <Dropdown.Menu className="bg-daw-toolbars">
-              {waveformTypes.map((type) => (
-                <Dropdown.Item
-                  key={type.key}
-                  eventKey={type.key}
-                  className="text-white"
-                >
-                  {type.name}
-                </Dropdown.Item>
-              ))}
-            </Dropdown.Menu>
-          </Dropdown>
+            <Dropdown
+              onSelect={(eventKey) => setTremoloWaveform(eventKey)}
+              size="sm"
+            >
+              <Dropdown.Toggle variant="secondary" size="sm" className="w-100">
+                {waveformTypes.find((t) => t.key === tremoloWaveform)?.name ||
+                  'Sine'}
+              </Dropdown.Toggle>
+              <Dropdown.Menu className="bg-daw-toolbars">
+                {waveformTypes.map((type) => (
+                  <Dropdown.Item
+                    key={type.key}
+                    eventKey={type.key}
+                    className="text-white"
+                  >
+                    {type.name}
+                  </Dropdown.Item>
+                ))}
+              </Dropdown.Menu>
+            </Dropdown>
+          </OverlayTrigger>
         </Col>
 
         {/* Knobs */}
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={tremoloRate}
-            onChange={setTremoloRate}
-            min={0.1}
-            max={30}
-            step={0.1}
-            label="Rate"
-            displayValue={`${tremoloRate.toFixed(1)}Hz`}
-            size={45}
-            color="#e75b5c"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{TremoloTooltips.rate}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={tremoloRate}
+                onChange={setTremoloRate}
+                min={0.1}
+                max={30}
+                step={0.1}
+                label="Rate"
+                displayValue={`${tremoloRate.toFixed(1)}Hz`}
+                size={45}
+                color="#e75b5c"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
 
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={tremoloDepth}
-            onChange={setTremoloDepth}
-            min={0}
-            max={1}
-            label="Depth"
-            displayValue={`${Math.round(tremoloDepth * 100)}%`}
-            size={45}
-            color="#7bafd4"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{TremoloTooltips.depth}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={tremoloDepth}
+                onChange={setTremoloDepth}
+                min={0}
+                max={1}
+                label="Depth"
+                displayValue={`${Math.round(tremoloDepth * 100)}%`}
+                size={45}
+                color="#7bafd4"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
 
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={tremoloPhase}
-            onChange={setTremoloPhase}
-            min={0}
-            max={360}
-            step={1}
-            label="Phase"
-            displayValue={`${tremoloPhase}°`}
-            size={45}
-            color="#cbb677"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{TremoloTooltips.phase}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={tremoloPhase}
+                onChange={setTremoloPhase}
+                min={0}
+                max={360}
+                step={1}
+                label="Phase"
+                displayValue={`${tremoloPhase}°`}
+                size={45}
+                color="#cbb677"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
 
         {/* Tempo Sync Controls */}
         <Col xs={6} sm={4} md={2} lg={1} className="mb-2">
-          <Form.Check
-            type="switch"
-            id="tremolo-tempo-sync"
-            label="Sync"
-            checked={tremoloTempoSync}
-            onChange={(e) => setTremoloTempoSync(e.target.checked)}
-            className="text-white"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{TremoloTooltips.tempoSync}</Tooltip>}
+          >
+            <div>
+              <Form.Check
+                type="switch"
+                id="tremolo-tempo-sync"
+                label="Sync"
+                checked={tremoloTempoSync}
+                onChange={(e) => setTremoloTempoSync(e.target.checked)}
+                className="text-white"
+              />
+            </div>
+          </OverlayTrigger>
           {tremoloTempoSync && (
             <Dropdown onSelect={(division) => setTremoloNoteDivision(Number(division))}>
               <Dropdown.Toggle size="sm" variant="outline-light">

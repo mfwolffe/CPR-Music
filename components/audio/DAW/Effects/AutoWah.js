@@ -1,9 +1,24 @@
 'use client';
 
 import { useCallback, useRef, useEffect, useState } from 'react';
-import { Container, Row, Col, Button, Form } from 'react-bootstrap';
+import { Container, Row, Col, Button, Form, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
+
+/**
+ * Educational Tooltips
+ */
+const AutoWahTooltips = {
+  mode: "Control method: Envelope follows input dynamics (classic wah), LFO creates rhythmic sweeps, Manual locks frequency, Hybrid combines envelope + LFO.",
+  sensitivity: "How responsive the envelope follower is to input level. Higher values create more dramatic sweeps from quieter signals.",
+  frequency: "Center frequency of the filter sweep. Lower frequencies (200-800Hz) create deep wah, higher (1-3kHz) create vocal-like effects.",
+  resonance: "Emphasis at the swept frequency (Q factor). Higher values create more pronounced, vocal-like wah. Use sparingly (2-8) to avoid harshness.",
+  range: "Width of the frequency sweep in semitones. Wider ranges (12-24) create dramatic effects, narrow ranges (6-12) are subtle.",
+  filterType: "Filter shape: Bandpass is classic wah, Lowpass is muffled wah, Highpass is thin wah, Peaking creates vowel-like sounds.",
+  lfoRate: "Speed of LFO modulation (in LFO or Hybrid mode). Slow rates (0.5-2Hz) create smooth sweeps, fast rates (4-8Hz) create tremolo-like effects.",
+  lfoDepth: "Amount of LFO modulation (in LFO or Hybrid mode). Controls how much the filter frequency varies with the LFO.",
+  mix: "Balance between dry and wet signal. Lower values (20-40%) preserve original tone, higher values (60-80%) emphasize the wah effect."
+};
 
 /**
  * Enhanced Auto-Wah Processor with Multiple LFO Modes
@@ -746,101 +761,145 @@ export default function AutoWah({ width }) {
         {/* Modulation Mode */}
         <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
           <Form.Label className="text-white small mb-1">Mode</Form.Label>
-          <Form.Select
-            size="sm"
-            value={autoWahMode}
-            onChange={(e) => setAutoWahMode(e.target.value)}
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AutoWahTooltips.mode}</Tooltip>}
           >
-            {getModeOptions().map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </Form.Select>
+            <Form.Select
+              size="sm"
+              value={autoWahMode}
+              onChange={(e) => setAutoWahMode(e.target.value)}
+            >
+              {getModeOptions().map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </Form.Select>
+          </OverlayTrigger>
         </Col>
-        
+
         {/* Filter Type */}
         <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
           <Form.Label className="text-white small mb-1">Filter Type</Form.Label>
-          <Form.Select
-            size="sm"
-            value={autoWahFilterType}
-            onChange={(e) => setAutoWahFilterType(e.target.value)}
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AutoWahTooltips.filterType}</Tooltip>}
           >
-            {getFilterTypeOptions().map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </Form.Select>
+            <Form.Select
+              size="sm"
+              value={autoWahFilterType}
+              onChange={(e) => setAutoWahFilterType(e.target.value)}
+            >
+              {getFilterTypeOptions().map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </Form.Select>
+          </OverlayTrigger>
         </Col>
-        
+
         {/* Core Filter Controls */}
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={autoWahFrequency}
-            onChange={setAutoWahFrequency}
-            min={200}
-            max={4000}
-            step={10}
-            label="Base Freq"
-            displayValue={
-              autoWahFrequency >= 1000
-                ? `${(autoWahFrequency / 1000).toFixed(1)}k`
-                : `${autoWahFrequency}Hz`
-            }
-            size={45}
-            color="#e75b5c"
-            logarithmic={true}
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AutoWahTooltips.frequency}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={autoWahFrequency}
+                onChange={setAutoWahFrequency}
+                min={200}
+                max={4000}
+                step={10}
+                label="Base Freq"
+                displayValue={
+                  autoWahFrequency >= 1000
+                    ? `${(autoWahFrequency / 1000).toFixed(1)}k`
+                    : `${autoWahFrequency}Hz`
+                }
+                size={45}
+                color="#e75b5c"
+                logarithmic={true}
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={autoWahRange}
-            onChange={setAutoWahRange}
-            min={100}
-            max={5000}
-            step={50}
-            label="Range"
-            displayValue={
-              autoWahRange >= 1000
-                ? `${(autoWahRange / 1000).toFixed(1)}k`
-                : `${autoWahRange}Hz`
-            }
-            size={45}
-            color="#7bafd4"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AutoWahTooltips.range}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={autoWahRange}
+                onChange={setAutoWahRange}
+                min={100}
+                max={5000}
+                step={50}
+                label="Range"
+                displayValue={
+                  autoWahRange >= 1000
+                    ? `${(autoWahRange / 1000).toFixed(1)}k`
+                    : `${autoWahRange}Hz`
+                }
+                size={45}
+                color="#7bafd4"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={autoWahQ}
-            onChange={setAutoWahQ}
-            min={0.5}
-            max={20}
-            step={0.1}
-            label="Resonance"
-            displayValue={`${autoWahQ.toFixed(1)}`}
-            size={45}
-            color="#cbb677"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AutoWahTooltips.resonance}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={autoWahQ}
+                onChange={setAutoWahQ}
+                min={0.5}
+                max={20}
+                step={0.1}
+                label="Resonance"
+                displayValue={`${autoWahQ.toFixed(1)}`}
+                size={45}
+                color="#cbb677"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
         
         {/* Envelope Controls (show when mode is envelope or hybrid) */}
         {(autoWahMode === 'envelope' || autoWahMode === 'hybrid') && (
           <>
             <Col xs={6} sm={4} md={2} lg={1}>
-              <Knob
-                value={autoWahSensitivity}
-                onChange={setAutoWahSensitivity}
-                min={0}
-                max={1}
-                label="Sensitivity"
-                displayValue={`${Math.round(autoWahSensitivity * 100)}%`}
-                size={45}
-                color="#92ce84"
-              />
+              <OverlayTrigger
+                placement="top"
+                delay={{ show: 1500, hide: 250 }}
+                overlay={<Tooltip>{AutoWahTooltips.sensitivity}</Tooltip>}
+              >
+                <div>
+                  <Knob
+                    value={autoWahSensitivity}
+                    onChange={setAutoWahSensitivity}
+                    min={0}
+                    max={1}
+                    label="Sensitivity"
+                    displayValue={`${Math.round(autoWahSensitivity * 100)}%`}
+                    size={45}
+                    color="#92ce84"
+                  />
+                </div>
+              </OverlayTrigger>
             </Col>
             
             <Col xs={6} sm={4} md={2} lg={1}>

@@ -2,9 +2,18 @@
 'use client';
 
 import { useCallback, useRef, useEffect, useState } from 'react';
-import { Container, Row, Col, Button } from 'react-bootstrap';
+import { Container, Row, Col, Button, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
+
+/**
+ * Educational Tooltips
+ */
+const PaulstretchTooltips = {
+  stretch: "Time-stretching factor. 2x doubles length, 10x+ creates ambient drones. Extreme values (50-100x) create evolving soundscapes from any source.",
+  windowSize: "FFT analysis window. Larger windows create smoother, more continuous textures. Smaller windows preserve more transient detail.",
+  mix: "Blend between original and stretched audio. Lower values add ambient tails to sounds. 100% creates pure atmospheric textures."
+};
 
 // FFT implementation for Paulstretch
 class FFT {
@@ -432,45 +441,63 @@ export default function Paulstretch({ width }) {
     <Container fluid className="p-2">
       <Row className="text-center align-items-end">
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={stretchFactor}
-            onChange={setStretchFactor}
-            min={2}
-            max={50}
-            step={1}
-            label="Stretch"
-            displayValue={`${stretchFactor}x`}
-            size={45}
-            color="#e75b5c"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{PaulstretchTooltips.stretch}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={stretchFactor}
+                onChange={setStretchFactor}
+                min={2}
+                max={50}
+                step={1}
+                label="Stretch"
+                displayValue={`${stretchFactor}x`}
+                size={45}
+                color="#e75b5c"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
 
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={windowSize}
-            onChange={setWindowSize}
-            min={0.05}
-            max={1}
-            step={0.05}
-            label="Window"
-            displayValue={`${(windowSize * 1000).toFixed(0)}ms`}
-            size={45}
-            color="#7bafd4"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{PaulstretchTooltips.windowSize}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={windowSize}
+                onChange={setWindowSize}
+                min={0.05}
+                max={1}
+                step={0.05}
+                label="Window"
+                displayValue={`${(windowSize * 1000).toFixed(0)}ms`}
+                size={45}
+                color="#7bafd4"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
 
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={onset}
-            onChange={setOnset}
-            min={2}
-            max={50}
-            step={1}
-            label="Smoothness"
-            displayValue={`${onset}`}
-            size={45}
-            color="#92ce84"
-          />
+          <div>
+            <Knob
+              value={onset}
+              onChange={setOnset}
+              min={2}
+              max={50}
+              step={1}
+              label="Smoothness"
+              displayValue={`${onset}`}
+              size={45}
+              color="#92ce84"
+            />
+          </div>
         </Col>
 
         {/* NEW: Make-Up Gain (dB) */}

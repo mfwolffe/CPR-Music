@@ -1,9 +1,18 @@
 'use client';
 
 import { useCallback, useRef, useEffect } from 'react';
-import { Container, Row, Col, Button, Dropdown, Form } from 'react-bootstrap';
+import { Container, Row, Col, Button, Dropdown, Form, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
+
+/**
+ * Educational Tooltips
+ */
+const GlitchTooltips = {
+  sliceSize: "Size of audio chunks to manipulate. Smaller slices (10-50ms) create stuttery glitches, larger slices (100-500ms) create rhythmic repeats.",
+  probability: "Chance of glitch occurring. 100% creates constant glitching, 20-50% creates occasional digital artifacts. Lower values sound more natural.",
+  mix: "Balance between original and glitched audio. 50% blends effects, 100% replaces audio completely. Lower values (20-40%) add subtle digital character."
+};
 
 /**
  * Process glitch/beat repeat on an audio buffer region
@@ -263,57 +272,71 @@ export default function Glitch({ width }) {
 
         {/* Knobs */}
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={glitchProbability}
-            onChange={setGlitchProbability}
-            min={0}
-            max={1}
-            label="Probability"
-            displayValue={`${Math.round(glitchProbability * 100)}%`}
-            size={45}
-            color="#e75b5c"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{GlitchTooltips.probability}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={glitchProbability}
+                onChange={setGlitchProbability}
+                min={0}
+                max={1}
+                label="Probability"
+                displayValue={`${Math.round(glitchProbability * 100)}%`}
+                size={45}
+                color="#e75b5c"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
 
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={glitchRepeats}
-            onChange={setGlitchRepeats}
-            min={1}
-            max={16}
-            step={1}
-            label="Repeats"
-            displayValue={`${glitchRepeats}x`}
-            size={45}
-            color="#7bafd4"
-          />
+          <div>
+            <Knob
+              value={glitchRepeats}
+              onChange={setGlitchRepeats}
+              min={1}
+              max={16}
+              step={1}
+              label="Repeats"
+              displayValue={`${glitchRepeats}x`}
+              size={45}
+              color="#7bafd4"
+            />
+          </div>
         </Col>
 
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={glitchReverse}
-            onChange={setGlitchReverse}
-            min={0}
-            max={1}
-            label="Reverse"
-            displayValue={`${Math.round(glitchReverse * 100)}%`}
-            size={45}
-            color="#cbb677"
-          />
+          <div>
+            <Knob
+              value={glitchReverse}
+              onChange={setGlitchReverse}
+              min={0}
+              max={1}
+              label="Reverse"
+              displayValue={`${Math.round(glitchReverse * 100)}%`}
+              size={45}
+              color="#cbb677"
+            />
+          </div>
         </Col>
 
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={glitchPitch}
-            onChange={setGlitchPitch}
-            min={-12}
-            max={12}
-            step={1}
-            label="Pitch"
-            displayValue={`${glitchPitch > 0 ? '+' : ''}${glitchPitch}`}
-            size={45}
-            color="#92ce84"
-          />
+          <div>
+            <Knob
+              value={glitchPitch}
+              onChange={setGlitchPitch}
+              min={-12}
+              max={12}
+              step={1}
+              label="Pitch"
+              displayValue={`${glitchPitch > 0 ? '+' : ''}${glitchPitch}`}
+              size={45}
+              color="#92ce84"
+            />
+          </div>
         </Col>
 
         {/* Apply Button */}

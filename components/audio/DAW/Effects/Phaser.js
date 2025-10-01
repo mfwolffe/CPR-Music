@@ -1,9 +1,25 @@
 'use client';
 
 import { useCallback, useRef, useEffect, useState } from 'react';
-import { Container, Row, Col, Form, Button } from 'react-bootstrap';
+import { Container, Row, Col, Form, Button, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
+
+/**
+ * Educational Tooltips
+ */
+const PhaserTooltips = {
+  rate: "Speed of the phase sweep. Slow rates (0.1-0.5Hz) create smooth, spacey sweeps. Fast rates (2-5Hz) create vibrato-like modulation.",
+  depth: "Intensity of the phase shifting. Higher values create more pronounced notches and peaks. Sweet spot is 50-80% for classic phaser sounds.",
+  feedback: "Routes output back through the phase stages. Creates more resonant, metallic tones. Higher values (50-80%) intensify the effect dramatically.",
+  stages: "Number of all-pass filters. More stages (8-12) create richer, more complex sweeps. Fewer stages (2-4) sound thinner and simpler.",
+  mix: "Balance between dry and wet signal. 50% is classic phaser, 30-40% is subtle, 70-90% is intense. Lower mix preserves original character.",
+  freqRange: "Frequency range that the phaser sweeps through. Wider ranges create more dramatic sweeps. Narrow ranges focus the effect on specific frequencies.",
+  resonance: "Q factor of the all-pass filters. Higher resonance creates more pronounced peaks and notches. Use sparingly as it can become harsh.",
+  waveform: "Shape of LFO modulation. Sine is smooth and natural, triangle is linear, square creates stepped sweeps, random adds unpredictability.",
+  stereoPhase: "Phase offset between left and right channels. 90° creates wide stereo movement, 180° creates opposite sweeps. 0° is mono phasing.",
+  tempoSync: "Locks sweep rate to project tempo using musical note divisions. Great for rhythmic phasing that stays in time with your music."
+};
 
 /**
  * LFO Waveforms for phaser modulation
@@ -622,174 +638,260 @@ export default function Phaser({ width }) {
       {/* Main Controls */}
       <Row className="mb-2">
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={phaserRate}
-            onChange={setPhaserRate}
-            min={0.01}
-            max={10}
-            step={0.01}
-            label="Rate"
-            displayValue={phaserTempoSync ? `1/${phaserNoteDivision}` : `${phaserRate.toFixed(2)}Hz`}
-            size={50}
-            color="#92ce84"
-            disabled={phaserTempoSync}
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{PhaserTooltips.rate}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={phaserRate}
+                onChange={setPhaserRate}
+                min={0.01}
+                max={10}
+                step={0.01}
+                label="Rate"
+                displayValue={phaserTempoSync ? `1/${phaserNoteDivision}` : `${phaserRate.toFixed(2)}Hz`}
+                size={50}
+                color="#92ce84"
+                disabled={phaserTempoSync}
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={phaserDepth}
-            onChange={setPhaserDepth}
-            min={0}
-            max={1}
-            step={0.01}
-            label="Depth"
-            displayValue={`${Math.round(phaserDepth * 100)}%`}
-            size={50}
-            color="#7bafd4"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{PhaserTooltips.depth}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={phaserDepth}
+                onChange={setPhaserDepth}
+                min={0}
+                max={1}
+                step={0.01}
+                label="Depth"
+                displayValue={`${Math.round(phaserDepth * 100)}%`}
+                size={50}
+                color="#7bafd4"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={phaserFeedback}
-            onChange={setPhaserFeedback}
-            min={0}
-            max={0.95}
-            step={0.01}
-            label="Feedback"
-            displayValue={`${Math.round(phaserFeedback * 100)}%`}
-            size={50}
-            color="#e75b5c"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{PhaserTooltips.feedback}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={phaserFeedback}
+                onChange={setPhaserFeedback}
+                min={0}
+                max={0.95}
+                step={0.01}
+                label="Feedback"
+                displayValue={`${Math.round(phaserFeedback * 100)}%`}
+                size={50}
+                color="#e75b5c"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={phaserStages}
-            onChange={setPhaserStages}
-            min={2}
-            max={12}
-            step={1}
-            label="Stages"
-            displayValue={phaserStages.toString()}
-            size={50}
-            color="#dda0dd"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{PhaserTooltips.stages}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={phaserStages}
+                onChange={setPhaserStages}
+                min={2}
+                max={12}
+                step={1}
+                label="Stages"
+                displayValue={phaserStages.toString()}
+                size={50}
+                color="#dda0dd"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={phaserWetMix}
-            onChange={setPhaserWetMix}
-            min={0}
-            max={1}
-            step={0.01}
-            label="Mix"
-            displayValue={`${Math.round(phaserWetMix * 100)}%`}
-            size={50}
-            color="#92ceaa"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{PhaserTooltips.mix}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={phaserWetMix}
+                onChange={setPhaserWetMix}
+                min={0}
+                max={1}
+                step={0.01}
+                label="Mix"
+                displayValue={`${Math.round(phaserWetMix * 100)}%`}
+                size={50}
+                color="#92ceaa"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={phaserResonance}
-            onChange={setPhaserResonance}
-            min={0.1}
-            max={10}
-            step={0.1}
-            label="Resonance"
-            displayValue={phaserResonance.toFixed(1)}
-            size={50}
-            color="#cbb677"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{PhaserTooltips.resonance}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={phaserResonance}
+                onChange={setPhaserResonance}
+                min={0.1}
+                max={10}
+                step={0.1}
+                label="Resonance"
+                displayValue={phaserResonance.toFixed(1)}
+                size={50}
+                color="#cbb677"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
       </Row>
       
       {/* Frequency Range Controls */}
       <Row className="mb-2">
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={phaserFreqRange[0]}
-            onChange={(value) => setPhaserFreqRange([value, phaserFreqRange[1]])}
-            min={20}
-            max={2000}
-            step={10}
-            label="Min Freq"
-            displayValue={`${phaserFreqRange[0]}Hz`}
-            size={45}
-            color="#ffa500"
-            logarithmic={true}
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{PhaserTooltips.freqRange}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={phaserFreqRange[0]}
+                onChange={(value) => setPhaserFreqRange([value, phaserFreqRange[1]])}
+                min={20}
+                max={2000}
+                step={10}
+                label="Min Freq"
+                displayValue={`${phaserFreqRange[0]}Hz`}
+                size={45}
+                color="#ffa500"
+                logarithmic={true}
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={phaserFreqRange[1]}
-            onChange={(value) => setPhaserFreqRange([phaserFreqRange[0], value])}
-            min={200}
-            max={20000}
-            step={50}
-            label="Max Freq"
-            displayValue={phaserFreqRange[1] >= 1000 ? `${(phaserFreqRange[1]/1000).toFixed(1)}k` : `${phaserFreqRange[1]}Hz`}
-            size={45}
-            color="#ff6b6b"
-            logarithmic={true}
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{PhaserTooltips.freqRange}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={phaserFreqRange[1]}
+                onChange={(value) => setPhaserFreqRange([phaserFreqRange[0], value])}
+                min={200}
+                max={20000}
+                step={50}
+                label="Max Freq"
+                displayValue={phaserFreqRange[1] >= 1000 ? `${(phaserFreqRange[1]/1000).toFixed(1)}k` : `${phaserFreqRange[1]}Hz`}
+                size={45}
+                color="#ff6b6b"
+                logarithmic={true}
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
           <Form.Label className="text-white small">Waveform</Form.Label>
-          <Form.Select
-            size="sm"
-            value={phaserWaveform}
-            onChange={(e) => setPhaserWaveform(e.target.value)}
-            className="bg-secondary text-white border-0"
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{PhaserTooltips.waveform}</Tooltip>}
           >
-            {Object.entries(LFOWaveforms).map(([key, wave]) => (
-              <option key={key} value={key}>{wave.name}</option>
-            ))}
-          </Form.Select>
-        </Col>
-        
-        <Col xs={6} sm={4} md={2}>
-          <Form.Check
-            type="switch"
-            id="phaser-tempo-sync"
-            label="Tempo Sync"
-            checked={phaserTempoSync}
-            onChange={(e) => setPhaserTempoSync(e.target.checked)}
-            className="text-white"
-          />
-          {phaserTempoSync && (
             <Form.Select
               size="sm"
-              value={phaserNoteDivision}
-              onChange={(e) => setPhaserNoteDivision(parseInt(e.target.value))}
-              className="bg-secondary text-white border-0 mt-1"
+              value={phaserWaveform}
+              onChange={(e) => setPhaserWaveform(e.target.value)}
+              className="bg-secondary text-white border-0"
             >
-              <option value={1}>1/1</option>
-              <option value={2}>1/2</option>
-              <option value={4}>1/4</option>
-              <option value={8}>1/8</option>
-              <option value={16}>1/16</option>
+              {Object.entries(LFOWaveforms).map(([key, wave]) => (
+                <option key={key} value={key}>{wave.name}</option>
+              ))}
             </Form.Select>
-          )}
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={phaserStereoPhase}
-            onChange={setPhaserStereoPhase}
-            min={0}
-            max={180}
-            step={1}
-            label="Stereo°"
-            displayValue={`${phaserStereoPhase}°`}
-            size={45}
-            color="#9370db"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{PhaserTooltips.tempoSync}</Tooltip>}
+          >
+            <div>
+              <Form.Check
+                type="switch"
+                id="phaser-tempo-sync"
+                label="Tempo Sync"
+                checked={phaserTempoSync}
+                onChange={(e) => setPhaserTempoSync(e.target.checked)}
+                className="text-white"
+              />
+              {phaserTempoSync && (
+                <Form.Select
+                  size="sm"
+                  value={phaserNoteDivision}
+                  onChange={(e) => setPhaserNoteDivision(parseInt(e.target.value))}
+                  className="bg-secondary text-white border-0 mt-1"
+                >
+                  <option value={1}>1/1</option>
+                  <option value={2}>1/2</option>
+                  <option value={4}>1/4</option>
+                  <option value={8}>1/8</option>
+                  <option value={16}>1/16</option>
+                </Form.Select>
+              )}
+            </div>
+          </OverlayTrigger>
+        </Col>
+
+        <Col xs={6} sm={4} md={2}>
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{PhaserTooltips.stereoPhase}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={phaserStereoPhase}
+                onChange={setPhaserStereoPhase}
+                min={0}
+                max={180}
+                step={1}
+                label="Stereo°"
+                displayValue={`${phaserStereoPhase}°`}
+                size={45}
+                color="#9370db"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
         
         <Col xs={6} sm={4} md={2}>

@@ -1,9 +1,24 @@
 'use client';
 
 import { useCallback, useRef, useEffect, useState } from 'react';
-import { Container, Row, Col, Form, Button } from 'react-bootstrap';
+import { Container, Row, Col, Form, Button, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
+
+/**
+ * Educational Tooltips
+ */
+const ChorusTooltips = {
+  rate: "Speed of the modulation. Slower rates (0.1-1Hz) create gentle swirling, faster rates (2-5Hz) create more vibrato-like effects.",
+  depth: "Amount of pitch/time variation. Higher values create richer chorus but too much (>80%) can sound artificial. Sweet spot is 40-70%.",
+  delay: "Base delay time for chorus effect. 10-20ms creates doubling, 20-40ms creates classic chorus. Longer delays create more obvious separation.",
+  feedback: "Routes output back to input. Adds resonance and metallic character. Use sparingly (10-30%) as high values can cause buildup.",
+  mix: "Balance between dry and wet signal. 50% is traditional chorus, 30-40% is subtle, 60-80% is lush and obvious.",
+  voices: "Number of delay lines. More voices (4-8) create thicker, richer chorus. 2-3 voices sound natural, 1 voice is simple doubling.",
+  width: "Stereo spread of chorus effect. 100% is normal stereo, higher values create enhanced width. Great for pads and synths.",
+  waveform: "Shape of modulation. Sine is smooth and natural, triangle is linear, square is abrupt, random adds shimmer and unpredictability.",
+  tempoSync: "Locks modulation rate to project tempo using musical note divisions. Great for rhythmic chorus effects that stay in time."
+};
 
 /**
  * LFO Waveforms for chorus modulation
@@ -521,158 +536,236 @@ export default function Chorus({ width }) {
       {/* Main Controls */}
       <Row className="mb-2">
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={chorusRate}
-            onChange={setChorusRate}
-            min={0.01}
-            max={10}
-            step={0.01}
-            label="Rate"
-            displayValue={chorusTempoSync ? `1/${chorusNoteDivision}` : `${chorusRate.toFixed(2)}Hz`}
-            size={50}
-            color="#92ce84"
-            disabled={chorusTempoSync}
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ChorusTooltips.rate}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={chorusRate}
+                onChange={setChorusRate}
+                min={0.01}
+                max={10}
+                step={0.01}
+                label="Rate"
+                displayValue={chorusTempoSync ? `1/${chorusNoteDivision}` : `${chorusRate.toFixed(2)}Hz`}
+                size={50}
+                color="#92ce84"
+                disabled={chorusTempoSync}
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={chorusDepth}
-            onChange={setChorusDepth}
-            min={0}
-            max={1}
-            step={0.01}
-            label="Depth"
-            displayValue={`${Math.round(chorusDepth * 100)}%`}
-            size={50}
-            color="#7bafd4"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ChorusTooltips.depth}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={chorusDepth}
+                onChange={setChorusDepth}
+                min={0}
+                max={1}
+                step={0.01}
+                label="Depth"
+                displayValue={`${Math.round(chorusDepth * 100)}%`}
+                size={50}
+                color="#7bafd4"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={chorusDelay}
-            onChange={setChorusDelay}
-            min={5}
-            max={50}
-            step={0.1}
-            label="Delay"
-            displayValue={`${chorusDelay.toFixed(1)}ms`}
-            size={50}
-            color="#cbb677"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ChorusTooltips.delay}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={chorusDelay}
+                onChange={setChorusDelay}
+                min={5}
+                max={50}
+                step={0.1}
+                label="Delay"
+                displayValue={`${chorusDelay.toFixed(1)}ms`}
+                size={50}
+                color="#cbb677"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={chorusFeedback}
-            onChange={setChorusFeedback}
-            min={0}
-            max={0.9}
-            step={0.01}
-            label="Feedback"
-            displayValue={`${Math.round(chorusFeedback * 100)}%`}
-            size={50}
-            color="#e75b5c"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ChorusTooltips.feedback}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={chorusFeedback}
+                onChange={setChorusFeedback}
+                min={0}
+                max={0.9}
+                step={0.01}
+                label="Feedback"
+                displayValue={`${Math.round(chorusFeedback * 100)}%`}
+                size={50}
+                color="#e75b5c"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={chorusWetMix}
-            onChange={setChorusWetMix}
-            min={0}
-            max={1}
-            step={0.01}
-            label="Mix"
-            displayValue={`${Math.round(chorusWetMix * 100)}%`}
-            size={50}
-            color="#92ceaa"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ChorusTooltips.mix}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={chorusWetMix}
+                onChange={setChorusWetMix}
+                min={0}
+                max={1}
+                step={0.01}
+                label="Mix"
+                displayValue={`${Math.round(chorusWetMix * 100)}%`}
+                size={50}
+                color="#92ceaa"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={chorusVoices}
-            onChange={setChorusVoices}
-            min={1}
-            max={8}
-            step={1}
-            label="Voices"
-            displayValue={chorusVoices.toString()}
-            size={50}
-            color="#dda0dd"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ChorusTooltips.voices}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={chorusVoices}
+                onChange={setChorusVoices}
+                min={1}
+                max={8}
+                step={1}
+                label="Voices"
+                displayValue={chorusVoices.toString()}
+                size={50}
+                color="#dda0dd"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
       </Row>
       
       {/* Secondary Controls */}
       <Row className="mb-2">
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={chorusStereoWidth}
-            onChange={setChorusStereoWidth}
-            min={0}
-            max={2}
-            step={0.01}
-            label="Width"
-            displayValue={`${Math.round(chorusStereoWidth * 100)}%`}
-            size={45}
-            color="#ffa500"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ChorusTooltips.width}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={chorusStereoWidth}
+                onChange={setChorusStereoWidth}
+                min={0}
+                max={2}
+                step={0.01}
+                label="Width"
+                displayValue={`${Math.round(chorusStereoWidth * 100)}%`}
+                size={45}
+                color="#ffa500"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
           <Form.Label className="text-white small">Waveform</Form.Label>
-          <Form.Select
-            size="sm"
-            value={chorusWaveform}
-            onChange={(e) => setChorusWaveform(e.target.value)}
-            className="bg-secondary text-white border-0"
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ChorusTooltips.waveform}</Tooltip>}
           >
-            {Object.entries(LFOWaveforms).map(([key, wave]) => (
-              <option key={key} value={key}>{wave.name}</option>
-            ))}
-          </Form.Select>
-        </Col>
-        
-        <Col xs={6} sm={4} md={2}>
-          <Form.Check
-            type="switch"
-            id="chorus-tempo-sync"
-            label="Tempo Sync"
-            checked={chorusTempoSync}
-            onChange={(e) => setChorusTempoSync(e.target.checked)}
-            className="text-white"
-          />
-          {chorusTempoSync && (
             <Form.Select
               size="sm"
-              value={chorusNoteDivision}
-              onChange={(e) => setChorusNoteDivision(parseInt(e.target.value))}
-              className="bg-secondary text-white border-0 mt-1"
+              value={chorusWaveform}
+              onChange={(e) => setChorusWaveform(e.target.value)}
+              className="bg-secondary text-white border-0"
             >
-              <option value={1}>1/1</option>
-              <option value={2}>1/2</option>
-              <option value={4}>1/4</option>
-              <option value={8}>1/8</option>
-              <option value={16}>1/16</option>
+              {Object.entries(LFOWaveforms).map(([key, wave]) => (
+                <option key={key} value={key}>{wave.name}</option>
+              ))}
             </Form.Select>
-          )}
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={chorusOutputGain}
-            onChange={setChorusOutputGain}
-            min={0}
-            max={2}
-            step={0.01}
-            label="Output"
-            displayValue={`${chorusOutputGain.toFixed(2)}x`}
-            size={45}
-            color="#92ceaa"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ChorusTooltips.tempoSync}</Tooltip>}
+          >
+            <div>
+              <Form.Check
+                type="switch"
+                id="chorus-tempo-sync"
+                label="Tempo Sync"
+                checked={chorusTempoSync}
+                onChange={(e) => setChorusTempoSync(e.target.checked)}
+                className="text-white"
+              />
+              {chorusTempoSync && (
+                <Form.Select
+                  size="sm"
+                  value={chorusNoteDivision}
+                  onChange={(e) => setChorusNoteDivision(parseInt(e.target.value))}
+                  className="bg-secondary text-white border-0 mt-1"
+                >
+                  <option value={1}>1/1</option>
+                  <option value={2}>1/2</option>
+                  <option value={4}>1/4</option>
+                  <option value={8}>1/8</option>
+                  <option value={16}>1/16</option>
+                </Form.Select>
+              )}
+            </div>
+          </OverlayTrigger>
+        </Col>
+
+        <Col xs={6} sm={4} md={2}>
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>Overall output level. Values above 1.0x boost the chorus effect. Use to balance chorus with dry signal.</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={chorusOutputGain}
+                onChange={setChorusOutputGain}
+                min={0}
+                max={2}
+                step={0.01}
+                label="Output"
+                displayValue={`${chorusOutputGain.toFixed(2)}x`}
+                size={45}
+                color="#92ceaa"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
       </Row>
       

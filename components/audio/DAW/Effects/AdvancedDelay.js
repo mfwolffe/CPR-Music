@@ -1,9 +1,29 @@
 'use client';
 
 import { useCallback, useRef, useEffect, useState } from 'react';
-import { Container, Row, Col, Form, Button } from 'react-bootstrap';
+import { Container, Row, Col, Form, Button, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
+
+/**
+ * Educational Tooltips
+ */
+const AdvancedDelayTooltips = {
+  time: "Time between delays. Shorter times (50-200ms) create doubling effects, longer times (300-600ms+) create rhythmic echoes. Use tempo sync to lock to musical timing.",
+  feedback: "How much of the delayed signal feeds back into itself. Higher values create more repetitions. Values over 70% can build up quickly.",
+  taps: "Number of delay repetitions. Each tap creates a separate delay line with its own timing. More taps create denser, more complex patterns.",
+  spread: "Distributes multiple taps across time. 0% places all taps at the same time, 100% spreads them evenly for rhythmic patterns.",
+  mix: "Balance between dry (original) and wet (delayed) signal. 50% is equal mix, higher values emphasize the delay effect.",
+  modRate: "Speed of delay time modulation. Creates chorus-like movement in the delays. Subtle rates (0.1-2Hz) add analog warmth.",
+  modDepth: "Amount of delay time variation. Higher values create more pitch wobble and vintage tape-like character. Use sparingly (5-20%) for natural results.",
+  filterFreq: "Cutoff frequency for filtering each delay tap. Lowpass removes highs for darker echoes, highpass removes lows for brighter repeats.",
+  saturation: "Adds harmonic distortion to delays. Mimics analog tape saturation. Use subtle amounts (10-30%) for warmth, higher for creative effects.",
+  diffusion: "Blurs delay taps together for smoother, more ambient sound. Higher values create reverb-like textures from the delays.",
+  stereoWidth: "Controls stereo spread. 100% is normal stereo, 200% creates enhanced width. Lower values narrow the stereo image.",
+  pingPong: "Alternates delay taps between left and right channels, creating a bouncing stereo effect. Great for wide, rhythmic patterns.",
+  tempoSync: "Locks delay time to project tempo using musical note values (quarter notes, eighth notes, etc.) instead of milliseconds.",
+  filterType: "Shape of the filter applied to delays. Lowpass darkens, highpass brightens, bandpass focuses on midrange, notch creates hollow sound."
+};
 
 /**
  * Professional Multi-Tap Delay Processor
@@ -825,89 +845,137 @@ export default function AdvancedDelay({ width }) {
       {/* Main Controls */}
       <Row className="mb-2">
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={advDelayTempoSync ? advDelayNoteDivision : advDelayTime}
-            onChange={advDelayTempoSync ? setAdvDelayNoteDivision : setAdvDelayTime}
-            min={advDelayTempoSync ? 1 : 1}
-            max={advDelayTempoSync ? 16 : 2000}
-            step={advDelayTempoSync ? 1 : 1}
-            label="Time"
-            displayValue={advDelayTempoSync ? 
-              noteValues.find(n => n.key === advDelayNoteDivision)?.symbol || `1/${advDelayNoteDivision}` :
-              `${advDelayTime}ms`}
-            size={50}
-            color="#e75b5c"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AdvancedDelayTooltips.time}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={advDelayTempoSync ? advDelayNoteDivision : advDelayTime}
+                onChange={advDelayTempoSync ? setAdvDelayNoteDivision : setAdvDelayTime}
+                min={advDelayTempoSync ? 1 : 1}
+                max={advDelayTempoSync ? 16 : 2000}
+                step={advDelayTempoSync ? 1 : 1}
+                label="Time"
+                displayValue={advDelayTempoSync ?
+                  noteValues.find(n => n.key === advDelayNoteDivision)?.symbol || `1/${advDelayNoteDivision}` :
+                  `${advDelayTime}ms`}
+                size={50}
+                color="#e75b5c"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={advDelayFeedback}
-            onChange={setAdvDelayFeedback}
-            min={0}
-            max={0.95}
-            step={0.01}
-            label="Feedback"
-            displayValue={`${Math.round(advDelayFeedback * 100)}%`}
-            size={50}
-            color="#7bafd4"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AdvancedDelayTooltips.feedback}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={advDelayFeedback}
+                onChange={setAdvDelayFeedback}
+                min={0}
+                max={0.95}
+                step={0.01}
+                label="Feedback"
+                displayValue={`${Math.round(advDelayFeedback * 100)}%`}
+                size={50}
+                color="#7bafd4"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={advDelayTaps}
-            onChange={setAdvDelayTaps}
-            min={1}
-            max={8}
-            step={1}
-            label="Taps"
-            displayValue={`${advDelayTaps}`}
-            size={50}
-            color="#cbb677"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AdvancedDelayTooltips.taps}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={advDelayTaps}
+                onChange={setAdvDelayTaps}
+                min={1}
+                max={8}
+                step={1}
+                label="Taps"
+                displayValue={`${advDelayTaps}`}
+                size={50}
+                color="#cbb677"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={advDelaySpread}
-            onChange={setAdvDelaySpread}
-            min={0}
-            max={1}
-            step={0.01}
-            label="Spread"
-            displayValue={`${Math.round(advDelaySpread * 100)}%`}
-            size={50}
-            color="#dda0dd"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AdvancedDelayTooltips.spread}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={advDelaySpread}
+                onChange={setAdvDelaySpread}
+                min={0}
+                max={1}
+                step={0.01}
+                label="Spread"
+                displayValue={`${Math.round(advDelaySpread * 100)}%`}
+                size={50}
+                color="#dda0dd"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={advDelayMix}
-            onChange={setAdvDelayMix}
-            min={0}
-            max={1}
-            step={0.01}
-            label="Mix"
-            displayValue={`${Math.round(advDelayMix * 100)}%`}
-            size={50}
-            color="#92ceaa"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AdvancedDelayTooltips.mix}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={advDelayMix}
+                onChange={setAdvDelayMix}
+                min={0}
+                max={1}
+                step={0.01}
+                label="Mix"
+                displayValue={`${Math.round(advDelayMix * 100)}%`}
+                size={50}
+                color="#92ceaa"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={advDelayOutputGain}
-            onChange={setAdvDelayOutputGain}
-            min={0}
-            max={2}
-            step={0.01}
-            label="Output"
-            displayValue={`${advDelayOutputGain.toFixed(2)}x`}
-            size={50}
-            color="#ffa500"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>Overall output level. Values above 1.0x boost the delayed signal. Use with caution to avoid clipping.</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={advDelayOutputGain}
+                onChange={setAdvDelayOutputGain}
+                min={0}
+                max={2}
+                step={0.01}
+                label="Output"
+                displayValue={`${advDelayOutputGain.toFixed(2)}x`}
+                size={50}
+                color="#ffa500"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
       </Row>
       
@@ -916,90 +984,138 @@ export default function AdvancedDelay({ width }) {
         <Col xs={12}>
           <div className="text-white small mb-2">Advanced Controls</div>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={advDelayModRate}
-            onChange={setAdvDelayModRate}
-            min={0.1}
-            max={10}
-            step={0.1}
-            label="Mod Rate"
-            displayValue={`${advDelayModRate.toFixed(1)}Hz`}
-            size={45}
-            color="#cbb677"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AdvancedDelayTooltips.modRate}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={advDelayModRate}
+                onChange={setAdvDelayModRate}
+                min={0.1}
+                max={10}
+                step={0.1}
+                label="Mod Rate"
+                displayValue={`${advDelayModRate.toFixed(1)}Hz`}
+                size={45}
+                color="#cbb677"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={advDelayModDepth}
-            onChange={setAdvDelayModDepth}
-            min={0}
-            max={1}
-            step={0.01}
-            label="Mod Depth"
-            displayValue={`${Math.round(advDelayModDepth * 100)}%`}
-            size={45}
-            color="#dda0dd"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AdvancedDelayTooltips.modDepth}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={advDelayModDepth}
+                onChange={setAdvDelayModDepth}
+                min={0}
+                max={1}
+                step={0.01}
+                label="Mod Depth"
+                displayValue={`${Math.round(advDelayModDepth * 100)}%`}
+                size={45}
+                color="#dda0dd"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={advDelayFilterFreq}
-            onChange={setAdvDelayFilterFreq}
-            min={20}
-            max={20000}
-            step={10}
-            label="Filter Freq"
-            displayValue={advDelayFilterFreq >= 1000 ? `${(advDelayFilterFreq/1000).toFixed(1)}k` : `${advDelayFilterFreq}Hz`}
-            size={45}
-            color="#7bafd4"
-            logarithmic={true}
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AdvancedDelayTooltips.filterFreq}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={advDelayFilterFreq}
+                onChange={setAdvDelayFilterFreq}
+                min={20}
+                max={20000}
+                step={10}
+                label="Filter Freq"
+                displayValue={advDelayFilterFreq >= 1000 ? `${(advDelayFilterFreq/1000).toFixed(1)}k` : `${advDelayFilterFreq}Hz`}
+                size={45}
+                color="#7bafd4"
+                logarithmic={true}
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={advDelaySaturation}
-            onChange={setAdvDelaySaturation}
-            min={0}
-            max={1}
-            step={0.01}
-            label="Saturation"
-            displayValue={`${Math.round(advDelaySaturation * 100)}%`}
-            size={45}
-            color="#e75b5c"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AdvancedDelayTooltips.saturation}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={advDelaySaturation}
+                onChange={setAdvDelaySaturation}
+                min={0}
+                max={1}
+                step={0.01}
+                label="Saturation"
+                displayValue={`${Math.round(advDelaySaturation * 100)}%`}
+                size={45}
+                color="#e75b5c"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={advDelayDiffusion}
-            onChange={setAdvDelayDiffusion}
-            min={0}
-            max={1}
-            step={0.01}
-            label="Diffusion"
-            displayValue={`${Math.round(advDelayDiffusion * 100)}%`}
-            size={45}
-            color="#92ce84"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AdvancedDelayTooltips.diffusion}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={advDelayDiffusion}
+                onChange={setAdvDelayDiffusion}
+                min={0}
+                max={1}
+                step={0.01}
+                label="Diffusion"
+                displayValue={`${Math.round(advDelayDiffusion * 100)}%`}
+                size={45}
+                color="#92ce84"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={advDelayStereoWidth}
-            onChange={setAdvDelayStereoWidth}
-            min={0}
-            max={2}
-            step={0.01}
-            label="Stereo Width"
-            displayValue={`${advDelayStereoWidth.toFixed(2)}x`}
-            size={45}
-            color="#dda0dd"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{AdvancedDelayTooltips.stereoWidth}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={advDelayStereoWidth}
+                onChange={setAdvDelayStereoWidth}
+                min={0}
+                max={2}
+                step={0.01}
+                label="Stereo Width"
+                displayValue={`${advDelayStereoWidth.toFixed(2)}x`}
+                size={45}
+                color="#dda0dd"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
       </Row>
       

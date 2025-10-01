@@ -1,9 +1,20 @@
 'use client';
 
 import { useCallback, useRef, useEffect, useState } from 'react';
-import { Container, Row, Col, Form, Button } from 'react-bootstrap';
+import { Container, Row, Col, Form, Button, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
+
+/**
+ * Educational Tooltips
+ */
+const RingModulatorTooltips = {
+  frequency: "Modulation frequency. Low frequencies (20-200Hz) create tremolo-like effects, mid (200-800Hz) create metallic tones, high (1-5kHz) create bell-like sounds.",
+  depth: "Amount of modulation. 100% is full ring modulation (classic effect), lower values blend with original tone for subtler metallic shimmer.",
+  waveform: "Modulator waveform shape. Sine creates smooth, musical tones. Square creates harsh, digital effects. Triangle and sawtooth create unique harmonic content.",
+  mode: "Modulation algorithm. Classic is traditional ring mod (sum/difference frequencies), Amplitude is cleaner, Frequency creates FM-like effects, Sync creates locked harmonics.",
+  mix: "Balance between dry and wet signal. Ring modulation completely transforms sound, so lower values (30-60%) often sound more musical than 100%."
+};
 
 /**
  * Ring Modulator modes
@@ -736,29 +747,41 @@ export default function RingModulator({ width }) {
       <Row className="mb-2">
         <Col xs={12} md={4}>
           <Form.Label className="text-white small">Mode</Form.Label>
-          <Form.Select
-            value={ringModMode}
-            onChange={(e) => setRingModMode(e.target.value)}
-            className="bg-secondary text-white border-0"
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{RingModulatorTooltips.mode}</Tooltip>}
           >
-            {Object.entries(RingModModes).map(([key, mode]) => (
-              <option key={key} value={key}>{mode.name}</option>
-            ))}
-          </Form.Select>
+            <Form.Select
+              value={ringModMode}
+              onChange={(e) => setRingModMode(e.target.value)}
+              className="bg-secondary text-white border-0"
+            >
+              {Object.entries(RingModModes).map(([key, mode]) => (
+                <option key={key} value={key}>{mode.name}</option>
+              ))}
+            </Form.Select>
+          </OverlayTrigger>
           <small className="text-muted">{RingModModes[ringModMode]?.description}</small>
         </Col>
-        
+
         <Col xs={12} md={4}>
           <Form.Label className="text-white small">Waveform</Form.Label>
-          <Form.Select
-            value={ringModWaveform}
-            onChange={(e) => setRingModWaveform(e.target.value)}
-            className="bg-secondary text-white border-0"
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{RingModulatorTooltips.waveform}</Tooltip>}
           >
-            {waveformTypes.map(type => (
-              <option key={type.key} value={type.key}>{type.name}</option>
-            ))}
-          </Form.Select>
+            <Form.Select
+              value={ringModWaveform}
+              onChange={(e) => setRingModWaveform(e.target.value)}
+              className="bg-secondary text-white border-0"
+            >
+              {waveformTypes.map(type => (
+                <option key={type.key} value={type.key}>{type.name}</option>
+              ))}
+            </Form.Select>
+          </OverlayTrigger>
         </Col>
         
         <Col xs={12} md={4}>
