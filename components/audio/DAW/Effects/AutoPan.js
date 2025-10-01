@@ -136,6 +136,11 @@ export default function AutoPan({ width }) {
     setAutoPanWaveform,
     autoPanPhase,
     setAutoPanPhase,
+    autoPanTempoSync,
+    setAutoPanTempoSync,
+    autoPanNoteDivision,
+    setAutoPanNoteDivision,
+    globalBPM,
     cutRegion,
   } = useEffects();
 
@@ -148,6 +153,14 @@ export default function AutoPan({ width }) {
         window.webkitAudioContext)();
     }
   }, []);
+
+  // Calculate tempo-synced auto-pan rate
+  const getEffectiveRate = () => {
+    if (autoPanTempoSync) {
+      return (globalBPM / 60) * (4 / autoPanNoteDivision);
+    }
+    return autoPanRate;
+  };
 
   // Apply auto-pan to selected region
   const applyAutoPan = useCallback(async () => {
@@ -172,7 +185,7 @@ export default function AutoPan({ width }) {
 
       // Use the exported processing function
       const parameters = {
-        rate: autoPanRate,
+        rate: getEffectiveRate(),
         depth: autoPanDepth,
         waveform: autoPanWaveform,
         phase: autoPanPhase,
@@ -292,6 +305,36 @@ export default function AutoPan({ width }) {
             size={45}
             color="#cbb677"
           />
+        </Col>
+
+        {/* Tempo Sync Controls */}
+        <Col xs={6} sm={4} md={2} lg={1} className="mb-2">
+          <Form.Check
+            type="switch"
+            id="auto-pan-tempo-sync"
+            label="Sync"
+            checked={autoPanTempoSync}
+            onChange={(e) => setAutoPanTempoSync(e.target.checked)}
+            className="text-white"
+          />
+          {autoPanTempoSync && (
+            <Dropdown onSelect={(division) => setAutoPanNoteDivision(Number(division))}>
+              <Dropdown.Toggle size="sm" variant="outline-light">
+                {autoPanNoteDivision === 1 ? 'Whole' : 
+                 autoPanNoteDivision === 2 ? 'Half' :
+                 autoPanNoteDivision === 4 ? 'Quarter' :
+                 autoPanNoteDivision === 8 ? 'Eighth' :
+                 autoPanNoteDivision === 16 ? 'Sixteenth' : 'Custom'}
+              </Dropdown.Toggle>
+              <Dropdown.Menu>
+                <Dropdown.Item eventKey="1">Whole Note</Dropdown.Item>
+                <Dropdown.Item eventKey="2">Half Note</Dropdown.Item>
+                <Dropdown.Item eventKey="4">Quarter Note</Dropdown.Item>
+                <Dropdown.Item eventKey="8">Eighth Note</Dropdown.Item>
+                <Dropdown.Item eventKey="16">Sixteenth Note</Dropdown.Item>
+              </Dropdown.Menu>
+            </Dropdown>
+          )}
         </Col>
 
         {/* Apply Button */}
