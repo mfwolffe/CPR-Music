@@ -117,19 +117,19 @@ const INSTRUMENTS = [
     id: 'strings',
     type: 'strings',
     preset: null,
-    name: 'String Ensemble',
-    icon: FaMusic,
-    color: '#8b4513', // Warm brown like wood
-    description: 'Lush orchestral string section',
+    name: 'WUULF 4',
+    icon: BsSoundwave,
+    color: '#4B0082', // Deep indigo for darkness
+    description: 'Inverted space-time synthesizer',
   },
   {
     id: 'brass',
     type: 'brass',
     preset: null,
-    name: 'Brass Section',
-    icon: FaMusic,
+    name: 'WUULF 3',
+    icon: BsSoundwave,
     color: '#FFD700', // Gold
-    description: 'Powerful orchestral brass',
+    description: 'Formant-Pulse Powered Synthesizer',
   },
   {
     id: 'theremin',

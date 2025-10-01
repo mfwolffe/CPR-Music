@@ -6,6 +6,35 @@ import audioContextManager from '../AudioContextManager';
 import { createInstrument } from '../Instruments/WebAudioInstruments';
 import ImprovedNoteScheduler from '../ImprovedNoteScheduler';
 import ImprovedMIDIRecorder from '../MIDIRecorder';
+import EnhancedSynth from '../../../../../lib/EnhancedSynth';
+
+/**
+ * Map instrument types to EnhancedSynth presets
+ */
+function mapInstrumentToSynthPreset(instrumentType, instrumentPreset) {
+  const typeMap = {
+    brass: { 
+      wavetable: 'brass', 
+      filterFrequency: 3500, 
+      filterResonance: 1.2,
+      velocitySensitivity: 0.9
+    },
+    strings: { 
+      wavetable: 'strings', 
+      filterFrequency: 2500, 
+      filterResonance: 0.7,
+      velocitySensitivity: 0.8
+    },
+    synth: {
+      wavetable: 'sawtooth',
+      filterFrequency: 2000,
+      filterResonance: 0.8,
+      velocitySensitivity: 0.7
+    }
+  };
+  
+  return typeMap[instrumentType] || typeMap.synth;
+}
 
 /**
  * Custom hook to manage MIDI track audio with improved performance
@@ -117,19 +146,28 @@ export function useMIDITrackAudio(
       };
 
       const { type, preset, name, id } = instrument;
-      if (process.env.NODE_ENV === 'development') {
-        console.log('🎹 Creating instrument', {
-          trackId: track.id,
-          type,
-          preset,
-          name,
-          id,
-        });
-      }
+      console.log('🎹 Creating instrument for track', track.id, {
+        type,
+        preset,
+        name,
+        id,
+        trackName: track.name
+      });
 
       let inst = null;
       try {
-        inst = createInstrument(audioContext, type, preset);
+        // Force brass and strings to use EnhancedSynth for WUULF synths
+        if (type === 'brass') {
+          console.log(`🎺 Using EnhancedSynth for WUULF3 (live playback)`);
+          const synthOptions = mapInstrumentToSynthPreset(type, preset);
+          inst = new EnhancedSynth(audioContext, synthOptions);
+        } else if (type === 'strings') {
+          console.log(`🌙 Using EnhancedSynth for WUULF4 (live playback)`);
+          const synthOptions = mapInstrumentToSynthPreset(type, preset);
+          inst = new EnhancedSynth(audioContext, synthOptions);
+        } else {
+          inst = createInstrument(audioContext, type, preset);
+        }
       } catch (e) {
         console.warn(
           'Instrument factory threw; falling back to Basic Synth',

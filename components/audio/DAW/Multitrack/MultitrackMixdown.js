@@ -938,6 +938,13 @@ async function renderMIDITrackToAudio(track, sampleRate = 44100, bpm = 120) {
     
     console.log(`Auto-render: Attempting to use existing ${instrumentType} instrument for track ${track.name}`);
     
+    // Force brass and strings to use EnhancedSynth for WUULF synths
+    if (instrumentType === 'brass') {
+      throw new Error('Forcing WUULF3 to use EnhancedSynth');
+    } else if (instrumentType === 'strings') {
+      throw new Error('Forcing WUULF4 to use EnhancedSynth');
+    }
+    
     // Try to create your existing virtual instrument first
     instrument = createInstrument(offline, instrumentType, instrumentPreset);
     
