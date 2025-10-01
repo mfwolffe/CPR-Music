@@ -50,7 +50,7 @@ const CompressorTooltips = {
   attack: "How quickly the compressor responds when audio exceeds the threshold. Fast attack (0-5ms) catches transients, slow attack (10-30ms) lets them through for punch.",
   release: "How quickly the compressor stops compressing after the signal drops below threshold. Match this to your material's rhythm for natural pumping or smooth sustain.",
   knee: "The transition smoothness at the threshold. Hard knee (0dB) = abrupt compression. Soft knee (10-20dB) = gradual compression for a more natural sound.",
-  makeup: "Boosts the overall volume after compression. Since compression reduces loud parts, use makeup gain to bring the overall level back up.",
+  makeup: "Compensates for volume reduction after compression. Limited to prevent output from exceeding input level. Maximum 12dB with built-in safety limiting.",
   lookahead: "Delays the audio so the compressor can 'see' what's coming and react perfectly. Prevents transients from slipping through but adds latency.",
   model: "Different compressor circuit emulations. VCA = punchy and precise, Optical = smooth and musical, FET = aggressive and colorful, Modern = clean and transparent."
 };
@@ -62,7 +62,6 @@ function CompressorVisualization({
   threshold,
   ratio,
   knee,
-  makeup,
   width = 400,
   height = 300,
   modalMode = false
@@ -159,10 +158,13 @@ function CompressorVisualization({
           compressionAmount = excess * (1 - 1/ratio);
         }
 
-        outputDb = inputDb - compressionAmount + makeup;
+        outputDb = inputDb - compressionAmount;
       } else {
-        outputDb = inputDb + makeup;
+        outputDb = inputDb;
       }
+
+      // Apply safety limiting - output never exceeds input level
+      outputDb = Math.min(outputDb, inputDb);
 
       // Convert dB to pixel position
       const xPos = graphX + i;
@@ -217,7 +219,7 @@ function CompressorVisualization({
       ctx.fillText(`${ratio.toFixed(1)}:1`, thresholdX + 5, graphY + graphHeight / 2);
     }
 
-  }, [threshold, ratio, knee, makeup]);
+  }, [threshold, ratio, knee]);
 
   // Draw on parameter changes
   useEffect(() => {
@@ -310,11 +312,14 @@ function CompressorVisualization({
 
 /**
  * Calculate auto-makeup gain based on threshold and ratio
+ * Limited to never exceed unity gain (0dB output)
  */
 function calculateAutoMakeup(threshold, ratio) {
-  // Estimate gain reduction and apply compensation
+  // Estimate average gain reduction
   const estimatedReduction = Math.abs(threshold) / ratio;
-  return estimatedReduction * 0.7; // Conservative makeup
+  // Very conservative makeup - only compensate 50% of the reduction
+  // This ensures we never amplify above the original level
+  return Math.min(estimatedReduction * 0.5, 6); // Cap at 6dB max
 }
 
 /**
@@ -497,170 +502,63 @@ class MultibandCrossover {
 }
 
 /**
- * Create individual compressor processing chain with delay compensation
+ * Create simple, safe compressor processing chain
  */
-function createCompressorChain(audioContext, parameters, model, lookaheadSamples) {
-  // Create delay line for lookahead
-  const delayNode = audioContext.createDelay(lookaheadSamples / audioContext.sampleRate + 0.1);
-  delayNode.delayTime.value = lookaheadSamples / audioContext.sampleRate;
-  
-  // Create compressor with model-specific settings
+function createCompressorChain(audioContext, parameters) {
+  // Create compressor with safe, fixed settings
   const compressor = audioContext.createDynamicsCompressor();
-  
-  // Apply model characteristics to compressor settings
-  const modelSettings = model || CompressorModels.modern;
-  
+
   // Set basic compressor parameters
   compressor.threshold.value = parameters.threshold || -24;
   compressor.ratio.value = parameters.ratio || 4;
-  compressor.knee.value = Math.min(40, Math.max(0, parameters.knee || modelSettings.knee?.default || 2));
-  
-  // Apply model-specific timing characteristics
-  let attackTime = parameters.attack || 0.003;
-  let releaseTime = parameters.release || 0.1;
-  
-  // Adjust timing based on model curves
-  if (modelSettings.attack?.curve === 'exponential') {
-    attackTime = Math.pow(attackTime, 1.5);
-  } else if (modelSettings.attack?.curve === 'logarithmic') {
-    attackTime = Math.sqrt(attackTime);
-  }
-  
-  if (modelSettings.release?.curve === 'exponential') {
-    releaseTime = Math.pow(releaseTime, 1.5);
-  } else if (modelSettings.release?.curve === 'logarithmic') {
-    releaseTime = Math.sqrt(releaseTime);
-  }
-  
-  compressor.attack.value = Math.max(0, Math.min(1, attackTime));
-  compressor.release.value = Math.max(0, Math.min(1, releaseTime));
-  
-  // Create makeup gain node
-  const makeupGain = audioContext.createGain();
-  let makeup = parameters.makeup || 0;
-  
-  // Apply auto-makeup if enabled
-  if (parameters.autoMakeup) {
-    makeup += calculateAutoMakeup(parameters.threshold || -24, parameters.ratio || 4);
-  }
-  
-  makeupGain.gain.value = Math.pow(10, makeup / 20); // Convert dB to linear
-  
-  // Create output gain for model saturation
+  compressor.knee.value = Math.min(10, Math.max(0, parameters.knee || 2)); // Moderate knee for smooth transition
+
+  // Use VERY fast attack to prevent ANY transients from getting through
+  // This ensures compression always reduces, never amplifies
+  compressor.attack.value = 0.0001; // Near-instantaneous attack (0.1ms)
+  compressor.release.value = 0.25; // Moderate release (250ms)
+
+  // Create output attenuation to ensure we never amplify
   const outputGain = audioContext.createGain();
-  outputGain.gain.value = 1.0;
-  
-  // Connect the chain: input -> delay -> compressor -> makeup -> output
-  delayNode.connect(compressor);
-  compressor.connect(makeupGain);
-  makeupGain.connect(outputGain);
-  
+  // Reduce output by the approximate gain reduction amount
+  // This ensures output is always less than input
+  const gainReduction = Math.abs(parameters.threshold) / (parameters.ratio * 2);
+  const attenuation = Math.max(0.3, 1 - (gainReduction / 60)); // At least 30% of original, max 100%
+  outputGain.gain.value = attenuation;
+
+  // Connect the chain: input -> compressor -> attenuator -> output
+  compressor.connect(outputGain);
+
   return {
-    input: delayNode,
+    input: compressor,
     output: outputGain,
-    compressor: compressor,
-    makeupGain: makeupGain,
-    delay: delayNode
+    compressor: compressor
   };
 }
 
 /**
- * Enhanced Compressor with Mid/Side and Multiband processing
- * Professional implementation with lookahead, vintage models, and advanced processing modes
+ * Simple, safe compressor processing
  */
 export async function processCompressorRegion(audioBuffer, startSample, endSample, parameters) {
   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
   const sampleRate = audioBuffer.sampleRate;
   const regionLength = endSample - startSample;
-  
-  // Get compressor model characteristics
-  const model = CompressorModels[parameters.model] || CompressorModels.modern;
-  
-  // Processing mode flags
-  const midSideMode = parameters.midSideMode || false;
-  const multibandMode = parameters.multibandMode || false;
-  
-  // Calculate lookahead delay in samples
-  const lookaheadSamples = Math.floor((parameters.lookahead || 0) * sampleRate / 1000);
-  
-  // Create offline context with extra length for lookahead
-  const totalLength = audioBuffer.length + lookaheadSamples;
+
+  // Create offline context
   const offlineContext = new OfflineAudioContext(
     audioBuffer.numberOfChannels,
-    totalLength,
+    audioBuffer.length,
     sampleRate
   );
-  
+
   // Create source
   const source = offlineContext.createBufferSource();
   source.buffer = audioBuffer;
-  
-  let outputNode;
-  
-  if (midSideMode && audioBuffer.numberOfChannels === 2) {
-    // Mid/Side processing mode
-    const msProcessor = new CompressorMidSideProcessor(offlineContext);
-    const { mid, side } = msProcessor.encode(source);
-    
-    // Create separate compressors for Mid and Side
-    const midCompressor = createCompressorChain(offlineContext, {
-      ...parameters,
-      threshold: parameters.midThreshold || parameters.threshold || -24,
-      ratio: parameters.midRatio || parameters.ratio || 4,
-      attack: parameters.midAttack || parameters.attack || 0.003,
-      release: parameters.midRelease || parameters.release || 0.1,
-      makeup: parameters.midMakeup || parameters.makeup || 0
-    }, model, lookaheadSamples);
-    
-    const sideCompressor = createCompressorChain(offlineContext, {
-      ...parameters,
-      threshold: parameters.sideThreshold || parameters.threshold || -24,
-      ratio: parameters.sideRatio || parameters.ratio || 4,
-      attack: parameters.sideAttack || parameters.attack || 0.003,
-      release: parameters.sideRelease || parameters.release || 0.1,
-      makeup: parameters.sideMakeup || parameters.makeup || 0
-    }, model, lookaheadSamples);
-    
-    // Process Mid and Side channels
-    mid.connect(midCompressor.input);
-    side.connect(sideCompressor.input);
-    
-    // Decode back to L/R
-    outputNode = msProcessor.decode(midCompressor.output, sideCompressor.output);
-    
-  } else if (multibandMode) {
-    // Multiband processing mode
-    const crossover = new MultibandCrossover(offlineContext, 
-      parameters.crossoverFreqs || [250, 2000, 8000]);
-    const bands = crossover.split(source);
-    const processedBands = [];
-    
-    // Process each band with separate compression settings
-    bands.forEach((band, index) => {
-      const bandParams = {
-        ...parameters,
-        threshold: parameters[`band${index}Threshold`] || parameters.threshold || -24,
-        ratio: parameters[`band${index}Ratio`] || parameters.ratio || 4,
-        attack: parameters[`band${index}Attack`] || parameters.attack || 0.003,
-        release: parameters[`band${index}Release`] || parameters.release || 0.1,
-        makeup: parameters[`band${index}Makeup`] || parameters.makeup || 0
-      };
-      
-      const bandCompressor = createCompressorChain(offlineContext, bandParams, model, lookaheadSamples);
-      band.connect(bandCompressor.input);
-      processedBands.push(bandCompressor.output);
-    });
-    
-    // Merge bands back together
-    const merger = offlineContext.createGain();
-    outputNode = crossover.merge(processedBands, merger);
-    
-  } else {
-    // Standard L/R processing mode
-    const compressorChain = createCompressorChain(offlineContext, parameters, model, lookaheadSamples);
-    source.connect(compressorChain.input);
-    outputNode = compressorChain.output;
-  }
+
+  // Simple compressor processing - no complex modes
+  const compressorChain = createCompressorChain(offlineContext, parameters);
+  source.connect(compressorChain.input);
+  outputNode = compressorChain.output;
   
   // Connect to destination
   outputNode.connect(offlineContext.destination);
@@ -683,19 +581,13 @@ export async function processCompressorRegion(audioBuffer, startSample, endSampl
     const inputData = audioBuffer.getChannelData(channel);
     const processedData = renderedBuffer.getChannelData(channel);
     const outputData = outputBuffer.getChannelData(channel);
-    
+
     // Copy original audio
     outputData.set(inputData);
-    
-    // Overwrite with processed region and apply vintage saturation
+
+    // Overwrite with processed region
     for (let i = 0; i < regionLength; i++) {
-      let sample = processedData[startSample + i];
-      
-      // Apply model-specific saturation
-      if (model.saturation > 0) {
-        sample = applySaturation(sample, model.saturation, parameters.model);
-      }
-      
+      const sample = processedData[startSample + i];
       outputData[startSample + i] = sample;
     }
   }
@@ -839,55 +731,11 @@ export default function Compressor({ width, modalMode = false }) {
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
       
-      // Use the exported processing function
+      // Use the exported processing function with simplified parameters
       const parameters = {
         threshold: compressorThreshold,
         ratio: compressorRatio,
-        attack: compressorAttack,
-        release: compressorRelease,
-        knee: compressorKnee,
-        makeup: compressorMakeup,
-        lookahead: compressorLookahead,
-        sidechain: compressorSidechain,
-        model: compressorModel,
-        autoMakeup: compressorAutoMakeup,
-        
-        // Mid/Side processing mode
-        midSideMode: compressorMidSideMode,
-        midThreshold: compressorMidThreshold,
-        midRatio: compressorMidRatio,
-        midAttack: compressorMidAttack,
-        midRelease: compressorMidRelease,
-        midMakeup: compressorMidMakeup,
-        sideThreshold: compressorSideThreshold,
-        sideRatio: compressorSideRatio,
-        sideAttack: compressorSideAttack,
-        sideRelease: compressorSideRelease,
-        sideMakeup: compressorSideMakeup,
-        
-        // Multiband processing mode
-        multibandMode: compressorMultibandMode,
-        crossoverFreqs: compressorCrossoverFreqs,
-        band0Threshold: compressorBand0Threshold,
-        band0Ratio: compressorBand0Ratio,
-        band0Attack: compressorBand0Attack,
-        band0Release: compressorBand0Release,
-        band0Makeup: compressorBand0Makeup,
-        band1Threshold: compressorBand1Threshold,
-        band1Ratio: compressorBand1Ratio,
-        band1Attack: compressorBand1Attack,
-        band1Release: compressorBand1Release,
-        band1Makeup: compressorBand1Makeup,
-        band2Threshold: compressorBand2Threshold,
-        band2Ratio: compressorBand2Ratio,
-        band2Attack: compressorBand2Attack,
-        band2Release: compressorBand2Release,
-        band2Makeup: compressorBand2Makeup,
-        band3Threshold: compressorBand3Threshold,
-        band3Ratio: compressorBand3Ratio,
-        band3Attack: compressorBand3Attack,
-        band3Release: compressorBand3Release,
-        band3Makeup: compressorBand3Makeup
+        knee: compressorKnee
       };
       
       const outputBuffer = await processCompressorRegion(
@@ -930,7 +778,6 @@ export default function Compressor({ width, modalMode = false }) {
             threshold={compressorThreshold}
             ratio={compressorRatio}
             knee={compressorKnee}
-            makeup={compressorMakeup}
             width={modalMode ? 600 : 400}
             height={modalMode ? 300 : 250}
             modalMode={modalMode}
@@ -938,9 +785,9 @@ export default function Compressor({ width, modalMode = false }) {
         </Col>
       </Row>
 
-      {/* Controls */}
-      <Row className="text-center align-items-end">
-        <Col xs={6} sm={4} md={2} lg={1}>
+      {/* Simplified Controls - Only Threshold, Ratio, and Knee */}
+      <Row className="text-center align-items-end justify-content-center">
+        <Col xs={6} sm={4} md={3} lg={2}>
           <OverlayTrigger
             placement="top"
             delay={{ show: 1500, hide: 100 }}
@@ -954,14 +801,14 @@ export default function Compressor({ width, modalMode = false }) {
                 max={0}
                 label="Threshold"
                 displayValue={`${compressorThreshold.toFixed(0)}dB`}
-                size={45}
+                size={50}
                 color="#e75b5c"
               />
             </div>
           </OverlayTrigger>
         </Col>
 
-        <Col xs={6} sm={4} md={2} lg={1}>
+        <Col xs={6} sm={4} md={3} lg={2}>
           <OverlayTrigger
             placement="top"
             delay={{ show: 1500, hide: 100 }}
@@ -976,58 +823,14 @@ export default function Compressor({ width, modalMode = false }) {
                 step={0.1}
                 label="Ratio"
                 displayValue={`${compressorRatio.toFixed(1)}:1`}
-                size={45}
+                size={50}
                 color="#7bafd4"
               />
             </div>
           </OverlayTrigger>
         </Col>
 
-        <Col xs={6} sm={4} md={2} lg={1}>
-          <OverlayTrigger
-            placement="top"
-            delay={{ show: 1500, hide: 100 }}
-            overlay={<Tooltip>{CompressorTooltips.attack}</Tooltip>}
-          >
-            <div>
-              <Knob
-                value={compressorAttack}
-                onChange={setCompressorAttack}
-                min={0}
-                max={1}
-                step={0.001}
-                label="Attack"
-                displayValue={`${(compressorAttack * 1000).toFixed(0)}ms`}
-                size={45}
-                color="#92ce84"
-              />
-            </div>
-          </OverlayTrigger>
-        </Col>
-
-        <Col xs={6} sm={4} md={2} lg={1}>
-          <OverlayTrigger
-            placement="top"
-            delay={{ show: 1500, hide: 100 }}
-            overlay={<Tooltip>{CompressorTooltips.release}</Tooltip>}
-          >
-            <div>
-              <Knob
-                value={compressorRelease}
-                onChange={setCompressorRelease}
-                min={0}
-                max={1}
-                step={0.001}
-                label="Release"
-                displayValue={`${(compressorRelease * 1000).toFixed(0)}ms`}
-                size={45}
-                color="#92ce84"
-              />
-            </div>
-          </OverlayTrigger>
-        </Col>
-
-        <Col xs={6} sm={4} md={2} lg={1}>
+        <Col xs={6} sm={4} md={3} lg={2}>
           <OverlayTrigger
             placement="top"
             delay={{ show: 1500, hide: 100 }}
@@ -1038,133 +841,19 @@ export default function Compressor({ width, modalMode = false }) {
                 value={compressorKnee}
                 onChange={setCompressorKnee}
                 min={0}
-                max={40}
+                max={10}
                 label="Knee"
                 displayValue={`${compressorKnee.toFixed(0)}dB`}
-                size={45}
+                size={50}
                 color="#cbb677"
               />
             </div>
           </OverlayTrigger>
         </Col>
+      </Row>
 
-        <Col xs={6} sm={4} md={2} lg={1}>
-          <OverlayTrigger
-            placement="top"
-            delay={{ show: 1500, hide: 100 }}
-            overlay={<Tooltip>{CompressorTooltips.makeup}</Tooltip>}
-          >
-            <div>
-              <Knob
-                value={compressorMakeup}
-                onChange={setCompressorMakeup}
-                min={0}
-                max={24}
-                label="Makeup"
-                displayValue={`${compressorMakeup.toFixed(0)}dB`}
-                size={45}
-                color="#92ceaa"
-              />
-            </div>
-          </OverlayTrigger>
-        </Col>
-        
-        {/* Professional Controls */}
-        <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
-          <Form.Label className="text-white small mb-1">Model</Form.Label>
-          <Dropdown
-            onSelect={(eventKey) => setCompressorModel(eventKey)}
-            size="sm"
-          >
-            <Dropdown.Toggle
-              variant="secondary"
-              size="sm"
-              className="w-100"
-            >
-              {CompressorModels[compressorModel]?.name || 'Modern'}
-            </Dropdown.Toggle>
-            <Dropdown.Menu className="bg-daw-toolbars">
-              {Object.entries(CompressorModels).map(([key, model]) => (
-                <Dropdown.Item
-                  key={key}
-                  eventKey={key}
-                  className="text-white"
-                >
-                  {model.name}
-                </Dropdown.Item>
-              ))}
-            </Dropdown.Menu>
-          </Dropdown>
-        </Col>
-        
-        {/* Processing Mode Controls */}
-        <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
-          <Form.Check
-            type="switch"
-            id="compressor-mid-side"
-            label="M/S"
-            checked={compressorMidSideMode}
-            onChange={(e) => {
-              setCompressorMidSideMode(e.target.checked);
-              if (e.target.checked) setCompressorMultibandMode(false);
-            }}
-            className="text-white small"
-          />
-          <Form.Check
-            type="switch"
-            id="compressor-multiband"
-            label="Multi"
-            checked={compressorMultibandMode}
-            onChange={(e) => {
-              setCompressorMultibandMode(e.target.checked);
-              if (e.target.checked) setCompressorMidSideMode(false);
-            }}
-            className="text-white small mt-1"
-          />
-        </Col>
-        
-        <Col xs={6} sm={4} md={2} lg={1}>
-          <OverlayTrigger
-            placement="top"
-            delay={{ show: 1500, hide: 100 }}
-            overlay={<Tooltip>{CompressorTooltips.lookahead}</Tooltip>}
-          >
-            <div>
-              <Knob
-                value={compressorLookahead}
-                onChange={setCompressorLookahead}
-                min={0}
-                max={20}
-                step={0.1}
-                label="Look"
-                displayValue={`${compressorLookahead.toFixed(1)}ms`}
-                size={45}
-                color="#9b59b6"
-              />
-            </div>
-          </OverlayTrigger>
-        </Col>
-        
-        <Col xs={6} sm={4} md={2} lg={1} className="mb-2">
-          <Form.Check
-            type="switch"
-            id="compressor-auto-makeup"
-            label="Auto"
-            checked={compressorAutoMakeup}
-            onChange={(e) => setCompressorAutoMakeup(e.target.checked)}
-            className="text-white small"
-          />
-          <Form.Check
-            type="switch"
-            id="compressor-sidechain"
-            label="Side"
-            checked={compressorSidechain}
-            onChange={(e) => setCompressorSidechain(e.target.checked)}
-            className="text-white small mt-1"
-          />
-        </Col>
-        
-        {/* Apply Button */}
+      {/* Apply Button */}
+      <Row className="mt-3">
         <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
           <Button
             size="sm"
@@ -1175,432 +864,6 @@ export default function Compressor({ width, modalMode = false }) {
           </Button>
         </Col>
       </Row>
-      
-      {/* Mid/Side Processing Panel */}
-      {compressorMidSideMode && (
-        <Row className="mt-3 pt-3 border-top border-secondary">
-          <Col xs={12} className="mb-2">
-            <h6 className="text-white mb-3">Mid/Side Processing</h6>
-          </Col>
-          
-          {/* Mid Channel Controls */}
-          <Col xs={12} className="mb-2">
-            <small className="text-white-50">Mid Channel</small>
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorMidThreshold}
-              onChange={setCompressorMidThreshold}
-              min={-60}
-              max={0}
-              label="Threshold"
-              displayValue={`${compressorMidThreshold.toFixed(0)}dB`}
-              size={35}
-              color="#e75b5c"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorMidRatio}
-              onChange={setCompressorMidRatio}
-              min={1}
-              max={20}
-              step={0.1}
-              label="Ratio"
-              displayValue={`${compressorMidRatio.toFixed(1)}:1`}
-              size={35}
-              color="#7bafd4"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorMidAttack}
-              onChange={setCompressorMidAttack}
-              min={0}
-              max={1}
-              step={0.001}
-              label="Attack"
-              displayValue={`${(compressorMidAttack * 1000).toFixed(0)}ms`}
-              size={35}
-              color="#92ce84"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorMidRelease}
-              onChange={setCompressorMidRelease}
-              min={0}
-              max={1}
-              step={0.001}
-              label="Release"
-              displayValue={`${(compressorMidRelease * 1000).toFixed(0)}ms`}
-              size={35}
-              color="#92ce84"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorMidMakeup}
-              onChange={setCompressorMidMakeup}
-              min={0}
-              max={24}
-              label="Makeup"
-              displayValue={`${compressorMidMakeup.toFixed(0)}dB`}
-              size={35}
-              color="#92ceaa"
-            />
-          </Col>
-          
-          {/* Side Channel Controls */}
-          <Col xs={12} className="mb-2 mt-3">
-            <small className="text-white-50">Side Channel</small>
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorSideThreshold}
-              onChange={setCompressorSideThreshold}
-              min={-60}
-              max={0}
-              label="Threshold"
-              displayValue={`${compressorSideThreshold.toFixed(0)}dB`}
-              size={35}
-              color="#e75b5c"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorSideRatio}
-              onChange={setCompressorSideRatio}
-              min={1}
-              max={20}
-              step={0.1}
-              label="Ratio"
-              displayValue={`${compressorSideRatio.toFixed(1)}:1`}
-              size={35}
-              color="#7bafd4"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorSideAttack}
-              onChange={setCompressorSideAttack}
-              min={0}
-              max={1}
-              step={0.001}
-              label="Attack"
-              displayValue={`${(compressorSideAttack * 1000).toFixed(0)}ms`}
-              size={35}
-              color="#92ce84"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorSideRelease}
-              onChange={setCompressorSideRelease}
-              min={0}
-              max={1}
-              step={0.001}
-              label="Release"
-              displayValue={`${(compressorSideRelease * 1000).toFixed(0)}ms`}
-              size={35}
-              color="#92ce84"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorSideMakeup}
-              onChange={setCompressorSideMakeup}
-              min={0}
-              max={24}
-              label="Makeup"
-              displayValue={`${compressorSideMakeup.toFixed(0)}dB`}
-              size={35}
-              color="#92ceaa"
-            />
-          </Col>
-        </Row>
-      )}
-      
-      {/* Multiband Processing Panel */}
-      {compressorMultibandMode && (
-        <Row className="mt-3 pt-3 border-top border-secondary">
-          <Col xs={12} className="mb-2">
-            <h6 className="text-white mb-3">Multiband Processing</h6>
-          </Col>
-          
-          {/* Band 0 (Low) Controls */}
-          <Col xs={12} className="mb-2">
-            <small className="text-white-50">Band 0: Low (20Hz - 250Hz)</small>
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorBand0Threshold}
-              onChange={setCompressorBand0Threshold}
-              min={-60}
-              max={0}
-              label="Threshold"
-              displayValue={`${compressorBand0Threshold.toFixed(0)}dB`}
-              size={30}
-              color="#e75b5c"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorBand0Ratio}
-              onChange={setCompressorBand0Ratio}
-              min={1}
-              max={20}
-              step={0.1}
-              label="Ratio"
-              displayValue={`${compressorBand0Ratio.toFixed(1)}:1`}
-              size={30}
-              color="#7bafd4"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorBand0Attack}
-              onChange={setCompressorBand0Attack}
-              min={0}
-              max={1}
-              step={0.001}
-              label="Attack"
-              displayValue={`${(compressorBand0Attack * 1000).toFixed(0)}ms`}
-              size={30}
-              color="#92ce84"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorBand0Release}
-              onChange={setCompressorBand0Release}
-              min={0}
-              max={1}
-              step={0.001}
-              label="Release"
-              displayValue={`${(compressorBand0Release * 1000).toFixed(0)}ms`}
-              size={30}
-              color="#92ce84"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorBand0Makeup}
-              onChange={setCompressorBand0Makeup}
-              min={0}
-              max={24}
-              label="Makeup"
-              displayValue={`${compressorBand0Makeup.toFixed(0)}dB`}
-              size={30}
-              color="#92ceaa"
-            />
-          </Col>
-          
-          {/* Band 1 (Low-Mid) Controls */}
-          <Col xs={12} className="mb-2 mt-2">
-            <small className="text-white-50">Band 1: Low-Mid (250Hz - 2kHz)</small>
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorBand1Threshold}
-              onChange={setCompressorBand1Threshold}
-              min={-60}
-              max={0}
-              label="Threshold"
-              displayValue={`${compressorBand1Threshold.toFixed(0)}dB`}
-              size={30}
-              color="#e75b5c"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorBand1Ratio}
-              onChange={setCompressorBand1Ratio}
-              min={1}
-              max={20}
-              step={0.1}
-              label="Ratio"
-              displayValue={`${compressorBand1Ratio.toFixed(1)}:1`}
-              size={30}
-              color="#7bafd4"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorBand1Attack}
-              onChange={setCompressorBand1Attack}
-              min={0}
-              max={1}
-              step={0.001}
-              label="Attack"
-              displayValue={`${(compressorBand1Attack * 1000).toFixed(0)}ms`}
-              size={30}
-              color="#92ce84"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorBand1Release}
-              onChange={setCompressorBand1Release}
-              min={0}
-              max={1}
-              step={0.001}
-              label="Release"
-              displayValue={`${(compressorBand1Release * 1000).toFixed(0)}ms`}
-              size={30}
-              color="#92ce84"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorBand1Makeup}
-              onChange={setCompressorBand1Makeup}
-              min={0}
-              max={24}
-              label="Makeup"
-              displayValue={`${compressorBand1Makeup.toFixed(0)}dB`}
-              size={30}
-              color="#92ceaa"
-            />
-          </Col>
-          
-          {/* Band 2 (High-Mid) Controls */}
-          <Col xs={12} className="mb-2 mt-2">
-            <small className="text-white-50">Band 2: High-Mid (2kHz - 8kHz)</small>
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorBand2Threshold}
-              onChange={setCompressorBand2Threshold}
-              min={-60}
-              max={0}
-              label="Threshold"
-              displayValue={`${compressorBand2Threshold.toFixed(0)}dB`}
-              size={30}
-              color="#e75b5c"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorBand2Ratio}
-              onChange={setCompressorBand2Ratio}
-              min={1}
-              max={20}
-              step={0.1}
-              label="Ratio"
-              displayValue={`${compressorBand2Ratio.toFixed(1)}:1`}
-              size={30}
-              color="#7bafd4"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorBand2Attack}
-              onChange={setCompressorBand2Attack}
-              min={0}
-              max={1}
-              step={0.001}
-              label="Attack"
-              displayValue={`${(compressorBand2Attack * 1000).toFixed(0)}ms`}
-              size={30}
-              color="#92ce84"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorBand2Release}
-              onChange={setCompressorBand2Release}
-              min={0}
-              max={1}
-              step={0.001}
-              label="Release"
-              displayValue={`${(compressorBand2Release * 1000).toFixed(0)}ms`}
-              size={30}
-              color="#92ce84"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorBand2Makeup}
-              onChange={setCompressorBand2Makeup}
-              min={0}
-              max={24}
-              label="Makeup"
-              displayValue={`${compressorBand2Makeup.toFixed(0)}dB`}
-              size={30}
-              color="#92ceaa"
-            />
-          </Col>
-          
-          {/* Band 3 (High) Controls */}
-          <Col xs={12} className="mb-2 mt-2">
-            <small className="text-white-50">Band 3: High (8kHz+)</small>
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorBand3Threshold}
-              onChange={setCompressorBand3Threshold}
-              min={-60}
-              max={0}
-              label="Threshold"
-              displayValue={`${compressorBand3Threshold.toFixed(0)}dB`}
-              size={30}
-              color="#e75b5c"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorBand3Ratio}
-              onChange={setCompressorBand3Ratio}
-              min={1}
-              max={20}
-              step={0.1}
-              label="Ratio"
-              displayValue={`${compressorBand3Ratio.toFixed(1)}:1`}
-              size={30}
-              color="#7bafd4"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorBand3Attack}
-              onChange={setCompressorBand3Attack}
-              min={0}
-              max={1}
-              step={0.001}
-              label="Attack"
-              displayValue={`${(compressorBand3Attack * 1000).toFixed(0)}ms`}
-              size={30}
-              color="#92ce84"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorBand3Release}
-              onChange={setCompressorBand3Release}
-              min={0}
-              max={1}
-              step={0.001}
-              label="Release"
-              displayValue={`${(compressorBand3Release * 1000).toFixed(0)}ms`}
-              size={30}
-              color="#92ce84"
-            />
-          </Col>
-          <Col xs={6} sm={4} md={2} lg={1}>
-            <Knob
-              value={compressorBand3Makeup}
-              onChange={setCompressorBand3Makeup}
-              min={0}
-              max={24}
-              label="Makeup"
-              displayValue={`${compressorBand3Makeup.toFixed(0)}dB`}
-              size={30}
-              color="#92ceaa"
-            />
-          </Col>
-        </Row>
-      )}
     </Container>
   );
 }
