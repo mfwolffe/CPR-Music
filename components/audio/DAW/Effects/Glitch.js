@@ -132,21 +132,37 @@ export async function processGlitchRegion(
 export default function Glitch({ width }) {
   const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
 
+  let effectsContext;
+  try {
+    effectsContext = useEffects();
+  } catch (error) {
+    console.error('Glitch: Failed to get EffectsContext:', error);
+    effectsContext = null;
+  }
+
+  // Debug logging
+  if (!effectsContext) {
+    console.warn('Glitch: EffectsContext is null/undefined');
+  } else if (!effectsContext.setGlitchCrush) {
+    console.warn('Glitch: setGlitchCrush is not available in context', effectsContext);
+  }
+
+  // Provide defaults if context is not ready
   const {
-    glitchDivision,
-    setGlitchDivision,
-    glitchProbability,
-    setGlitchProbability,
-    glitchRepeats,
-    setGlitchRepeats,
-    glitchReverse,
-    setGlitchReverse,
-    glitchPitch,
-    setGlitchPitch,
-    glitchCrush,
-    setGlitchCrush,
-    cutRegion,
-  } = useEffects();
+    glitchDivision = '1/16',
+    setGlitchDivision = () => { console.log('setGlitchDivision: using default no-op'); },
+    glitchProbability = 30,
+    setGlitchProbability = () => { console.log('setGlitchProbability: using default no-op'); },
+    glitchRepeats = 1,
+    setGlitchRepeats = () => { console.log('setGlitchRepeats: using default no-op'); },
+    glitchReverse = 20,
+    setGlitchReverse = () => { console.log('setGlitchReverse: using default no-op'); },
+    glitchPitch = 0,
+    setGlitchPitch = () => { console.log('setGlitchPitch: using default no-op'); },
+    glitchCrush = false,
+    setGlitchCrush = () => { console.log('setGlitchCrush: using default no-op'); },
+    cutRegion = () => { console.log('cutRegion: using default no-op'); },
+  } = effectsContext || {};
 
   const audioContextRef = useRef(null);
 
@@ -265,7 +281,17 @@ export default function Glitch({ width }) {
             id="crush-switch"
             label={glitchCrush ? 'On' : 'Off'}
             checked={glitchCrush}
-            onChange={(e) => setGlitchCrush(e.target.checked)}
+            onChange={(e) => {
+              try {
+                if (typeof setGlitchCrush === 'function') {
+                  setGlitchCrush(e.target.checked);
+                } else {
+                  console.error('setGlitchCrush is not a function:', typeof setGlitchCrush);
+                }
+              } catch (error) {
+                console.error('Error in Glitch onChange:', error);
+              }
+            }}
             className="text-white"
           />
         </Col>

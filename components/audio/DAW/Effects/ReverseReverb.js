@@ -81,57 +81,49 @@ export async function processReverseReverbRegion(audioBuffer, startSample, endSa
   // Calculate buildup samples
   const buildupSamples = Math.floor((parameters.buildupTime || 0.5) * sampleRate);
   const fadeSamples = Math.floor((parameters.fadeTime || 0.1) * sampleRate);
-  
-  // Create output buffer with pre-verb
-  const outputLength = audioBuffer.length + buildupSamples;
+  const predelaySamples = Math.floor((parameters.predelay || 0) / 1000 * sampleRate);
+
+  // Create output buffer - same length as input, we overlay the reverse reverb
   const outputBuffer = audioContext.createBuffer(
     audioBuffer.numberOfChannels,
-    outputLength,
+    audioBuffer.length,
     sampleRate
   );
-  
+
   for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
     const inputData = audioBuffer.getChannelData(channel);
     const outputData = outputBuffer.getChannelData(channel);
     const reversedData = reversedBuffer.getChannelData(channel);
-    
-    // Copy audio before region
-    for (let i = 0; i < startSample; i++) {
+
+    // First, copy all original audio
+    for (let i = 0; i < inputData.length; i++) {
       outputData[i] = inputData[i];
     }
-    
-    // Add reversed reverb buildup before the region
-    const preverbStart = Math.max(0, startSample - buildupSamples);
-    const preverbLength = Math.min(buildupSamples, reversedData.length);
-    
-    for (let i = 0; i < preverbLength; i++) {
-      const outputIdx = preverbStart + i;
-      const reversedIdx = reversedData.length - preverbLength + i;
-      
-      if (outputIdx >= 0 && outputIdx < outputData.length && reversedIdx >= 0) {
-        // Apply fade-in envelope
-        const fadeIn = i / fadeSamples;
-        const envelope = Math.min(1, fadeIn);
-        
-        // Mix with existing audio
-        outputData[outputIdx] = outputData[outputIdx] * (1 - parameters.wetMix) + 
-                               reversedData[reversedIdx] * parameters.wetMix * envelope;
-      }
-    }
-    
-    // Copy the original region (shifted by buildup time)
-    for (let i = 0; i < regionLength; i++) {
-      const outputIdx = startSample + buildupSamples + i;
-      if (outputIdx < outputData.length) {
-        outputData[outputIdx] = inputData[startSample + i];
-      }
-    }
-    
-    // Copy audio after region (shifted)
-    for (let i = endSample; i < inputData.length; i++) {
-      const outputIdx = i + buildupSamples;
-      if (outputIdx < outputData.length) {
-        outputData[outputIdx] = inputData[i];
+
+    // Calculate where the reverse reverb should start and end
+    const reverbEndPosition = startSample - predelaySamples;
+    const reverbStartPosition = Math.max(0, reverbEndPosition - buildupSamples);
+    const actualBuildupLength = reverbEndPosition - reverbStartPosition;
+
+    // Only add reverse reverb if we have room before the region
+    if (reverbStartPosition >= 0 && actualBuildupLength > 0) {
+      // Find the tail portion of the reversed reverb to use
+      const reverbTailStart = Math.max(0, reversedData.length - actualBuildupLength);
+
+      for (let i = 0; i < actualBuildupLength; i++) {
+        const outputIdx = reverbStartPosition + i;
+        const reverbIdx = reverbTailStart + i;
+
+        if (outputIdx >= 0 && outputIdx < outputData.length && reverbIdx < reversedData.length) {
+          // Apply fade-in envelope
+          const fadeProgress = i / Math.min(fadeSamples, actualBuildupLength);
+          const envelope = Math.min(1, fadeProgress);
+
+          // Mix reversed reverb with existing audio
+          const dry = outputData[outputIdx];
+          const wet = reversedData[reverbIdx] * envelope;
+          outputData[outputIdx] = dry * (1 - parameters.wetMix) + wet * parameters.wetMix;
+        }
       }
     }
   }
@@ -176,14 +168,23 @@ export default function ReverseReverb({ width }) {
     }
   }, []);
   
-  // Update reverb parameters
+  // Update reverb parameters and apply preset parameters to knobs
   useEffect(() => {
     if (reverbProcessorRef.current) {
       reverbProcessorRef.current.loadPreset(preset);
       reverbProcessorRef.current.setWetDryMix(wetMix);
       reverbProcessorRef.current.setPreDelay(predelay);
+
+      // Apply preset-specific reverse reverb parameters to knobs
+      const presetData = impulseResponsePresets[preset];
+      if (presetData && presetData.reverseParameters) {
+        setWetMix(presetData.reverseParameters.wetMix);
+        setFadeTime(presetData.reverseParameters.fadeTime);
+        setPredelay(presetData.reverseParameters.predelay);
+        setBuildupTime(presetData.reverseParameters.buildupTime);
+      }
     }
-  }, [preset, wetMix, predelay]);
+  }, [preset]);
   
   // Apply reverse reverb
   const applyReverseReverb = useCallback(async () => {
