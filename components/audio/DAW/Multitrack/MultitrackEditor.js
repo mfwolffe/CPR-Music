@@ -582,7 +582,6 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
         <Col style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div
             ref={tracksScrollRef}
-            className="tracks-container"
             onScroll={(e) => {
               if (!timelineScrollRef.current) return;
               if (isSyncingScrollRef.current) return;

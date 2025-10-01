@@ -17,7 +17,8 @@ import TrackClipCanvas from '../../../../contexts/TrackClipCanvas';
 import ClipPlayer from './ClipPlayer';
 import audioContextManager from './AudioContextManager';
 import { decodeAudioFromURL } from './AudioEngine';
-import waveformCache from './WaveformCache';\nimport { getAudioProcessor } from './AudioProcessor';
+import waveformCache from './WaveformCache';
+import { getAudioProcessor } from './AudioProcessor';
 
 export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
   const {
@@ -820,8 +821,6 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
                   </div>
                 </div>
               )}
-            </>
-          )}
         </div>
       </div>
     </div>
