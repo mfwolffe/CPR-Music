@@ -30,6 +30,132 @@ const FilterTypes = {
 };
 
 /**
+ * EQ Presets with comprehensive settings
+ */
+const EQPresets = {
+  flat: {
+    name: 'Flat (Default)',
+    description: 'No EQ processing',
+    bands: [
+      { frequency: 60, gain: 0, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 150, gain: 0, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 350, gain: 0, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 700, gain: 0, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 1500, gain: 0, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 3500, gain: 0, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 8000, gain: 0, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 16000, gain: 0, q: 0.7, type: 'peaking', enabled: true }
+    ],
+    outputGain: 0
+  },
+  vocalPresence: {
+    name: 'Vocal Presence',
+    description: 'Enhance vocal clarity and presence',
+    bands: [
+      { frequency: 60, gain: 0, q: 1.0, type: 'highpass', enabled: true },
+      { frequency: 150, gain: -2, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 350, gain: -1, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 700, gain: 0, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 1500, gain: 2, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 3500, gain: 3, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 8000, gain: 2, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 16000, gain: 1, q: 0.7, type: 'highshelf', enabled: true }
+    ],
+    outputGain: 0
+  },
+  warmBass: {
+    name: 'Warm Bass',
+    description: 'Rich low-end enhancement',
+    bands: [
+      { frequency: 60, gain: 4, q: 0.7, type: 'lowshelf', enabled: true },
+      { frequency: 150, gain: 2, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 350, gain: 1, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 700, gain: 0, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 1500, gain: -1, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 3500, gain: -1, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 8000, gain: -2, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 16000, gain: -3, q: 0.7, type: 'highshelf', enabled: true }
+    ],
+    outputGain: -2
+  },
+  brightAir: {
+    name: 'Air & Brightness',
+    description: 'Add sparkle and air to the mix',
+    bands: [
+      { frequency: 60, gain: -1, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 150, gain: -2, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 350, gain: -1, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 700, gain: 0, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 1500, gain: 1, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 3500, gain: 2, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 8000, gain: 3, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 16000, gain: 2, q: 0.7, type: 'highshelf', enabled: true }
+    ],
+    outputGain: 0
+  },
+  loudnessSmile: {
+    name: 'Loudness (Smile)',
+    description: 'Classic smile curve for fuller sound',
+    bands: [
+      { frequency: 60, gain: 3, q: 0.7, type: 'lowshelf', enabled: true },
+      { frequency: 150, gain: 2, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 350, gain: -1, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 700, gain: -2, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 1500, gain: -2, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 3500, gain: -1, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 8000, gain: 2, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 16000, gain: 3, q: 0.7, type: 'highshelf', enabled: true }
+    ],
+    outputGain: -1
+  },
+  telephoneMidrange: {
+    name: 'Telephone/Radio',
+    description: 'Band-limited midrange focus',
+    bands: [
+      { frequency: 60, gain: 0, q: 2.0, type: 'highpass', enabled: true },
+      { frequency: 150, gain: 0, q: 1.0, type: 'highpass', enabled: true },
+      { frequency: 350, gain: 2, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 700, gain: 3, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 1500, gain: 4, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 3500, gain: 2, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 8000, gain: 0, q: 1.0, type: 'lowpass', enabled: true },
+      { frequency: 16000, gain: 0, q: 2.0, type: 'lowpass', enabled: true }
+    ],
+    outputGain: -3
+  },
+  acoustic: {
+    name: 'Acoustic Guitar',
+    description: 'Enhance acoustic guitar tone',
+    bands: [
+      { frequency: 60, gain: 0, q: 1.0, type: 'highpass', enabled: true },
+      { frequency: 150, gain: 1, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 350, gain: 2, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 700, gain: 0, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 1500, gain: 1, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 3500, gain: 2, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 8000, gain: 3, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 16000, gain: 2, q: 0.7, type: 'highshelf', enabled: true }
+    ],
+    outputGain: 0
+  },
+  dance: {
+    name: 'Dance/EDM',
+    description: 'Punchy bass and crisp highs',
+    bands: [
+      { frequency: 60, gain: 5, q: 0.7, type: 'lowshelf', enabled: true },
+      { frequency: 150, gain: 3, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 350, gain: 0, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 700, gain: -2, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 1500, gain: -1, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 3500, gain: 1, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 8000, gain: 3, q: 0.7, type: 'peaking', enabled: true },
+      { frequency: 16000, gain: 4, q: 0.7, type: 'highshelf', enabled: true }
+    ],
+    outputGain: -2
+  }
+};
+
+/**
  * Tooltip definitions for EQ controls
  */
 const EQTooltips = {
@@ -132,21 +258,24 @@ function calculateFrequencyResponse(bands, sampleRate, numPoints = 512) {
     let totalGainDB = 0; // Sum gains in dB
 
     bands.forEach(band => {
-      if (band.enabled !== false) {
-        // Calculate normalized frequency (0 to 0.5)
-        const omega = 2 * Math.PI * band.frequency / sampleRate;
-        const sin_omega = Math.sin(omega);
-        const cos_omega = Math.cos(omega);
+      // Skip disabled bands only
+      if (band.enabled === false) return;
 
-        // Bandwidth/Q factor
-        const Q = band.q || 1;
-        const A = Math.pow(10, band.gain / 40); // Convert dB to linear amplitude
-        const alpha = sin_omega / (2 * Q);
+      // Calculate normalized frequency (0 to 0.5)
+      const omega = 2 * Math.PI * band.frequency / sampleRate;
+      const sin_omega = Math.sin(omega);
+      const cos_omega = Math.cos(omega);
 
-        // Calculate biquad coefficients based on filter type
-        let b0, b1, b2, a0, a1, a2;
+      // Bandwidth/Q factor
+      const Q = band.q || 1;
+      const A = Math.pow(10, band.gain / 40); // Convert dB to linear amplitude
+      const alpha = sin_omega / (2 * Q);
 
-        switch (band.type) {
+
+      // Calculate biquad coefficients based on filter type
+      let b0, b1, b2, a0, a1, a2;
+
+      switch (band.type) {
           case 'peaking':
             // Peaking EQ filter coefficients
             b0 = 1 + alpha * A;
@@ -242,9 +371,9 @@ function calculateFrequencyResponse(bands, sampleRate, numPoints = 512) {
         a1 /= a0;
         a2 /= a0;
 
-        // Calculate frequency response at current frequency
+        // Calculate frequency response at current evaluation frequency (not band frequency!)
         // H(e^jw) = (b0 + b1*e^-jw + b2*e^-j2w) / (1 + a1*e^-jw + a2*e^-j2w)
-        const w = 2 * Math.PI * freq / sampleRate;
+        const w = 2 * Math.PI * freq / sampleRate; // freq is the evaluation point, not band.frequency
         const cos_w = Math.cos(w);
         const sin_w = Math.sin(w);
         const cos_2w = Math.cos(2 * w);
@@ -267,8 +396,7 @@ function calculateFrequencyResponse(bands, sampleRate, numPoints = 512) {
         const H_mag = Math.sqrt(H_real * H_real + H_imag * H_imag);
         const gainDB = 20 * Math.log10(Math.max(H_mag, 0.0001));
 
-        totalGainDB += gainDB;
-      }
+      totalGainDB += gainDB;
     });
 
     magnitudes.push(totalGainDB);
@@ -651,24 +779,36 @@ export default function EQ({ width, modalMode = false }) {
   const canvasRef = useRef(null);
   const analyzerRef = useRef(null);
   const [eqBands, setEqBands] = useState([
-    { frequency: 60, gain: 0, type: 'highpass', q: 0.7, enabled: true },
-    { frequency: 100, gain: 0, type: 'lowshelf', q: 0.7, enabled: true },
-    { frequency: 250, gain: 0, type: 'peaking', q: 1, enabled: true },
-    { frequency: 500, gain: 0, type: 'peaking', q: 1, enabled: true },
-    { frequency: 1000, gain: 0, type: 'peaking', q: 1, enabled: true },
-    { frequency: 2000, gain: 0, type: 'peaking', q: 1, enabled: true },
-    { frequency: 4000, gain: 0, type: 'peaking', q: 1, enabled: true },
-    { frequency: 8000, gain: 0, type: 'highshelf', q: 0.7, enabled: true }
+    { frequency: 60, gain: 0, q: 0.7, type: 'peaking', enabled: true },
+    { frequency: 150, gain: 0, q: 0.7, type: 'peaking', enabled: true },
+    { frequency: 350, gain: 0, q: 0.7, type: 'peaking', enabled: true },
+    { frequency: 700, gain: 0, q: 0.7, type: 'peaking', enabled: true },
+    { frequency: 1500, gain: 0, q: 0.7, type: 'peaking', enabled: true },
+    { frequency: 3500, gain: 0, q: 0.7, type: 'peaking', enabled: true },
+    { frequency: 8000, gain: 0, q: 0.7, type: 'peaking', enabled: true },
+    { frequency: 16000, gain: 0, q: 0.7, type: 'peaking', enabled: true }
   ]);
   const [selectedBand, setSelectedBand] = useState(0);
   const [showGraphHelp, setShowGraphHelp] = useState(false);
-  
+  const [selectedPreset, setSelectedPreset] = useState('flat');
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  // Initialize with flat preset on first load
+  useEffect(() => {
+    if (!hasInitialized) {
+      const flatPreset = EQPresets.flat;
+      setEqBands(flatPreset.bands.map(band => ({ ...band })));
+      setEqGain(flatPreset.outputGain);
+      setHasInitialized(true);
+    }
+  }, [hasInitialized, setEqGain]);
+
   // Initialize audio context and analyzer
   useEffect(() => {
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     }
-    
+
     if (!analyzerRef.current && eqSpectrumAnalyzer) {
       analyzerRef.current = audioContextRef.current.createAnalyser();
       analyzerRef.current.fftSize = 2048;
@@ -1031,6 +1171,52 @@ export default function EQ({ width, modalMode = false }) {
   return (
     <>
       <Container fluid className="p-3">
+      {/* Preset Selection */}
+      <Row className="mb-3">
+        <Col xs={12} md={6} lg={4}>
+          <Form.Label className="text-white small">
+            <strong>EQ Preset</strong>
+            <span className="text-muted ms-2">(Full EQ Curve)</span>
+          </Form.Label>
+          <Form.Select
+            value={selectedPreset}
+            onChange={(e) => {
+              const presetKey = e.target.value;
+              const preset = EQPresets[presetKey];
+
+              if (preset) {
+                setSelectedPreset(presetKey);
+                // Force new array and deep clone to trigger React re-render
+                setEqBands(preset.bands.map(band => ({ ...band })));
+                setEqGain(preset.outputGain);
+              }
+            }}
+            className="bg-secondary text-white border-0"
+          >
+            <option value="" disabled>-- Select EQ Preset --</option>
+            {Object.entries(EQPresets).map(([key, preset]) => (
+              <option key={key} value={key}>{preset.name}</option>
+            ))}
+          </Form.Select>
+          <small className="text-muted">{EQPresets[selectedPreset]?.description}</small>
+        </Col>
+        <Col xs={12} md={6} lg={8} className="d-flex align-items-end justify-content-end gap-2">
+          <Button
+            variant="outline-secondary"
+            size="sm"
+            onClick={() => {
+              // Reset to flat preset
+              const flatPreset = EQPresets.flat;
+              setSelectedPreset('flat');
+              setEqBands(flatPreset.bands.map(band => ({ ...band })));
+              setEqGain(flatPreset.outputGain);
+            }}
+          >
+            Reset EQ
+          </Button>
+        </Col>
+      </Row>
+
       {/* Interactive EQ Visualization */}
       <Row className="mb-4">
         <Col xs={12}>
@@ -1130,6 +1316,7 @@ export default function EQ({ width, modalMode = false }) {
                   </div>
                 </div>
                 <Knob
+                  key={`${selectedPreset}-${index}`}
                   value={band.gain}
                   onChange={(val) => updateBand(index, { gain: val })}
                   min={-24}
@@ -1158,12 +1345,14 @@ export default function EQ({ width, modalMode = false }) {
         </Col>
       </Row>
 
-      {/* Selected Band Detailed Controls */}
-      {selectedBand >= 0 && (
-        <Row className="mb-3 bg-dark rounded p-3">
-          <Col xs={12} className="mb-3">
-            <h6 className="text-warning">Band {selectedBand + 1} Settings</h6>
-          </Col>
+      {/* Band Settings and Global Settings Side-by-Side */}
+      <Row className="border-top pt-3 mt-4">
+        {/* Selected Band Detailed Controls */}
+        {selectedBand >= 0 && (
+          <Col xs={12} lg={6} className="mb-3">
+            <div className="bg-dark rounded p-3 h-100">
+              <h6 className="text-warning mb-3">Band {selectedBand + 1} Settings</h6>
+              <Row>
           <Col xs={12} sm={6} md={3}>
             <Form.Group>
               <OverlayTrigger
@@ -1175,7 +1364,7 @@ export default function EQ({ width, modalMode = false }) {
                   </Tooltip>
                 }
               >
-                <Form.Label className="text-white small">Filter Type</Form.Label>
+                <Form.Label className="text-white small">Band {selectedBand + 1} Filter Shape</Form.Label>
               </OverlayTrigger>
               <Form.Select
                 size="sm"
@@ -1251,14 +1440,16 @@ export default function EQ({ width, modalMode = false }) {
               />
             </div>
           </Col>
-        </Row>
-      )}
+              </Row>
+            </div>
+          </Col>
+        )}
 
-      {/* Global Controls */}
-      <Row className="border-top pt-3 mt-4">
-        <Col xs={12}>
-          <h6 className="text-white mb-3">Global Settings</h6>
-        </Col>
+        {/* Global Controls */}
+        <Col xs={12} lg={selectedBand >= 0 ? 6 : 12} className="mb-3">
+          <div className="bg-dark rounded p-3 h-100">
+            <h6 className="text-white mb-3">Global Settings</h6>
+            <Row>
         <Col xs={12} sm={6} md={3}>
           <div className="text-center">
             <label className="text-white small d-block mb-2">Output Gain</label>
@@ -1311,7 +1502,10 @@ export default function EQ({ width, modalMode = false }) {
             />
           </div>
         </Col>
-      </Row>
+              </Row>
+            </div>
+          </Col>
+        </Row>
 
       {/* Mid/Side Controls */}
       {eqMidSideMode && (
@@ -1397,92 +1591,6 @@ export default function EQ({ width, modalMode = false }) {
         </Col>
       </Row>
 
-      {/* Preset and Action Buttons */}
-      <Row className="mt-4 pt-3">
-        <Col xs={12}>
-          <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <div className="d-flex gap-2 flex-wrap">
-              <Button
-                variant="outline-secondary"
-                size="sm"
-                onClick={() => {
-                  // Reset all bands to flat
-                  setEqBands(prev => prev.map(band => ({ ...band, gain: 0 })));
-                  setEqGain(0);
-                }}
-              >
-                Reset EQ
-              </Button>
-              <Button
-                variant="outline-info"
-                size="sm"
-                onClick={() => {
-                  // Vocal presence preset
-                  setEqBands([
-                    { frequency: 60, gain: -2, q: 0.7, type: 'highpass', enabled: true },
-                    { frequency: 200, gain: -1, q: 0.7, type: 'peaking', enabled: true },
-                    { frequency: 500, gain: 0, q: 0.7, type: 'peaking', enabled: true },
-                    { frequency: 1000, gain: 1, q: 0.7, type: 'peaking', enabled: true },
-                    { frequency: 3000, gain: 3, q: 0.7, type: 'peaking', enabled: true },
-                    { frequency: 5000, gain: 2, q: 0.7, type: 'peaking', enabled: true },
-                    { frequency: 8000, gain: 1, q: 0.7, type: 'highshelf', enabled: true },
-                    { frequency: 12000, gain: 0, q: 0.7, type: 'highshelf', enabled: true }
-                  ]);
-                }}
-              >
-                Vocal Boost
-              </Button>
-              <Button
-                variant="outline-info"
-                size="sm"
-                onClick={() => {
-                  // Warm bass preset
-                  setEqBands([
-                    { frequency: 60, gain: 4, q: 0.7, type: 'lowshelf', enabled: true },
-                    { frequency: 120, gain: 2, q: 0.7, type: 'peaking', enabled: true },
-                    { frequency: 250, gain: 1, q: 0.7, type: 'peaking', enabled: true },
-                    { frequency: 500, gain: 0, q: 0.7, type: 'peaking', enabled: true },
-                    { frequency: 1000, gain: -1, q: 0.7, type: 'peaking', enabled: true },
-                    { frequency: 3000, gain: 0, q: 0.7, type: 'peaking', enabled: true },
-                    { frequency: 8000, gain: -2, q: 0.7, type: 'highshelf', enabled: true },
-                    { frequency: 12000, gain: -3, q: 0.7, type: 'highshelf', enabled: true }
-                  ]);
-                }}
-              >
-                Warm Bass
-              </Button>
-              <Button
-                variant="outline-info"
-                size="sm"
-                onClick={() => {
-                  // Bright presence preset
-                  setEqBands([
-                    { frequency: 80, gain: 0, q: 0.7, type: 'highpass', enabled: true },
-                    { frequency: 200, gain: -1, q: 0.7, type: 'peaking', enabled: true },
-                    { frequency: 500, gain: -1, q: 0.7, type: 'peaking', enabled: true },
-                    { frequency: 1000, gain: 0, q: 0.7, type: 'peaking', enabled: true },
-                    { frequency: 3000, gain: 2, q: 0.7, type: 'peaking', enabled: true },
-                    { frequency: 6000, gain: 3, q: 0.7, type: 'peaking', enabled: true },
-                    { frequency: 10000, gain: 2, q: 0.7, type: 'highshelf', enabled: true },
-                    { frequency: 15000, gain: 1, q: 0.7, type: 'highshelf', enabled: true }
-                  ]);
-                }}
-              >
-                Air & Brightness
-              </Button>
-            </div>
-            {modalMode && cutRegion && (
-              <Button
-                variant="success"
-                onClick={applyEQ}
-                className="px-4"
-              >
-                Apply EQ to Selection
-              </Button>
-            )}
-          </div>
-        </Col>
-      </Row>
       </Container>
 
       {/* Graph Help Modal */}
