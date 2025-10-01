@@ -1,277 +1,113 @@
 'use client';
 
 import { useCallback, useRef, useEffect, useState } from 'react';
-import { Container, Row, Col, Button, Form } from 'react-bootstrap';
+import { Container, Row, Col, Button, Form, Modal, OverlayTrigger, Tooltip } from 'react-bootstrap';
+import { FaQuestionCircle } from 'react-icons/fa';
 import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
 
 /**
- * Advanced Echo Processor Class
- * Integrates multi-tap capability and LFO modulation from advanced engines
+ * Educational Tooltips
  */
-class AdvancedEchoProcessor {
-  constructor(audioContext, maxDelayTime = 2.0) {
+const EchoTooltips = {
+  delayTime: "Time between the original sound and the echo. Shorter delays (50-200ms) create slapback effects, longer delays (300-600ms) create rhythmic echoes.",
+  feedback: "How much of the echo is fed back into itself. Higher values create more repetitions. Be careful with values over 80% as they can build up quickly.",
+  inputGain: "Volume of the original signal going into the echo. Use lower values to make the echo more subtle.",
+  outputGain: "Overall volume of the echo effect. Reduce if the echo is too loud compared to the original sound.",
+  taps: "Number of echo repetitions. Each tap creates a separate echo at different times.",
+  spread: "How far apart in time the multiple taps are. Creates rhythmic patterns with multiple taps.",
+  modRate: "Speed of pitch modulation. Adds vintage tape-like warble to the echoes.",
+  modDepth: "Amount of pitch modulation. Subtle amounts (5-15%) create analog warmth.",
+  pingPong: "Alternates echoes between left and right channels for a bouncing stereo effect.",
+  filter: "Shapes the tone of the echoes. High-pass removes bass, low-pass removes treble."
+};
+
+/**
+ * Simple, Safe Echo Processor
+ * Educational echo effect with safety limits
+ */
+class SimpleEchoProcessor {
+  constructor(audioContext) {
     this.context = audioContext;
     this.sampleRate = audioContext.sampleRate;
-    this.maxDelayTime = maxDelayTime;
-    
+
     // Create nodes
     this.input = audioContext.createGain();
     this.output = audioContext.createGain();
     this.wetGain = audioContext.createGain();
     this.dryGain = audioContext.createGain();
-    
-    // Multi-tap delay lines (from Advanced Delay engine)
-    this.delayTaps = [];
-    this.tapGains = [];
-    this.tapFilters = [];
-    
-    // LFO for modulation (from Chorus engine)
-    this.lfo = audioContext.createOscillator();
-    this.lfoGain = audioContext.createGain();
-    
-    // Ping-pong stereo processing
-    this.splitter = audioContext.createChannelSplitter(2);
-    this.merger = audioContext.createChannelMerger(2);
-    
-    // Parameters
-    this.baseDelayTime = 0.5; // seconds
-    this.feedback = 0.5;
+
+    // Single delay line
+    this.delay = audioContext.createDelay(2.0);
+    this.feedbackGain = audioContext.createGain();
+
+    // Safety limiter
+    this.compressor = audioContext.createDynamicsCompressor();
+    this.compressor.threshold.value = -6;
+    this.compressor.knee.value = 2;
+    this.compressor.ratio.value = 12;
+    this.compressor.attack.value = 0.003;
+    this.compressor.release.value = 0.25;
+
+    // Parameters with safe defaults
+    this.delayTime = 0.5; // seconds
+    this.feedback = 0.5; // 50%
     this.inputGain = 1.0;
     this.outputGain = 1.0;
-    this.advancedMode = false;
-    this.taps = 1; // Start with single tap for basic mode
-    this.spread = 0.3;
-    this.modRate = 0.5;
-    this.modDepth = 0.0; // Start with no modulation for basic mode
-    this.modWaveform = 'sine';
-    this.pingPong = false;
-    this.filterType = 'none';
-    this.filterFreq = 2000;
-    this.tempoSync = false;
-    this.noteDivision = 4;
-    this.lfoStarted = false;  // Track whether LFO has been started
 
-    this.setupLFO();
-    this.setupDelayTaps(this.taps);
     this.setupRouting();
   }
-  
-  setupLFO() {
-    // LFO system from Chorus engine
-    this.lfo.type = this.modWaveform;
-    this.lfo.frequency.value = this.modRate;
-    this.lfoGain.gain.value = this.modDepth * this.baseDelayTime * 0.1;
-
-    this.lfo.connect(this.lfoGain);
-
-    // Start LFO only if not already started
-    if (!this.lfoStarted) {
-      this.lfo.start();
-      this.lfoStarted = true;
-    }
-  }
-  
-  setupDelayTaps(numTaps) {
-    // Clean up existing taps
-    this.delayTaps.forEach(tap => tap.disconnect());
-    this.tapGains.forEach(gain => gain.disconnect());
-    this.tapFilters.forEach(filter => filter.disconnect());
-    
-    this.delayTaps = [];
-    this.tapGains = [];
-    this.tapFilters = [];
-    
-    // Create new taps (Multi-tap engine from Advanced Delay)
-    for (let i = 0; i < numTaps; i++) {
-      // Delay line
-      const delay = this.context.createDelay(this.maxDelayTime);
-      
-      // Gain for tap level
-      const gain = this.context.createGain();
-      gain.gain.value = 1.0 / numTaps; // Normalize gain
-      
-      // Filter for each tap
-      const filter = this.context.createBiquadFilter();
-      filter.type = this.filterType === 'none' ? 'allpass' : this.filterType;
-      filter.frequency.value = this.filterFreq;
-      filter.Q.value = 1;
-      
-      this.delayTaps.push(delay);
-      this.tapGains.push(gain);
-      this.tapFilters.push(filter);
-    }
-    
-    this.updateTapTimes();
-    this.connectTaps();
-  }
-  
-  updateTapTimes() {
-    for (let i = 0; i < this.delayTaps.length; i++) {
-      const tapIndex = i + 1;
-      let tapTime;
-      
-      if (this.spread === 0 || this.delayTaps.length === 1) {
-        // All taps at same time (basic mode behavior)
-        tapTime = this.baseDelayTime;
-      } else {
-        // Spread taps across time (advanced mode)
-        const spreadRange = this.baseDelayTime * this.spread;
-        tapTime = this.baseDelayTime + (tapIndex - 1) * (spreadRange / (this.delayTaps.length - 1 || 1));
-      }
-      
-      this.delayTaps[i].delayTime.setValueAtTime(
-        Math.max(0.001, Math.min(this.maxDelayTime, tapTime)),
-        this.context.currentTime
-      );
-    }
-  }
-  
-  connectTaps() {
-    // Connect each tap in series with processing
-    for (let i = 0; i < this.delayTaps.length; i++) {
-      const delay = this.delayTaps[i];
-      const gain = this.tapGains[i];
-      const filter = this.tapFilters[i];
-      
-      // Connect: input -> delay -> filter -> gain -> output
-      delay.connect(filter);
-      filter.connect(gain);
-      gain.connect(this.wetGain);
-      
-      // Connect modulation to delay time (LFO engine from Chorus)
-      this.lfoGain.connect(delay.delayTime);
-    }
-  }
-  
   setupRouting() {
-    // Input splitting for stereo processing
-    this.input.connect(this.splitter);
-    this.input.connect(this.dryGain);
-    
+    // Simple, safe routing
     // Dry path
-    this.dryGain.connect(this.output);
-    
-    // Wet path
-    this.wetGain.connect(this.output);
-    
-    // Set initial mix (always 50/50 for echo, unlike delay)
+    this.input.connect(this.dryGain);
+    this.dryGain.connect(this.compressor);
+
+    // Wet path with single delay and feedback
+    this.input.connect(this.delay);
+    this.delay.connect(this.wetGain);
+    this.delay.connect(this.feedbackGain);
+    this.feedbackGain.connect(this.delay);
+    this.wetGain.connect(this.compressor);
+
+    // Safety compressor to output
+    this.compressor.connect(this.output);
+
+    // Set initial values
     this.setWetDryMix();
   }
-  
+
   setWetDryMix() {
-    // For echo, we want both dry and wet signals
-    this.wetGain.gain.setValueAtTime(this.outputGain, this.context.currentTime);
+    // Balanced mix for echo
+    this.wetGain.gain.setValueAtTime(this.outputGain * 0.7, this.context.currentTime);
     this.dryGain.gain.setValueAtTime(this.inputGain, this.context.currentTime);
   }
   
-  // Process audio with feedback routing
-  processAudioWithFeedback() {
-    // Create feedback path
-    const feedbackGain = this.context.createGain();
-    feedbackGain.gain.value = this.feedback;
-    
-    // Input -> taps
-    for (let i = 0; i < this.delayTaps.length; i++) {
-      if (this.pingPong && i % 2 === 1) {
-        // Ping-pong: alternate taps go to opposite channels
-        this.splitter.connect(this.delayTaps[i], 1);
-      } else {
-        this.splitter.connect(this.delayTaps[i], 0);
-      }
-      
-      // Add feedback
-      feedbackGain.connect(this.delayTaps[i]);
-    }
-    
-    // Feedback connection
-    this.wetGain.connect(feedbackGain);
-  }
-  
-  // Calculate tempo-synced delay time
-  getEffectiveDelayTime(globalBPM) {
-    if (this.tempoSync && globalBPM > 0) {
-      const beatDurationMs = (60 / globalBPM) * 1000;
-      return beatDurationMs * (4 / this.noteDivision);
-    }
-    return this.baseDelayTime * 1000; // Convert to ms
-  }
-  
-  // Parameter setters
+  // Simple, safe parameter setters
   setDelayTime(time) {
-    this.baseDelayTime = Math.max(0.001, Math.min(this.maxDelayTime, time / 1000));
-    this.updateTapTimes();
-    
-    // Update LFO modulation depth based on delay time
-    this.lfoGain.gain.value = this.modDepth * this.baseDelayTime * 0.1;
+    // Limit delay time to safe range (1ms to 2 seconds)
+    this.delayTime = Math.max(0.001, Math.min(2, time / 1000));
+    this.delay.delayTime.setValueAtTime(this.delayTime, this.context.currentTime);
   }
-  
+
   setFeedback(feedback) {
-    this.feedback = Math.max(0, Math.min(0.99, feedback));
+    // Limit feedback to 80% maximum for safety
+    this.feedback = Math.max(0, Math.min(0.8, feedback));
+    this.feedbackGain.gain.setValueAtTime(this.feedback, this.context.currentTime);
   }
-  
+
   setInputGain(gain) {
-    this.inputGain = Math.max(0, Math.min(2, gain));
+    // Limit input gain to 1.5x maximum
+    this.inputGain = Math.max(0, Math.min(1.5, gain));
+    this.input.gain.setValueAtTime(this.inputGain, this.context.currentTime);
     this.setWetDryMix();
   }
-  
+
   setOutputGain(gain) {
-    this.outputGain = Math.max(0, Math.min(2, gain));
+    // Limit output gain to 1.5x maximum
+    this.outputGain = Math.max(0, Math.min(1.5, gain));
+    this.output.gain.setValueAtTime(this.outputGain, this.context.currentTime);
     this.setWetDryMix();
-  }
-  
-  setAdvancedMode(advanced) {
-    this.advancedMode = advanced;
-    if (!advanced) {
-      // Reset to basic mode defaults
-      this.setTaps(1);
-      this.setModulation(0.5, 0, 'sine'); // No modulation in basic mode
-      this.setPingPong(false);
-      this.setFilter('none', 2000);
-    }
-  }
-  
-  setTaps(taps) {
-    this.taps = Math.max(1, Math.min(8, taps));
-    this.setupDelayTaps(this.taps);
-  }
-  
-  setSpread(spread) {
-    this.spread = Math.max(0, Math.min(1, spread));
-    this.updateTapTimes();
-  }
-  
-  setModulation(rate, depth, waveform) {
-    this.modRate = Math.max(0.1, Math.min(10, rate));
-    this.modDepth = Math.max(0, Math.min(1, depth));
-    this.modWaveform = waveform;
-    
-    this.lfo.frequency.setValueAtTime(this.modRate, this.context.currentTime);
-    this.lfo.type = this.modWaveform;
-    this.lfoGain.gain.value = this.modDepth * this.baseDelayTime * 0.1;
-  }
-  
-  setPingPong(pingPong) {
-    this.pingPong = pingPong;
-    this.connectTaps();
-  }
-  
-  setFilter(type, frequency) {
-    this.filterType = type;
-    this.filterFreq = Math.max(20, Math.min(20000, frequency));
-    
-    this.tapFilters.forEach(filter => {
-      filter.type = this.filterType === 'none' ? 'allpass' : this.filterType;
-      filter.frequency.setValueAtTime(this.filterFreq, this.context.currentTime);
-    });
-  }
-  
-  setTempoSync(sync) {
-    this.tempoSync = sync;
-  }
-  
-  setNoteDivision(division) {
-    this.noteDivision = division;
   }
   
   connect(destination) {
@@ -284,17 +120,17 @@ class AdvancedEchoProcessor {
 }
 
 /**
- * Enhanced echo processing function with advanced capabilities
+ * Simple, safe echo processing function
  */
 export async function processEchoRegion(audioBuffer, startSample, endSample, parameters) {
   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
   const sampleRate = audioBuffer.sampleRate;
   const regionLength = endSample - startSample;
-  
+
   // Calculate processing time with echo tails
   const maxDelayTime = (parameters.delay || 500) / 1000;
-  const echoTailSamples = Math.floor(maxDelayTime * sampleRate * 10); // Allow for echo decay
-  
+  const echoTailSamples = Math.floor(maxDelayTime * sampleRate * 5); // Allow for echo decay
+
   // Create offline context
   const totalLength = audioBuffer.length + echoTailSamples;
   const offlineContext = new OfflineAudioContext(
@@ -302,39 +138,22 @@ export async function processEchoRegion(audioBuffer, startSample, endSample, par
     totalLength,
     sampleRate
   );
-  
+
   // Create source
   const source = offlineContext.createBufferSource();
   source.buffer = audioBuffer;
-  
-  // Create echo processor
-  const echoProcessor = new AdvancedEchoProcessor(offlineContext);
+
+  // Create simple, safe echo processor
+  const echoProcessor = new SimpleEchoProcessor(offlineContext);
   echoProcessor.setDelayTime(parameters.delay || 500);
-  echoProcessor.setFeedback(parameters.feedback || 0.5);
-  echoProcessor.setInputGain(parameters.inputGain || 1.0);
-  echoProcessor.setOutputGain(parameters.outputGain || 1.0);
-  
-  // Set advanced parameters if in advanced mode
-  if (parameters.advancedMode) {
-    echoProcessor.setAdvancedMode(true);
-    echoProcessor.setTaps(parameters.taps || 1);
-    echoProcessor.setSpread(parameters.spread || 0.3);
-    echoProcessor.setModulation(
-      parameters.modRate || 0.5,
-      parameters.modDepth || 0,
-      parameters.modWaveform || 'sine'
-    );
-    echoProcessor.setPingPong(parameters.pingPong || false);
-    echoProcessor.setFilter(parameters.filterType || 'none', parameters.filterFreq || 2000);
-    echoProcessor.setTempoSync(parameters.tempoSync || false);
-    echoProcessor.setNoteDivision(parameters.noteDivision || 4);
-  }
-  
+  echoProcessor.setFeedback(Math.min(0.8, parameters.feedback || 0.5)); // Safety cap at 80%
+  echoProcessor.setInputGain(Math.min(1.5, parameters.inputGain || 1.0)); // Safety cap at 1.5x
+  echoProcessor.setOutputGain(Math.min(1.5, parameters.outputGain || 1.0)); // Safety cap at 1.5x
+
   // Connect and process
   source.connect(echoProcessor.input);
-  echoProcessor.processAudioWithFeedback();
   echoProcessor.connect(offlineContext.destination);
-  
+
   source.start(0);
   const renderedBuffer = await offlineContext.startRendering();
   
@@ -380,539 +199,224 @@ export default function Echo({ width }) {
   } = useAudio();
   
   const {
-    inGain,
-    setInGain,
-    outGain,
-    setOutGain,
-    delay,
-    setDelay,
-    decay,
-    setDecay,
+    echoDelay,
+    setEchoDelay,
+    echoFeedback,
+    setEchoFeedback,
+    echoInputGain,
+    setEchoInputGain,
+    echoOutputGain,
+    setEchoOutputGain,
     globalBPM,
     cutRegion
   } = useEffects();
   
   const audioContextRef = useRef(null);
   const processorRef = useRef(null);
-  const canvasRef = useRef(null);
-  const [advancedMode, setAdvancedMode] = useState(false);
-  
-  // Advanced mode parameters (only shown when advanced mode is enabled)
-  const [echoTaps, setEchoTaps] = useState(1);
-  const [echoSpread, setEchoSpread] = useState(0.3);
-  const [echoModRate, setEchoModRate] = useState(0.5);
-  const [echoModDepth, setEchoModDepth] = useState(0);
-  const [echoModWaveform, setEchoModWaveform] = useState('sine');
-  const [echoPingPong, setEchoPingPong] = useState(false);
-  const [echoFilterType, setEchoFilterType] = useState('none');
-  const [echoFilterFreq, setEchoFilterFreq] = useState(2000);
-  const [echoTempoSync, setEchoTempoSync] = useState(false);
-  const [echoNoteDivision, setEchoNoteDivision] = useState(4);
+  const [showHelpModal, setShowHelpModal] = useState(false);
   
   // Initialize audio context and processor
   useEffect(() => {
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     }
-    
+
     if (!processorRef.current) {
-      processorRef.current = new AdvancedEchoProcessor(audioContextRef.current);
+      processorRef.current = new SimpleEchoProcessor(audioContextRef.current);
     }
   }, []);
   
   // Update processor parameters
   useEffect(() => {
     if (processorRef.current) {
-      processorRef.current.setDelayTime(getEffectiveDelayTime());
-      processorRef.current.setFeedback(decay);
-      processorRef.current.setInputGain(inGain);
-      processorRef.current.setOutputGain(outGain);
-      processorRef.current.setAdvancedMode(advancedMode);
-      
-      if (advancedMode) {
-        processorRef.current.setTaps(echoTaps);
-        processorRef.current.setSpread(echoSpread);
-        processorRef.current.setModulation(echoModRate, echoModDepth, echoModWaveform);
-        processorRef.current.setPingPong(echoPingPong);
-        processorRef.current.setFilter(echoFilterType, echoFilterFreq);
-        processorRef.current.setTempoSync(echoTempoSync);
-        processorRef.current.setNoteDivision(echoNoteDivision);
-      }
+      processorRef.current.setDelayTime(echoDelay);
+      processorRef.current.setFeedback(echoFeedback);
+      processorRef.current.setInputGain(echoInputGain);
+      processorRef.current.setOutputGain(echoOutputGain);
     }
-  }, [delay, decay, inGain, outGain, advancedMode, echoTaps, echoSpread, echoModRate,
-      echoModDepth, echoModWaveform, echoPingPong, echoFilterType, echoFilterFreq,
-      echoTempoSync, echoNoteDivision, globalBPM]);
-  
-  // Calculate tempo-synced delay time
-  const getEffectiveDelayTime = () => {
-    if (echoTempoSync && globalBPM > 0) {
-      const beatDurationMs = (60 / globalBPM) * 1000;
-      return beatDurationMs * (4 / echoNoteDivision);
-    }
-    return delay;
-  };
-  
-  // Draw echo visualization
-  const drawVisualization = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    const width = canvas.width;
-    const height = canvas.height;
-    
-    // Clear canvas
-    ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(0, 0, width, height);
-    
-    // Draw grid
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1;
-    
-    for (let i = 0; i <= 4; i++) {
-      const y = (i / 4) * height;
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(width, y);
-      ctx.stroke();
-    }
-    
-    const delayTime = getEffectiveDelayTime();
-    const maxTime = 2000; // ms
-    
-    // Draw echo taps
-    const displayTaps = advancedMode ? echoTaps : 1;
-    for (let i = 0; i < displayTaps; i++) {
-      const tapIndex = i + 1;
-      let tapTime;
-      
-      if (!advancedMode || echoSpread === 0 || displayTaps === 1) {
-        tapTime = delayTime;
-      } else {
-        const spreadRange = delayTime * echoSpread;
-        tapTime = delayTime + (tapIndex - 1) * (spreadRange / (displayTaps - 1 || 1));
-      }
-      
-      const x = (tapTime / maxTime) * width;
-      const tapHeight = (1 - (i / displayTaps)) * height * 0.8 * decay;
-      
-      // Draw echo tap
-      ctx.strokeStyle = echoPingPong && i % 2 === 1 ? '#7bafd4' : '#e75b5c';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(x, height);
-      ctx.lineTo(x, height - tapHeight);
-      ctx.stroke();
-      
-      // Draw tap number if advanced mode
-      if (advancedMode && displayTaps > 1) {
-        ctx.fillStyle = '#fff';
-        ctx.font = '10px monospace';
-        ctx.fillText(`${i + 1}`, x - 5, height - tapHeight - 5);
-      }
-    }
-    
-    // Draw modulation wave if enabled
-    if (advancedMode && echoModDepth > 0) {
-      ctx.strokeStyle = '#cbb677';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      
-      for (let x = 0; x < width; x++) {
-        const t = (x / width) * 4 * Math.PI; // 2 cycles
-        let y;
-        
-        switch (echoModWaveform) {
-          case 'sine':
-            y = Math.sin(t);
-            break;
-          case 'triangle':
-            y = Math.asin(Math.sin(t)) * (2 / Math.PI);
-            break;
-          case 'square':
-            y = Math.sign(Math.sin(t));
-            break;
-          case 'sawtooth':
-            y = 2 * (t / (2 * Math.PI) - Math.floor(t / (2 * Math.PI) + 0.5));
-            break;
-          default:
-            y = Math.sin(t);
-        }
-        
-        y = (height / 2) + (y * echoModDepth * height / 6);
-        
-        if (x === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-      }
-      
-      ctx.stroke();
-    }
-    
-    // Draw labels
-    ctx.fillStyle = '#e75b5c';
-    ctx.font = '12px monospace';
-    ctx.fillText(`Time: ${delayTime.toFixed(0)}ms`, 10, 20);
-    
-    if (advancedMode) {
-      ctx.fillText(`Taps: ${echoTaps}`, 10, 35);
-      if (echoTempoSync) {
-        ctx.fillStyle = '#7bafd4';
-        ctx.fillText('SYNC', 10, 50);
-      }
-      if (echoPingPong) {
-        ctx.fillStyle = '#cbb677';
-        ctx.fillText('PING-PONG', 10, height - 25);
-      }
-      if (echoModDepth > 0) {
-        ctx.fillStyle = '#cbb677';
-        ctx.fillText(`Mod: ${echoModRate.toFixed(1)}Hz`, 10, height - 10);
-      }
-    }
-    
-  }, [delay, decay, advancedMode, echoTaps, echoSpread, echoModRate, echoModDepth,
-      echoModWaveform, echoPingPong, echoTempoSync, echoNoteDivision, globalBPM]);
-  
-  // Update visualization
-  useEffect(() => {
-    drawVisualization();
-  }, [drawVisualization]);
-  
+  }, [echoDelay, echoFeedback, echoInputGain, echoOutputGain]);
+
   // Apply echo to selected region
   const applyEcho = useCallback(async () => {
     if (!cutRegion || !wavesurferRef.current) {
       alert('Please select a region first');
       return;
     }
-    
+
     try {
       const wavesurfer = wavesurferRef.current;
       const context = audioContextRef.current;
-      
+
       // Get the audio buffer
       const response = await fetch(audioURL);
       const arrayBuffer = await response.arrayBuffer();
       const audioBuffer = await context.decodeAudioData(arrayBuffer);
-      
+
       // Calculate sample positions
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      
+
       // Build parameters object
       const parameters = {
-        delay: getEffectiveDelayTime(),
-        feedback: decay,
-        inputGain: inGain,
-        outputGain: outGain,
-        advancedMode: advancedMode
+        delay: echoDelay,
+        feedback: echoFeedback,
+        inputGain: echoInputGain,
+        outputGain: echoOutputGain
       };
-      
-      // Add advanced parameters if enabled
-      if (advancedMode) {
-        Object.assign(parameters, {
-          taps: echoTaps,
-          spread: echoSpread,
-          modRate: echoModRate,
-          modDepth: echoModDepth,
-          modWaveform: echoModWaveform,
-          pingPong: echoPingPong,
-          filterType: echoFilterType,
-          filterFreq: echoFilterFreq,
-          tempoSync: echoTempoSync,
-          noteDivision: echoNoteDivision
-        });
-      }
-      
+
       const outputBuffer = await processEchoRegion(
         audioBuffer,
         startSample,
         endSample,
         parameters
       );
-      
+
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
       const blob = new Blob([wav], { type: 'audio/wav' });
       const url = URL.createObjectURL(blob);
-      
+
       // Update audio and history
-      addToEditHistory(url, advancedMode ? 'Apply Advanced Echo' : 'Apply Echo', {
+      addToEditHistory(url, 'Apply Echo', {
         effect: 'echo',
         parameters,
         region: { start: cutRegion.start, end: cutRegion.end }
       });
-      
+
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
-      
+
     } catch (error) {
       console.error('Error applying echo:', error);
       alert('Error applying echo. Please try again.');
     }
-  }, [audioURL, addToEditHistory, wavesurferRef, cutRegion, delay, decay, inGain, outGain,
-      advancedMode, echoTaps, echoSpread, echoModRate, echoModDepth, echoModWaveform,
-      echoPingPong, echoFilterType, echoFilterFreq, echoTempoSync, echoNoteDivision, globalBPM]);
+  }, [audioURL, addToEditHistory, wavesurferRef, cutRegion, echoDelay, echoFeedback, echoInputGain, echoOutputGain]);
   
-  const filterTypes = [
-    { key: 'none', name: 'No Filter' },
-    { key: 'lowpass', name: 'Low Pass' },
-    { key: 'highpass', name: 'High Pass' },
-    { key: 'bandpass', name: 'Band Pass' }
-  ];
-  
-  const waveformTypes = [
-    { key: 'sine', name: 'Sine' },
-    { key: 'triangle', name: 'Triangle' },
-    { key: 'square', name: 'Square' },
-    { key: 'sawtooth', name: 'Sawtooth' }
-  ];
-  
-  const noteValues = [
-    { key: 1, name: 'Whole', symbol: '𝅝' },
-    { key: 2, name: 'Half', symbol: '𝅗𝅥' },
-    { key: 4, name: 'Quarter', symbol: '♩' },
-    { key: 8, name: 'Eighth', symbol: '♫' },
-    { key: 16, name: 'Sixteenth', symbol: '♬' }
-  ];
   
   return (
     <Container fluid className="p-2">
-      {/* Echo Visualization */}
+      {/* Echo Header with Help */}
       <Row className="mb-3">
         <Col xs={12}>
-          <div className="bg-dark border border-secondary rounded position-relative">
-            <canvas
-              ref={canvasRef}
-              width={400}
-              height={120}
-              style={{ width: '100%', height: '120px' }}
-            />
-            <div className="position-absolute top-0 right-0 p-2">
-              <small className="text-muted">{advancedMode ? 'Multi-Tap Echo' : 'Echo Pattern'}</small>
-            </div>
+          <div className="d-flex justify-content-between align-items-center">
+            <h5 className="text-white mb-0">Echo Effect</h5>
+            <OverlayTrigger
+              placement="left"
+              delay={{ show: 250, hide: 100 }}
+              overlay={
+                <Tooltip>
+                  Click for detailed explanation of echo effects
+                </Tooltip>
+              }
+            >
+              <Button
+                size="sm"
+                variant="link"
+                className="p-0 text-info"
+                onClick={() => setShowHelpModal(true)}
+              >
+                <FaQuestionCircle size={20} />
+              </Button>
+            </OverlayTrigger>
           </div>
         </Col>
       </Row>
-      
-      {/* Mode Toggle */}
-      <Row className="mb-2">
-        <Col xs={12} md={6}>
-          <Form.Check
-            type="switch"
-            id="advanced-mode"
-            label={`${advancedMode ? 'Advanced' : 'Basic'} Mode`}
-            checked={advancedMode}
-            onChange={(e) => setAdvancedMode(e.target.checked)}
-            className="text-white"
-          />
-          <small className="text-muted">
-            {advancedMode ? 'Multi-tap echo with modulation and filtering' : 'Simple echo with feedback'}
-          </small>
-        </Col>
-        
-        {advancedMode && (
-          <Col xs={12} md={6} className="d-flex align-items-end">
-            <Form.Check
-              type="switch"
-              id="tempo-sync"
-              label="Tempo Sync"
-              checked={echoTempoSync}
-              onChange={(e) => setEchoTempoSync(e.target.checked)}
-              className="text-white"
-            />
-          </Col>
-        )}
-      </Row>
-      
-      {/* Basic Controls - Always Visible */}
+
+      {/* Echo Controls */}
       <Row className="mb-2">
         <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={echoTempoSync ? echoNoteDivision : delay}
-            onChange={echoTempoSync ? setEchoNoteDivision : setDelay}
-            min={echoTempoSync ? 1 : 0.1}
-            max={echoTempoSync ? 16 : 2000}
-            step={echoTempoSync ? 1 : 1}
-            label="Delay Time"
-            displayValue={echoTempoSync ? 
-              noteValues.find(n => n.key === echoNoteDivision)?.symbol || `1/${echoNoteDivision}` :
-              `${delay.toFixed(0)}ms`}
-            size={50}
-            color="#e75b5c"
-          />
-        </Col>
-        
-        <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={decay}
-            onChange={setDecay}
-            min={0}
-            max={0.99}
-            step={0.01}
-            label="Feedback"
-            displayValue={`${Math.round(decay * 100)}%`}
-            size={50}
-            color="#cbb677"
-          />
-        </Col>
-        
-        <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={inGain}
-            onChange={setInGain}
-            min={0}
-            max={2}
-            step={0.01}
-            label="Input Gain"
-            displayValue={`${inGain.toFixed(2)}x`}
-            size={50}
-            color="#92ceaa"
-          />
-        </Col>
-        
-        <Col xs={6} sm={4} md={2}>
-          <Knob
-            value={outGain}
-            onChange={setOutGain}
-            min={0}
-            max={2}
-            step={0.01}
-            label="Output Gain"
-            displayValue={`${outGain.toFixed(2)}x`}
-            size={50}
-            color="#ffa500"
-          />
-        </Col>
-      </Row>
-      
-      {/* Advanced Controls - Only Visible in Advanced Mode */}
-      {advancedMode && (
-        <>
-          <Row className="mb-2">
-            <Col xs={12} md={4}>
-              <Form.Label className="text-white small">Filter Type</Form.Label>
-              <Form.Select
-                value={echoFilterType}
-                onChange={(e) => setEchoFilterType(e.target.value)}
-                className="bg-secondary text-white border-0"
-              >
-                {filterTypes.map(type => (
-                  <option key={type.key} value={type.key}>{type.name}</option>
-                ))}
-              </Form.Select>
-            </Col>
-            
-            <Col xs={12} md={4}>
-              <Form.Label className="text-white small">Mod Waveform</Form.Label>
-              <Form.Select
-                value={echoModWaveform}
-                onChange={(e) => setEchoModWaveform(e.target.value)}
-                className="bg-secondary text-white border-0"
-              >
-                {waveformTypes.map(type => (
-                  <option key={type.key} value={type.key}>{type.name}</option>
-                ))}
-              </Form.Select>
-            </Col>
-            
-            <Col xs={12} md={4} className="d-flex align-items-end">
-              <Form.Check
-                type="switch"
-                id="ping-pong"
-                label="Ping-Pong"
-                checked={echoPingPong}
-                onChange={(e) => setEchoPingPong(e.target.checked)}
-                className="text-white"
-              />
-            </Col>
-          </Row>
-          
-          <Row className="mb-2">
-            <Col xs={12}>
-              <div className="text-white small mb-2">Advanced Parameters</div>
-            </Col>
-            
-            <Col xs={6} sm={4} md={2}>
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{EchoTooltips.delayTime}</Tooltip>}
+          >
+            <div>
               <Knob
-                value={echoTaps}
-                onChange={setEchoTaps}
-                min={1}
-                max={8}
-                step={1}
-                label="Taps"
-                displayValue={`${echoTaps}`}
-                size={45}
-                color="#7bafd4"
-              />
-            </Col>
-            
-            <Col xs={6} sm={4} md={2}>
-              <Knob
-                value={echoSpread}
-                onChange={setEchoSpread}
-                min={0}
-                max={1}
-                step={0.01}
-                label="Spread"
-                displayValue={`${Math.round(echoSpread * 100)}%`}
-                size={45}
-                color="#dda0dd"
-              />
-            </Col>
-            
-            <Col xs={6} sm={4} md={2}>
-              <Knob
-                value={echoModRate}
-                onChange={setEchoModRate}
+                value={echoDelay}
+                onChange={setEchoDelay}
                 min={0.1}
-                max={10}
-                step={0.1}
-                label="Mod Rate"
-                displayValue={`${echoModRate.toFixed(1)}Hz`}
-                size={45}
+                max={2000}
+                step={1}
+                label="Delay Time"
+                displayValue={`${echoDelay.toFixed(0)}ms`}
+                size={50}
+                color="#e75b5c"
+              />
+            </div>
+          </OverlayTrigger>
+        </Col>
+
+        <Col xs={6} sm={4} md={2}>
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{EchoTooltips.feedback}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={echoFeedback}
+                onChange={setEchoFeedback}
+                min={0}
+                max={0.8}
+                step={0.01}
+                label="Feedback"
+                displayValue={`${Math.round(echoFeedback * 100)}%`}
+                size={50}
                 color="#cbb677"
               />
-            </Col>
-            
-            <Col xs={6} sm={4} md={2}>
+            </div>
+          </OverlayTrigger>
+        </Col>
+
+        <Col xs={6} sm={4} md={2}>
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{EchoTooltips.inputGain}</Tooltip>}
+          >
+            <div>
               <Knob
-                value={echoModDepth}
-                onChange={setEchoModDepth}
+                value={echoInputGain}
+                onChange={setEchoInputGain}
                 min={0}
-                max={1}
+                max={1.5}
                 step={0.01}
-                label="Mod Depth"
-                displayValue={`${Math.round(echoModDepth * 100)}%`}
-                size={45}
-                color="#dda0dd"
+                label="Input Gain"
+                displayValue={`${echoInputGain.toFixed(2)}x`}
+                size={50}
+                color="#92ceaa"
               />
-            </Col>
-            
-            <Col xs={6} sm={4} md={2}>
+            </div>
+          </OverlayTrigger>
+        </Col>
+
+        <Col xs={6} sm={4} md={2}>
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{EchoTooltips.outputGain}</Tooltip>}
+          >
+            <div>
               <Knob
-                value={echoFilterFreq}
-                onChange={setEchoFilterFreq}
-                min={20}
-                max={20000}
-                step={10}
-                label="Filter Freq"
-                displayValue={echoFilterFreq >= 1000 ? `${(echoFilterFreq/1000).toFixed(1)}k` : `${echoFilterFreq}Hz`}
-                size={45}
-                color="#7bafd4"
-                logarithmic={true}
-                disabled={echoFilterType === 'none'}
+                value={echoOutputGain}
+                onChange={setEchoOutputGain}
+                min={0}
+                max={1.5}
+                step={0.01}
+                label="Output Gain"
+                displayValue={`${echoOutputGain.toFixed(2)}x`}
+                size={50}
+                color="#ffa500"
               />
-            </Col>
-          </Row>
-        </>
-      )}
-      
+            </div>
+          </OverlayTrigger>
+        </Col>
+      </Row>
+
       {/* Apply Button */}
       <Row>
         <Col xs={12} sm={6} md={4} lg={3}>
@@ -921,10 +425,71 @@ export default function Echo({ width }) {
             className="w-100"
             onClick={applyEcho}
           >
-            Apply {advancedMode ? 'Advanced ' : ''}Echo to Region
+            Apply Echo to Region
           </Button>
         </Col>
       </Row>
+
+      {/* Help Modal */}
+      <Modal show={showHelpModal} onHide={() => setShowHelpModal(false)} size="lg" centered>
+        <Modal.Header closeButton className="bg-dark text-white">
+          <Modal.Title>Understanding Echo Effects</Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="bg-dark text-white">
+          <h5 className="text-info mb-3">What is Echo?</h5>
+          <p>
+            Echo is a time-based effect that creates delayed repetitions of your original sound.
+            Unlike reverb which simulates room reflections, echo creates distinct, audible repetitions
+            that can be rhythmic or atmospheric.
+          </p>
+
+          <h5 className="text-info mt-4 mb-3">Echo vs Delay vs Reverb</h5>
+          <ul>
+            <li><strong>Echo:</strong> Discrete, audible repetitions (think: shouting in a canyon)</li>
+            <li><strong>Delay:</strong> Technical term for the same effect, often with more control</li>
+            <li><strong>Reverb:</strong> Dense, overlapping reflections that blend together (think: singing in a cathedral)</li>
+          </ul>
+
+          <h5 className="text-info mt-4 mb-3">Key Parameters</h5>
+          <ul>
+            <li><strong>Delay Time:</strong> The gap between echoes
+              <ul>
+                <li>50-200ms: Slapback echo (rockabilly, vocals)</li>
+                <li>300-600ms: Rhythmic echoes</li>
+                <li>600ms+: Ambient, spacey effects</li>
+              </ul>
+            </li>
+            <li><strong>Feedback:</strong> How many times the echo repeats
+              <ul>
+                <li>0-30%: Single or few repeats</li>
+                <li>30-60%: Multiple repeats that fade</li>
+                <li>60-90%: Many repeats, use carefully</li>
+                <li>90%+: Can create infinite loops!</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h5 className="text-info mt-4 mb-3">Creative Uses</h5>
+          <ul>
+            <li><strong>Slapback:</strong> Short delay (100-150ms) with low feedback for vintage vocals</li>
+            <li><strong>Rhythmic:</strong> Sync to tempo for musical repeats</li>
+            <li><strong>Dub:</strong> High feedback with filtering for reggae/dub effects</li>
+            <li><strong>Ping-Pong:</strong> Alternating left-right for wide stereo movement</li>
+            <li><strong>Tape Echo:</strong> Add modulation for vintage analog character</li>
+          </ul>
+
+          <div className="alert alert-info mt-4">
+            <strong>💡 Safety First:</strong> This echo effect has built-in safety features to protect your
+            hearing and speakers. Feedback is limited to 80% maximum and gain controls are capped at 1.5x.
+            Start with lower values and increase gradually for best results.
+          </div>
+        </Modal.Body>
+        <Modal.Footer className="bg-dark">
+          <Button variant="secondary" onClick={() => setShowHelpModal(false)}>
+            Close
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </Container>
   );
 }
