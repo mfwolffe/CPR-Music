@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useRef, useEffect } from 'react';
-import { Container, Row, Col, Button } from 'react-bootstrap';
+import { Container, Row, Col, Button, Form } from 'react-bootstrap';
 import { 
   useAudio, 
   useEffects 
@@ -29,52 +29,90 @@ export async function processFlangerRegion(audioBuffer, startSample, endSample, 
   const source = offlineContext.createBufferSource();
   source.buffer = audioBuffer;
   
-  // Create delay node for flanging
-  const delayNode = offlineContext.createDelay(0.02); // Max 20ms delay
+  // Create dual delay nodes for through-zero flanging
+  const delayNodeLeft = offlineContext.createDelay(0.02);
+  const delayNodeRight = offlineContext.createDelay(0.02);
   const feedbackGain = offlineContext.createGain();
   const wetGain = offlineContext.createGain();
   const dryGain = offlineContext.createGain();
   const outputGain = offlineContext.createGain();
   
-  // Set static parameters
-  // Limit feedback to prevent runaway oscillation  
-  const safeFeedback = Math.max(-0.95, Math.min(0.95, parameters.feedback || 0.5));
+  // Phase inversion node for through-zero flanging
+  const phaseInvert = offlineContext.createGain();
+  phaseInvert.gain.value = parameters.throughZero ? -1 : 1;
+  
+  // Set static parameters with enhanced feedback safety
+  const safeFeedback = Math.max(-0.98, Math.min(0.98, parameters.feedback || 0.5));
   feedbackGain.gain.value = safeFeedback;
   wetGain.gain.value = parameters.mix || 0.5;
   dryGain.gain.value = 1 - (parameters.mix || 0.5);
   
-  // Create LFO for modulating delay time
-  const lfo = offlineContext.createOscillator();
-  const lfoGain = offlineContext.createGain();
+  // Create LFO for modulating delay time with stereo phase offset
+  const lfoLeft = offlineContext.createOscillator();
+  const lfoRight = offlineContext.createOscillator();
+  const lfoGainLeft = offlineContext.createGain();
+  const lfoGainRight = offlineContext.createGain();
   
-  lfo.frequency.value = parameters.rate || 0.5;
-  lfoGain.gain.value = parameters.depth || 0.002; // Depth in seconds
+  lfoLeft.frequency.value = parameters.rate || 0.5;
+  lfoRight.frequency.value = parameters.rate || 0.5;
   
-  // Connect LFO to delay time
-  lfo.connect(lfoGain);
-  lfoGain.connect(delayNode.delayTime);
+  // Enhanced depth control with through-zero capability
+  const maxDepth = parameters.throughZero ? parameters.delay || 0.005 : parameters.depth || 0.002;
+  lfoGainLeft.gain.value = maxDepth;
+  lfoGainRight.gain.value = maxDepth;
   
-  // Set base delay time
-  delayNode.delayTime.value = parameters.delay || 0.005;
+  // Apply stereo phase offset (in radians)
+  const phaseOffset = (parameters.stereoPhase || 0) * Math.PI / 180;
+  lfoRight.start(phaseOffset / (2 * Math.PI * lfoRight.frequency.value));
   
-  // Connect audio path
+  // Connect LFOs to delay times
+  lfoLeft.connect(lfoGainLeft);
+  lfoRight.connect(lfoGainRight);
+  lfoGainLeft.connect(delayNodeLeft.delayTime);
+  lfoGainRight.connect(delayNodeRight.delayTime);
+  
+  // Set base delay time with manual offset
+  const baseDelay = parameters.delay || 0.005;
+  const manualOffset = (parameters.manualOffset || 0) * 0.002; // Max 2ms offset
+  delayNodeLeft.delayTime.value = baseDelay + manualOffset;
+  delayNodeRight.delayTime.value = baseDelay - manualOffset; // Opposite offset for stereo
+  
+  // Create channel splitter and merger for stereo processing
+  const splitter = offlineContext.createChannelSplitter(2);
+  const merger = offlineContext.createChannelMerger(2);
+  
+  // Connect audio path with stereo processing
   source.connect(dryGain);
-  source.connect(delayNode);
+  source.connect(splitter);
   
-  // Feedback loop
-  delayNode.connect(feedbackGain);
-  feedbackGain.connect(delayNode);
+  // Route left and right channels through separate delay lines
+  splitter.connect(delayNodeLeft, 0);
+  splitter.connect(delayNodeRight, 1);
+  
+  // Apply phase inversion for through-zero flanging
+  delayNodeLeft.connect(phaseInvert);
+  delayNodeRight.connect(phaseInvert);
+  
+  // Feedback loops for both channels
+  phaseInvert.connect(feedbackGain);
+  feedbackGain.connect(delayNodeLeft);
+  feedbackGain.connect(delayNodeRight);
+  
+  // Merge processed channels
+  phaseInvert.connect(merger, 0, 0);
+  phaseInvert.connect(merger, 0, 1);
   
   // Mix wet and dry
-  delayNode.connect(wetGain);
+  merger.connect(wetGain);
   dryGain.connect(outputGain);
   wetGain.connect(outputGain);
   
   outputGain.connect(offlineContext.destination);
   
-  // Start source and LFO
+  // Start source and LFOs
   source.start(0);
-  lfo.start(0);
+  lfoLeft.start(0);
+  lfoRight.start(0);
   
   // Render
   const renderedBuffer = await offlineContext.startRendering();
@@ -126,6 +164,17 @@ export default function Flanger({ width }) {
     setFlangerDelay,
     flangerMix,
     setFlangerMix,
+    flangerTempoSync,
+    setFlangerTempoSync,
+    flangerNoteDivision,
+    setFlangerNoteDivision,
+    flangerThroughZero,
+    setFlangerThroughZero,
+    flangerStereoPhase,
+    setFlangerStereoPhase,
+    flangerManualOffset,
+    setFlangerManualOffset,
+    globalBPM,
     cutRegion
   } = useEffects();
   
@@ -137,6 +186,14 @@ export default function Flanger({ width }) {
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     }
   }, []);
+  
+  // Calculate tempo-synced LFO rate
+  const getEffectiveRate = () => {
+    if (flangerTempoSync) {
+      return (globalBPM / 60) * (4 / flangerNoteDivision);
+    }
+    return flangerRate;
+  };
   
   // Apply flanger to selected region
   const applyFlanger = useCallback(async () => {
@@ -161,11 +218,14 @@ export default function Flanger({ width }) {
       
       // Use the exported processing function
       const parameters = {
-        rate: flangerRate,
+        rate: getEffectiveRate(),
         depth: flangerDepth,
         feedback: flangerFeedback,
         delay: flangerDelay,
-        mix: flangerMix
+        mix: flangerMix,
+        throughZero: flangerThroughZero,
+        stereoPhase: flangerStereoPhase,
+        manualOffset: flangerManualOffset
       };
       
       const outputBuffer = await processFlangerRegion(
@@ -267,6 +327,46 @@ export default function Flanger({ width }) {
             displayValue={`${Math.round(flangerMix * 100)}%`}
             size={45}
             color="#92ce84"
+          />
+        </Col>
+        
+        {/* Professional Controls */}
+        <Col xs={6} sm={4} md={2} lg={1} className="mb-2">
+          <Form.Check
+            type="switch"
+            id="flanger-through-zero"
+            label="Thru-0"
+            checked={flangerThroughZero}
+            onChange={(e) => setFlangerThroughZero(e.target.checked)}
+            className="text-white small"
+          />
+        </Col>
+        
+        <Col xs={6} sm={4} md={2} lg={1}>
+          <Knob
+            value={flangerStereoPhase}
+            onChange={setFlangerStereoPhase}
+            min={0}
+            max={180}
+            step={5}
+            label="Phase"
+            displayValue={`${flangerStereoPhase}°`}
+            size={45}
+            color="#9b59b6"
+          />
+        </Col>
+        
+        <Col xs={6} sm={4} md={2} lg={1}>
+          <Knob
+            value={flangerManualOffset}
+            onChange={setFlangerManualOffset}
+            min={0}
+            max={1}
+            step={0.01}
+            label="Offset"
+            displayValue={`${Math.round(flangerManualOffset * 100)}%`}
+            size={45}
+            color="#e67e22"
           />
         </Col>
         

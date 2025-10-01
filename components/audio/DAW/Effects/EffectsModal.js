@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Card, Row, Col, Form, InputGroup, Badge } from 'react-bootstrap';
+import { Modal, Button, Card, Row, Col, Form, InputGroup, Badge, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import {
   FaMagic,
   FaVolumeDown,
@@ -14,7 +14,8 @@ import {
   FaExpand,
   FaCompress,
   FaArrowRight,
-  FaPlay
+  FaPlay,
+  FaInfoCircle
 } from 'react-icons/fa';
 import { RiEqualizerLine } from 'react-icons/ri';
 import { useUI, useEffects } from '../../../../contexts/DAWProvider';
@@ -29,6 +30,7 @@ const EFFECTS_LIBRARY = [
     icon: RiEqualizerLine,
     description: '8-band parametric equalizer',
     detailedDescription: 'Shape your sound with precise frequency control',
+    tooltip: 'Adjusts the volume of specific frequency ranges to shape tonal balance',
     hasVisualization: true,
     color: '#7bafd4'
   },
@@ -39,6 +41,7 @@ const EFFECTS_LIBRARY = [
     icon: FaWaveSquare,
     description: 'Multi-mode filter with LFO',
     detailedDescription: 'Classic filter types with modulation options',
+    tooltip: 'Removes frequencies above or below a cutoff point to sculpt sound character',
     hasVisualization: true,
     color: '#92ce84'
   },
@@ -51,6 +54,7 @@ const EFFECTS_LIBRARY = [
     icon: FaVolumeDown,
     description: 'Dynamic range control',
     detailedDescription: 'Professional compressor with visual feedback',
+    tooltip: 'Reduces dynamic range by attenuating signals above a threshold',
     hasVisualization: true,
     color: '#e75b5c'
   },
@@ -61,6 +65,7 @@ const EFFECTS_LIBRARY = [
     icon: FaVolumeDown,
     description: 'Peak limiting and loudness maximization',
     detailedDescription: 'Transparent limiting with lookahead',
+    tooltip: 'Prevents signal peaks from exceeding a maximum level to avoid distortion',
     hasVisualization: true,
     color: '#ff6b6b'
   },
@@ -71,7 +76,8 @@ const EFFECTS_LIBRARY = [
     icon: FaVolumeDown,
     description: 'Noise gate with threshold control',
     detailedDescription: 'Remove unwanted noise between sounds',
-    hasVisualization: false,
+    tooltip: 'Mutes signals below a threshold to eliminate unwanted noise',
+    hasVisualization: true,
     color: '#cbb677'
   },
   {
@@ -81,6 +87,7 @@ const EFFECTS_LIBRARY = [
     icon: FaWaveSquare,
     description: 'Harmonic saturation and drive',
     detailedDescription: 'Multiple distortion algorithms for warmth and grit',
+    tooltip: 'Adds harmonic content through controlled signal clipping',
     hasVisualization: true,
     color: '#e75b5c'
   },
@@ -93,6 +100,7 @@ const EFFECTS_LIBRARY = [
     icon: FaClock,
     description: 'Classic echo delay',
     detailedDescription: 'Simple to advanced echo with modulation',
+    tooltip: 'Creates discrete delayed repetitions of the input signal',
     hasVisualization: false,
     color: '#92ce84'
   },
@@ -103,6 +111,7 @@ const EFFECTS_LIBRARY = [
     icon: FaClock,
     description: 'Multi-tap delay with diffusion',
     detailedDescription: 'Complex delay network with filtering',
+    tooltip: 'Multi-tap delay system with filtering and modulation capabilities',
     hasVisualization: false,
     color: '#7bafd4'
   },
@@ -113,6 +122,7 @@ const EFFECTS_LIBRARY = [
     icon: FaMusic,
     description: 'Algorithmic reverb processor',
     detailedDescription: 'Create natural and artificial spaces',
+    tooltip: 'Simulates acoustic reflections of physical spaces',
     hasVisualization: false,
     color: '#dda0dd'
   },
@@ -123,6 +133,7 @@ const EFFECTS_LIBRARY = [
     icon: FaMagic,
     description: 'Reverse reverb effect',
     detailedDescription: 'Create swelling, ethereal effects',
+    tooltip: 'Pre-echo effect that builds up before the original sound',
     hasVisualization: false,
     color: '#ff69b4'
   },
@@ -135,7 +146,8 @@ const EFFECTS_LIBRARY = [
     icon: FaMusic,
     description: 'Multi-voice chorus',
     detailedDescription: 'Rich, lush chorus with up to 8 voices',
-    hasVisualization: true,
+    tooltip: 'Combines slightly detuned copies to create a fuller sound',
+    hasVisualization: false,
     color: '#92ceaa'
   },
   {
@@ -145,7 +157,8 @@ const EFFECTS_LIBRARY = [
     icon: FaWaveSquare,
     description: 'Classic flanging effect',
     detailedDescription: 'Jet-like sweeping with feedback',
-    hasVisualization: true,
+    tooltip: 'Short modulated delay creating comb-filter sweeps',
+    hasVisualization: false,
     color: '#ffa500'
   },
   {
@@ -155,7 +168,8 @@ const EFFECTS_LIBRARY = [
     icon: FaWaveSquare,
     description: 'Multi-stage phaser',
     detailedDescription: '4 to 12 stage phasing with LFO',
-    hasVisualization: true,
+    tooltip: 'Phase-shifted signal creates notches that sweep through frequencies',
+    hasVisualization: false,
     color: '#92ce84'
   },
   {
@@ -165,7 +179,8 @@ const EFFECTS_LIBRARY = [
     icon: FaWaveSquare,
     description: 'Amplitude modulation',
     detailedDescription: 'Classic tremolo with multiple waveforms',
-    hasVisualization: true,
+    tooltip: 'Periodic amplitude modulation creating rhythmic volume changes',
+    hasVisualization: false,
     color: '#e75b5c'
   },
   {
@@ -175,7 +190,8 @@ const EFFECTS_LIBRARY = [
     icon: FaWaveSquare,
     description: 'Automatic stereo panning',
     detailedDescription: 'Create movement in the stereo field',
-    hasVisualization: true,
+    tooltip: 'Automated stereo positioning that moves sound between channels',
+    hasVisualization: false,
     color: '#7bafd4'
   },
   {
@@ -185,7 +201,8 @@ const EFFECTS_LIBRARY = [
     icon: FaWaveSquare,
     description: 'Envelope-following filter',
     detailedDescription: 'Dynamic wah effect that responds to input',
-    hasVisualization: true,
+    tooltip: 'Envelope-controlled filter that responds to input dynamics',
+    hasVisualization: false,
     color: '#ffb347'
   },
 
@@ -197,6 +214,7 @@ const EFFECTS_LIBRARY = [
     icon: FaMagic,
     description: 'Real-time pitch shifting',
     detailedDescription: 'Change pitch without affecting timing',
+    tooltip: 'Transposes audio frequency while maintaining temporal characteristics',
     hasVisualization: false,
     color: '#9370db'
   },
@@ -207,6 +225,7 @@ const EFFECTS_LIBRARY = [
     icon: FaMagic,
     description: 'Linear frequency shifting',
     detailedDescription: 'Create metallic and dissonant effects',
+    tooltip: 'Linearly shifts all frequencies by a fixed amount',
     hasVisualization: false,
     color: '#ba55d3'
   },
@@ -219,7 +238,8 @@ const EFFECTS_LIBRARY = [
     icon: FaMagic,
     description: 'Ring modulation synthesis',
     detailedDescription: 'Create metallic and bell-like tones',
-    hasVisualization: true,
+    tooltip: 'Multiplies two signals to generate sum and difference frequencies',
+    hasVisualization: false,
     color: '#ff1493'
   },
   {
@@ -229,6 +249,7 @@ const EFFECTS_LIBRARY = [
     icon: FaMagic,
     description: 'Random glitch effects',
     detailedDescription: 'Stutter, repeat, and mangle audio',
+    tooltip: 'Introduces controlled digital artifacts and repetitions',
     hasVisualization: false,
     color: '#ff4500'
   },
@@ -239,6 +260,7 @@ const EFFECTS_LIBRARY = [
     icon: FaMagic,
     description: 'Granular synthesis',
     detailedDescription: 'Freeze and manipulate audio grains',
+    tooltip: 'Samples and loops small audio fragments called grains',
     hasVisualization: false,
     color: '#4682b4'
   },
@@ -249,6 +271,7 @@ const EFFECTS_LIBRARY = [
     icon: FaMagic,
     description: 'Extreme time stretching',
     detailedDescription: 'Create ambient textures from any sound',
+    tooltip: 'Extreme time-stretching algorithm for ambient textures',
     hasVisualization: false,
     color: '#6495ed'
   },
@@ -259,7 +282,8 @@ const EFFECTS_LIBRARY = [
     icon: FaWaveSquare,
     description: 'FFT-based filtering',
     detailedDescription: 'Advanced spectral processing',
-    hasVisualization: true,
+    tooltip: 'Frequency-domain processing for precise spectral manipulation',
+    hasVisualization: false,
     color: '#00ced1'
   },
 
@@ -271,7 +295,8 @@ const EFFECTS_LIBRARY = [
     icon: FaExpand,
     description: 'Enhance stereo width',
     detailedDescription: 'Widen or narrow the stereo image',
-    hasVisualization: true,
+    tooltip: 'Adjusts the perceived width of the stereo image',
+    hasVisualization: false,
     color: '#9370db'
   }
 ];
@@ -334,10 +359,16 @@ export default function EffectsModal() {
       className="effects-modal"
     >
       <Modal.Header closeButton className="bg-dark text-white">
-        <Modal.Title className="d-flex align-items-center gap-2">
-          <RiEqualizerLine />
-          Effects Studio
-        </Modal.Title>
+        <div className="d-flex justify-content-between align-items-center w-100">
+          <Modal.Title className="d-flex align-items-center gap-2">
+            <RiEqualizerLine />
+            Effects Studio
+          </Modal.Title>
+          <small className="text-info me-3">
+            <FaInfoCircle className="me-1" />
+            Hover for tips!
+          </small>
+        </div>
       </Modal.Header>
 
       <Modal.Body className="p-0" style={{ height: '80vh', backgroundColor: '#1a1a1a' }}>
@@ -387,54 +418,64 @@ export default function EffectsModal() {
                         const Icon = effect.icon;
                         return (
                           <Col key={effect.id} xs={12} sm={6} md={4} lg={3}>
-                            <Card
-                              className="effect-card h-100 bg-dark text-white border-secondary"
-                              style={{
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                borderColor: hoveredEffect?.id === effect.id ? effect.color : undefined,
-                                transform: hoveredEffect?.id === effect.id ? 'translateY(-2px)' : undefined,
-                                boxShadow: hoveredEffect?.id === effect.id ? `0 4px 12px ${effect.color}44` : undefined
-                              }}
-                              onMouseEnter={() => setHoveredEffect(effect)}
-                              onMouseLeave={() => setHoveredEffect(null)}
-                              onClick={() => handleEffectSelect(effect)}
+                            <OverlayTrigger
+                              placement="top"
+                              delay={{ show: 1500, hide: 100 }}
+                              overlay={
+                                <Tooltip id={`tooltip-${effect.id}`}>
+                                  {effect.tooltip}
+                                </Tooltip>
+                              }
                             >
-                              <Card.Body className="d-flex flex-column p-3">
-                                <div className="text-center mb-3">
-                                  <div
-                                    className="effect-icon mx-auto mb-2 p-3 rounded-circle"
-                                    style={{
-                                      backgroundColor: effect.color + '22',
-                                      width: '60px',
-                                      height: '60px',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center'
-                                    }}
-                                  >
-                                    <Icon size={28} style={{ color: effect.color }} />
+                              <Card
+                                className="effect-card h-100 bg-dark text-white border-secondary"
+                                style={{
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s',
+                                  borderColor: hoveredEffect?.id === effect.id ? effect.color : undefined,
+                                  transform: hoveredEffect?.id === effect.id ? 'translateY(-2px)' : undefined,
+                                  boxShadow: hoveredEffect?.id === effect.id ? `0 4px 12px ${effect.color}44` : undefined
+                                }}
+                                onMouseEnter={() => setHoveredEffect(effect)}
+                                onMouseLeave={() => setHoveredEffect(null)}
+                                onClick={() => handleEffectSelect(effect)}
+                              >
+                                <Card.Body className="d-flex flex-column p-3">
+                                  <div className="text-center mb-3">
+                                    <div
+                                      className="effect-icon mx-auto mb-2 p-3 rounded-circle"
+                                      style={{
+                                        backgroundColor: effect.color + '22',
+                                        width: '60px',
+                                        height: '60px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                    >
+                                      <Icon size={28} style={{ color: effect.color }} />
+                                    </div>
+                                    <h6 className="mb-1">{effect.name}</h6>
+                                    <small className="text-muted d-block">
+                                      {effect.description}
+                                    </small>
                                   </div>
-                                  <h6 className="mb-1">{effect.name}</h6>
-                                  <small className="text-muted d-block">
-                                    {effect.description}
-                                  </small>
-                                </div>
-                                {effect.hasVisualization && (
-                                  <Badge
-                                    bg="dark"
-                                    className="mt-auto mx-auto"
-                                    style={{
-                                      fontSize: '0.65rem',
-                                      border: `1px solid ${effect.color}44`
-                                    }}
-                                  >
-                                    <FaPlay size={8} className="me-1" />
-                                    Visual
-                                  </Badge>
-                                )}
-                              </Card.Body>
-                            </Card>
+                                  {effect.hasVisualization && (
+                                    <Badge
+                                      bg="dark"
+                                      className="mt-auto mx-auto"
+                                      style={{
+                                        fontSize: '0.65rem',
+                                        border: `1px solid ${effect.color}44`
+                                      }}
+                                    >
+                                      <FaPlay size={8} className="me-1" />
+                                      Visual
+                                    </Badge>
+                                  )}
+                                </Card.Body>
+                              </Card>
+                            </OverlayTrigger>
                           </Col>
                         );
                       })}

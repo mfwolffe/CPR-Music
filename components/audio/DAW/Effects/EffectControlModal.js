@@ -77,7 +77,6 @@ export default function EffectControlModal() {
       show={showEffectControlModal}
       onHide={handleClose}
       size="xl"
-      fullscreen
       centered
       backdrop="static"
       keyboard={true}
@@ -116,10 +115,10 @@ export default function EffectControlModal() {
         </Button>
       </Modal.Header>
 
-      <Modal.Body className="p-0" style={{ backgroundColor: '#1a1a1a', height: '80vh' }}>
-        <div className="h-100 d-flex flex-column">
-          {/* Main content area with scrolling */}
-          <div className="flex-grow-1 overflow-auto p-4">
+      <Modal.Body className="p-0" style={{ backgroundColor: '#1a1a1a' }}>
+        <div className="d-flex flex-column">
+          {/* Main content area */}
+          <div className="p-4">
             <Suspense
               fallback={
                 <div className="d-flex align-items-center justify-content-center h-100">

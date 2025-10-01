@@ -121,6 +121,11 @@ export default function Tremolo({ width }) {
     setTremoloWaveform,
     tremoloPhase,
     setTremoloPhase,
+    tremoloTempoSync,
+    setTremoloTempoSync,
+    tremoloNoteDivision,
+    setTremoloNoteDivision,
+    globalBPM,
     cutRegion,
   } = useEffects();
 
@@ -133,6 +138,14 @@ export default function Tremolo({ width }) {
         window.webkitAudioContext)();
     }
   }, []);
+
+  // Calculate tempo-synced tremolo rate
+  const getEffectiveRate = () => {
+    if (tremoloTempoSync) {
+      return (globalBPM / 60) * (4 / tremoloNoteDivision);
+    }
+    return tremoloRate;
+  };
 
   // Apply tremolo to selected region
   const applyTremolo = useCallback(async () => {
@@ -157,7 +170,7 @@ export default function Tremolo({ width }) {
 
       // Use the exported processing function
       const parameters = {
-        rate: tremoloRate,
+        rate: getEffectiveRate(),
         depth: tremoloDepth,
         waveform: tremoloWaveform,
         phase: tremoloPhase,
@@ -277,6 +290,36 @@ export default function Tremolo({ width }) {
             size={45}
             color="#cbb677"
           />
+        </Col>
+
+        {/* Tempo Sync Controls */}
+        <Col xs={6} sm={4} md={2} lg={1} className="mb-2">
+          <Form.Check
+            type="switch"
+            id="tremolo-tempo-sync"
+            label="Sync"
+            checked={tremoloTempoSync}
+            onChange={(e) => setTremoloTempoSync(e.target.checked)}
+            className="text-white"
+          />
+          {tremoloTempoSync && (
+            <Dropdown onSelect={(division) => setTremoloNoteDivision(Number(division))}>
+              <Dropdown.Toggle size="sm" variant="outline-light">
+                {tremoloNoteDivision === 1 ? 'Whole' : 
+                 tremoloNoteDivision === 2 ? 'Half' :
+                 tremoloNoteDivision === 4 ? 'Quarter' :
+                 tremoloNoteDivision === 8 ? 'Eighth' :
+                 tremoloNoteDivision === 16 ? 'Sixteenth' : 'Custom'}
+              </Dropdown.Toggle>
+              <Dropdown.Menu>
+                <Dropdown.Item eventKey="1">Whole Note</Dropdown.Item>
+                <Dropdown.Item eventKey="2">Half Note</Dropdown.Item>
+                <Dropdown.Item eventKey="4">Quarter Note</Dropdown.Item>
+                <Dropdown.Item eventKey="8">Eighth Note</Dropdown.Item>
+                <Dropdown.Item eventKey="16">Sixteenth Note</Dropdown.Item>
+              </Dropdown.Menu>
+            </Dropdown>
+          )}
         </Col>
 
         {/* Apply Button */}

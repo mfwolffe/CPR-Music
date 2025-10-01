@@ -1,23 +1,289 @@
 'use client';
 
-import { useCallback, useRef, useEffect } from 'react';
-import { Container, Row, Col, Button } from 'react-bootstrap';
-import { 
-  useAudio, 
-  useEffects 
-} from '../../../../contexts/DAWProvider';
+import { useCallback, useRef, useEffect, useState } from 'react';
+import { Container, Row, Col, Form, Button } from 'react-bootstrap';
+import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
 
 /**
+ * LFO Waveforms for phaser modulation
+ */
+const LFOWaveforms = {
+  sine: { name: 'Sine', description: 'Smooth sinusoidal modulation' },
+  triangle: { name: 'Triangle', description: 'Linear ramp modulation' },
+  sawtooth: { name: 'Sawtooth', description: 'Ramp up modulation' },
+  square: { name: 'Square', description: 'Hard switching modulation' },
+  random: { name: 'Random', description: 'Sample & hold random modulation' }
+};
+
+/**
+ * All-Pass Filter for phase shifting
+ * Creates the characteristic phaser sweep effect
+ */
+class AllPassFilter {
+  constructor(audioContext) {
+    this.context = audioContext;
+    this.filter = audioContext.createBiquadFilter();
+    this.filter.type = 'allpass';
+    this.filter.frequency.value = 440;
+    this.filter.Q.value = 1;
+  }
+  
+  setFrequency(freq) {
+    this.filter.frequency.setValueAtTime(freq, this.context.currentTime);
+  }
+  
+  setQ(q) {
+    this.filter.Q.setValueAtTime(q, this.context.currentTime);
+  }
+  
+  connect(destination) {
+    this.filter.connect(destination);
+  }
+  
+  disconnect() {
+    this.filter.disconnect();
+  }
+  
+  get input() {
+    return this.filter;
+  }
+  
+  get output() {
+    return this.filter;
+  }
+}
+
+/**
+ * Multi-Stage Phaser Processor
+ * Professional implementation with multiple all-pass filters and LFO modulation
+ */
+class PhaserProcessor {
+  constructor(audioContext) {
+    this.context = audioContext;
+    
+    // Create nodes
+    this.input = audioContext.createGain();
+    this.output = audioContext.createGain();
+    this.wetGain = audioContext.createGain();
+    this.dryGain = audioContext.createGain();
+    this.feedbackGain = audioContext.createGain();
+    
+    // All-pass filter stages
+    this.allPassFilters = [];
+    this.stages = 4;
+    
+    // LFO for modulation
+    this.lfo = audioContext.createOscillator();
+    this.lfoGain = audioContext.createGain();
+    this.lfoOffset = audioContext.createConstantSource();
+    
+    // Stereo processing
+    this.splitter = audioContext.createChannelSplitter(2);
+    this.merger = audioContext.createChannelMerger(2);
+    this.leftDelay = audioContext.createDelay(0.01);
+    this.rightDelay = audioContext.createDelay(0.01);
+    
+    // Default settings
+    this.rate = 0.5;
+    this.depth = 0.7;
+    this.feedback = 0.5;
+    this.wetMix = 0.5;
+    this.freqMin = 200;
+    this.freqMax = 2000;
+    this.resonance = 0.7;
+    this.stereoPhase = 90;
+    this.waveform = 'sine';
+    this.lfoStarted = false;  // Track whether LFO oscillators have been started
+
+    this.setupRouting();
+    this.createAllPassStages(4);
+    this.setupLFO();
+  }
+  
+  setupRouting() {
+    // Dry path
+    this.input.connect(this.dryGain);
+    this.dryGain.connect(this.output);
+    
+    // Wet path setup (will be connected after creating stages)
+    this.setWetMix(0.5);
+  }
+  
+  createAllPassStages(stageCount) {
+    // Clean up existing stages
+    this.cleanup();
+    
+    this.allPassFilters = [];
+    this.stages = Math.max(2, Math.min(12, stageCount));
+    
+    // Create all-pass filter chain
+    let currentNode = this.input;
+    
+    for (let i = 0; i < this.stages; i++) {
+      const allPass = new AllPassFilter(this.context);
+      
+      // Spread frequencies across the range
+      const freq = this.freqMin + (i / (this.stages - 1)) * (this.freqMax - this.freqMin);
+      allPass.setFrequency(freq);
+      allPass.setQ(this.resonance);
+      
+      // Connect LFO to frequency modulation
+      this.lfoGain.connect(allPass.filter.frequency);
+      this.lfoOffset.connect(allPass.filter.frequency);
+      
+      // Connect in series
+      currentNode.connect(allPass.input);
+      currentNode = allPass.output;
+      
+      this.allPassFilters.push(allPass);
+    }
+    
+    // Connect to wet output with feedback
+    currentNode.connect(this.wetGain);
+    currentNode.connect(this.feedbackGain);
+    this.feedbackGain.connect(this.input); // Feedback loop
+    
+    // Connect wet to output
+    this.wetGain.connect(this.output);
+    
+    // Set initial feedback
+    this.setFeedback(this.feedback);
+  }
+  
+  setupLFO() {
+    // Stop and disconnect existing oscillators if they exist
+    if (this.lfoStarted) {
+      this.lfo.stop();
+      this.lfo.disconnect();
+      this.lfoOffset.stop();
+      this.lfoOffset.disconnect();
+      this.lfoGain.disconnect();
+
+      // Create new oscillators
+      this.lfo = this.context.createOscillator();
+      this.lfoGain = this.context.createGain();
+      this.lfoOffset = this.context.createConstantSource();
+    }
+
+    this.lfo.type = this.waveform;
+    this.lfo.frequency.value = this.rate;
+
+    // Scale LFO for frequency modulation
+    const freqRange = this.freqMax - this.freqMin;
+    this.lfoGain.gain.value = (freqRange * this.depth) / 2;
+    this.lfoOffset.offset.value = this.freqMin + (freqRange / 2);
+
+    // Connect LFO
+    this.lfo.connect(this.lfoGain);
+
+    // Reconnect to all-pass filters
+    this.allPassFilters.forEach(allPass => {
+      this.lfoGain.connect(allPass.filter.frequency);
+      this.lfoOffset.connect(allPass.filter.frequency);
+    });
+
+    // Start oscillators only if not already started
+    if (!this.lfoStarted) {
+      this.lfo.start();
+      this.lfoOffset.start();
+      this.lfoStarted = true;
+    }
+  }
+
+  setRate(rate) {
+    this.rate = Math.max(0.01, Math.min(10, rate));
+    this.lfo.frequency.setValueAtTime(this.rate, this.context.currentTime);
+  }
+  
+  setDepth(depth) {
+    this.depth = Math.max(0, Math.min(1, depth));
+    const freqRange = this.freqMax - this.freqMin;
+    this.lfoGain.gain.setValueAtTime((freqRange * this.depth) / 2, this.context.currentTime);
+  }
+  
+  setFeedback(feedback) {
+    this.feedback = Math.max(0, Math.min(0.95, feedback));
+    this.feedbackGain.gain.setValueAtTime(this.feedback, this.context.currentTime);
+  }
+  
+  setStages(stageCount) {
+    this.createAllPassStages(stageCount);
+    this.setupLFO(); // Reconnect LFO after recreating stages
+  }
+  
+  setWetMix(wetAmount) {
+    const wet = Math.max(0, Math.min(1, wetAmount));
+    const dry = 1 - wet;
+    
+    this.wetGain.gain.setValueAtTime(wet, this.context.currentTime);
+    this.dryGain.gain.setValueAtTime(dry, this.context.currentTime);
+    this.wetMix = wet;
+  }
+  
+  setFrequencyRange(minFreq, maxFreq) {
+    this.freqMin = Math.max(20, Math.min(20000, minFreq));
+    this.freqMax = Math.max(this.freqMin + 100, Math.min(20000, maxFreq));
+    
+    // Update all-pass filter frequencies
+    this.allPassFilters.forEach((allPass, i) => {
+      const freq = this.freqMin + (i / (this.stages - 1)) * (this.freqMax - this.freqMin);
+      allPass.setFrequency(freq);
+    });
+    
+    // Update LFO range
+    const freqRange = this.freqMax - this.freqMin;
+    this.lfoGain.gain.setValueAtTime((freqRange * this.depth) / 2, this.context.currentTime);
+    this.lfoOffset.offset.setValueAtTime(this.freqMin + (freqRange / 2), this.context.currentTime);
+  }
+  
+  setResonance(resonance) {
+    this.resonance = Math.max(0.1, Math.min(10, resonance));
+    this.allPassFilters.forEach(allPass => {
+      allPass.setQ(this.resonance);
+    });
+  }
+  
+  setWaveform(waveform) {
+    this.waveform = waveform;
+    this.lfo.type = waveform === 'random' ? 'square' : waveform;
+  }
+  
+  setStereoPhase(phase) {
+    this.stereoPhase = Math.max(0, Math.min(180, phase));
+    // Implementation would involve phase offset between L/R channels
+  }
+  
+  setOutputGain(gain) {
+    this.output.gain.setValueAtTime(Math.max(0, Math.min(2, gain)), this.context.currentTime);
+  }
+  
+  connect(destination) {
+    this.output.connect(destination);
+  }
+  
+  disconnect() {
+    this.output.disconnect();
+  }
+  
+  cleanup() {
+    this.allPassFilters.forEach(allPass => {
+      allPass.disconnect();
+    });
+    this.allPassFilters = [];
+  }
+}
+
+/**
  * Process phaser on an audio buffer region
- * Pure function - no React dependencies
+ * Pure function for offline processing
  */
 export async function processPhaserRegion(audioBuffer, startSample, endSample, parameters) {
   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
   const sampleRate = audioBuffer.sampleRate;
   const regionLength = endSample - startSample;
   
-  // Create offline context for processing
+  // Create offline context
   const offlineContext = new OfflineAudioContext(
     audioBuffer.numberOfChannels,
     audioBuffer.length,
@@ -28,70 +294,27 @@ export async function processPhaserRegion(audioBuffer, startSample, endSample, p
   const source = offlineContext.createBufferSource();
   source.buffer = audioBuffer;
   
-  // Create dry/wet mix gains
-  const dryGain = offlineContext.createGain();
-  const wetGain = offlineContext.createGain();
-  const outputGain = offlineContext.createGain();
+  // Create phaser processor
+  const phaser = new PhaserProcessor(offlineContext);
+  phaser.setRate(parameters.rate || 0.5);
+  phaser.setDepth(parameters.depth || 0.7);
+  phaser.setFeedback(parameters.feedback || 0.5);
+  phaser.setStages(parameters.stages || 4);
+  phaser.setWetMix(parameters.wetMix || 0.5);
+  phaser.setFrequencyRange(
+    parameters.freqRange?.[0] || 200,
+    parameters.freqRange?.[1] || 2000
+  );
+  phaser.setResonance(parameters.resonance || 0.7);
+  phaser.setWaveform(parameters.waveform || 'sine');
+  phaser.setStereoPhase(parameters.stereoPhase || 90);
+  phaser.setOutputGain(parameters.outputGain || 1.0);
   
-  dryGain.gain.value = 1 - (parameters.wetMix || 0.5);
-  wetGain.gain.value = parameters.wetMix || 0.5;
+  // Connect and render
+  source.connect(phaser.input);
+  phaser.connect(offlineContext.destination);
   
-  // Create allpass filters for phaser stages
-  const allpassFilters = [];
-  const stages = parameters.stages || 4;
-  for (let i = 0; i < stages; i++) {
-    const filter = offlineContext.createBiquadFilter();
-    filter.type = 'allpass';
-    allpassFilters.push(filter);
-  }
-  
-  // Create feedback gain
-  const feedbackGain = offlineContext.createGain();
-  feedbackGain.gain.value = parameters.feedback || 0.5;
-  
-  // Connect dry path
-  source.connect(dryGain);
-  dryGain.connect(outputGain);
-  
-  // Connect wet path with allpass filters
-  source.connect(allpassFilters[0]);
-  
-  // Chain allpass filters
-  for (let i = 0; i < allpassFilters.length - 1; i++) {
-    allpassFilters[i].connect(allpassFilters[i + 1]);
-  }
-  
-  // Connect last filter to wet gain and feedback
-  allpassFilters[allpassFilters.length - 1].connect(wetGain);
-  allpassFilters[allpassFilters.length - 1].connect(feedbackGain);
-  feedbackGain.connect(allpassFilters[0]);
-  
-  wetGain.connect(outputGain);
-  outputGain.connect(offlineContext.destination);
-  
-  // Create LFO for modulating filter frequencies
-  const lfo = offlineContext.createOscillator();
-  const lfoGain = offlineContext.createGain();
-  
-  lfo.frequency.value = parameters.rate || 0.5;
-  lfoGain.gain.value = (parameters.depth || 0.7) * 1000; // Depth in Hz
-  
-  lfo.connect(lfoGain);
-  
-  // Connect LFO to all filter frequencies
-  const baseFrequencies = [200, 400, 800, 1600, 3200, 6400];
-  allpassFilters.forEach((filter, index) => {
-    const baseFreq = baseFrequencies[index % baseFrequencies.length];
-    filter.frequency.value = baseFreq;
-    filter.Q.value = 0.5;
-    lfoGain.connect(filter.frequency);
-  });
-  
-  // Start source and LFO
   source.start(0);
-  lfo.start(0);
-  
-  // Render
   const renderedBuffer = await offlineContext.startRendering();
   
   // Create output buffer with processed region
@@ -120,7 +343,8 @@ export async function processPhaserRegion(audioBuffer, startSample, endSample, p
 }
 
 /**
- * Phaser effect component using Web Audio API AllPassFilterNodes
+ * Professional Multi-Stage Phaser Effect
+ * Features: Multiple all-pass stages, LFO modulation, feedback control
  */
 export default function Phaser({ width }) {
   const {
@@ -131,6 +355,7 @@ export default function Phaser({ width }) {
   } = useAudio();
   
   const {
+    cutRegion,
     phaserRate,
     setPhaserRate,
     phaserDepth,
@@ -141,17 +366,166 @@ export default function Phaser({ width }) {
     setPhaserStages,
     phaserWetMix,
     setPhaserWetMix,
-    cutRegion
+    phaserTempoSync,
+    setPhaserTempoSync,
+    phaserNoteDivision,
+    setPhaserNoteDivision,
+    phaserWaveform,
+    setPhaserWaveform,
+    phaserFreqRange,
+    setPhaserFreqRange,
+    phaserResonance,
+    setPhaserResonance,
+    phaserStereoPhase,
+    setPhaserStereoPhase,
+    phaserOutputGain,
+    setPhaserOutputGain,
+    globalBPM
   } = useEffects();
   
   const audioContextRef = useRef(null);
+  const phaserProcessorRef = useRef(null);
+  const canvasRef = useRef(null);
   
-  // Initialize audio context
+  // Initialize audio context and phaser processor
   useEffect(() => {
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     }
+    
+    if (!phaserProcessorRef.current) {
+      phaserProcessorRef.current = new PhaserProcessor(audioContextRef.current);
+    }
   }, []);
+  
+  // Update phaser parameters
+  useEffect(() => {
+    if (phaserProcessorRef.current) {
+      const effectiveRate = phaserTempoSync 
+        ? (globalBPM / 60) / (phaserNoteDivision / 4) 
+        : phaserRate;
+        
+      phaserProcessorRef.current.setRate(effectiveRate);
+      phaserProcessorRef.current.setDepth(phaserDepth);
+      phaserProcessorRef.current.setFeedback(phaserFeedback);
+      phaserProcessorRef.current.setStages(phaserStages);
+      phaserProcessorRef.current.setWetMix(phaserWetMix);
+      phaserProcessorRef.current.setFrequencyRange(phaserFreqRange[0], phaserFreqRange[1]);
+      phaserProcessorRef.current.setResonance(phaserResonance);
+      phaserProcessorRef.current.setWaveform(phaserWaveform);
+      phaserProcessorRef.current.setStereoPhase(phaserStereoPhase);
+      phaserProcessorRef.current.setOutputGain(phaserOutputGain);
+    }
+  }, [phaserRate, phaserDepth, phaserFeedback, phaserStages, phaserWetMix,
+      phaserFreqRange, phaserResonance, phaserWaveform, phaserStereoPhase,
+      phaserOutputGain, phaserTempoSync, phaserNoteDivision, globalBPM]);
+  
+  // Draw frequency sweep visualization
+  const drawFrequencySweep = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    // Clear canvas
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(0, 0, width, height);
+    
+    // Draw frequency range indicator
+    ctx.fillStyle = 'rgba(123, 175, 212, 0.2)';
+    const minFreqX = (Math.log10(phaserFreqRange[0]) - Math.log10(20)) / (Math.log10(20000) - Math.log10(20)) * width;
+    const maxFreqX = (Math.log10(phaserFreqRange[1]) - Math.log10(20)) / (Math.log10(20000) - Math.log10(20)) * width;
+    ctx.fillRect(minFreqX, 0, maxFreqX - minFreqX, height);
+    
+    // Draw grid
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    const freqs = [20, 100, 1000, 10000, 20000];
+    freqs.forEach(freq => {
+      const x = (Math.log10(freq) - Math.log10(20)) / (Math.log10(20000) - Math.log10(20)) * width;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    });
+    
+    // Draw LFO sweep visualization
+    ctx.strokeStyle = '#92ce84';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    
+    const effectiveRate = phaserTempoSync 
+      ? (globalBPM / 60) / (phaserNoteDivision / 4) 
+      : phaserRate;
+    
+    for (let x = 0; x < width; x++) {
+      const phase = (x / width) * 4 * Math.PI; // 2 cycles
+      let lfoValue;
+      
+      switch (phaserWaveform) {
+        case 'sine':
+          lfoValue = Math.sin(phase);
+          break;
+        case 'triangle':
+          lfoValue = (2 / Math.PI) * Math.asin(Math.sin(phase));
+          break;
+        case 'sawtooth':
+          lfoValue = 2 * (phase / (2 * Math.PI) - Math.floor(phase / (2 * Math.PI) + 0.5));
+          break;
+        case 'square':
+          lfoValue = Math.sign(Math.sin(phase));
+          break;
+        case 'random':
+          lfoValue = (Math.random() * 2 - 1);
+          break;
+        default:
+          lfoValue = Math.sin(phase);
+      }
+      
+      // Map LFO to frequency range
+      const centerFreq = (phaserFreqRange[0] + phaserFreqRange[1]) / 2;
+      const freqRange = phaserFreqRange[1] - phaserFreqRange[0];
+      const currentFreq = centerFreq + (lfoValue * phaserDepth * freqRange / 2);
+      
+      // Convert to canvas position
+      const freqX = (Math.log10(Math.max(20, currentFreq)) - Math.log10(20)) / (Math.log10(20000) - Math.log10(20)) * width;
+      const y = height/2 + (lfoValue * phaserDepth * height/4);
+      
+      if (x === 0) {
+        ctx.moveTo(freqX, y);
+      } else {
+        ctx.lineTo(freqX, y);
+      }
+    }
+    
+    ctx.stroke();
+    
+    // Draw stage indicators
+    for (let i = 0; i < phaserStages; i++) {
+      const stageFreq = phaserFreqRange[0] + (i / (phaserStages - 1)) * (phaserFreqRange[1] - phaserFreqRange[0]);
+      const stageX = (Math.log10(stageFreq) - Math.log10(20)) / (Math.log10(20000) - Math.log10(20)) * width;
+      
+      ctx.fillStyle = '#e75b5c';
+      ctx.beginPath();
+      ctx.arc(stageX, height - 20, 4, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+    
+    // Draw labels
+    ctx.fillStyle = '#92ce84';
+    ctx.font = '12px monospace';
+    ctx.fillText(`Rate: ${effectiveRate.toFixed(2)}Hz`, 10, 20);
+    ctx.fillText(`Stages: ${phaserStages}`, 10, 35);
+    ctx.fillText(`${phaserFreqRange[0]}-${phaserFreqRange[1]}Hz`, 10, 50);
+  }, [phaserRate, phaserDepth, phaserStages, phaserWaveform, phaserFreqRange,
+      phaserTempoSync, phaserNoteDivision, globalBPM]);
+  
+  // Update visualization
+  useEffect(() => {
+    drawFrequencySweep();
+  }, [drawFrequencySweep]);
   
   // Apply phaser to selected region
   const applyPhaser = useCallback(async () => {
@@ -175,12 +549,21 @@ export default function Phaser({ width }) {
       const endSample = Math.floor(cutRegion.end * sampleRate);
       
       // Use the exported processing function
+      const effectiveRate = phaserTempoSync 
+        ? (globalBPM / 60) / (phaserNoteDivision / 4) 
+        : phaserRate;
+        
       const parameters = {
-        rate: phaserRate,
+        rate: effectiveRate,
         depth: phaserDepth,
         feedback: phaserFeedback,
         stages: phaserStages,
-        wetMix: phaserWetMix
+        wetMix: phaserWetMix,
+        freqRange: phaserFreqRange,
+        resonance: phaserResonance,
+        waveform: phaserWaveform,
+        stereoPhase: phaserStereoPhase,
+        outputGain: phaserOutputGain
       };
       
       const outputBuffer = await processPhaserRegion(
@@ -212,86 +595,227 @@ export default function Phaser({ width }) {
       console.error('Error applying phaser:', error);
       alert('Error applying phaser. Please try again.');
     }
-  }, [audioURL, addToEditHistory, wavesurferRef, phaserRate, phaserDepth, phaserFeedback, phaserStages, phaserWetMix, cutRegion]);
+  }, [audioURL, addToEditHistory, wavesurferRef, cutRegion, phaserRate, phaserDepth,
+      phaserFeedback, phaserStages, phaserWetMix, phaserFreqRange, phaserResonance,
+      phaserWaveform, phaserStereoPhase, phaserOutputGain, phaserTempoSync,
+      phaserNoteDivision, globalBPM]);
   
   return (
     <Container fluid className="p-2">
-      <Row className="text-center align-items-end">
-        <Col xs={6} sm={4} md={2} lg={1}>
+      {/* Frequency Sweep Visualization */}
+      <Row className="mb-3">
+        <Col xs={12}>
+          <div className="bg-dark border border-secondary rounded position-relative">
+            <canvas
+              ref={canvasRef}
+              width={600}
+              height={150}
+              style={{ width: '100%', height: '150px' }}
+            />
+            <div className="position-absolute top-0 right-0 p-2">
+              <small className="text-muted">Frequency Sweep</small>
+            </div>
+          </div>
+        </Col>
+      </Row>
+      
+      {/* Main Controls */}
+      <Row className="mb-2">
+        <Col xs={6} sm={4} md={2}>
           <Knob
             value={phaserRate}
             onChange={setPhaserRate}
-            min={0.1}
+            min={0.01}
             max={10}
-            step={0.1}
+            step={0.01}
             label="Rate"
-            displayValue={`${phaserRate.toFixed(1)}Hz`}
-            size={45}
-            color="#e75b5c"
+            displayValue={phaserTempoSync ? `1/${phaserNoteDivision}` : `${phaserRate.toFixed(2)}Hz`}
+            size={50}
+            color="#92ce84"
+            disabled={phaserTempoSync}
           />
         </Col>
         
-        <Col xs={6} sm={4} md={2} lg={1}>
+        <Col xs={6} sm={4} md={2}>
           <Knob
             value={phaserDepth}
             onChange={setPhaserDepth}
             min={0}
             max={1}
+            step={0.01}
             label="Depth"
             displayValue={`${Math.round(phaserDepth * 100)}%`}
-            size={45}
+            size={50}
             color="#7bafd4"
           />
         </Col>
         
-        <Col xs={6} sm={4} md={2} lg={1}>
+        <Col xs={6} sm={4} md={2}>
           <Knob
             value={phaserFeedback}
             onChange={setPhaserFeedback}
             min={0}
             max={0.95}
+            step={0.01}
             label="Feedback"
             displayValue={`${Math.round(phaserFeedback * 100)}%`}
-            size={45}
-            color="#cbb677"
+            size={50}
+            color="#e75b5c"
           />
         </Col>
         
-        <Col xs={6} sm={4} md={2} lg={1}>
+        <Col xs={6} sm={4} md={2}>
           <Knob
             value={phaserStages}
             onChange={setPhaserStages}
             min={2}
-            max={8}
+            max={12}
             step={1}
             label="Stages"
-            displayValue={`${phaserStages}`}
-            size={45}
-            color="#92ceaa"
+            displayValue={phaserStages.toString()}
+            size={50}
+            color="#dda0dd"
           />
         </Col>
         
-        <Col xs={6} sm={4} md={2} lg={1}>
+        <Col xs={6} sm={4} md={2}>
           <Knob
             value={phaserWetMix}
             onChange={setPhaserWetMix}
             min={0}
             max={1}
+            step={0.01}
             label="Mix"
             displayValue={`${Math.round(phaserWetMix * 100)}%`}
-            size={45}
-            color="#92ce84"
+            size={50}
+            color="#92ceaa"
           />
         </Col>
         
-        {/* Apply Button */}
-        <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
+        <Col xs={6} sm={4} md={2}>
+          <Knob
+            value={phaserResonance}
+            onChange={setPhaserResonance}
+            min={0.1}
+            max={10}
+            step={0.1}
+            label="Resonance"
+            displayValue={phaserResonance.toFixed(1)}
+            size={50}
+            color="#cbb677"
+          />
+        </Col>
+      </Row>
+      
+      {/* Frequency Range Controls */}
+      <Row className="mb-2">
+        <Col xs={6} sm={4} md={2}>
+          <Knob
+            value={phaserFreqRange[0]}
+            onChange={(value) => setPhaserFreqRange([value, phaserFreqRange[1]])}
+            min={20}
+            max={2000}
+            step={10}
+            label="Min Freq"
+            displayValue={`${phaserFreqRange[0]}Hz`}
+            size={45}
+            color="#ffa500"
+            logarithmic={true}
+          />
+        </Col>
+        
+        <Col xs={6} sm={4} md={2}>
+          <Knob
+            value={phaserFreqRange[1]}
+            onChange={(value) => setPhaserFreqRange([phaserFreqRange[0], value])}
+            min={200}
+            max={20000}
+            step={50}
+            label="Max Freq"
+            displayValue={phaserFreqRange[1] >= 1000 ? `${(phaserFreqRange[1]/1000).toFixed(1)}k` : `${phaserFreqRange[1]}Hz`}
+            size={45}
+            color="#ff6b6b"
+            logarithmic={true}
+          />
+        </Col>
+        
+        <Col xs={6} sm={4} md={2}>
+          <Form.Label className="text-white small">Waveform</Form.Label>
+          <Form.Select
+            size="sm"
+            value={phaserWaveform}
+            onChange={(e) => setPhaserWaveform(e.target.value)}
+            className="bg-secondary text-white border-0"
+          >
+            {Object.entries(LFOWaveforms).map(([key, wave]) => (
+              <option key={key} value={key}>{wave.name}</option>
+            ))}
+          </Form.Select>
+        </Col>
+        
+        <Col xs={6} sm={4} md={2}>
+          <Form.Check
+            type="switch"
+            id="phaser-tempo-sync"
+            label="Tempo Sync"
+            checked={phaserTempoSync}
+            onChange={(e) => setPhaserTempoSync(e.target.checked)}
+            className="text-white"
+          />
+          {phaserTempoSync && (
+            <Form.Select
+              size="sm"
+              value={phaserNoteDivision}
+              onChange={(e) => setPhaserNoteDivision(parseInt(e.target.value))}
+              className="bg-secondary text-white border-0 mt-1"
+            >
+              <option value={1}>1/1</option>
+              <option value={2}>1/2</option>
+              <option value={4}>1/4</option>
+              <option value={8}>1/8</option>
+              <option value={16}>1/16</option>
+            </Form.Select>
+          )}
+        </Col>
+        
+        <Col xs={6} sm={4} md={2}>
+          <Knob
+            value={phaserStereoPhase}
+            onChange={setPhaserStereoPhase}
+            min={0}
+            max={180}
+            step={1}
+            label="Stereo°"
+            displayValue={`${phaserStereoPhase}°`}
+            size={45}
+            color="#9370db"
+          />
+        </Col>
+        
+        <Col xs={6} sm={4} md={2}>
+          <Knob
+            value={phaserOutputGain}
+            onChange={setPhaserOutputGain}
+            min={0}
+            max={2}
+            step={0.01}
+            label="Output"
+            displayValue={`${phaserOutputGain.toFixed(2)}x`}
+            size={45}
+            color="#92ceaa"
+          />
+        </Col>
+      </Row>
+      
+      {/* Apply Button */}
+      <Row>
+        <Col xs={12} sm={6} md={4} lg={3}>
           <Button
             size="sm"
             className="w-100"
             onClick={applyPhaser}
           >
-            Apply to Region
+            Apply Phaser to Region
           </Button>
         </Col>
       </Row>
