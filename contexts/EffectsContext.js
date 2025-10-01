@@ -37,6 +37,12 @@ export const EffectsProvider = ({ children }) => {
   const [outGain, setOutGain] = useState(0);
   const [delay, setDelay] = useState(0);
   const [decay, setDecay] = useState(0);
+
+  // Echo-specific parameters (separate from shared delay/decay)
+  const [echoDelay, setEchoDelay] = useState(500); // ms
+  const [echoFeedback, setEchoFeedback] = useState(0.5);
+  const [echoInputGain, setEchoInputGain] = useState(1.0);
+  const [echoOutputGain, setEchoOutputGain] = useState(1.0);
   
   // Reverb state (new Web Audio reverb)
   const [reverbPresent, setReverbPresent] = useState(false);
@@ -694,7 +700,17 @@ export const EffectsProvider = ({ children }) => {
     setDelay,
     decay,
     setDecay,
-    
+
+    // Echo-specific parameters
+    echoDelay,
+    setEchoDelay,
+    echoFeedback,
+    setEchoFeedback,
+    echoInputGain,
+    setEchoInputGain,
+    echoOutputGain,
+    setEchoOutputGain,
+
     // Reverb (new Web Audio)
     reverbPresent,
     setReverbPresent,
