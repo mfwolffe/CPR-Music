@@ -783,18 +783,42 @@ export default function EQ({ width, modalMode = false }) {
     
     ctx.stroke();
     
-    // Draw band control points
+    // Draw band control points - position them on the actual curve
     eqBands.forEach((band, index) => {
       if (!band.enabled) return;
-      
+
+      // Calculate X position (frequency)
       const x = (Math.log10(band.frequency) - Math.log10(20)) / (Math.log10(20000) - Math.log10(20)) * width;
-      const y = height/2 - (band.gain / 24) * (height/2 - 20);
-      
+
+      // Find the actual magnitude at this band's frequency from the frequency response
+      // We need to interpolate between the calculated points
+      let actualMagnitude = 0;
+
+      // Find the closest frequency points in our response curve
+      for (let i = 0; i < frequencies.length - 1; i++) {
+        if (frequencies[i] <= band.frequency && frequencies[i + 1] >= band.frequency) {
+          // Linear interpolation between the two closest points
+          const ratio = (band.frequency - frequencies[i]) / (frequencies[i + 1] - frequencies[i]);
+          actualMagnitude = magnitudes[i] + (magnitudes[i + 1] - magnitudes[i]) * ratio;
+          break;
+        }
+      }
+
+      // If frequency is outside range, use closest edge value
+      if (band.frequency <= frequencies[0]) {
+        actualMagnitude = magnitudes[0];
+      } else if (band.frequency >= frequencies[frequencies.length - 1]) {
+        actualMagnitude = magnitudes[magnitudes.length - 1];
+      }
+
+      // Calculate Y position based on the actual curve magnitude
+      const y = height/2 - (actualMagnitude / 24) * (height/2 - 20);
+
       ctx.fillStyle = index === selectedBand ? '#ffff00' : '#92ce84';
       ctx.beginPath();
       ctx.arc(x, y, 6, 0, 2 * Math.PI);
       ctx.fill();
-      
+
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 2;
       ctx.stroke();
@@ -932,6 +956,9 @@ export default function EQ({ width, modalMode = false }) {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    // Calculate frequency response to get actual positions
+    const { frequencies, magnitudes } = calculateFrequencyResponse(eqBands, 48000);
+
     // Find closest band
     let closestBand = -1;
     let closestDistance = Infinity;
@@ -940,7 +967,25 @@ export default function EQ({ width, modalMode = false }) {
       if (!band.enabled) return;
 
       const bandX = (Math.log10(band.frequency) - Math.log10(20)) / (Math.log10(20000) - Math.log10(20)) * canvas.width;
-      const bandY = canvas.height/2 - (band.gain / 24) * (canvas.height/2 - 20);
+
+      // Find the actual magnitude at this band's frequency
+      let actualMagnitude = 0;
+      for (let i = 0; i < frequencies.length - 1; i++) {
+        if (frequencies[i] <= band.frequency && frequencies[i + 1] >= band.frequency) {
+          const ratio = (band.frequency - frequencies[i]) / (frequencies[i + 1] - frequencies[i]);
+          actualMagnitude = magnitudes[i] + (magnitudes[i + 1] - magnitudes[i]) * ratio;
+          break;
+        }
+      }
+
+      // Edge cases
+      if (band.frequency <= frequencies[0]) {
+        actualMagnitude = magnitudes[0];
+      } else if (band.frequency >= frequencies[frequencies.length - 1]) {
+        actualMagnitude = magnitudes[magnitudes.length - 1];
+      }
+
+      const bandY = canvas.height/2 - (actualMagnitude / 24) * (canvas.height/2 - 20);
       const distance = Math.sqrt(Math.pow(x - bandX, 2) + Math.pow(y - bandY, 2));
 
       if (distance < 15 && distance < closestDistance) {
