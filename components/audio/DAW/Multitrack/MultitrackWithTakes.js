@@ -11,9 +11,11 @@ import MultitrackEditor from './MultitrackEditor';
 export default function MultitrackWithTakes() {
   const { blobInfo } = useRecording();
 
+  console.log('🎵 MultitrackWithTakes: Raw blobInfo:', blobInfo);
+
   // Transform blobInfo to the format expected by TakesImportModal
   const transformedTakes = blobInfo.map((take, index) => ({
-    id: take.take,
+    id: `take-${take.take}-${index}`, // Use more unique ID to avoid React key conflicts
     name: take.takeName || `Take ${take.take}`,
     partType: 'recording', // You might want to get this from route params
     takeNumber: take.take,
@@ -23,6 +25,8 @@ export default function MultitrackWithTakes() {
     mimeType: take.mimeType,
     originalData: take.data,
   }));
+
+  console.log('🎵 MultitrackWithTakes: Transformed takes:', transformedTakes);
 
   return <MultitrackEditor availableTakes={transformedTakes} />;
 }

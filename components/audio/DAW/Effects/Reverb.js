@@ -2,14 +2,28 @@
 'use client';
 
 import { useCallback, useEffect, useRef } from 'react';
-import { Card, CardHeader, CardTitle, CardBody, Button, Form, Dropdown, Nav, Container, Row, Col } from 'react-bootstrap';
-import { 
-  useAudio, 
-  useEffects 
+import { Card, CardHeader, CardTitle, CardBody, Button, Form, Dropdown, Nav, Container, Row, Col, OverlayTrigger, Tooltip } from 'react-bootstrap';
+import {
+  useAudio,
+  useEffects
 } from '../../../../contexts/DAWProvider';
 import { ReverbProcessor } from '../../../../lib/ReverbProcessor';
 import { getPresetNames, impulseResponsePresets } from '../../../../lib/impulseResponses';
 import Knob from '../../../Knob';
+
+/**
+ * Educational Tooltips
+ */
+const ReverbTooltips = {
+  preset: "Choose from various space simulations. Small rooms for tight ambience, halls for grandeur, plates for vintage smoothness, chambers for natural space.",
+  mix: "Balance between dry (original) and wet (reverb) signal. Lower values (10-30%) add subtle space, higher values (50-80%) create atmospheric effects.",
+  preDelay: "Time before reverb begins. Simulates distance to reflective surfaces. 10-30ms adds clarity, 50-100ms creates depth, 100ms+ for special effects.",
+  hiDamp: "Reduces high frequencies in reverb tail. Simulates air absorption. Higher values create darker, more natural reverb similar to real spaces.",
+  loDamp: "Reduces low frequencies in reverb tail. Prevents muddiness. Use to tighten bass-heavy material or create clearer reverb.",
+  earlyLate: "Balance between early reflections (clarity) and late reverb (ambience). Lower values emphasize room character, higher values emphasize spaciousness.",
+  width: "Stereo spread of reverb. 100% is natural stereo, lower values narrow the image, higher values enhance width. Use with caution above 150%.",
+  output: "Overall reverb output level. Use to match reverb level with dry signal. Values above 1.0x boost the effect, useful for ambient textures."
+};
 
 /**
  * Process reverb on an audio buffer region
@@ -128,12 +142,24 @@ export default function Reverb({ width }) {
     }
   }, [reverbWetMix, reverbPreDelay, reverbOutputGain, reverbHighDamp, reverbLowDamp, reverbStereoWidth, reverbEarlyLate]);
   
-  // Update preset
+  // Update preset and apply preset parameters to knobs
   useEffect(() => {
     if (reverbProcessorRef.current && reverbPreset) {
       reverbProcessorRef.current.loadPreset(reverbPreset);
+
+      // Apply preset parameters to knobs
+      const preset = impulseResponsePresets[reverbPreset];
+      if (preset && preset.parameters) {
+        setReverbWetMix(preset.parameters.wetMix);
+        setReverbPreDelay(preset.parameters.preDelay);
+        setReverbHighDamp(preset.parameters.highDamp);
+        setReverbLowDamp(preset.parameters.lowDamp);
+        setReverbEarlyLate(preset.parameters.earlyLate);
+        setReverbStereoWidth(preset.parameters.stereoWidth);
+        setReverbOutputGain(preset.parameters.outputGain);
+      }
     }
-  }, [reverbPreset]);
+  }, [reverbPreset, setReverbWetMix, setReverbPreDelay, setReverbHighDamp, setReverbLowDamp, setReverbEarlyLate, setReverbStereoWidth, setReverbOutputGain]);
   
   // Apply reverb permanently to selected region
   const applyReverb = useCallback(async () => {
@@ -206,122 +232,184 @@ export default function Reverb({ width }) {
         {/* Preset and Button */}
         <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
           <Form.Label className="text-white small mb-1">Preset</Form.Label>
-          <Dropdown
-            onSelect={(eventKey) => setReverbPreset(eventKey)}
-            size="sm"
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ReverbTooltips.preset}</Tooltip>}
           >
-            <Dropdown.Toggle
-              variant="secondary"
+            <Dropdown
+              onSelect={(eventKey) => setReverbPreset(eventKey)}
               size="sm"
-              className="w-100"
             >
-              {impulseResponsePresets[reverbPreset]?.name || 'Select Preset'}
-            </Dropdown.Toggle>
-            <Dropdown.Menu className="bg-daw-toolbars">
-              {presetNames.map(key => (
-                <Dropdown.Item
-                  key={key}
-                  eventKey={key}
-                  className="text-white"
-                >
-                  {impulseResponsePresets[key].name}
-                </Dropdown.Item>
-              ))}
-            </Dropdown.Menu>
-          </Dropdown>
+              <Dropdown.Toggle
+                variant="secondary"
+                size="sm"
+                className="w-100"
+              >
+                {impulseResponsePresets[reverbPreset]?.name || 'Select Preset'}
+              </Dropdown.Toggle>
+              <Dropdown.Menu className="bg-daw-toolbars">
+                {presetNames.map(key => (
+                  <Dropdown.Item
+                    key={key}
+                    eventKey={key}
+                    className="text-white"
+                  >
+                    {impulseResponsePresets[key].name}
+                  </Dropdown.Item>
+                ))}
+              </Dropdown.Menu>
+            </Dropdown>
+          </OverlayTrigger>
         </Col>
-        
+
         {/* Knobs */}
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={reverbWetMix}
-            onChange={setReverbWetMix}
-            min={0}
-            max={1}
-            label="Mix"
-            displayValue={`${Math.round(reverbWetMix * 100)}%`}
-            size={45}
-            color="#92ce84"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ReverbTooltips.mix}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={reverbWetMix}
+                onChange={setReverbWetMix}
+                min={0}
+                max={1}
+                label="Mix"
+                displayValue={`${Math.round(reverbWetMix * 100)}%`}
+                size={45}
+                color="#92ce84"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={reverbPreDelay}
-            onChange={setReverbPreDelay}
-            min={0}
-            max={200}
-            step={1}
-            label="Pre-Dly"
-            displayValue={`${reverbPreDelay}ms`}
-            size={45}
-            color="#7bafd4"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ReverbTooltips.preDelay}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={reverbPreDelay}
+                onChange={setReverbPreDelay}
+                min={0}
+                max={200}
+                step={1}
+                label="Pre-Dly"
+                displayValue={`${reverbPreDelay}ms`}
+                size={45}
+                color="#7bafd4"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={reverbHighDamp}
-            onChange={setReverbHighDamp}
-            min={0}
-            max={1}
-            label="Hi Damp"
-            displayValue={`${Math.round(reverbHighDamp * 100)}%`}
-            size={45}
-            color="#cbb677"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ReverbTooltips.hiDamp}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={reverbHighDamp}
+                onChange={setReverbHighDamp}
+                min={0}
+                max={1}
+                label="Hi Damp"
+                displayValue={`${Math.round(reverbHighDamp * 100)}%`}
+                size={45}
+                color="#cbb677"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={reverbLowDamp}
-            onChange={setReverbLowDamp}
-            min={0}
-            max={1}
-            label="Lo Damp"
-            displayValue={`${Math.round(reverbLowDamp * 100)}%`}
-            size={45}
-            color="#cbb677"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ReverbTooltips.loDamp}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={reverbLowDamp}
+                onChange={setReverbLowDamp}
+                min={0}
+                max={1}
+                label="Lo Damp"
+                displayValue={`${Math.round(reverbLowDamp * 100)}%`}
+                size={45}
+                color="#cbb677"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={reverbEarlyLate}
-            onChange={setReverbEarlyLate}
-            min={0}
-            max={1}
-            label="E/L Mix"
-            displayValue={`${Math.round(reverbEarlyLate * 100)}%`}
-            size={45}
-            color="#92ceaa"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ReverbTooltips.earlyLate}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={reverbEarlyLate}
+                onChange={setReverbEarlyLate}
+                min={0}
+                max={1}
+                label="E/L Mix"
+                displayValue={`${Math.round(reverbEarlyLate * 100)}%`}
+                size={45}
+                color="#92ceaa"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={reverbStereoWidth}
-            onChange={setReverbStereoWidth}
-            min={0}
-            max={2}
-            label="Width"
-            displayValue={`${Math.round(reverbStereoWidth * 100)}%`}
-            size={45}
-            color="#e75b5c"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ReverbTooltips.width}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={reverbStereoWidth}
+                onChange={setReverbStereoWidth}
+                min={0}
+                max={2}
+                label="Width"
+                displayValue={`${Math.round(reverbStereoWidth * 100)}%`}
+                size={45}
+                color="#e75b5c"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={reverbOutputGain}
-            onChange={setReverbOutputGain}
-            min={0}
-            max={2}
-            label="Output"
-            displayValue={`${reverbOutputGain.toFixed(1)}x`}
-            size={45}
-            color="#92ceaa"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ReverbTooltips.output}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={reverbOutputGain}
+                onChange={setReverbOutputGain}
+                min={0}
+                max={2}
+                label="Output"
+                displayValue={`${reverbOutputGain.toFixed(1)}x`}
+                size={45}
+                color="#92ceaa"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
         
         {/* Apply Button */}

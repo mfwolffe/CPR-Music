@@ -20,8 +20,11 @@ export default function Knob({
   const [isDragging, setIsDragging] = useState(false);
   const [internalValue, setInternalValue] = useState(value);
   const knobRef = useRef(null);
-  const startY = useRef(0);
+  const startAngle = useRef(0);
   const startValue = useRef(0);
+  const knobCenter = useRef({ x: 0, y: 0 });
+  const lastValidAngle = useRef(0);
+  const totalRotation = useRef(0);
   
   useEffect(() => {
     setInternalValue(value);
@@ -33,24 +36,66 @@ export default function Knob({
     return normalized * 270 - 135; // -135 to 135 degrees
   };
   
-  // Convert Y movement to value change
+  // Calculate angle from mouse position relative to knob center
+  const getAngleFromMouse = (mouseX, mouseY) => {
+    const deltaX = mouseX - knobCenter.current.x;
+    const deltaY = mouseY - knobCenter.current.y;
+    // atan2 returns angle in radians, convert to degrees
+    let angle = Math.atan2(deltaY, deltaX) * 180 / Math.PI;
+    // Normalize to 0-360 range for consistency
+    if (angle < 0) angle += 360;
+    return angle;
+  };
+
+  // Convert angle change to value change
   const handleMouseMove = (e) => {
     if (!isDragging) return;
     
-    const deltaY = startY.current - e.clientY;
-    const sensitivity = (max - min) / 100;
-    const newValue = startValue.current + (deltaY * sensitivity);
-    const clampedValue = Math.max(min, Math.min(max, newValue));
-    const steppedValue = Math.round(clampedValue / step) * step;
+    const currentAngle = getAngleFromMouse(e.clientX, e.clientY);
+    let angleDelta = currentAngle - lastValidAngle.current;
     
-    setInternalValue(steppedValue);
-    onChange && onChange(steppedValue);
+    // Handle wrap-around at 0°/360° boundary
+    if (angleDelta > 180) {
+      angleDelta -= 360;
+    } else if (angleDelta < -180) {
+      angleDelta += 360;
+    }
+    
+    // Only apply angle change if it's reasonable (prevents massive jumps)
+    if (Math.abs(angleDelta) < 90) {
+      // Accumulate total rotation
+      totalRotation.current += angleDelta;
+      lastValidAngle.current = currentAngle;
+      
+      // Map total rotation to value change
+      const rotationRange = 270; // knob rotates 270 degrees total
+      const valueRange = max - min;
+      const valueDelta = (totalRotation.current / rotationRange) * valueRange;
+      
+      const newValue = startValue.current + valueDelta;
+      const clampedValue = Math.max(min, Math.min(max, newValue));
+      const steppedValue = Math.round(clampedValue / step) * step;
+      
+      setInternalValue(steppedValue);
+      onChange && onChange(steppedValue);
+    }
   };
   
   const handleMouseDown = (e) => {
     e.preventDefault();
     setIsDragging(true);
-    startY.current = e.clientY;
+    
+    // Calculate knob center position
+    const rect = knobRef.current.getBoundingClientRect();
+    knobCenter.current = {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2
+    };
+    
+    // Store starting angle and value
+    startAngle.current = getAngleFromMouse(e.clientX, e.clientY);
+    lastValidAngle.current = startAngle.current;
+    totalRotation.current = 0; // Reset total rotation
     startValue.current = internalValue;
   };
   

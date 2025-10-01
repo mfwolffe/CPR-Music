@@ -1,14 +1,25 @@
 'use client';
 
 import { useCallback, useRef, useEffect, useState } from 'react';
-import { Container, Row, Col, Button, Dropdown, Form } from 'react-bootstrap';
-import { 
-  useAudio, 
-  useEffects 
+import { Container, Row, Col, Button, Dropdown, Form, OverlayTrigger, Tooltip } from 'react-bootstrap';
+import {
+  useAudio,
+  useEffects
 } from '../../../../contexts/DAWProvider';
 import { ReverbProcessor } from '../../../../lib/ReverbProcessor';
 import { getPresetNames, impulseResponsePresets } from '../../../../lib/impulseResponses';
 import Knob from '../../../Knob';
+
+/**
+ * Educational Tooltips
+ */
+const ReverseReverbTooltips = {
+  preset: "Choose reverb space character. Larger spaces (halls, chambers) create more dramatic swells. Smaller spaces (rooms) create tighter buildups.",
+  buildup: "Duration of the pre-echo swell before the sound. Longer times (1-2s) create dramatic cinematic effects, shorter times (0.2-0.5s) add subtle tension.",
+  mix: "Balance between dry signal and reverse reverb effect. Higher values create more pronounced swelling pre-echo. Use 50-80% for obvious effect.",
+  fadeIn: "How quickly the reverse reverb fades in. Shorter fades create sudden swells, longer fades make the buildup more gradual and smooth.",
+  preDelay: "Gap between the reverse reverb buildup and the original sound. Can be used to separate the swell from the attack for rhythmic effects."
+};
 
 /**
  * Process reverse reverb on an audio buffer region
@@ -70,57 +81,49 @@ export async function processReverseReverbRegion(audioBuffer, startSample, endSa
   // Calculate buildup samples
   const buildupSamples = Math.floor((parameters.buildupTime || 0.5) * sampleRate);
   const fadeSamples = Math.floor((parameters.fadeTime || 0.1) * sampleRate);
-  
-  // Create output buffer with pre-verb
-  const outputLength = audioBuffer.length + buildupSamples;
+  const predelaySamples = Math.floor((parameters.predelay || 0) / 1000 * sampleRate);
+
+  // Create output buffer - same length as input, we overlay the reverse reverb
   const outputBuffer = audioContext.createBuffer(
     audioBuffer.numberOfChannels,
-    outputLength,
+    audioBuffer.length,
     sampleRate
   );
-  
+
   for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
     const inputData = audioBuffer.getChannelData(channel);
     const outputData = outputBuffer.getChannelData(channel);
     const reversedData = reversedBuffer.getChannelData(channel);
-    
-    // Copy audio before region
-    for (let i = 0; i < startSample; i++) {
+
+    // First, copy all original audio
+    for (let i = 0; i < inputData.length; i++) {
       outputData[i] = inputData[i];
     }
-    
-    // Add reversed reverb buildup before the region
-    const preverbStart = Math.max(0, startSample - buildupSamples);
-    const preverbLength = Math.min(buildupSamples, reversedData.length);
-    
-    for (let i = 0; i < preverbLength; i++) {
-      const outputIdx = preverbStart + i;
-      const reversedIdx = reversedData.length - preverbLength + i;
-      
-      if (outputIdx >= 0 && outputIdx < outputData.length && reversedIdx >= 0) {
-        // Apply fade-in envelope
-        const fadeIn = i / fadeSamples;
-        const envelope = Math.min(1, fadeIn);
-        
-        // Mix with existing audio
-        outputData[outputIdx] = outputData[outputIdx] * (1 - parameters.wetMix) + 
-                               reversedData[reversedIdx] * parameters.wetMix * envelope;
-      }
-    }
-    
-    // Copy the original region (shifted by buildup time)
-    for (let i = 0; i < regionLength; i++) {
-      const outputIdx = startSample + buildupSamples + i;
-      if (outputIdx < outputData.length) {
-        outputData[outputIdx] = inputData[startSample + i];
-      }
-    }
-    
-    // Copy audio after region (shifted)
-    for (let i = endSample; i < inputData.length; i++) {
-      const outputIdx = i + buildupSamples;
-      if (outputIdx < outputData.length) {
-        outputData[outputIdx] = inputData[i];
+
+    // Calculate where the reverse reverb should start and end
+    const reverbEndPosition = startSample - predelaySamples;
+    const reverbStartPosition = Math.max(0, reverbEndPosition - buildupSamples);
+    const actualBuildupLength = reverbEndPosition - reverbStartPosition;
+
+    // Only add reverse reverb if we have room before the region
+    if (reverbStartPosition >= 0 && actualBuildupLength > 0) {
+      // Find the tail portion of the reversed reverb to use
+      const reverbTailStart = Math.max(0, reversedData.length - actualBuildupLength);
+
+      for (let i = 0; i < actualBuildupLength; i++) {
+        const outputIdx = reverbStartPosition + i;
+        const reverbIdx = reverbTailStart + i;
+
+        if (outputIdx >= 0 && outputIdx < outputData.length && reverbIdx < reversedData.length) {
+          // Apply fade-in envelope
+          const fadeProgress = i / Math.min(fadeSamples, actualBuildupLength);
+          const envelope = Math.min(1, fadeProgress);
+
+          // Mix reversed reverb with existing audio
+          const dry = outputData[outputIdx];
+          const wet = reversedData[reverbIdx] * envelope;
+          outputData[outputIdx] = dry * (1 - parameters.wetMix) + wet * parameters.wetMix;
+        }
       }
     }
   }
@@ -165,14 +168,23 @@ export default function ReverseReverb({ width }) {
     }
   }, []);
   
-  // Update reverb parameters
+  // Update reverb parameters and apply preset parameters to knobs
   useEffect(() => {
     if (reverbProcessorRef.current) {
       reverbProcessorRef.current.loadPreset(preset);
       reverbProcessorRef.current.setWetDryMix(wetMix);
       reverbProcessorRef.current.setPreDelay(predelay);
+
+      // Apply preset-specific reverse reverb parameters to knobs
+      const presetData = impulseResponsePresets[preset];
+      if (presetData && presetData.reverseParameters) {
+        setWetMix(presetData.reverseParameters.wetMix);
+        setFadeTime(presetData.reverseParameters.fadeTime);
+        setPredelay(presetData.reverseParameters.predelay);
+        setBuildupTime(presetData.reverseParameters.buildupTime);
+      }
     }
-  }, [preset, wetMix, predelay]);
+  }, [preset]);
   
   // Apply reverse reverb
   const applyReverseReverb = useCallback(async () => {
@@ -242,85 +254,123 @@ export default function ReverseReverb({ width }) {
         {/* Preset selector */}
         <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
           <Form.Label className="text-white small mb-1">Reverb Type</Form.Label>
-          <Dropdown
-            onSelect={(eventKey) => setPreset(eventKey)}
-            size="sm"
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ReverseReverbTooltips.preset}</Tooltip>}
           >
-            <Dropdown.Toggle
-              variant="secondary"
+            <Dropdown
+              onSelect={(eventKey) => setPreset(eventKey)}
               size="sm"
-              className="w-100"
             >
-              {impulseResponsePresets[preset]?.name || 'Select Preset'}
-            </Dropdown.Toggle>
-            <Dropdown.Menu className="bg-daw-toolbars" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-              {presetNames.map(key => (
-                <Dropdown.Item
-                  key={key}
-                  eventKey={key}
-                  className="text-white"
-                >
-                  {impulseResponsePresets[key].name}
-                </Dropdown.Item>
-              ))}
-            </Dropdown.Menu>
-          </Dropdown>
+              <Dropdown.Toggle
+                variant="secondary"
+                size="sm"
+                className="w-100"
+              >
+                {impulseResponsePresets[preset]?.name || 'Select Preset'}
+              </Dropdown.Toggle>
+              <Dropdown.Menu className="bg-daw-toolbars" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                {presetNames.map(key => (
+                  <Dropdown.Item
+                    key={key}
+                    eventKey={key}
+                    className="text-white"
+                  >
+                    {impulseResponsePresets[key].name}
+                  </Dropdown.Item>
+                ))}
+              </Dropdown.Menu>
+            </Dropdown>
+          </OverlayTrigger>
         </Col>
-        
+
         {/* Knobs */}
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={buildupTime}
-            onChange={setBuildupTime}
-            min={0.1}
-            max={2}
-            step={0.05}
-            label="Buildup"
-            displayValue={`${(buildupTime * 1000).toFixed(0)}ms`}
-            size={45}
-            color="#e75b5c"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ReverseReverbTooltips.buildup}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={buildupTime}
+                onChange={setBuildupTime}
+                min={0.1}
+                max={2}
+                step={0.05}
+                label="Buildup"
+                displayValue={`${(buildupTime * 1000).toFixed(0)}ms`}
+                size={45}
+                color="#e75b5c"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={wetMix}
-            onChange={setWetMix}
-            min={0}
-            max={1}
-            label="Mix"
-            displayValue={`${Math.round(wetMix * 100)}%`}
-            size={45}
-            color="#92ce84"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ReverseReverbTooltips.mix}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={wetMix}
+                onChange={setWetMix}
+                min={0}
+                max={1}
+                label="Mix"
+                displayValue={`${Math.round(wetMix * 100)}%`}
+                size={45}
+                color="#92ce84"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={fadeTime}
-            onChange={setFadeTime}
-            min={0.01}
-            max={0.5}
-            step={0.01}
-            label="Fade In"
-            displayValue={`${(fadeTime * 1000).toFixed(0)}ms`}
-            size={45}
-            color="#7bafd4"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ReverseReverbTooltips.fadeIn}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={fadeTime}
+                onChange={setFadeTime}
+                min={0.01}
+                max={0.5}
+                step={0.01}
+                label="Fade In"
+                displayValue={`${(fadeTime * 1000).toFixed(0)}ms`}
+                size={45}
+                color="#7bafd4"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={predelay}
-            onChange={setPredelay}
-            min={0}
-            max={100}
-            step={1}
-            label="Pre-Delay"
-            displayValue={`${predelay}ms`}
-            size={45}
-            color="#cbb677"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{ReverseReverbTooltips.preDelay}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={predelay}
+                onChange={setPredelay}
+                min={0}
+                max={100}
+                step={1}
+                label="Pre-Delay"
+                displayValue={`${predelay}ms`}
+                size={45}
+                color="#cbb677"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
         
         {/* Apply Button */}

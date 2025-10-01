@@ -1,226 +1,333 @@
+// components/audio/DAW/Effects/Paulstretch.js
 'use client';
 
-import { useCallback, useRef, useState, useEffect } from 'react';
-import { Container, Row, Col, Button } from 'react-bootstrap';
-import { 
-  useAudio, 
-  useEffects 
-} from '../../../../contexts/DAWProvider';
+import { useCallback, useRef, useEffect, useState } from 'react';
+import { Container, Row, Col, Button, OverlayTrigger, Tooltip } from 'react-bootstrap';
+import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
 
-// Simple FFT implementation for Paulstretch
+/**
+ * Educational Tooltips
+ */
+const PaulstretchTooltips = {
+  stretch: "Time-stretching factor. 2x doubles length, 10x+ creates ambient drones. Extreme values (50-100x) create evolving soundscapes from any source.",
+  windowSize: "FFT analysis window. Larger windows create smoother, more continuous textures. Smaller windows preserve more transient detail.",
+  mix: "Blend between original and stretched audio. Lower values add ambient tails to sounds. 100% creates pure atmospheric textures."
+};
+
+// FFT implementation for Paulstretch
 class FFT {
   constructor(size) {
+    if ((size & (size - 1)) !== 0) {
+      throw new Error('FFT size must be a power of two');
+    }
     this.size = size;
-    this.invSize = 1 / size;
-    this.bSi = 2 / size;
-    this.twiddleReal = new Float32Array(size);
-    this.twiddleImag = new Float32Array(size);
-    
+
+    // Bit reversal lookup table
+    const bits = Math.log2(size) | 0;
+    this.reverseTable = new Uint32Array(size);
     for (let i = 0; i < size; i++) {
-      const angle = -2 * Math.PI * i / size;
-      this.twiddleReal[i] = Math.cos(angle);
-      this.twiddleImag[i] = Math.sin(angle);
+      let j = 0;
+      for (let k = 0; k < bits; k++) {
+        j = (j << 1) | ((i >>> k) & 1);
+      }
+      this.reverseTable[i] = j;
     }
   }
-  
-  forward(real) {
-    const size = this.size;
-    const output = new Float32Array(size * 2);
-    
-    // Copy real values, set imaginary to 0
-    for (let i = 0; i < size; i++) {
-      output[i * 2] = real[i];
-      output[i * 2 + 1] = 0;
-    }
-    
-    // Bit reversal
-    let j = 0;
-    for (let i = 0; i < size - 1; i++) {
-      if (i < j) {
-        // Swap
-        let tempR = output[i * 2];
-        let tempI = output[i * 2 + 1];
-        output[i * 2] = output[j * 2];
-        output[i * 2 + 1] = output[j * 2 + 1];
-        output[j * 2] = tempR;
-        output[j * 2 + 1] = tempI;
+
+  _transformInPlace(data, inverse) {
+    const N = this.size;
+
+    // Bit-reversed reordering (in-place swaps)
+    for (let i = 0; i < N; i++) {
+      const j = this.reverseTable[i];
+      if (j > i) {
+        const i2 = i << 1;
+        const j2 = j << 1;
+        const tr = data[i2];
+        const ti = data[i2 + 1];
+        data[i2] = data[j2];
+        data[i2 + 1] = data[j2 + 1];
+        data[j2] = tr;
+        data[j2 + 1] = ti;
       }
-      let k = size >> 1;
-      while (j >= k) {
-        j -= k;
-        k >>= 1;
-      }
-      j += k;
     }
-    
-    // FFT computation
-    for (let len = 2; len <= size; len <<= 1) {
-      const halfLen = len >> 1;
-      const step = size / len;
-      
-      for (let i = 0; i < size; i += len) {
-        let k = 0;
-        for (let j = 0; j < halfLen; j++) {
-          const tR = this.twiddleReal[k];
-          const tI = this.twiddleImag[k];
-          
-          const evenR = output[(i + j) * 2];
-          const evenI = output[(i + j) * 2 + 1];
-          const oddR = output[(i + j + halfLen) * 2];
-          const oddI = output[(i + j + halfLen) * 2 + 1];
-          
-          const tR_oddR = tR * oddR - tI * oddI;
-          const tI_oddR = tR * oddI + tI * oddR;
-          
-          output[(i + j) * 2] = evenR + tR_oddR;
-          output[(i + j) * 2 + 1] = evenI + tI_oddR;
-          output[(i + j + halfLen) * 2] = evenR - tR_oddR;
-          output[(i + j + halfLen) * 2 + 1] = evenI - tI_oddR;
-          
-          k += step;
+
+    // Iterative Cooley–Tukey
+    for (let len = 2; len <= N; len <<= 1) {
+      const ang = ((inverse ? 2 : -2) * Math.PI) / len;
+      const wLenR = Math.cos(ang);
+      const wLenI = Math.sin(ang);
+
+      for (let i = 0; i < N; i += len) {
+        let wR = 1;
+        let wI = 0;
+        const half = len >> 1;
+
+        for (let j = 0; j < half; j++) {
+          const i0 = (i + j) << 1;
+          const i1 = (i + j + half) << 1;
+
+          const uR = data[i0];
+          const uI = data[i0 + 1];
+          const vR = data[i1];
+          const vI = data[i1 + 1];
+
+          // t = w * v
+          const tR = vR * wR - vI * wI;
+          const tI = vR * wI + vI * wR;
+
+          data[i0] = uR + tR;
+          data[i0 + 1] = uI + tI;
+          data[i1] = uR - tR;
+          data[i1 + 1] = uI - tI;
+
+          // w *= wLen
+          const nwR = wR * wLenR - wI * wLenI;
+          const nwI = wR * wLenI + wI * wLenR;
+          wR = nwR;
+          wI = nwI;
         }
       }
     }
-    
-    return output;
+
+    // Scale on inverse
+    if (inverse) {
+      const invN = 1 / N;
+      for (let i = 0; i < N; i++) {
+        const idx = i << 1;
+        data[idx] *= invN;
+        data[idx + 1] *= invN;
+      }
+    }
   }
-  
+
+  forward(signal) {
+    const N = this.size;
+    const data = new Float32Array(N * 2);
+    for (let i = 0; i < N; i++) {
+      const idx = i << 1;
+      data[idx] = signal[i] || 0;
+      data[idx + 1] = 0;
+    }
+    this._transformInPlace(data, false);
+    return data; // interleaved complex [re, im, re, im, ...]
+  }
+
   inverse(spectrum) {
-    const size = this.size;
-    const output = new Float32Array(size);
-    
-    // Conjugate
-    for (let i = 0; i < size; i++) {
-      spectrum[i * 2 + 1] = -spectrum[i * 2 + 1];
+    const N = this.size;
+    const data = new Float32Array(N * 2);
+    data.set(spectrum);
+    this._transformInPlace(data, true);
+    const out = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      out[i] = data[i << 1];
     }
-    
-    // Forward FFT
-    const result = this.forward(spectrum);
-    
-    // Extract real part and scale
-    for (let i = 0; i < size; i++) {
-      output[i] = result[i * 2] * this.invSize;
-    }
-    
-    return output;
+    return out;
   }
 }
 
 // Hann window function
 const hannWindow = (length) => {
-  const window = new Float32Array(length);
+  const frameWindow = new Float32Array(length);
   for (let i = 0; i < length; i++) {
-    window[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (length - 1)));
+    frameWindow[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (length - 1)));
   }
-  return window;
+  return frameWindow;
+};
+
+// sqrt-Hann window for analysis/synthesis (so w^2 = Hann)
+const sqrtHannWindow = (length) => {
+  const w = new Float32Array(length);
+  for (let i = 0; i < length; i++) {
+    const h = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (length - 1)));
+    w[i] = Math.sqrt(h);
+  }
+  return w;
 };
 
 /**
  * Process paulstretch on an audio buffer region
  * Pure function - no React dependencies
  */
-export async function processPaulstretchRegion(audioBuffer, startSample, endSample, parameters) {
+export async function processPaulstretchRegion(
+  audioBuffer,
+  startSample,
+  endSample,
+  parameters,
+) {
+  // New params (with sane defaults)
+  const makeupDb = parameters.makeupDb ?? 0; // dB
+  const limiterDb = parameters.limiterDb ?? -1; // dBFS (e.g., -1 dBFS)
+  const makeupLinear = Math.pow(10, makeupDb / 20);
+  const limiterThresh = Math.pow(10, limiterDb / 20); // linear
+
   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
   const sampleRate = audioBuffer.sampleRate;
   const regionLength = endSample - startSample;
-  
+
   // Paulstretch parameters
   const stretch = parameters.stretchFactor || 8;
-  const windowSizeSamples = Math.floor((parameters.windowSize || 0.25) * sampleRate);
+  const windowSizeSamples = Math.floor(
+    (parameters.windowSize || 0.25) * sampleRate,
+  );
   const halfWindow = Math.floor(windowSizeSamples / 2);
-  
+
   // Make sure window size is even
   const fftSize = Math.pow(2, Math.ceil(Math.log2(windowSizeSamples)));
-  
+
   // Output length after stretching
   const outputLength = Math.floor(regionLength * stretch);
-  
+
   // Create output buffer
   const outputBuffer = audioContext.createBuffer(
     audioBuffer.numberOfChannels,
     audioBuffer.length - regionLength + outputLength,
-    sampleRate
+    sampleRate,
   );
-  
+
   // Process each channel
   for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
     const inputData = audioBuffer.getChannelData(channel);
     const outputData = outputBuffer.getChannelData(channel);
-    
+
     // Copy before region
     for (let i = 0; i < startSample; i++) {
       outputData[i] = inputData[i];
     }
-    
+
     // Extract region data
     const regionData = new Float32Array(regionLength);
     for (let i = 0; i < regionLength; i++) {
       regionData[i] = inputData[startSample + i];
     }
-    
+
     // Paulstretch processing
     const stretchedData = new Float32Array(outputLength);
-    const window = hannWindow(windowSizeSamples);
-    
+    const frameWindow = sqrtHannWindow(windowSizeSamples);
+    const olaWeight = new Float32Array(outputLength);
+
     // Process overlapping windows
     const hopSize = Math.floor(windowSizeSamples / (parameters.onset || 10));
     const outputHopSize = Math.floor(hopSize * stretch);
-    
+
     let inputPos = 0;
     let outputPos = 0;
-    
-    while (inputPos + windowSizeSamples < regionLength && outputPos + windowSizeSamples < outputLength) {
-      // Extract windowed segment
+
+    // Create FFT instance once, outside the loop
+    const fft = new FFT(fftSize);
+
+    while (
+      inputPos + windowSizeSamples < regionLength &&
+      outputPos + windowSizeSamples < outputLength
+    ) {
+      // Extract windowed segment (DC-removed) and zero-pad to fftSize
       const segment = new Float32Array(fftSize);
+      let dc = 0;
+      let count = 0;
       for (let i = 0; i < windowSizeSamples; i++) {
         if (inputPos + i < regionLength) {
-          segment[i] = regionData[inputPos + i] * window[i];
+          dc += regionData[inputPos + i];
+          count++;
         }
       }
-      
-      // FFT
-      const fft = new FFT(fftSize);
-      const spectrum = fft.forward(segment);
-      
-      // Randomize phases while keeping magnitudes
-      for (let i = 0; i < spectrum.length; i += 2) {
-        const mag = Math.sqrt(spectrum[i] * spectrum[i] + spectrum[i + 1] * spectrum[i + 1]);
-        const phase = Math.random() * 2 * Math.PI;
-        spectrum[i] = mag * Math.cos(phase);
-        spectrum[i + 1] = mag * Math.sin(phase);
+      dc = count > 0 ? dc / count : 0;
+      for (let i = 0; i < windowSizeSamples; i++) {
+        if (inputPos + i < regionLength) {
+          const s = regionData[inputPos + i] - dc;
+          segment[i] = s * frameWindow[i];
+        }
       }
-      
+
+      // FFT
+      const spectrum = fft.forward(segment);
+
+      // Randomize phases for positive freqs and enforce Hermitian symmetry
+      const N = fftSize;
+      const half = N >> 1;
+
+      // Force DC and Nyquist imag parts to zero (avoid offsets/clicks)
+      spectrum[1] = 0;
+      spectrum[half * 2 + 1] = 0;
+
+      for (let k = 1; k < half; k++) {
+        const i = k * 2;
+        const re = spectrum[i];
+        const im = spectrum[i + 1];
+        const mag = Math.hypot(re, im);
+
+        const phase = Math.random() * 2 * Math.PI;
+        const reNew = mag * Math.cos(phase);
+        const imNew = mag * Math.sin(phase);
+
+        // set positive-frequency bin
+        spectrum[i] = reNew;
+        spectrum[i + 1] = imNew;
+
+        // mirror to negative frequency (complex conjugate)
+        const j = (N - k) * 2;
+        spectrum[j] = reNew;
+        spectrum[j + 1] = -imNew;
+      }
+
       // IFFT
       const stretched = fft.inverse(spectrum);
-      
-      // Add to output with windowing
+
+      // --- NEW: Per-frame RMS gain compensation (pre-OLA) ---
+      // Match output frame RMS to analysis (windowed) input RMS
+      let rmsIn = 0;
+      let rmsOut = 0;
       for (let i = 0; i < windowSizeSamples; i++) {
-        if (outputPos + i < outputLength) {
-          stretchedData[outputPos + i] += stretched[i] * window[i];
+        const a = segment[i]; // windowed analysis frame (already DC-removed)
+        const b = stretched[i]; // synthesized frame
+        rmsIn += a * a;
+        rmsOut += b * b;
+      }
+      rmsIn = Math.sqrt(rmsIn / Math.max(1, windowSizeSamples));
+      rmsOut = Math.sqrt(rmsOut / Math.max(1, windowSizeSamples));
+      const eps = 1e-12;
+      const gain = rmsOut > eps ? rmsIn / rmsOut : 1;
+      if (Math.abs(gain - 1) > 1e-6) {
+        for (let i = 0; i < windowSizeSamples; i++) {
+          stretched[i] *= gain;
         }
       }
-      
+
+      // Add to output with windowing and proper overlap-add weight tracking
+      for (let i = 0; i < windowSizeSamples; i++) {
+        if (outputPos + i < outputLength) {
+          stretchedData[outputPos + i] += stretched[i] * frameWindow[i];
+          olaWeight[outputPos + i] += frameWindow[i] * frameWindow[i];
+        }
+      }
+
       inputPos += hopSize;
       outputPos += outputHopSize;
     }
-    
-    // Normalize
-    let maxVal = 0;
+
+    // Normalize by overlap-add weights
     for (let i = 0; i < outputLength; i++) {
-      maxVal = Math.max(maxVal, Math.abs(stretchedData[i]));
-    }
-    if (maxVal > 0) {
-      for (let i = 0; i < outputLength; i++) {
-        stretchedData[i] /= maxVal;
+      if (olaWeight[i] > 0) {
+        stretchedData[i] /= olaWeight[i];
       }
     }
-    
+
+    // --- NEW: Make-up gain + soft limiter (tanh) post-OLA ---
+    for (let i = 0; i < outputLength; i++) {
+      // Apply make-up gain
+      let s = stretchedData[i] * makeupLinear;
+      // Soft limit around threshold (prevents nasty hard clips)
+      // y = thr * tanh(x / thr)
+      s = limiterThresh * Math.tanh(s / Math.max(1e-12, limiterThresh));
+      stretchedData[i] = s;
+    }
+
     // Copy stretched data to output
     for (let i = 0; i < outputLength; i++) {
-      outputData[startSample + i] = stretchedData[i] * 0.8; // Scale down to prevent clipping
+      // Leave at unity now; limiter handles overs
+      outputData[startSample + i] = stretchedData[i];
     }
-    
+
     // Copy after region
     for (let i = endSample; i < inputData.length; i++) {
       const outputIndex = startSample + outputLength + (i - endSample);
@@ -229,7 +336,7 @@ export async function processPaulstretchRegion(audioBuffer, startSample, endSamp
       }
     }
   }
-  
+
   return outputBuffer;
 }
 
@@ -238,141 +345,194 @@ export async function processPaulstretchRegion(audioBuffer, startSample, endSamp
  * Based on the algorithm by Paul Nasca
  */
 export default function Paulstretch({ width }) {
-  const {
-    audioRef,
-    wavesurferRef,
-    addToEditHistory,
-    audioURL
-  } = useAudio();
-  
-  const {
-    cutRegion
-  } = useEffects();
-  
+  const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+
+  const { cutRegion } = useEffects();
+
   const audioContextRef = useRef(null);
-  
+
   // Initialize audio context
   useEffect(() => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      audioContextRef.current = new (window.AudioContext ||
+        window.webkitAudioContext)();
     }
   }, []);
-  
+
   // Paulstretch parameters
   const [stretchFactor, setStretchFactor] = useState(8);
   const [windowSize, setWindowSize] = useState(0.25);
   const [onset, setOnset] = useState(10);
-  
+
+  // NEW: Output controls
+  const [makeupDb, setMakeupDb] = useState(0); // 0..+24 dB
+  const [limiterDb, setLimiterDb] = useState(-1); // -24..-0.1 dBFS
+
   // Apply Paulstretch algorithm
   const applyPaulstretch = useCallback(async () => {
     if (!cutRegion || !wavesurferRef.current) {
       alert('Please select a region first');
       return;
     }
-    
+
     try {
       const wavesurfer = wavesurferRef.current;
       const context = audioContextRef.current;
-      
+
       // Get the audio buffer
       const response = await fetch(audioURL);
       const arrayBuffer = await response.arrayBuffer();
       const audioBuffer = await context.decodeAudioData(arrayBuffer);
-      
+
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      
+
       // Use the exported processing function
       const parameters = {
         stretchFactor: stretchFactor,
         windowSize: windowSize,
-        onset: onset
+        onset: onset,
+        makeupDb: makeupDb,
+        limiterDb: limiterDb,
       };
-      
+
       const outputBuffer = await processPaulstretchRegion(
         audioBuffer,
         startSample,
         endSample,
-        parameters
+        parameters,
       );
-      
+
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
       const blob = new Blob([wav], { type: 'audio/wav' });
       const url = URL.createObjectURL(blob);
-      
+
       // Update audio and history
       addToEditHistory(url, 'Apply Paulstretch', {
         effect: 'paulstretch',
         parameters,
-        region: { start: cutRegion.start, end: cutRegion.end }
+        region: { start: cutRegion.start, end: cutRegion.end },
       });
-      
+
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
-      
     } catch (error) {
       console.error('Error applying Paulstretch:', error);
       alert('Error applying Paulstretch. Please try again.');
     }
-  }, [audioURL, addToEditHistory, wavesurferRef, cutRegion, stretchFactor, windowSize, onset]);
-  
+  }, [
+    audioURL,
+    addToEditHistory,
+    wavesurferRef,
+    cutRegion,
+    stretchFactor,
+    windowSize,
+    onset,
+    makeupDb,
+    limiterDb,
+  ]);
+
   return (
     <Container fluid className="p-2">
       <Row className="text-center align-items-end">
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={stretchFactor}
-            onChange={setStretchFactor}
-            min={2}
-            max={50}
-            step={1}
-            label="Stretch"
-            displayValue={`${stretchFactor}x`}
-            size={45}
-            color="#e75b5c"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{PaulstretchTooltips.stretch}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={stretchFactor}
+                onChange={setStretchFactor}
+                min={2}
+                max={50}
+                step={1}
+                label="Stretch"
+                displayValue={`${stretchFactor}x`}
+                size={45}
+                color="#e75b5c"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
+        <Col xs={6} sm={4} md={2} lg={1}>
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{PaulstretchTooltips.windowSize}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={windowSize}
+                onChange={setWindowSize}
+                min={0.05}
+                max={1}
+                step={0.05}
+                label="Window"
+                displayValue={`${(windowSize * 1000).toFixed(0)}ms`}
+                size={45}
+                color="#7bafd4"
+              />
+            </div>
+          </OverlayTrigger>
+        </Col>
+
+        <Col xs={6} sm={4} md={2} lg={1}>
+          <div>
+            <Knob
+              value={onset}
+              onChange={setOnset}
+              min={2}
+              max={50}
+              step={1}
+              label="Smoothness"
+              displayValue={`${onset}`}
+              size={45}
+              color="#92ce84"
+            />
+          </div>
+        </Col>
+
+        {/* NEW: Make-Up Gain (dB) */}
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
-            value={windowSize}
-            onChange={setWindowSize}
-            min={0.05}
-            max={1}
-            step={0.05}
-            label="Window"
-            displayValue={`${(windowSize * 1000).toFixed(0)}ms`}
+            value={makeupDb}
+            onChange={setMakeupDb}
+            min={0}
+            max={24}
+            step={1}
+            label="Make-Up"
+            displayValue={`${makeupDb.toFixed(0)} dB`}
             size={45}
-            color="#7bafd4"
+            color="#d4a67b"
           />
         </Col>
-        
+
+        {/* NEW: Limiter Threshold (dBFS) */}
         <Col xs={6} sm={4} md={2} lg={1}>
           <Knob
-            value={onset}
-            onChange={setOnset}
-            min={2}
-            max={50}
-            step={1}
-            label="Smoothness"
-            displayValue={`${onset}`}
+            value={limiterDb}
+            onChange={setLimiterDb}
+            min={-24}
+            max={-0.1}
+            step={0.1}
+            label="Limit Thr"
+            displayValue={`${limiterDb.toFixed(1)} dBFS`}
             size={45}
-            color="#92ce84"
+            color="#b78be0"
           />
         </Col>
-        
+
         {/* Apply Button */}
         <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
-          <Button
-            size="sm"
-            className="w-100"
-            onClick={applyPaulstretch}
-          >
+          <Button size="sm" className="w-100" onClick={applyPaulstretch}>
             Apply to Region
           </Button>
         </Col>

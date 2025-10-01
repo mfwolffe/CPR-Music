@@ -19,10 +19,9 @@ import {
 
 import Layout from '../../components/layout';
 import { catchSilence, loadFfmpeg } from '../../lib/dawUtils';
-import AudioDropModal from '../../components/audioDropWarning';
+import { AudioDropModal } from '../../components/audio/silenceDetect';
 
 const URL = '/sample_audio/uncso-bruckner4-1.mp3';
-const { useCallback, useEffect, useRef, useState } = React;
 
 export default function DroppedAudioSandBox() {
   const ffmpegRef = useRef(new FFmpeg());

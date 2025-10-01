@@ -1,113 +1,273 @@
+// components/audio/DAW/Effects/FrequencyShifter.js
 'use client';
 
 import { useCallback, useRef, useEffect } from 'react';
-import { Container, Row, Col, Button, Dropdown, Form } from 'react-bootstrap';
-import { 
-  useAudio, 
-  useEffects 
-} from '../../../../contexts/DAWProvider';
+import { Container, Row, Col, Button, Dropdown, Form, OverlayTrigger, Tooltip } from 'react-bootstrap';
+import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
+
+/**
+ * Educational Tooltips
+ */
+const FrequencyShifterTooltips = {
+  shift: "Amount to shift all frequencies linearly. Unlike pitch shifting, this creates inharmonic, metallic tones. 50-200Hz creates subtle dissonance, 500Hz+ creates alien effects.",
+  feedback: "Routes output back through the shifter. Creates cascading frequency shifts and resonances. Use sparingly (10-40%) as it intensifies the effect dramatically.",
+  mix: "Balance between dry and wet signal. Lower values (20-50%) add subtle shimmer and movement. Higher values (70-100%) create complete transformation."
+};
+
+/**
+ * Hilbert transform using FFT for proper frequency shifting
+ */
+function hilbertTransform(signal) {
+  const N = signal.length;
+  const fft = new FFT(N);
+
+  // Forward FFT
+  const spectrum = fft.forward(signal);
+
+  // Apply Hilbert transform in frequency domain
+  // Zero out negative frequencies, double positive frequencies
+  for (let i = 1; i < N / 2; i++) {
+    spectrum[i * 2] *= 2;
+    spectrum[i * 2 + 1] *= 2;
+  }
+  for (let i = N / 2 + 1; i < N; i++) {
+    spectrum[i * 2] = 0;
+    spectrum[i * 2 + 1] = 0;
+  }
+
+  // Inverse FFT to get analytic signal
+  const analytic = fft.inverse(spectrum);
+
+  // Extract imaginary part (Hilbert transform)
+  const hilbert = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    hilbert[i] = analytic[i * 2 + 1];
+  }
+
+  return hilbert;
+}
+
+// Simple FFT implementation for Hilbert transform
+class FFT {
+  constructor(size) {
+    this.size = size;
+    this.invSize = 1 / size;
+
+    // Bit reversal lookup table
+    this.reverseTable = new Uint32Array(size);
+    let limit = 1;
+    let bit = size >> 1;
+    while (limit < size) {
+      for (let i = 0; i < limit; i++) {
+        this.reverseTable[i + limit] = this.reverseTable[i] + bit;
+      }
+      limit = limit << 1;
+      bit = bit >> 1;
+    }
+
+    // Twiddle factors
+    this.sin = new Float32Array(size);
+    this.cos = new Float32Array(size);
+    for (let i = 0; i < size; i++) {
+      this.sin[i] = Math.sin((-Math.PI * i) / size);
+      this.cos[i] = Math.cos((-Math.PI * i) / size);
+    }
+  }
+
+  forward(signal) {
+    const size = this.size;
+    const output = new Float32Array(size * 2);
+
+    // Copy signal to output with bit reversal
+    for (let i = 0; i < size; i++) {
+      output[this.reverseTable[i] * 2] = signal[i];
+      output[this.reverseTable[i] * 2 + 1] = 0;
+    }
+
+    // Cooley-Tukey FFT
+    let halfSize = 1;
+    while (halfSize < size) {
+      const step = size / halfSize;
+      let k = 0;
+      for (let i = 0; i < size; i += halfSize * 2) {
+        k = 0;
+        for (let j = 0; j < halfSize; j++) {
+          const evenR = output[(i + j) * 2];
+          const evenI = output[(i + j) * 2 + 1];
+          const oddR = output[(i + j + halfSize) * 2];
+          const oddI = output[(i + j + halfSize) * 2 + 1];
+
+          const tR = this.cos[k] * oddR - this.sin[k] * oddI;
+          const tI = this.cos[k] * oddI + this.sin[k] * oddR;
+
+          output[(i + j) * 2] = evenR + tR;
+          output[(i + j) * 2 + 1] = evenI + tI;
+          output[(i + j + halfSize) * 2] = evenR - tR;
+          output[(i + j + halfSize) * 2 + 1] = evenI - tI;
+
+          k += step;
+        }
+      }
+      halfSize = halfSize << 1;
+    }
+
+    return output;
+  }
+
+  inverse(spectrum) {
+    const size = this.size;
+    const output = new Float32Array(size * 2);
+
+    // Copy spectrum with conjugation
+    for (let i = 0; i < size * 2; i += 2) {
+      output[i] = spectrum[i];
+      output[i + 1] = -spectrum[i + 1];
+    }
+
+    // Forward FFT on conjugated spectrum
+    const result = this.forward(output);
+
+    // Scale and extract real/imaginary parts
+    for (let i = 0; i < size * 2; i++) {
+      result[i] *= this.invSize;
+    }
+
+    return result;
+  }
+}
 
 /**
  * Process frequency shifter on an audio buffer region
  * Pure function - no React dependencies
  */
-export async function processFrequencyShifterRegion(audioBuffer, startSample, endSample, parameters) {
+export async function processFrequencyShifterRegion(
+  audioBuffer,
+  startSample,
+  endSample,
+  parameters,
+) {
   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
   const sampleRate = audioBuffer.sampleRate;
   const regionLength = endSample - startSample;
-  
+
   // Create output buffer
   const outputBuffer = audioContext.createBuffer(
     audioBuffer.numberOfChannels,
     audioBuffer.length,
-    sampleRate
+    sampleRate,
   );
-  
+
   // Process each channel
   for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
     const inputData = audioBuffer.getChannelData(channel);
     const outputData = outputBuffer.getChannelData(channel);
-    
+
     // Copy original audio
     outputData.set(inputData);
-    
+
     // Extract region for processing
     const regionData = new Float32Array(regionLength);
     for (let i = 0; i < regionLength; i++) {
       regionData[i] = inputData[startSample + i];
     }
-    
-    // Apply frequency shift using single sideband modulation
-    // This is a simplified version - real frequency shifting uses Hilbert transform
+
+    // Process in chunks for proper Hilbert transform
+    const chunkSize = 4096; // Power of 2 for FFT
+    const overlap = chunkSize / 4;
+    const hopSize = chunkSize - overlap;
     const shiftedData = new Float32Array(regionLength);
-    const shiftFreq = parameters.amount || 0;
-    
-    // Create oscillators for shifting
-    const cosPhase = new Float32Array(regionLength);
-    const sinPhase = new Float32Array(regionLength);
-    
-    for (let i = 0; i < regionLength; i++) {
-      const t = i / sampleRate;
-      cosPhase[i] = Math.cos(2 * Math.PI * shiftFreq * t);
-      sinPhase[i] = Math.sin(2 * Math.PI * shiftFreq * t);
+
+    // Window function for overlap-add
+    const window = new Float32Array(chunkSize);
+    for (let i = 0; i < chunkSize; i++) {
+      window[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (chunkSize - 1));
     }
-    
-    // Apply Hilbert transform approximation (90-degree phase shift)
-    // This is simplified - a real implementation would use FFT
-    const hilbert = new Float32Array(regionLength);
-    for (let i = 0; i < regionLength; i++) {
-      // Simple delay-based approximation
-      const delay = Math.floor(sampleRate / (4 * Math.abs(shiftFreq || 1)));
-      const delayedIndex = i - delay;
-      if (delayedIndex >= 0) {
-        hilbert[i] = regionData[delayedIndex];
+
+    // Process chunks
+    for (let pos = 0; pos < regionLength - chunkSize; pos += hopSize) {
+      // Extract windowed chunk
+      const chunk = new Float32Array(chunkSize);
+      for (let i = 0; i < chunkSize; i++) {
+        if (pos + i < regionLength) {
+          chunk[i] = regionData[pos + i] * window[i];
+        }
+      }
+
+      // Compute Hilbert transform
+      const hilbert = hilbertTransform(chunk);
+
+      // Apply frequency shift using single sideband modulation
+      const shiftFreq = parameters.amount || 0;
+      const direction = parameters.direction || 'up';
+
+      for (let i = 0; i < chunkSize; i++) {
+        const t = (pos + i) / sampleRate;
+        const cosPhase = Math.cos(2 * Math.PI * shiftFreq * t);
+        const sinPhase = Math.sin(2 * Math.PI * shiftFreq * t);
+
+        let shifted;
+        if (direction === 'up' || direction === 'both') {
+          // Upper sideband (shift up)
+          shifted = chunk[i] * cosPhase - hilbert[i] * sinPhase;
+        } else {
+          // Lower sideband (shift down)
+          shifted = chunk[i] * cosPhase + hilbert[i] * sinPhase;
+        }
+
+        if (direction === 'both') {
+          // Mix both sidebands for ring mod-like effect
+          const lower = chunk[i] * cosPhase + hilbert[i] * sinPhase;
+          shifted = (shifted + lower) * 0.5;
+        }
+
+        // Add to output with windowing
+        if (pos + i < regionLength) {
+          shiftedData[pos + i] += shifted * window[i];
+        }
       }
     }
-    
-    // Single sideband modulation
+
+    // Normalize overlap-add
+    let maxVal = 0;
     for (let i = 0; i < regionLength; i++) {
-      if (parameters.direction === 'up' || parameters.direction === 'both') {
-        // Upper sideband (shift up)
-        shiftedData[i] = regionData[i] * cosPhase[i] - hilbert[i] * sinPhase[i];
-      } else {
-        // Lower sideband (shift down)
-        shiftedData[i] = regionData[i] * cosPhase[i] + hilbert[i] * sinPhase[i];
-      }
-      
-      if (parameters.direction === 'both') {
-        // Mix both sidebands for ring mod-like effect
-        const lower = regionData[i] * cosPhase[i] + hilbert[i] * sinPhase[i];
-        shiftedData[i] = (shiftedData[i] + lower) * 0.5;
+      maxVal = Math.max(maxVal, Math.abs(shiftedData[i]));
+    }
+    if (maxVal > 0) {
+      for (let i = 0; i < regionLength; i++) {
+        shiftedData[i] /= maxVal;
       }
     }
-    
+
     // Apply feedback if requested
     if ((parameters.feedback || 0) > 0) {
       const feedbackBuffer = new Float32Array(regionLength);
       const feedbackDelay = Math.floor(sampleRate * 0.1); // 100ms delay
-      
+
       for (let i = 0; i < regionLength; i++) {
         feedbackBuffer[i] = shiftedData[i];
-        
+
         if (i >= feedbackDelay) {
-          feedbackBuffer[i] += feedbackBuffer[i - feedbackDelay] * (parameters.feedback || 0);
+          feedbackBuffer[i] +=
+            feedbackBuffer[i - feedbackDelay] * (parameters.feedback || 0);
         }
       }
-      
+
       for (let i = 0; i < regionLength; i++) {
         shiftedData[i] = feedbackBuffer[i];
       }
     }
-    
+
     // Mix dry and wet signals
     for (let i = 0; i < regionLength; i++) {
       const drySignal = regionData[i];
       const wetSignal = shiftedData[i];
-      outputData[startSample + i] = drySignal * (1 - (parameters.mix || 0.5)) + wetSignal * (parameters.mix || 0.5);
+      outputData[startSample + i] =
+        drySignal * (1 - (parameters.mix || 0.5)) +
+        wetSignal * (parameters.mix || 0.5);
     }
   }
-  
+
   return outputBuffer;
 }
 
@@ -116,13 +276,8 @@ export async function processFrequencyShifterRegion(audioBuffer, startSample, en
  * Unlike pitch shifting, this destroys harmonic relationships for wild effects
  */
 export default function FrequencyShifter({ width }) {
-  const {
-    audioRef,
-    wavesurferRef,
-    addToEditHistory,
-    audioURL
-  } = useAudio();
-  
+  const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+
   const {
     freqShiftAmount,
     setFreqShiftAmount,
@@ -132,84 +287,93 @@ export default function FrequencyShifter({ width }) {
     setFreqShiftFeedback,
     freqShiftDirection,
     setFreqShiftDirection,
-    cutRegion
+    cutRegion,
   } = useEffects();
-  
+
   const audioContextRef = useRef(null);
-  
+
   // Initialize audio context
   useEffect(() => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      audioContextRef.current = new (window.AudioContext ||
+        window.webkitAudioContext)();
     }
   }, []);
-  
+
   // Apply frequency shifting using Hilbert transform
   const applyFrequencyShift = useCallback(async () => {
     if (!cutRegion || !wavesurferRef.current) {
       alert('Please select a region first');
       return;
     }
-    
+
     try {
       const wavesurfer = wavesurferRef.current;
       const context = audioContextRef.current;
-      
+
       // Get the audio buffer
       const response = await fetch(audioURL);
       const arrayBuffer = await response.arrayBuffer();
       const audioBuffer = await context.decodeAudioData(arrayBuffer);
-      
+
       // Calculate sample positions
       const sampleRate = audioBuffer.sampleRate;
       const startSample = Math.floor(cutRegion.start * sampleRate);
       const endSample = Math.floor(cutRegion.end * sampleRate);
-      
+
       // Use the exported processing function
       const parameters = {
         amount: freqShiftAmount,
         mix: freqShiftMix,
         feedback: freqShiftFeedback,
-        direction: freqShiftDirection
+        direction: freqShiftDirection || 'up', // Default to 'up'
       };
-      
+
       const outputBuffer = await processFrequencyShifterRegion(
         audioBuffer,
         startSample,
         endSample,
-        parameters
+        parameters,
       );
-      
+
       // Convert to blob and update
       const wav = await audioBufferToWav(outputBuffer);
       const blob = new Blob([wav], { type: 'audio/wav' });
       const url = URL.createObjectURL(blob);
-      
+
       // Update audio and history
       addToEditHistory(url, 'Apply Frequency Shifter', {
         effect: 'frequencyshifter',
         parameters,
-        region: { start: cutRegion.start, end: cutRegion.end }
+        region: { start: cutRegion.start, end: cutRegion.end },
       });
-      
+
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
-      
     } catch (error) {
       console.error('Error applying frequency shifter:', error);
       alert('Error applying frequency shifter. Please try again.');
     }
-  }, [audioURL, addToEditHistory, wavesurferRef, freqShiftAmount, freqShiftMix, freqShiftFeedback, freqShiftDirection, cutRegion]);
-  
+  }, [
+    audioURL,
+    addToEditHistory,
+    wavesurferRef,
+    freqShiftAmount,
+    freqShiftMix,
+    freqShiftFeedback,
+    freqShiftDirection,
+    cutRegion,
+  ]);
+
   const directionOptions = [
     { key: 'up', name: 'Up' },
     { key: 'down', name: 'Down' },
-    { key: 'both', name: 'Both' }
+    { key: 'both', name: 'Both' },
   ];
-  
+
   return (
     <Container fluid className="p-2">
       <Row className="text-center align-items-end">
@@ -220,15 +384,13 @@ export default function FrequencyShifter({ width }) {
             onSelect={(eventKey) => setFreqShiftDirection(eventKey)}
             size="sm"
           >
-            <Dropdown.Toggle
-              variant="secondary"
-              size="sm"
-              className="w-100"
-            >
-              {directionOptions.find(d => d.key === freqShiftDirection)?.name || 'Up'}
+            <Dropdown.Toggle variant="secondary" size="sm" className="w-100">
+              {directionOptions.find(
+                (d) => d.key === (freqShiftDirection || 'up'),
+              )?.name || 'Up'}
             </Dropdown.Toggle>
             <Dropdown.Menu className="bg-daw-toolbars">
-              {directionOptions.map(dir => (
+              {directionOptions.map((dir) => (
                 <Dropdown.Item
                   key={dir.key}
                   eventKey={dir.key}
@@ -240,55 +402,75 @@ export default function FrequencyShifter({ width }) {
             </Dropdown.Menu>
           </Dropdown>
         </Col>
-        
+
         {/* Knobs */}
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={freqShiftAmount}
-            onChange={setFreqShiftAmount}
-            min={-500}
-            max={500}
-            step={1}
-            label="Shift"
-            displayValue={`${freqShiftAmount > 0 ? '+' : ''}${freqShiftAmount}Hz`}
-            size={45}
-            color="#e75b5c"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{FrequencyShifterTooltips.shift}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={freqShiftAmount}
+                onChange={setFreqShiftAmount}
+                min={-500}
+                max={500}
+                step={1}
+                label="Shift"
+                displayValue={`${freqShiftAmount > 0 ? '+' : ''}${freqShiftAmount}Hz`}
+                size={45}
+                color="#e75b5c"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={freqShiftFeedback}
-            onChange={setFreqShiftFeedback}
-            min={0}
-            max={0.9}
-            label="Feedback"
-            displayValue={`${Math.round(freqShiftFeedback * 100)}%`}
-            size={45}
-            color="#7bafd4"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{FrequencyShifterTooltips.mix}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={freqShiftMix}
+                onChange={setFreqShiftMix}
+                min={0}
+                max={1}
+                label="Mix"
+                displayValue={`${Math.round(freqShiftMix * 100)}%`}
+                size={45}
+                color="#7bafd4"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         <Col xs={6} sm={4} md={2} lg={1}>
-          <Knob
-            value={freqShiftMix}
-            onChange={setFreqShiftMix}
-            min={0}
-            max={1}
-            label="Mix"
-            displayValue={`${Math.round(freqShiftMix * 100)}%`}
-            size={45}
-            color="#92ce84"
-          />
+          <OverlayTrigger
+            placement="top"
+            delay={{ show: 1500, hide: 250 }}
+            overlay={<Tooltip>{FrequencyShifterTooltips.feedback}</Tooltip>}
+          >
+            <div>
+              <Knob
+                value={freqShiftFeedback}
+                onChange={setFreqShiftFeedback}
+                min={0}
+                max={0.9}
+                label="Feedback"
+                displayValue={`${Math.round(freqShiftFeedback * 100)}%`}
+                size={45}
+                color="#cbb677"
+              />
+            </div>
+          </OverlayTrigger>
         </Col>
-        
+
         {/* Apply Button */}
         <Col xs={12} sm={6} md={3} lg={2} className="mb-2">
-          <Button
-            size="sm"
-            className="w-100"
-            onClick={applyFrequencyShift}
-          >
+          <Button size="sm" className="w-100" onClick={applyFrequencyShift}>
             Apply to Region
           </Button>
         </Col>

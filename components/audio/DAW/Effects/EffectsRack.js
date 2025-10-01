@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardBody, Nav, Tab } from 'react-bootstrap';
+import { Card, CardHeader, CardTitle, CardBody, Nav, Tab, Form, InputGroup } from 'react-bootstrap';
 import { useEffects } from '../../../../contexts/DAWProvider';
 import EQ from './EQ';
 import Echo from './Echo';
@@ -25,17 +25,30 @@ import Flanger from './Flanger';
 import Gate from './Gate';
 import PitchShifter from './PitchShifter';
 import StereoWidener from './StereoWidener';
+import Filter from './Filter';
+import Limiter from './Limiter';
 
 /**
  * Effects Rack - Tabbed container for all effects
- * Shows all effects in tabs below the DAW
+ * Shows all effects in tabs below the DAW.
+ * Hello. The above is no longer true, and I'm lazy. 
+ * Here's a quote:
+ * 
+ * 			A rich man's melk, is a poor man's tuba.
+ * - Doug. 
+ *
+ *
+ * Doug likes the guest suite.
+ * 
  */
 export default function EffectsRack({ width }) {
   const { 
+    globalBPM,
+    setGlobalBPM,
     setEqPresent,
     setRvbPresent,
     setReverbPresent,
-    setChrPresent,
+    setChorusPresent,
     setDistortionPresent,
     setPhaserPresent,
     setAutoPanPresent,
@@ -53,7 +66,9 @@ export default function EffectsRack({ width }) {
     setFlangerPresent,
     setGatePresent,
     setPitchShiftPresent,
-    setStereoWidenerPresent
+    setStereoWidenerPresent,
+    setFilterPresent,
+    setLimiterPresent
   } = useEffects();
   
   // Track active tab
@@ -64,7 +79,7 @@ export default function EffectsRack({ width }) {
     setEqPresent(true);
     setRvbPresent(true);
     setReverbPresent(true);
-    setChrPresent(true);
+    setChorusPresent(true);
     setDistortionPresent(true);
     setPhaserPresent(true);
     setAutoPanPresent(true);
@@ -83,13 +98,15 @@ export default function EffectsRack({ width }) {
     setGatePresent(true);
     setPitchShiftPresent(true);
     setStereoWidenerPresent(true);
+    setFilterPresent(true);
+    setLimiterPresent(true);
     
     // Cleanup: disable all when unmounted
     return () => {
       setEqPresent(false);
       setRvbPresent(false);
       setReverbPresent(false);
-      setChrPresent(false);
+      setChorusPresent(false);
       setDistortionPresent(false);
       setPhaserPresent(false);
       setAutoPanPresent(false);
@@ -108,13 +125,17 @@ export default function EffectsRack({ width }) {
       setGatePresent(false);
       setPitchShiftPresent(false);
       setStereoWidenerPresent(false);
+      setFilterPresent(false);
+      setLimiterPresent(false);
     };
-  }, [setEqPresent, setRvbPresent, setReverbPresent, setChrPresent, setDistortionPresent, setPhaserPresent, setAutoPanPresent, setTremoloPresent, setCompressorPresent, setRingModPresent, setPaulstretchPresent, setSpectralPresent, setReverseReverbPresent, setGlitchPresent, setFreqShiftPresent, setGranularPresent, setAdvDelayPresent, setAutoWahPresent, setFlangerPresent, setGatePresent, setPitchShiftPresent, setStereoWidenerPresent]);
+  }, [setEqPresent, setRvbPresent, setReverbPresent, setChorusPresent, setDistortionPresent, setPhaserPresent, setAutoPanPresent, setTremoloPresent, setCompressorPresent, setRingModPresent, setPaulstretchPresent, setSpectralPresent, setReverseReverbPresent, setGlitchPresent, setFreqShiftPresent, setGranularPresent, setAdvDelayPresent, setAutoWahPresent, setFlangerPresent, setGatePresent, setPitchShiftPresent, setStereoWidenerPresent, setFilterPresent, setLimiterPresent]);
   
   // All tabs are always available in the rack
   const tabs = [
     { key: 'eq', title: 'Equalizer', component: EQ },
+    { key: 'filter', title: 'Filter', component: Filter },
     { key: 'compressor', title: 'Compressor', component: Compressor },
+    { key: 'limiter', title: 'Limiter', component: Limiter },
     { key: 'gate', title: 'Gate', component: Gate },
     { key: 'echo', title: 'Echo', component: Echo },
     { key: 'advdelay', title: 'Adv Delay', component: AdvancedDelay },
@@ -159,6 +180,24 @@ export default function EffectsRack({ width }) {
               </Nav.Item>
             ))}
           </Nav>
+          
+          {/* Global BPM Control */}
+          <div className="bg-dark px-2 py-1 border-bottom" style={{ fontSize: '0.8rem' }}>
+            <InputGroup size="sm" style={{ width: '120px', display: 'inline-flex' }}>
+              <InputGroup.Text className="bg-secondary text-white border-secondary">
+                BPM
+              </InputGroup.Text>
+              <Form.Control
+                type="number"
+                value={globalBPM}
+                onChange={(e) => setGlobalBPM(Number(e.target.value))}
+                min="60"
+                max="200"
+                className="bg-dark text-white border-secondary"
+                style={{ width: '60px' }}
+              />
+            </InputGroup>
+          </div>
           
           {/* Tab Content */}
           <Tab.Content className="pt-1" style={{ height: '160px', overflowY: 'auto' }}>

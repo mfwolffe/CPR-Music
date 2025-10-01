@@ -44,18 +44,8 @@ function Navigation() {
             {piece && <NavActivityPicker />}
           </Nav>
           <Nav>
-            <Link href="/daw/dawCreative" passHref legacyBehavior>
-              <Nav.Link>DAW-Create</Nav.Link>
-            </Link>
-            <Link
-              href="/silence-sandbox/catch-dropped-audio"
-              passHref
-              legacyBehavior
-            >
-              <Nav.Link>Silence-Sandbox</Nav.Link>
-            </Link>
-            <Link href="/daw/daw" passHref legacyBehavior>
-              <Nav.Link>DAW</Nav.Link>
+            <Link href="/studio" passHref legacyBehavior>
+              <Nav.Link>Studio</Nav.Link>
             </Link>
             <Link href="/about" passHref legacyBehavior>
               <Nav.Link>About</Nav.Link>

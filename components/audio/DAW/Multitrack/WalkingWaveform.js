@@ -2,27 +2,39 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useMultitrack } from '../../../../contexts/MultitrackContext';
 
 export default function WalkingWaveform({
   mediaStream,
   isRecording,
   trackId,
-  height = 60,
+  height = 120,
   color = '#ff6b6b',
   backgroundColor = '#2a2a2a',
+  startPosition = 0, // Start position in seconds
+  zoomLevel = 100, // Zoom level percentage
+  duration = 30, // Project duration
 }) {
+  const { currentTime: globalCurrentTime } = useMultitrack();
+  
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
   const startTimeRef = useRef(null);
   const waveformDataRef = useRef([]);
+  
+  // Viewport state for auto-scroll
+  const [viewportStartTime, setViewportStartTime] = useState(startPosition);
 
   useEffect(() => {
     console.log('WalkingWaveform effect:', {
       mediaStream,
       isRecording,
       hasCanvas: !!canvasRef.current,
+      startPosition,
+      zoomLevel,
+      duration,
     });
 
     if (!mediaStream || !isRecording || !canvasRef.current) {
@@ -52,7 +64,26 @@ export default function WalkingWaveform({
       // Set up canvas
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
-      const width = canvas.width;
+      const inner = document.getElementById('multitrack-tracks-inner');
+      const totalWidth = inner
+        ? inner.offsetWidth
+        : 310 + 3000 * (zoomLevel / 100); // 80px sidebar + 230px track controls
+      const contentWidth = Math.max(1, totalWidth - 310);
+      canvas.width = contentWidth;
+      canvas.style.width = contentWidth + 'px';
+      const width = contentWidth;
+      const canvasHeight = canvas.height;
+
+      // Calculate pixels per second to match TrackClipCanvas calculation
+      const projectDur = Math.max(1e-6, duration || 30);
+      const pixelsPerSecond = width / projectDur;
+
+      console.log('WalkingWaveform: Pixel calculation', {
+        width,
+        projectDur,
+        pixelsPerSecond,
+        startPositionPx: startPosition * pixelsPerSecond,
+      });
 
       // Initialize recording start time
       startTimeRef.current = Date.now();
@@ -60,7 +91,7 @@ export default function WalkingWaveform({
 
       // Clear canvas
       ctx.fillStyle = backgroundColor;
-      ctx.fillRect(0, 0, width, height);
+      ctx.fillRect(0, 0, width, canvasHeight);
 
       let frameCount = 0;
 
@@ -74,7 +105,13 @@ export default function WalkingWaveform({
         frameCount++;
         if (frameCount % 60 === 0) {
           // Log every second
-          console.log('WalkingWaveform: Still animating...', frameCount);
+          const elapsed = (Date.now() - startTimeRef.current) / 1000;
+          console.log('WalkingWaveform: Still animating...', {
+            frameCount,
+            startPosition,
+            elapsed,
+            currentX: (startPosition + elapsed) * pixelsPerSecond,
+          });
         }
 
         const bufferLength = analyserRef.current.frequencyBinCount;
@@ -90,29 +127,69 @@ export default function WalkingWaveform({
         const rms = Math.sqrt(sum / bufferLength);
         const amplitude = Math.min(rms * 3, 1); // Scale and clamp
 
-        // Store waveform data point
-        waveformDataRef.current.push(amplitude);
-
-        // Calculate time position
-        const elapsed = (Date.now() - startTimeRef.current) / 1000; // seconds
-        const pixelsPerSecond = 50; // Match the timeline scale
-        const xPosition = elapsed * pixelsPerSecond;
-
-        // Draw the waveform
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-
-        // Draw waveform bars
+        // Calculate elapsed time since recording started (independent timing)
+        const elapsed = (Date.now() - startTimeRef.current) / 1000;
+        const currentTime = startPosition + elapsed; // absolute position in timeline
+        
+        // Store waveform data point with timestamp
+        waveformDataRef.current.push({
+          amplitude,
+          time: currentTime
+        });
+        
+        // PRO DAW-STYLE AUTO-SCROLL: Playhead stays at fixed 75% position, waveform scrolls past
+        let viewportStart = viewportStartTime;
+        if (isRecording && currentTime > 0) {
+          const viewportDuration = width / pixelsPerSecond; // How many seconds fit in the viewport
+          
+          // FIXED PLAYHEAD POSITION: Keep playhead at 75% from left edge (like Pro Tools/Logic)
+          const playheadScreenPosition = 0.75; // 75% from left
+          
+          // Calculate where viewport should start so currentTime appears at 75% position
+          const targetViewportStart = Math.max(0, currentTime - (viewportDuration * playheadScreenPosition));
+          
+          // Smooth viewport updates to avoid jank - only update if significantly different
+          const timeDifference = Math.abs(targetViewportStart - viewportStart);
+          
+          if (timeDifference > 0.1) { // Update if >100ms difference
+            setViewportStartTime(targetViewportStart);
+            viewportStart = targetViewportStart;
+            
+            if (process.env.NODE_ENV === 'development') {
+              console.log('🎬 Audio Auto-scroll (Fixed Playhead @ 75%):', {
+                currentTime: currentTime.toFixed(3),
+                viewportStart: targetViewportStart.toFixed(3),
+                playheadWillAppearAt: `${(playheadScreenPosition * 100)}%`,
+                timeDiff: timeDifference.toFixed(3)
+              });
+            }
+          }
+        }
+        
+        // Clear and redraw entire viewport
+        ctx.fillStyle = backgroundColor;
+        ctx.fillRect(0, 0, width, canvasHeight);
+        
+        // Draw all waveform data that's visible in the current viewport
         const barWidth = 2;
         const barSpacing = 1;
-        const currentBar = Math.floor(xPosition / (barWidth + barSpacing));
-
-        if (currentBar < width / (barWidth + barSpacing)) {
-          const x = currentBar * (barWidth + barSpacing);
-          const barHeight = amplitude * height * 0.8;
-
-          ctx.fillStyle = color;
-          ctx.fillRect(x, (height - barHeight) / 2, barWidth, barHeight);
+        const samplesPerPixel = 1 / pixelsPerSecond * 60; // Assume ~60fps
+        
+        ctx.fillStyle = color;
+        for (let i = 0; i < waveformDataRef.current.length; i++) {
+          const sample = waveformDataRef.current[i];
+          const relativeTime = sample.time - viewportStart;
+          const xPosition = relativeTime * pixelsPerSecond;
+          
+          // Only draw if within viewport
+          if (xPosition >= 0 && xPosition < width) {
+            const x = Math.floor(xPosition);
+            const maxBarHeight = canvasHeight * 0.8;
+            const barHeight = sample.amplitude * maxBarHeight;
+            const y = (canvasHeight - barHeight) / 2;
+            
+            ctx.fillRect(x, y, barWidth, barHeight);
+          }
         }
 
         // Continue animation
@@ -120,7 +197,10 @@ export default function WalkingWaveform({
       };
 
       // Start drawing
-      console.log('WalkingWaveform: Starting animation');
+      console.log(
+        'WalkingWaveform: Starting animation at position',
+        startPosition,
+      );
       draw();
     } catch (error) {
       console.error('WalkingWaveform: Error initializing:', error);
@@ -139,17 +219,30 @@ export default function WalkingWaveform({
         audioContextRef.current.close();
       }
     };
-  }, [mediaStream, isRecording, height, color, backgroundColor]);
+  }, [
+    mediaStream,
+    isRecording,
+    height,
+    color,
+    backgroundColor,
+    startPosition,
+    zoomLevel,
+    duration,
+  ]);
 
   return (
     <canvas
       ref={canvasRef}
-      width={3000} // Match track width
       height={height}
       style={{
         display: 'block',
-        backgroundColor,
-        border: '1px solid red', // Debug border
+        position: 'absolute',
+        top: '50%',
+        left: 0,
+        transform: 'translateY(-50%)',
+        backgroundColor: 'transparent',
+        width: '100%',
+        height: `${height}px`,
       }}
     />
   );

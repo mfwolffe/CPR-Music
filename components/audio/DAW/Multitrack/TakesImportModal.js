@@ -5,9 +5,10 @@ import { useState, useEffect } from 'react';
 import { Modal, Button, ListGroup, Form, Badge } from 'react-bootstrap';
 import { FaFileAudio, FaClock, FaMusic } from 'react-icons/fa';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
+import { getAudioProcessor } from './AudioProcessor';
 
 export default function TakesImportModal({ show, onHide, takes = [] }) {
-  const { addTrack } = useMultitrack();
+  const { addTrack, updateTrack } = useMultitrack();
   const [selectedTake, setSelectedTake] = useState(null);
   const [trackName, setTrackName] = useState('');
 
@@ -22,51 +23,153 @@ export default function TakesImportModal({ show, onHide, takes = [] }) {
     }
   }, [selectedTake]);
 
-  const handleImport = () => {
-    if (selectedTake && selectedTake.audioURL) {
-      console.log('Importing take:', selectedTake);
+  const handleImport = async () => {
+    if (!selectedTake || !selectedTake.audioURL) return;
+
+    console.log('📥 TakesImportModal: Importing take:', selectedTake);
+
+    try {
+      let finalURL = selectedTake.audioURL;
 
       // For blob URLs, we might need to ensure they're still valid
       if (selectedTake.audioURL.startsWith('blob:')) {
-        // Check if blob is still accessible
-        fetch(selectedTake.audioURL)
-          .then((response) => {
-            if (response.ok) {
-              return response.blob();
-            }
-            throw new Error('Blob URL expired');
-          })
-          .then((blob) => {
-            // Create a new blob URL to ensure it's fresh
-            const newURL = URL.createObjectURL(blob);
-            addTrack({
-              name: trackName || 'Imported Take',
-              audioURL: newURL,
-              takeId: selectedTake.id,
-            });
-
-            // Reset and close
-            setSelectedTake(null);
-            setTrackName('');
-            onHide();
-          })
-          .catch((err) => {
-            console.error('Error accessing blob:', err);
-            alert('This take is no longer available. Please record a new one.');
-          });
-      } else {
-        // For regular URLs, import directly
-        addTrack({
-          name: trackName || 'Imported Take',
-          audioURL: selectedTake.audioURL,
-          takeId: selectedTake.id,
-        });
-
-        // Reset and close
-        setSelectedTake(null);
-        setTrackName('');
-        onHide();
+        console.log('🔄 TakesImportModal: Refreshing blob URL for take');
+        const response = await fetch(selectedTake.audioURL);
+        if (response.ok) {
+          const blob = await response.blob();
+          finalURL = URL.createObjectURL(blob);
+          console.log('✅ TakesImportModal: Blob URL refreshed');
+        } else {
+          throw new Error('Blob URL expired');
+        }
       }
+
+      // Create immediate placeholder clip
+      const clipId = `clip-take-${selectedTake.id}-${Date.now()}`;
+      const placeholderClip = {
+        id: clipId,
+        start: 0,
+        duration: 0, // Will update when processed
+        color: '#7bafd4',
+        src: finalURL,
+        offset: 0,
+        name: trackName || 'Imported Take',
+        isLoading: true,
+        loadingState: 'reading'
+      };
+
+      // Add track immediately with placeholder - UI stays responsive!
+      // Creates an Audio track (with recording + import capabilities)
+      const newTrack = addTrack({
+        type: 'audio', // Explicitly create Audio track (enhanced with recording capabilities)
+        name: trackName || 'Imported Take',
+        audioURL: finalURL,
+        takeId: selectedTake.id,
+        clips: [placeholderClip],
+      });
+
+      console.log('🎵 TakesImportModal: Track created immediately with ID:', newTrack.id);
+
+      // Close modal immediately - track is already visible
+      setSelectedTake(null);
+      setTrackName('');
+      onHide();
+
+      // Process in background - Try AudioProcessor first, fallback to old method
+      console.log('🔄 TakesImportModal: Starting background processing for take');
+      
+      try {
+        const audioProcessor = getAudioProcessor();
+        
+        // Check if AudioProcessor is available and working
+        if (audioProcessor && typeof audioProcessor.processAudioFile === 'function') {
+          console.log('🚀 TakesImportModal: Using AudioProcessor for take processing');
+          
+          const result = await audioProcessor.processAudioFile(
+            finalURL,
+            clipId,
+            (stage, progress) => {
+              console.log(`📊 TakesImportModal: Background processing ${stage}: ${progress}%`);
+              
+              // Update clip loading state in real-time
+              updateTrack(newTrack.id, (prevTrack) => ({
+                ...prevTrack,
+                clips: prevTrack.clips.map(clip =>
+                  clip.id === clipId
+                    ? { ...clip, loadingState: stage }
+                    : clip
+                )
+              }));
+            }
+          );
+
+          console.log(`✅ TakesImportModal: Background processing complete using ${result.method}`);
+
+          // Update clip with final data
+          const finalClip = {
+            ...placeholderClip,
+            duration: result.duration,
+            isLoading: false,
+            loadingState: 'complete',
+            processingMethod: result.method
+          };
+
+          updateTrack(newTrack.id, {
+            clips: [finalClip]
+          });
+
+          console.log(`📊 TakesImportModal: Take import fully complete - duration: ${result.duration?.toFixed(2)}s`);
+
+        } else {
+          throw new Error('AudioProcessor not available, falling back to legacy method');
+        }
+
+      } catch (bgErr) {
+        console.warn('🔄 TakesImportModal: AudioProcessor failed, trying fallback method:', bgErr.message);
+        
+        // Fallback to original decodeAudioFromURL approach
+        try {
+          console.log('🔄 TakesImportModal: Using fallback audio processing');
+          
+          // Import fallback function
+          const { decodeAudioFromURL } = await import('./AudioEngine');
+          
+          const audioBuffer = await decodeAudioFromURL(finalURL);
+          const duration = audioBuffer ? audioBuffer.duration : 0;
+
+          // Update clip with final data (fallback version)
+          const finalClip = {
+            ...placeholderClip,
+            duration: duration,
+            isLoading: false,
+            loadingState: 'complete',
+            processingMethod: 'fallback'
+          };
+
+          updateTrack(newTrack.id, {
+            clips: [finalClip]
+          });
+
+          console.log(`✅ TakesImportModal: Fallback processing complete - duration: ${duration?.toFixed(2)}s`);
+
+        } catch (fallbackErr) {
+          console.error('❌ TakesImportModal: Both AudioProcessor and fallback failed:', fallbackErr);
+          
+          // Update clip to show error state
+          updateTrack(newTrack.id, (prevTrack) => ({
+            ...prevTrack,
+            clips: prevTrack.clips.map(clip =>
+              clip.id === clipId
+                ? { ...clip, isLoading: false, loadingState: 'error', hasError: true }
+                : clip
+            )
+          }));
+        }
+      }
+
+    } catch (err) {
+      console.error('❌ TakesImportModal: Take import failed:', err);
+      alert('Failed to import take: ' + err.message);
     }
   };
 
@@ -85,6 +188,9 @@ export default function TakesImportModal({ show, onHide, takes = [] }) {
 
   // Mock data for testing if no takes provided
   const displayTakes = takes.length > 0 ? takes : [];
+
+  console.log('🎹 TakesImportModal: Received takes:', takes);
+  console.log('🎹 TakesImportModal: Display takes:', displayTakes);
 
   // Show helpful message if no takes
   if (displayTakes.length === 0 && takes.length === 0) {
