@@ -8,9 +8,11 @@ import {
   Form,
   Button,
   Badge,
+  Modal,
   OverlayTrigger,
   Tooltip
 } from 'react-bootstrap';
+import { FaQuestionCircle } from 'react-icons/fa';
 import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
 import Knob from '../../../Knob';
 
@@ -659,6 +661,7 @@ export default function EQ({ width, modalMode = false }) {
     { frequency: 8000, gain: 0, type: 'highshelf', q: 0.7, enabled: true }
   ]);
   const [selectedBand, setSelectedBand] = useState(0);
+  const [showGraphHelp, setShowGraphHelp] = useState(false);
   
   // Initialize audio context and analyzer
   useEffect(() => {
@@ -981,7 +984,8 @@ export default function EQ({ width, modalMode = false }) {
   }, []);
   
   return (
-    <Container fluid className="p-3">
+    <>
+      <Container fluid className="p-3">
       {/* Interactive EQ Visualization */}
       <Row className="mb-4">
         <Col xs={12}>
@@ -989,6 +993,29 @@ export default function EQ({ width, modalMode = false }) {
             className="eq-graph-container position-relative bg-dark rounded p-2"
             style={{ minHeight: '300px' }}
           >
+            {/* Help Icon */}
+            <div
+              className="position-absolute"
+              style={{
+                top: '10px',
+                right: '10px',
+                zIndex: 10,
+                cursor: 'pointer'
+              }}
+            >
+              <FaQuestionCircle
+                size={20}
+                style={{
+                  color: '#7bafd4',
+                  opacity: 0.7,
+                  transition: 'opacity 0.2s'
+                }}
+                onMouseEnter={(e) => e.target.style.opacity = 1}
+                onMouseLeave={(e) => e.target.style.opacity = 0.7}
+                onClick={() => setShowGraphHelp(true)}
+              />
+            </div>
+
             <canvas
               ref={canvasRef}
               width={800}
@@ -1411,7 +1438,97 @@ export default function EQ({ width, modalMode = false }) {
           </div>
         </Col>
       </Row>
-    </Container>
+      </Container>
+
+      {/* Graph Help Modal */}
+    <Modal
+      show={showGraphHelp}
+      onHide={() => setShowGraphHelp(false)}
+      size="lg"
+      centered
+    >
+      <Modal.Header closeButton className="bg-dark text-white">
+        <Modal.Title>
+          <FaQuestionCircle className="me-2" />
+          Understanding the EQ Graph
+        </Modal.Title>
+      </Modal.Header>
+      <Modal.Body className="bg-dark text-white">
+        <div className="mb-4">
+          <h5 className="text-info mb-3">What You're Looking At</h5>
+          <p>
+            The graph shows how your EQ settings change the loudness of different frequencies (pitches) in your audio.
+            Think of it like a sound sculpture - you're shaping which parts of the sound are louder or quieter.
+          </p>
+        </div>
+
+        <div className="mb-4">
+          <h5 className="text-info mb-3">Reading the Graph</h5>
+          <Row>
+            <Col md={6} className="mb-3">
+              <h6 className="text-warning">↔️ Left to Right (Frequency)</h6>
+              <ul className="small">
+                <li><strong>Left side:</strong> Low frequencies (bass, kick drums)</li>
+                <li><strong>Middle:</strong> Mid frequencies (vocals, guitars)</li>
+                <li><strong>Right side:</strong> High frequencies (cymbals, air, sparkle)</li>
+              </ul>
+            </Col>
+            <Col md={6} className="mb-3">
+              <h6 className="text-warning">↕️ Up and Down (Gain)</h6>
+              <ul className="small">
+                <li><strong>Moving up:</strong> Boosts (makes louder)</li>
+                <li><strong>Center line:</strong> No change (0dB)</li>
+                <li><strong>Moving down:</strong> Cuts (makes quieter)</li>
+              </ul>
+            </Col>
+          </Row>
+        </div>
+
+        <div className="mb-4">
+          <h5 className="text-info mb-3">Real World Examples</h5>
+          <Row>
+            <Col md={6}>
+              <ul className="small">
+                <li><strong>60-250Hz:</strong> Bass thump and power</li>
+                <li><strong>200-500Hz:</strong> Warmth (or muddiness if too much)</li>
+                <li><strong>1-3kHz:</strong> Vocal clarity and presence</li>
+                <li><strong>3-5kHz:</strong> Attack of drums and guitars</li>
+              </ul>
+            </Col>
+            <Col md={6}>
+              <ul className="small">
+                <li><strong>5-8kHz:</strong> Brightness and definition</li>
+                <li><strong>8-12kHz:</strong> Brilliance and air</li>
+                <li><strong>12-20kHz:</strong> Sparkle and openness</li>
+              </ul>
+            </Col>
+          </Row>
+        </div>
+
+        <div className="mb-3">
+          <h5 className="text-info mb-3">How to Use It</h5>
+          <p className="mb-2">
+            <strong>The Curve:</strong> The yellow line shows exactly which frequencies are being changed and by how much.
+            A flat line means no change, curves up mean boost, curves down mean cut.
+          </p>
+          <p>
+            <strong>The Dots:</strong> Each dot represents one of your 8 EQ bands. Click and drag them on the graph to shape your sound!
+            Select a band below to fine-tune with the knobs.
+          </p>
+        </div>
+
+        <div className="alert alert-info mb-0">
+          <strong>💡 Pro Tip:</strong> Start with small adjustments (±3dB). If you need more than ±6dB,
+          you might want to fix the problem at the source (microphone placement, instrument tone, etc.)
+        </div>
+      </Modal.Body>
+      <Modal.Footer className="bg-dark border-secondary">
+        <Button variant="secondary" onClick={() => setShowGraphHelp(false)}>
+          Got it!
+        </Button>
+      </Modal.Footer>
+    </Modal>
+    </>
   );
 }
 
