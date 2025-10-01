@@ -129,6 +129,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     stop,
     startRecordingTimer,
     stopRecordingTimer,
+    flushNoteBuffer,
     setTracks,
   } = useMultitrack();
 
@@ -186,8 +187,8 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       const rect = parent.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
       // Use the same width calculation as the timeline container
-      const timelineWidth = 310 + 3000 * (zoomLevel / 100); // 80px sidebar + 230px track controls
-      const displayW = Math.max(1, Math.floor(timelineWidth - 230)); // Subtract control width
+      const timelineWidth = 360 + 3000 * (zoomLevel / 100); // 80px sidebar + 280px track controls
+      const displayW = Math.max(1, Math.floor(timelineWidth - 280)); // Subtract control width
       const displayH = Math.max(1, Math.floor(rect.height));
 
       const targetW = Math.floor(displayW * dpr);
@@ -223,6 +224,8 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
         stopRecording();
         // Stop recording timer
         stopRecordingTimer();
+        // Flush any buffered notes immediately
+        flushNoteBuffer();
       }
       setIsCountingDown(false);
       setCountdownBeat(0);
@@ -245,6 +248,21 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
             startRecording({
               countIn: false,
               overdub: false,
+              onNotesRecorded: (recordedNotes) => {
+                // Add recorded notes to the track
+                if (recordedNotes && recordedNotes.length > 0) {
+                  updateTrack(track.id, (t) => {
+                    const existingNotes = t.midiData?.notes || [];
+                    return {
+                      midiData: {
+                        ...(t.midiData || {}),
+                        notes: [...existingNotes, ...recordedNotes],
+                      },
+                    };
+                  });
+                  console.log(`✅ Added ${recordedNotes.length} recorded notes to track ${track.id}`);
+                }
+              },
             });
             // Start recording timer to move playhead
             startRecordingTimer();
@@ -424,12 +442,25 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
   };
 
 
-  // Draw the preview (notes or patterns)
-  useEffect(() => {
-    if (!canvasRef.current || !track.midiData) return;
+  // Debounce canvas redraws during recording to reduce flashing
+  const redrawTimerRef = useRef(null);
+  const requestRedraw = useCallback(() => {
+    if (redrawTimerRef.current) {
+      cancelAnimationFrame(redrawTimerRef.current);
+    }
 
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
+    redrawTimerRef.current = requestAnimationFrame(() => {
+      const canvas = canvasRef.current;
+      if (!canvas || !track.midiData) return;
+
+      const ctx = canvas.getContext('2d');
+      performCanvasRender(ctx, canvas);
+    });
+  }, [track.midiData, viewMode, zoomLevel, globalCurrentTime, isRecording, viewportFirstBeat]);
+
+  // Actual rendering logic extracted for reuse
+  const performCanvasRender = useCallback((ctx, canvas) => {
+    if (!ctx || !canvas) return;
 
     // Use canvas dimensions instead of getBoundingClientRect
     // This ensures we use the actual canvas size
@@ -631,34 +662,21 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
 
     // Restore context state
     ctx.restore();
-  }, [
-    track.midiData,
-    viewMode,
-    zoomLevel,
-    globalCurrentTime,
-    globalIsPlaying,
-    isRecording, // Add this so viewport updates when recording starts/stops
-    viewportFirstBeat, // Add this so canvas redraws when viewport scrolls
-    track.midiData?.notes,
-    track.midiData?.patterns,
-    track.midiData?.arrangement,
-  ]);
+  }, [track.midiData, viewMode, zoomLevel, globalCurrentTime, isRecording, viewportFirstBeat]);
 
-  // force redraw when track is updated:
+  // Draw the preview (notes or patterns) - now debounced
   useEffect(() => {
-    // Force a redraw when notes change by triggering canvas resize
-    const canvas = canvasRef.current;
-    if (canvas && track.midiData?.notes?.length > 0) {
-      const parent = canvas.parentElement;
-      if (parent) {
-        // Trigger resize observer
-        parent.style.width = parent.offsetWidth + 'px';
-        setTimeout(() => {
-          parent.style.width = '';
-        }, 0);
+    requestRedraw();
+  }, [requestRedraw]);
+
+  // Cleanup animation frame on unmount
+  useEffect(() => {
+    return () => {
+      if (redrawTimerRef.current) {
+        cancelAnimationFrame(redrawTimerRef.current);
       }
-    }
-  }, [track.midiData?.notes?.length, viewportFirstBeat, isRecording]); // Removed globalCurrentTime to prevent excessive re-renders
+    };
+  }, []);
 
   // Handle volume change
   const handleVolumeChange = (e) => {

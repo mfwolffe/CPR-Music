@@ -2,6 +2,7 @@
 'use client';
 
 import audioContextManager from './AudioContextManager';
+import { beatsToSeconds, beatToAudioTime } from '../../../../lib/midiTimeUtils';
 
 /**
  * Improved Note Scheduler using Web Audio API timing
@@ -113,7 +114,8 @@ export default class ImprovedNoteScheduler {
     if (!this.isPlaying) return this.pauseTime;
 
     const elapsed = this.audioContext.currentTime - this.startTime;
-    return (elapsed * this.tempo) / 60;
+    // Use unified time conversion
+    return elapsed * (this.tempo / 60); // seconds to beats
   }
 
   // Schedule notes that fall within the lookahead window
@@ -135,9 +137,9 @@ export default class ImprovedNoteScheduler {
         !this.scheduledNotes.has(noteKey)
       ) {
         // Calculate when to play the note in audio context time
-        const noteOnTime = this.startTime + (note.startTime * 60) / this.tempo;
-        const noteOffTime =
-          this.startTime + ((note.startTime + note.duration) * 60) / this.tempo;
+        // Use unified time conversion utilities for consistency
+        const noteOnTime = beatToAudioTime(note.startTime, this.tempo, this.startTime);
+        const noteOffTime = beatToAudioTime(note.startTime + note.duration, this.tempo, this.startTime);
 
         // Schedule note on
         audioContextManager.scheduleAtTime(() => {

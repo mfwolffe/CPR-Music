@@ -721,33 +721,85 @@ export const MultitrackProvider = ({ children }) => {
     }
   }, []);
 
+  // Note batching for smoother recording performance
+  const noteBufferRef = useRef([]);
+  const noteBufferTimerRef = useRef(null);
+
   const addNoteToSelectedTrack = useCallback(
     (note, velocity01, startBeat, durationBeats) => {
       if (!selectedTrackId) return;
+
+      const newNote = {
+        note,
+        velocity: Math.max(
+          1,
+          Math.min(127, Math.round((velocity01 ?? 0.8) * 127)),
+        ),
+        startTime: startBeat,
+        duration: durationBeats,
+      };
+
+      // Add to buffer instead of immediate state update
+      noteBufferRef.current.push(newNote);
+
+      // Debounce: flush buffer after 150ms of inactivity
+      if (noteBufferTimerRef.current) {
+        clearTimeout(noteBufferTimerRef.current);
+      }
+
+      noteBufferTimerRef.current = setTimeout(() => {
+        const notesToAdd = [...noteBufferRef.current];
+        noteBufferRef.current = [];
+
+        if (notesToAdd.length > 0) {
+          setTracks((prev) =>
+            prev.map((t) => {
+              if (t.id !== selectedTrackId || t.type !== 'midi') return t;
+              const notes = Array.isArray(t.midiData?.notes)
+                ? t.midiData.notes
+                : [];
+              return {
+                ...t,
+                midiData: {
+                  ...(t.midiData || {}),
+                  notes: [...notes, ...notesToAdd] // Batch add all buffered notes
+                },
+              };
+            }),
+          );
+        }
+      }, 150);
+    },
+    [selectedTrackId, setTracks],
+  );
+
+  // Flush buffer immediately when stopping recording
+  const flushNoteBuffer = useCallback(() => {
+    if (noteBufferTimerRef.current) {
+      clearTimeout(noteBufferTimerRef.current);
+    }
+
+    const notesToAdd = [...noteBufferRef.current];
+    noteBufferRef.current = [];
+
+    if (notesToAdd.length > 0 && selectedTrackId) {
       setTracks((prev) =>
         prev.map((t) => {
           if (t.id !== selectedTrackId || t.type !== 'midi') return t;
           const notes = Array.isArray(t.midiData?.notes)
             ? t.midiData.notes
             : [];
-          const newNote = {
-            note,
-            velocity: Math.max(
-              1,
-              Math.min(127, Math.round((velocity01 ?? 0.8) * 127)),
-            ),
-            startTime: startBeat,
-            duration: durationBeats,
-          };
           return {
             ...t,
-            midiData: { ...(t.midiData || {}), notes: [...notes, newNote] },
+            midiData: {
+              ...(t.midiData || {}),
+              notes: [...notes, ...notesToAdd]
+            },
           };
         }),
       );
-    },
-    [selectedTrackId, setTracks],
-  );
+    }
+  }, [selectedTrackId, setTracks]);
 
   const stopNoteOnSelectedTrack = useCallback(
     (note, token = null) => {
@@ -1130,7 +1182,8 @@ export const MultitrackProvider = ({ children }) => {
     playNoteOnSelectedTrack,
     stopNoteOnSelectedTrack,
     addNoteToSelectedTrack,
-    
+    flushNoteBuffer,
+
     // Recording timer for MIDI
     startRecordingTimer,
     stopRecordingTimer,
