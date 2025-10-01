@@ -518,9 +518,9 @@ function collectTrackMidiNotes(track, tempo = { bpm: 120, stepsPerBeat: 4 }) {
  * Calculate adaptive gain staging based on mix complexity
  */
 function calculateAdaptiveGain(trackCount, midiTrackCount, analogTrackCount) {
-  // PROFESSIONAL CONSERVATIVE GAIN STAGING
-  // Start very conservative to prevent any clipping or distortion
-  let baseGain = 0.3; // Much more conservative starting point
+  // PROFESSIONAL GAIN STAGING - balanced for quality
+  // Start with appropriate gain for clear audio
+  let baseGain = 0.5; // Balanced starting point for good quality
   
   // More gentle reduction as track count increases
   const trackScale = Math.max(0.4, 1 - (Math.log(trackCount + 1) / Math.log(20)) * 0.3); // Less aggressive scaling
@@ -971,17 +971,17 @@ async function renderMIDITrackToAudio(track, sampleRate = 44100, bpm = 120) {
     }
   }
 
-  // Use much more conservative gain for individual MIDI track rendering
+  // Use appropriate gain for individual MIDI track rendering
   const masterGain = offline.createGain();
-  masterGain.gain.value = 0.1; // Very conservative to prevent static
+  masterGain.gain.value = 0.6; // Balanced gain for clear audio quality
 
-  // Add aggressive limiting to prevent clipping and static
+  // Add gentle limiting to prevent clipping while preserving dynamics
   const limiter = offline.createDynamicsCompressor();
-  limiter.threshold.value = -20; // Lower threshold
+  limiter.threshold.value = -3; // Higher threshold - only catch peaks
   limiter.knee.value = 10;
-  limiter.ratio.value = 8; // Higher ratio for more limiting
+  limiter.ratio.value = 3; // Gentler ratio for transparent limiting
   limiter.attack.value = 0.001;
-  limiter.release.value = 0.05; // Faster release
+  limiter.release.value = 0.2; // Slower release to reduce pumping
 
   masterGain.connect(limiter);
   limiter.connect(offline.destination);
@@ -1015,8 +1015,8 @@ async function renderMIDITrackToAudio(track, sampleRate = 44100, bpm = 120) {
         normalizedVelocity = Math.pow(midiNormalized, 0.8); // Gentle compression curve
       }
       
-      // Scale to safe mixing level (much more conservative)
-      const scaledVelocity = normalizedVelocity * 0.15; // Very conservative scaling for mixdown
+      // Scale to appropriate mixing level (balanced for quality)
+      const scaledVelocity = normalizedVelocity * 0.6; // Proper gain staging for clear audio
       
       if (process.env.NODE_ENV === 'development') {
         console.log(`🎵 Note ${midi}: velocity ${originalVelocity} -> ${scaledVelocity.toFixed(3)} (normalized: ${normalizedVelocity.toFixed(3)}), start: ${start.toFixed(2)}s, dur: ${duration.toFixed(2)}s`);
