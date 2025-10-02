@@ -579,22 +579,17 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
           firstSecond = currentViewportStart;
         }
       } else {
-        // Normal mode: show all existing notes (convert beats to seconds)
-        const lastBeat = allNotes.length
-          ? Math.max(...allNotes.map((n) => n.startTime + n.duration))
-          : 16;
-        const firstBeat = allNotes.length
-          ? Math.min(...allNotes.map((n) => n.startTime))
-          : 0;
-          
-        // Convert beats to seconds for unified coordinate system
-        firstSecond = firstBeat * secPerBeat;
-        const lastSecond = lastBeat * secPerBeat;
-        
-        // Keep a minimum window so very short clips still show structure
-        secondsVisible = Math.max(16 * secPerBeat, lastSecond - firstSecond || 16 * secPerBeat);
+        // Normal mode: show all existing notes from timeline start (0:00)
+        // CRITICAL: firstSecond must be 0 to align with audio scheduler's absolute timeline
+        firstSecond = 0;
+
+        // CRITICAL: Use the SAME time scale as the global timeline (MultitrackEditor)
+        // This ensures 1 second of audio = 1 second of visual pixels
+        const projectDuration = duration > 0 ? duration : Math.max(30, globalCurrentTime + 10);
+        secondsVisible = projectDuration;
       }
-      
+
+      // Match MultitrackEditor's pixelsPerSecond calculation exactly
       const pixelsPerSecond = displayWidth / secondsVisible;
 
       // Draw grid - using seconds-based coordinates
@@ -605,7 +600,8 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       const beatsToShow = Math.ceil(secondsVisible / secPerBeat);
       for (let beat = 0; beat <= beatsToShow; beat++) {
         const beatTimeInSeconds = firstSecond + (beat * secPerBeat);
-        const x = (beatTimeInSeconds - firstSecond) * pixelsPerSecond;
+        // Round to integer pixels for crisp grid lines
+        const x = Math.round((beatTimeInSeconds - firstSecond) * pixelsPerSecond);
         if (x >= 0 && x <= displayWidth) {
           ctx.beginPath();
           ctx.moveTo(x, 0);
@@ -650,12 +646,13 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
 
         // Calculate note position - UNIFIED SECONDS-BASED COORDINATES
         const noteStartTimeInSeconds = note.startTime * secPerBeat; // Convert beats to seconds
-        const x = (noteStartTimeInSeconds - firstSecond) * pixelsPerSecond;
-        const y = displayHeight - (note.note - noteRange.min + 1) * laneHeight;
+        // Round to integer pixels to eliminate sub-pixel anti-aliasing offset
+        const x = Math.round((noteStartTimeInSeconds - firstSecond) * pixelsPerSecond);
+        const y = Math.round(displayHeight - (note.note - noteRange.min + 1) * laneHeight);
 
         // Calculate width with proper duration scaling - UNIFIED SECONDS-BASED COORDINATES
         const noteDurationInSeconds = note.duration * secPerBeat; // Convert beat duration to seconds
-        const noteWidth = Math.max(1, noteDurationInSeconds * pixelsPerSecond);
+        const noteWidth = Math.max(1, Math.round(noteDurationInSeconds * pixelsPerSecond));
 
         // Clip note width if it extends beyond canvas
         const visibleWidth = Math.min(noteWidth, displayWidth - x);

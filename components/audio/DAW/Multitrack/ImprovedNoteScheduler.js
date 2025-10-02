@@ -39,13 +39,23 @@ export default class ImprovedNoteScheduler {
   }
 
   // Start playback
-  start(startBeat = 0) {
+  // startBeat: the current beat position in the timeline (absolute, not relative)
+  // globalTimelineStartTime: optional audio context time when timeline started (for sync)
+  start(startBeat = 0, globalTimelineStartTime = null) {
     if (this.isPlaying) return;
 
     this.isPlaying = true;
     this.currentBeat = startBeat;
-    this.startTime =
-      this.audioContext.currentTime - (startBeat * 60) / this.tempo;
+
+    // Calculate reference time for timeline-absolute positioning
+    // If provided, use the global timeline's start reference
+    // Otherwise, calculate assuming timeline started at audio context time 0
+    if (globalTimelineStartTime !== null) {
+      this.startTime = globalTimelineStartTime;
+    } else {
+      // Fallback: assume we're starting playback now at the given beat position
+      this.startTime = this.audioContext.currentTime - (startBeat * 60) / this.tempo;
+    }
 
     // Start the scheduler
     this.scheduleNotes();
