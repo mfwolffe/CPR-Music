@@ -27,7 +27,6 @@
 
 .track.midi-track.track-selected .track-waveform {
   background-color: #22223a;
-  border-left: 2px solid #6495ed;
 }
 
 .track.midi-track .track-waveform canvas {
@@ -335,6 +334,7 @@
   min-height: 240px !important;
   height: 240px !important;
   max-height: 240px !important;
+  position: relative;
 }
 
 .track.midi-track .track-controls {
@@ -344,9 +344,10 @@
   height: 240px !important;
   min-height: 240px !important;
   max-height: 240px !important;
-  padding: 0.75rem 0.5rem;
-  gap: 6px;
-  overflow-y: hidden;
+  padding: 0.5rem 0.5rem;
+  gap: 4px;
+  overflow-y: auto; /* Allow scrolling if needed */
+  overflow-x: hidden;
 }
 
 .track.midi-track .track-waveform {
