@@ -7,6 +7,7 @@ import { createInstrument } from '../Instruments/WebAudioInstruments';
 import ImprovedNoteScheduler from '../ImprovedNoteScheduler';
 import ImprovedMIDIRecorder from '../MIDIRecorder';
 import EnhancedSynth from '../../../../../lib/EnhancedSynth';
+import { secondsToBeats } from '../../../../../lib/midiTimeUtils';
 
 /**
  * Map instrument types to EnhancedSynth presets
@@ -298,9 +299,8 @@ export function useMIDITrackAudio(
     }
 
     if (shouldPlay && !lastPlayStateRef.current) {
-      // Start playback
-      const beatPosition =
-        (globalCurrentTime * (track.midiData?.tempo || 120)) / 60;
+      // Start playback - use unified time conversion
+      const beatPosition = secondsToBeats(globalCurrentTime, track.midiData?.tempo || 120);
       if (process.env.NODE_ENV === 'development') {
         console.log(`▶️ Starting MIDI playback for track ${track.id} at beat ${beatPosition.toFixed(3)}`);
       }
@@ -312,9 +312,8 @@ export function useMIDITrackAudio(
       }
       schedulerRef.current.stop();
     } else if (shouldPlay) {
-      // Update position during playback
-      const beatPosition =
-        (globalCurrentTime * (track.midiData?.tempo || 120)) / 60;
+      // Update position during playback - use unified time conversion
+      const beatPosition = secondsToBeats(globalCurrentTime, track.midiData?.tempo || 120);
       const currentSchedulerBeat = schedulerRef.current.getCurrentBeat();
 
       // Detect seeks (large jumps)

@@ -61,10 +61,27 @@ export default function AudioTrack({ track, index, zoomLevel = 100 }) {
     const initMediaStream = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            channelCount: 1,
+            sampleRate: 48000,
+            latency: 0,
+          },
         });
         setMediaStream(stream);
-        console.log('AudioTrack: Media stream initialized');
+
+        // Log actual stream settings for diagnostics
+        const audioTrack = stream.getAudioTracks()[0];
+        const settings = audioTrack.getSettings();
+        console.log('AudioTrack: Media stream initialized with settings:', {
+          sampleRate: settings.sampleRate,
+          channelCount: settings.channelCount,
+          echoCancellation: settings.echoCancellation,
+          noiseSuppression: settings.noiseSuppression,
+          autoGainControl: settings.autoGainControl,
+        });
       } catch (error) {
         console.error('AudioTrack: Error accessing microphone:', error);
       }
@@ -197,7 +214,7 @@ export default function AudioTrack({ track, index, zoomLevel = 100 }) {
     // Capture current playhead position when recording starts
     const recordingStartPosition = currentTime;
 
-    // Determine MIME type
+    // Determine MIME type and configure for high quality
     const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
       ? 'audio/webm;codecs=opus'
       : 'audio/webm';
@@ -208,8 +225,11 @@ export default function AudioTrack({ track, index, zoomLevel = 100 }) {
       recordingStartPosition,
     );
 
-    // Create MediaRecorder
-    const recorder = new MediaRecorder(mediaStream, { mimeType });
+    // Create MediaRecorder with high-quality settings
+    const recorder = new MediaRecorder(mediaStream, {
+      mimeType,
+      audioBitsPerSecond: 256000, // 256 kbps for high quality
+    });
     mediaRecorderRef.current = recorder;
 
     recorder.ondataavailable = (e) => {
@@ -222,7 +242,11 @@ export default function AudioTrack({ track, index, zoomLevel = 100 }) {
       const blob = new Blob(chunksRef.current, { type: mimeType });
       const url = URL.createObjectURL(blob);
 
-      console.log('Recording stopped, blob created:', blob);
+      console.log('Recording stopped, blob created:', {
+        size: `${(blob.size / 1024).toFixed(2)} KB`,
+        type: blob.type,
+        chunks: chunksRef.current.length,
+      });
 
       // Get audio duration using Web Audio API
       let audioDuration = 0;
@@ -232,7 +256,13 @@ export default function AudioTrack({ track, index, zoomLevel = 100 }) {
         const arrayBuffer = await blob.arrayBuffer();
         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
         audioDuration = audioBuffer.duration;
-        console.log('Audio duration:', audioDuration);
+
+        console.log('Decoded audio buffer:', {
+          duration: audioDuration.toFixed(2) + 's',
+          sampleRate: audioBuffer.sampleRate + ' Hz',
+          channels: audioBuffer.numberOfChannels,
+          length: audioBuffer.length + ' samples',
+        });
       } catch (error) {
         console.error('Error getting audio duration:', error);
         audioDuration = 10; // fallback duration
@@ -277,9 +307,9 @@ export default function AudioTrack({ track, index, zoomLevel = 100 }) {
     };
 
     // Start recording
-    recorder.start(10); // Collect data every 10ms
+    recorder.start(100); // Collect data every 100ms (reduces gaps and overhead)
     setIsRecording(true);
-    console.log('AudioTrack: Recording started');
+    console.log('AudioTrack: Recording started with 256kbps @ 48kHz');
 
     // Start the recording timer to advance playhead during recording
     startRecordingTimer();

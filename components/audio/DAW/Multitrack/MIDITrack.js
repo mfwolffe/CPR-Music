@@ -545,27 +545,29 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       const tempo = track.midiData?.tempo || 120;
       const secPerBeat = 60 / tempo;
       
+      // CRITICAL: Use the SAME time scale as the global timeline for BOTH recording and playback
+      // This ensures 1 second of audio = 1 second of visual pixels consistently
+      const projectDuration = duration > 0 ? duration : Math.max(30, globalCurrentTime + 10);
+      secondsVisible = projectDuration;
+
       if (isRecording && globalCurrentTime > 0) {
         // PRO DAW-STYLE AUTO-SCROLL: Playhead stays at fixed 75% position, content scrolls past
         const currentSecond = globalCurrentTime;
-        
-        // Fixed window size for consistent behavior - about 16 beats worth of time
-        secondsVisible = 16 * secPerBeat;
-        
+
         // FIXED PLAYHEAD POSITION: Keep playhead at 75% from left edge (like Pro Tools/Logic)
         const playheadScreenPosition = 0.75; // 75% from left
-        
+
         // Calculate where viewport should start so currentTime appears at 75% position
         const targetFirstSecond = Math.max(0, currentSecond - (secondsVisible * playheadScreenPosition));
-        
+
         // Smooth the viewport updates to avoid jank - only update if significantly different
         const currentViewportStart = viewportFirstBeat * secPerBeat;
         const timeDifference = Math.abs(targetFirstSecond - currentViewportStart);
-        
+
         if (timeDifference > 0.1) { // Update if >100ms difference
           setViewportFirstBeat(targetFirstSecond / secPerBeat);
           firstSecond = targetFirstSecond;
-          
+
           if (process.env.NODE_ENV === 'development') {
             console.log('🎬 DAW Auto-scroll (Fixed Playhead @ 75%):', {
               currentTime: currentSecond.toFixed(3),
@@ -582,11 +584,6 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
         // Normal mode: show all existing notes from timeline start (0:00)
         // CRITICAL: firstSecond must be 0 to align with audio scheduler's absolute timeline
         firstSecond = 0;
-
-        // CRITICAL: Use the SAME time scale as the global timeline (MultitrackEditor)
-        // This ensures 1 second of audio = 1 second of visual pixels
-        const projectDuration = duration > 0 ? duration : Math.max(30, globalCurrentTime + 10);
-        secondsVisible = projectDuration;
       }
 
       // Match MultitrackEditor's pixelsPerSecond calculation exactly
