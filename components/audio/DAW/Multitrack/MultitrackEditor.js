@@ -338,13 +338,14 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
       // All tracks now use 230px controls for consistency
       const controlsWidth = 230;
       const gutterWidth = 80 + controlsWidth; // sidebar + track controls
-      const totalWidth = inner
-        ? inner.offsetWidth
-        : gutterWidth + 3000 * (zoomLevel / 100);
-      const contentWidth = Math.max(0, totalWidth - gutterWidth);
-      // During recording with no content, use current time + buffer for duration
-      const projectDuration = duration > 0 ? duration : Math.max(30, currentTime + 10);
-      const pixelsPerSecond = contentWidth / projectDuration;
+
+      // Calculate consistent pixels per second
+      const baseDuration = duration > 0 ? duration : 30;
+      const baseTimelineWidth = gutterWidth + 3000 * (zoomLevel / 100);
+      const baseContentWidth = baseTimelineWidth - gutterWidth;
+      const pixelsPerSecond = baseContentWidth / baseDuration;
+
+      // Playhead position is simply currentTime * pixelsPerSecond (no scaling needed)
       const x = currentTime * pixelsPerSecond;
 
       if (timelinePlayhead) {
@@ -352,6 +353,28 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
       }
       if (tracksPlayhead) {
         tracksPlayhead.style.left = `${x}px`;
+      }
+
+      // Auto-scroll to keep playhead visible during playback/recording
+      if ((isPlaying || isAnyTrackRecording) && tracksScrollRef.current) {
+        const scrollContainer = tracksScrollRef.current;
+        const scrollLeft = scrollContainer.scrollLeft;
+        const containerWidth = scrollContainer.clientWidth;
+
+        // Target: keep playhead at 75% of visible area (matching MIDI track behavior)
+        const targetPlayheadPosition = containerWidth * 0.75;
+        const playheadPositionInViewport = x - scrollLeft;
+
+        // If playhead is going off screen (past 85%) or too far left (before 65%), scroll to keep it at 75%
+        if (playheadPositionInViewport > containerWidth * 0.85 || playheadPositionInViewport < containerWidth * 0.65) {
+          const newScrollLeft = Math.max(0, x - targetPlayheadPosition);
+          scrollContainer.scrollLeft = newScrollLeft;
+
+          // Sync timeline scroll
+          if (timelineScrollRef.current) {
+            timelineScrollRef.current.scrollLeft = newScrollLeft;
+          }
+        }
       }
     };
 
@@ -607,16 +630,49 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
           >
             <div
               id="multitrack-tracks-inner"
-              style={{
-                position: 'relative',
-                minHeight: '600px', // Default space for 3 recording tracks (200px each)
-                width: `${310 + 3000 * (zoomLevel / 100)}px`, // 80px sidebar + 230px controls
-                backgroundImage: `
-                  linear-gradient(90deg, rgba(100, 149, 237, 0.1) 1px, transparent 1px),
-                  linear-gradient(rgba(100, 149, 237, 0.1) 1px, transparent 1px)
-                `,
-                backgroundSize: '40px 20px'
-              }}
+              style={(() => {
+                // Compute dynamic width and grid size during recording
+                const isAnyTrackRecording = tracks.some(t => t.isRecording);
+                const baseWidth = 310 + 3000 * (zoomLevel / 100);
+                const baseContentWidth = baseWidth - 230; // Subtract controls
+
+                // Calculate baseDuration to include all clip extents (prevents cutoff)
+                const maxClipEnd = tracks.reduce((max, track) => {
+                  if (!track.clips) return max;
+                  const trackEnd = track.clips.reduce((tMax, clip) => {
+                    return Math.max(tMax, (clip.start || 0) + (clip.duration || 0));
+                  }, 0);
+                  return Math.max(max, trackEnd);
+                }, 0);
+                const baseDuration = Math.max(duration || 30, maxClipEnd, 30);
+
+                // Keep pixels-per-second CONSTANT based on initial base duration
+                // This prevents grid from moving during recording
+                const pixelsPerSecond = baseContentWidth / baseDuration;
+
+                const effectiveDuration = isAnyTrackRecording
+                  ? Math.max(baseDuration, currentTime + 20)
+                  : baseDuration;
+
+                // Width = controls + (pixels per second * duration)
+                const expandedWidth = 230 + (pixelsPerSecond * effectiveDuration);
+
+                // Calculate grid size based on actual time intervals (1 second per grid)
+                // Use the CONSTANT pixelsPerSecond so grid doesn't move
+                const gridSizeX = pixelsPerSecond; // 1 second
+                const gridSizeY = 20; // Fixed vertical spacing
+
+                return {
+                  position: 'relative',
+                  minHeight: '600px',
+                  width: `${expandedWidth}px`,
+                  backgroundImage: `
+                    linear-gradient(90deg, rgba(100, 149, 237, 0.1) 1px, transparent 1px),
+                    linear-gradient(rgba(100, 149, 237, 0.1) 1px, transparent 1px)
+                  `,
+                  backgroundSize: `${gridSizeX}px ${gridSizeY}px`
+                };
+              })()}
             >
               {tracks.map((track, index) => {
                 if (track.type === 'midi') {

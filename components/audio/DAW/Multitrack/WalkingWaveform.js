@@ -21,6 +21,7 @@ export default function WalkingWaveform({
   const animationRef = useRef(null);
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
+  const startTimeRef = useRef(null);
   const waveformDataRef = useRef([]);
 
   useEffect(() => {
@@ -80,7 +81,8 @@ export default function WalkingWaveform({
         startPosition,
       });
 
-      // Initialize waveform data
+      // Initialize recording start time using performance.now() for precision
+      startTimeRef.current = performance.now() / 1000;
       waveformDataRef.current = [];
 
       let frameCount = 0;
@@ -94,9 +96,10 @@ export default function WalkingWaveform({
 
         frameCount++;
 
-        // Calculate elapsed time from GLOBAL TIMELINE (not Date.now)
-        // This keeps waveform synchronized with the authoritative playhead
-        const elapsed = globalCurrentTime - startPosition;
+        // Calculate elapsed time using performance.now() for smooth, independent timing
+        // This prevents drift and ensures waveform progresses smoothly
+        const now = performance.now() / 1000;
+        const elapsed = now - startTimeRef.current;
         const effectiveDuration = Math.max(baseDuration, elapsed + 20); // Keep 20s buffer
         const newWidth = Math.max(1, Math.floor(pixelsPerSecond * effectiveDuration));
 
@@ -113,7 +116,6 @@ export default function WalkingWaveform({
           console.log('WalkingWaveform: Still animating...', {
             frameCount,
             startPosition,
-            globalCurrentTime,
             elapsed,
             canvasWidth: width,
             effectiveDuration,

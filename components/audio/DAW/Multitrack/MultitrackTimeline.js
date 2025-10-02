@@ -18,7 +18,7 @@ export default function MultitrackTimeline({
   const [isScrolling, setIsScrolling] = useState(false);
   const scrollTimeoutRef = useRef(null);
 
-  const { duration, currentTime, seek, isPlaying } = useMultitrack();
+  const { duration, currentTime, seek, isPlaying, tracks } = useMultitrack();
 
   // Connect external scroll ref if provided
   useEffect(() => {
@@ -85,7 +85,16 @@ export default function MultitrackTimeline({
 
     // Calculate pixels per second using BASE duration for consistency
     // This prevents timeline from stretching during recording
-    const baseDuration = duration > 0 ? duration : 30;
+    // Include all clip extents to prevent cutoff
+    const maxClipEnd = (tracks || []).reduce((max, track) => {
+      if (!track.clips) return max;
+      const trackEnd = track.clips.reduce((tMax, clip) => {
+        return Math.max(tMax, (clip.start || 0) + (clip.duration || 0));
+      }, 0);
+      return Math.max(max, trackEnd);
+    }, 0);
+    const baseDuration = Math.max(duration || 30, maxClipEnd, 30);
+
     const baseWidth = 310 + 3000 * scale;
     const baseContentWidth = baseWidth - 310;
     const pixelsPerSecond = baseContentWidth / baseDuration;
@@ -182,7 +191,7 @@ export default function MultitrackTimeline({
     ctx.moveTo(0, height - 0.5);
     ctx.lineTo(width, height - 0.5);
     ctx.stroke();
-  }, [containerWidth, duration, zoomLevel]);
+  }, [containerWidth, duration, zoomLevel, tracks]);
 
   // Update playhead position - REMOVED, now handled by MultitrackEditor
   // The MultitrackEditor component will control both playheads to ensure sync
