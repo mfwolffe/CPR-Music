@@ -187,9 +187,22 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     const resize = () => {
       const rect = parent.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      // Use the same width calculation as the timeline container
-      const timelineWidth = 310 + 3000 * (zoomLevel / 100); // 80px sidebar + 230px track controls
-      const displayW = Math.max(1, Math.floor(timelineWidth - 230)); // Subtract control width
+
+      // Calculate base timeline width from zoom level
+      const baseTimelineWidth = 310 + 3000 * (zoomLevel / 100); // 80px sidebar + 230px track controls
+      const baseContentWidth = baseTimelineWidth - 230; // Subtract controls
+
+      // Calculate consistent pixels per second based on base width and duration
+      const baseDuration = duration > 0 ? duration : 30;
+      const pixelsPerSecond = baseContentWidth / baseDuration;
+
+      // During recording, extend canvas width by adding pixels for the extra time
+      const effectiveDuration = isRecording
+        ? Math.max(baseDuration, globalCurrentTime + 20)
+        : baseDuration;
+
+      // Use the SAME pixels-per-second ratio, just multiply by extended duration
+      const displayW = Math.max(1, Math.floor(pixelsPerSecond * effectiveDuration));
       const displayH = Math.max(1, Math.floor(rect.height));
 
       const targetW = Math.floor(displayW * dpr);
@@ -216,7 +229,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       ro?.disconnect();
       window.removeEventListener('resize', resize);
     };
-  }, []);
+  }, [zoomLevel, duration, isRecording, globalCurrentTime]); // Re-run when these change
 
   const handleRecord = () => {
     if (isRecording || isCountingDown) {
@@ -547,7 +560,11 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       
       // CRITICAL: Use the SAME time scale as the global timeline for BOTH recording and playback
       // This ensures 1 second of audio = 1 second of visual pixels consistently
-      const projectDuration = duration > 0 ? duration : Math.max(30, globalCurrentTime + 10);
+      // During recording, extend canvas to keep buffer ahead of current time
+      const baseDuration = duration > 0 ? duration : 30;
+      const projectDuration = isRecording
+        ? Math.max(baseDuration, globalCurrentTime + 20) // Keep 20s buffer during recording
+        : baseDuration;
       secondsVisible = projectDuration;
 
       if (isRecording && globalCurrentTime > 0) {
@@ -671,8 +688,23 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
         ctx.fillRect(x, y, visibleWidth, laneHeight - 1);
       });
 
-      // Playhead is now handled by MultitrackEditor's main timeline playhead overlay
-      // This eliminates dual playhead systems and ensures single source of truth
+      // During recording, draw playhead on canvas at fixed 75% position
+      // Global playhead can't account for viewport scrolling, so we draw our own
+      if (isRecording && globalCurrentTime > 0) {
+        const playheadX = Math.round(displayWidth * 0.75);
+
+        ctx.save();
+        ctx.strokeStyle = '#ff3030';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = 'rgba(255, 48, 48, 0.8)';
+        ctx.shadowBlur = 3;
+        ctx.beginPath();
+        ctx.moveTo(playheadX, 0);
+        ctx.lineTo(playheadX, displayHeight);
+        ctx.stroke();
+        ctx.restore();
+      }
+      // Otherwise, playhead is handled by MultitrackEditor's main timeline playhead overlay
     }
 
     // Restore context state
@@ -718,6 +750,9 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          position: 'sticky',
+          left: 0,
+          zIndex: 10,
         }}
       >
         {/* Track number with recording indicator (match RecordingTrack) */}
@@ -747,6 +782,11 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       >
         <div
           className="track-controls"
+          style={{
+            position: 'sticky',
+            left: '80px',
+            zIndex: 9,
+          }}
         >
           <div className="track-header">
             <Form.Control

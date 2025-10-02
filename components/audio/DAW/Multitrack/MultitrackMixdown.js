@@ -918,11 +918,18 @@ async function renderMIDITrackToAudio(track, sampleRate = 44100, bpm = 120) {
   const midiNotes = collectTrackMidiNotes(track, { bpm });
   if (midiNotes.length === 0) return null;
 
+  console.log(`🎵 MIXDOWN START: ${track.name}`, {
+    instrumentType: track.midiData?.instrument?.type || 'unknown',
+    instrumentPreset: track.midiData?.instrument?.preset || 'default',
+    notesCount: midiNotes.length,
+    firstNotes: midiNotes.slice(0, 3).map(n => ({ time: n.time.toFixed(3), dur: n.duration.toFixed(3), freq: n.freq.toFixed(1) }))
+  });
+
   // Calculate track duration
   const endTime = Math.max(...midiNotes.map(n => n.time + n.duration));
   const duration = Math.max(1, endTime + 1); // Add 1 second tail
-  
-  console.log(`Auto-rendering MIDI track: ${track.name} (${midiNotes.length} notes, duration: ${duration}s)`);
+
+  console.log(`🎵 MIXDOWN: Rendering ${track.name} (${midiNotes.length} notes, duration: ${duration.toFixed(2)}s, endTime: ${endTime.toFixed(2)}s)`);
 
   // Create offline context for rendering
   const offline = new OfflineAudioContext(2, Math.ceil(duration * sampleRate), sampleRate);
@@ -935,26 +942,14 @@ async function renderMIDITrackToAudio(track, sampleRate = 44100, bpm = 120) {
     // Determine instrument type
     const instrumentType = track.midiData?.instrument?.type || 'synth';
     const instrumentPreset = track.midiData?.instrument?.preset || 'default';
-    
-    console.log(`Auto-render: Attempting to use existing ${instrumentType} instrument for track ${track.name}`);
-    
-    // Force brass and strings to use EnhancedSynth for WUULF synths
-    if (instrumentType === 'brass') {
-      throw new Error('Forcing WUULF3 to use EnhancedSynth');
-    } else if (instrumentType === 'strings') {
-      throw new Error('Forcing WUULF4 to use EnhancedSynth');
-    }
-    
-    // Try to create your existing virtual instrument first
-    instrument = createInstrument(offline, instrumentType, instrumentPreset);
-    
-    if (instrument && typeof instrument.playNote === 'function') {
-      console.log(`Auto-render: Successfully using existing ${instrumentType} virtual instrument`);
-    } else {
-      throw new Error('Existing instrument not compatible with auto-render');
-    }
+
+    console.log(`🎵 MIXDOWN: Track ${track.name} instrument type: ${instrumentType}`);
+
+    // CRITICAL: Always use EnhancedSynth for mixdown because WebAudioInstruments
+    // don't support the duration parameter, causing notes to play forever!
+    throw new Error('Forcing EnhancedSynth for proper note duration handling in mixdown');
   } catch (e) {
-    console.warn(`Failed to use existing instrument, falling back to enhanced synth:`, e);
+    console.log(`🎵 MIXDOWN: Using EnhancedSynth for ${track.name} (${e.message})`);
     
     try {
       // Fall back to enhanced synthesizer
@@ -964,8 +959,12 @@ async function renderMIDITrackToAudio(track, sampleRate = 44100, bpm = 120) {
       
       instrument = new EnhancedSynth(offline, synthOptions);
       useEnhancedSynth = true;
-      
-      console.log(`Auto-render: Using enhanced synth with ${synthOptions.wavetable} wavetable as fallback`);
+
+      console.log(`🎵 MIXDOWN: Using EnhancedSynth with ${synthOptions.wavetable} wavetable`, {
+        contextType: offline.constructor.name,
+        contextLength: offline.length,
+        contextDuration: (offline.length / sampleRate).toFixed(2) + 's'
+      });
     } catch (enhancedError) {
       console.warn('Both existing and enhanced synth failed:', enhancedError);
     }
@@ -1128,6 +1127,12 @@ async function mixdownClipsAndMidi(
   onProgress = () => {},
   bpm = 120,
 ) {
+  console.log('🚨🚨🚨 MIXDOWN FUNCTION CALLED! 🚨🚨🚨', {
+    trackCount: tracks?.length,
+    bpm,
+    sampleRateHint
+  });
+
   // Signal to the app that we're in mixdown mode to prevent dual synthesis
   if (typeof window !== 'undefined') {
     window.__MIXDOWN_ACTIVE__ = true;
