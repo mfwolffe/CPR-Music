@@ -998,10 +998,10 @@ async function renderMIDITrackToAudio(track, sampleRate = 44100, bpm = 120) {
       const start = Math.max(0, note.time);
       const duration = Math.max(0.01, note.duration);
       const midi = Math.round(69 + 12 * Math.log2(note.freq / 440));
-      
+
       // PROFESSIONAL VELOCITY SCALING: Consistent and musical
       const originalVelocity = note.velocity || 100;
-      
+
       // Normalize MIDI velocity (0-127) to professional audio levels (0-1)
       // Use musical velocity curve that preserves dynamics but prevents clipping
       let normalizedVelocity;
@@ -1014,22 +1014,24 @@ async function renderMIDITrackToAudio(track, sampleRate = 44100, bpm = 120) {
         // Apply slight curve to preserve quiet notes but control loud ones
         normalizedVelocity = Math.pow(midiNormalized, 0.8); // Gentle compression curve
       }
-      
+
       // Scale to appropriate mixing level (balanced for quality)
       const scaledVelocity = normalizedVelocity * 0.6; // Proper gain staging for clear audio
-      
+
       if (process.env.NODE_ENV === 'development') {
         console.log(`🎵 Note ${midi}: velocity ${originalVelocity} -> ${scaledVelocity.toFixed(3)} (normalized: ${normalizedVelocity.toFixed(3)}), start: ${start.toFixed(2)}s, dur: ${duration.toFixed(2)}s`);
       }
-      
+
       try {
         if (useEnhancedSynth) {
-          // Enhanced synth uses our improved API
+          // Enhanced synth uses our improved API with duration
+          // The duration parameter triggers automatic oscillator stops in OfflineAudioContext
           instrument.playNote(midi, scaledVelocity, start, duration);
         } else {
           // Your existing instruments - check their API
           if (typeof instrument.playNote === 'function') {
             // Most instruments support playNote(midi, velocity, time, duration)
+            // The duration parameter should trigger automatic stops
             instrument.playNote(midi, scaledVelocity, start, duration);
           } else if (typeof instrument.noteOn === 'function') {
             // Some might use noteOn/noteOff pattern
