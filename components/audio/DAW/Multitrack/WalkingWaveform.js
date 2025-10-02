@@ -69,7 +69,12 @@ export default function WalkingWaveform({
       // Calculate base dimensions and pixels per second (matching MultitrackEditor)
       const baseWidth = 310 + 3000 * (zoomLevel / 100); // 80px sidebar + 230px track controls
       const baseContentWidth = baseWidth - 230; // Subtract controls
-      const baseDuration = duration > 0 ? duration : 30;
+
+      // Use simple baseDuration (no clip calculations during recording)
+      // This ensures pixels-per-second stays CONSTANT during recording
+      const baseDuration = duration || 30;
+
+      // CONSTANT pixels-per-second - never changes during recording
       const pixelsPerSecond = baseContentWidth / baseDuration;
 
       const canvasHeight = canvas.height;

@@ -83,20 +83,14 @@ export default function MultitrackTimeline({
     ctx.fillStyle = '#1e1e1e';
     ctx.fillRect(0, 0, width, height);
 
-    // Calculate pixels per second using BASE duration for consistency
-    // This prevents timeline from stretching during recording
-    // Include all clip extents to prevent cutoff
-    const maxClipEnd = (tracks || []).reduce((max, track) => {
-      if (!track.clips) return max;
-      const trackEnd = track.clips.reduce((tMax, clip) => {
-        return Math.max(tMax, (clip.start || 0) + (clip.duration || 0));
-      }, 0);
-      return Math.max(max, trackEnd);
-    }, 0);
-    const baseDuration = Math.max(duration || 30, maxClipEnd, 30);
+    // Use simple baseDuration (no clip calculations during recording)
+    // This ensures pixels-per-second stays CONSTANT during recording
+    const baseDuration = duration || 30;
 
     const baseWidth = 310 + 3000 * scale;
     const baseContentWidth = baseWidth - 310;
+
+    // CONSTANT pixels-per-second - never changes during recording
     const pixelsPerSecond = baseContentWidth / baseDuration;
 
     // Use base duration for drawing ticks (prevents stretching)

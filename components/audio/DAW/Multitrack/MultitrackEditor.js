@@ -636,29 +636,34 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                 const baseWidth = 310 + 3000 * (zoomLevel / 100);
                 const baseContentWidth = baseWidth - 230; // Subtract controls
 
-                // Calculate baseDuration to include all clip extents (prevents cutoff)
-                const maxClipEnd = tracks.reduce((max, track) => {
-                  if (!track.clips) return max;
-                  const trackEnd = track.clips.reduce((tMax, clip) => {
-                    return Math.max(tMax, (clip.start || 0) + (clip.duration || 0));
-                  }, 0);
-                  return Math.max(max, trackEnd);
-                }, 0);
-                const baseDuration = Math.max(duration || 30, maxClipEnd, 30);
+                // Use simple baseDuration (no clip calculations during recording)
+                // This ensures pixels-per-second stays CONSTANT during recording
+                const baseDuration = duration || 30;
 
-                // Keep pixels-per-second CONSTANT based on initial base duration
-                // This prevents grid from moving during recording
+                // CONSTANT pixels-per-second - never changes during recording
                 const pixelsPerSecond = baseContentWidth / baseDuration;
 
-                const effectiveDuration = isAnyTrackRecording
-                  ? Math.max(baseDuration, currentTime + 20)
-                  : baseDuration;
+                // Calculate effectiveDuration based on state
+                let effectiveDuration;
+                if (isAnyTrackRecording) {
+                  // During recording: expand canvas ahead of playhead
+                  effectiveDuration = Math.max(baseDuration, currentTime + 20);
+                } else {
+                  // When not recording: include all clip extents to prevent cutoff
+                  const maxClipEnd = tracks.reduce((max, track) => {
+                    if (!track.clips) return max;
+                    const trackEnd = track.clips.reduce((tMax, clip) => {
+                      return Math.max(tMax, (clip.start || 0) + (clip.duration || 0));
+                    }, 0);
+                    return Math.max(max, trackEnd);
+                  }, 0);
+                  effectiveDuration = Math.max(baseDuration, maxClipEnd);
+                }
 
                 // Width = controls + (pixels per second * duration)
                 const expandedWidth = 230 + (pixelsPerSecond * effectiveDuration);
 
-                // Calculate grid size based on actual time intervals (1 second per grid)
-                // Use the CONSTANT pixelsPerSecond so grid doesn't move
+                // Grid size based on CONSTANT pixelsPerSecond (prevents grid movement)
                 const gridSizeX = pixelsPerSecond; // 1 second
                 const gridSizeY = 20; // Fixed vertical spacing
 
