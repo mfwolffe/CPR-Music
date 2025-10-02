@@ -159,7 +159,8 @@ export default class ClipPlayer {
     source.connect(gainNode);
 
     // Calculate timing
-    let when = 0;
+    const now = this.audioContext.currentTime;
+    let when = this.playbackStartTime;
     let sourceOffset = Math.max(0, Number(offset) || 0);
     let sourceDuration = Math.max(0, Number(duration) || 0);
 
@@ -178,9 +179,40 @@ export default class ClipPlayer {
     const maxDuration = Math.max(0, buffer.duration - sourceOffset);
     sourceDuration = Math.max(0, Math.min(sourceDuration, maxDuration));
 
+    // Prevent scheduling in the past (causes immediate start with glitches)
+    if (when < now) {
+      console.warn('ClipPlayer: Scheduling in past, adjusting', {
+        when: when.toFixed(3),
+        now: now.toFixed(3),
+        diff: (now - when).toFixed(3),
+      });
+      // Adjust offset to account for time already passed
+      const timePassed = now - when;
+      sourceOffset += timePassed;
+      sourceDuration -= timePassed;
+      when = now;
+    }
+
     if (sourceDuration > 1e-4) {
-      source.start(when, sourceOffset, sourceDuration);
-      clipData.source = source;
+      try {
+        source.start(when, sourceOffset, sourceDuration);
+        clipData.source = source;
+
+        console.log('ClipPlayer: Started source', {
+          when: when.toFixed(3),
+          sourceOffset: sourceOffset.toFixed(3),
+          sourceDuration: sourceDuration.toFixed(3),
+          scheduleAhead: (when - now).toFixed(3),
+        });
+      } catch (error) {
+        console.error('ClipPlayer: Error starting source:', error, {
+          when,
+          sourceOffset,
+          sourceDuration,
+          bufferDuration: buffer.duration,
+        });
+        return;
+      }
 
       // Clean up when finished
       source.onended = () => {

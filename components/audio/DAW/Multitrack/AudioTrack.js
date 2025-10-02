@@ -126,9 +126,8 @@ export default function AudioTrack({ track, index, zoomLevel = 100 }) {
           track.muted ? 0 : track.volume || 1,
           track.pan || 0,
         );
-        if (isPlaying && clipPlayerRef.current) {
-          clipPlayerRef.current.play(currentTime);
-        }
+        // DON'T restart playback here - it causes constant restarts
+        // Playback is handled by the separate play/stop effect below
       } catch (error) {
         console.error(
           `AudioTrack: Error updating clips for ${track.id}:`,
@@ -214,22 +213,39 @@ export default function AudioTrack({ track, index, zoomLevel = 100 }) {
     // Capture current playhead position when recording starts
     const recordingStartPosition = currentTime;
 
-    // Determine MIME type and configure for high quality
-    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-      ? 'audio/webm;codecs=opus'
-      : 'audio/webm';
+    // Try to use highest quality codec available
+    let mimeType;
+    let audioBitsPerSecond = 320000; // Default to 320 kbps
 
-    console.log('AudioTrack: Using MIME type:', mimeType);
-    console.log(
-      'AudioTrack: Recording will start at position:',
-      recordingStartPosition,
-    );
+    // Codec priority: PCM (uncompressed) > high-bitrate Opus
+    if (MediaRecorder.isTypeSupported('audio/webm;codecs=pcm')) {
+      mimeType = 'audio/webm;codecs=pcm';
+      audioBitsPerSecond = undefined; // PCM doesn't use bitrate
+      console.log('AudioTrack: Using uncompressed PCM codec');
+    } else if (MediaRecorder.isTypeSupported('audio/wav')) {
+      mimeType = 'audio/wav';
+      audioBitsPerSecond = undefined; // WAV doesn't use bitrate
+      console.log('AudioTrack: Using WAV format');
+    } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+      mimeType = 'audio/webm;codecs=opus';
+      console.log('AudioTrack: Using Opus codec at high bitrate');
+    } else {
+      mimeType = 'audio/webm';
+      console.log('AudioTrack: Falling back to default WebM');
+    }
 
-    // Create MediaRecorder with high-quality settings
-    const recorder = new MediaRecorder(mediaStream, {
+    console.log('AudioTrack: Selected format:', {
       mimeType,
-      audioBitsPerSecond: 256000, // 256 kbps for high quality
+      audioBitsPerSecond,
+      recordingStartPosition,
     });
+
+    // Create MediaRecorder with highest quality settings
+    const recorderOptions = audioBitsPerSecond
+      ? { mimeType, audioBitsPerSecond }
+      : { mimeType };
+
+    const recorder = new MediaRecorder(mediaStream, recorderOptions);
     mediaRecorderRef.current = recorder;
 
     recorder.ondataavailable = (e) => {
@@ -260,6 +276,8 @@ export default function AudioTrack({ track, index, zoomLevel = 100 }) {
         console.log('Decoded audio buffer:', {
           duration: audioDuration.toFixed(2) + 's',
           sampleRate: audioBuffer.sampleRate + ' Hz',
+          contextSampleRate: audioContext.sampleRate + ' Hz',
+          sampleRateMismatch: audioBuffer.sampleRate !== audioContext.sampleRate,
           channels: audioBuffer.numberOfChannels,
           length: audioBuffer.length + ' samples',
         });
@@ -309,7 +327,11 @@ export default function AudioTrack({ track, index, zoomLevel = 100 }) {
     // Start recording
     recorder.start(100); // Collect data every 100ms (reduces gaps and overhead)
     setIsRecording(true);
-    console.log('AudioTrack: Recording started with 256kbps @ 48kHz');
+    console.log('AudioTrack: Recording started', {
+      format: mimeType,
+      bitrate: audioBitsPerSecond ? `${audioBitsPerSecond / 1000}kbps` : 'lossless',
+      sampleRate: '48kHz',
+    });
 
     // Start the recording timer to advance playhead during recording
     startRecordingTimer();
@@ -511,6 +533,9 @@ export default function AudioTrack({ track, index, zoomLevel = 100 }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          position: 'sticky',
+          left: 0,
+          zIndex: 10,
         }}
       >
         {/* Track number with recording indicator */}
@@ -547,6 +572,9 @@ export default function AudioTrack({ track, index, zoomLevel = 100 }) {
             display: 'flex',
             flexDirection: 'column',
             gap: '8px',
+            position: 'sticky',
+            left: '80px',
+            zIndex: 9,
           }}
         >
           <div className="track-header">

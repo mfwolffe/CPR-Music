@@ -34,17 +34,14 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
       
       for (const clip of clips) {
         if (!clip.src) continue;
-        
+
         try {
-          // Get the canvas width to calculate proper resolution
-          const canvas = canvasRef.current;
-          if (!canvas) continue;
-          
-          const rect = canvas.getBoundingClientRect();
-          const projectDur = Math.max(1e-6, duration || 1);
-          const scale = Math.max(0.01, zoomLevel / 100);
-          const pxPerSec = (rect.width * scale) / projectDur;
-          const clipWidthPx = Math.max(1, (clip.duration || 0) * pxPerSec);
+          // Calculate pixels-per-second based on BASE duration for consistency
+          const baseDuration = Math.max(1e-6, duration || 30);
+          const baseWidth = 310 + 3000 * (zoomLevel / 100);
+          const baseContentWidth = baseWidth - 230;
+          const pixelsPerSecond = baseContentWidth / baseDuration;
+          const clipWidthPx = Math.max(1, (clip.duration || 0) * pixelsPerSecond);
           
           const peaks = await waveformCache.getPeaksForClip(
             clip.src,
@@ -77,17 +74,22 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
   };
 
   const clipRects = useMemo(() => {
-    const projectDur = Math.max(1e-6, duration || 0);
-    const scale = Math.max(0.01, zoomLevel / 100);
+    // Calculate pixels-per-second based on BASE duration, not extended duration
+    // This keeps the scale constant even when timeline extends during recording
+    const baseDuration = Math.max(1e-6, duration || 30);
+    const baseWidth = 310 + 3000 * (zoomLevel / 100);
+    const baseContentWidth = baseWidth - 230; // Subtract controls
+    const pixelsPerSecond = baseContentWidth / baseDuration;
+
     return (W) => {
-      const pxPerSec = (W * scale) / projectDur;
+      // Use the constant pixels-per-second ratio for all calculations
       return clips.map((c) => ({
         id: c.id,
         start: c.start || 0,
         duration: c.duration || 0,
         color: c.color || track?.color || '#7bafd4',
-        x: Math.max(0, Math.floor((c.start || 0) * pxPerSec)),
-        w: Math.max(1, Math.floor((c.duration || 0) * pxPerSec)),
+        x: Math.max(0, Math.floor((c.start || 0) * pixelsPerSecond)),
+        w: Math.max(1, Math.floor((c.duration || 0) * pixelsPerSecond)),
       }));
     };
   }, [clips, duration, zoomLevel, track?.color]);
