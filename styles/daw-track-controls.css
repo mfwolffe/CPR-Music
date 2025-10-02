@@ -48,7 +48,15 @@
   outline: none !important;
 }
 
-/* Track Controls (Left Side) */
+/* Track Sidebar (Sticky) */
+.track-sidebar {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background-color: #1e1e1e;
+}
+
+/* Track Controls (Left Side - Sticky) */
 .track-controls {
   width: 230px;
   min-width: 230px;
@@ -62,6 +70,9 @@
   overflow: hidden;
   height: 120px !important;
   box-sizing: border-box;
+  position: sticky;
+  left: 80px;
+  z-index: 9;
 }
 
 /* Track Header */

@@ -21,11 +21,7 @@ export default function WalkingWaveform({
   const animationRef = useRef(null);
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
-  const startTimeRef = useRef(null);
   const waveformDataRef = useRef([]);
-  
-  // Viewport state for auto-scroll
-  const [viewportStartTime, setViewportStartTime] = useState(startPosition);
 
   useEffect(() => {
     console.log('WalkingWaveform effect:', {
@@ -59,39 +55,33 @@ export default function WalkingWaveform({
       analyserRef.current.smoothingTimeConstant = 0.8;
       source.connect(analyserRef.current);
 
-      console.log('WalkingWaveform: Audio context initialized');
-
-      // Set up canvas
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-      const inner = document.getElementById('multitrack-tracks-inner');
-      const totalWidth = inner
-        ? inner.offsetWidth
-        : 310 + 3000 * (zoomLevel / 100); // 80px sidebar + 230px track controls
-      const contentWidth = Math.max(1, totalWidth - 310);
-      canvas.width = contentWidth;
-      canvas.style.width = contentWidth + 'px';
-      const width = contentWidth;
-      const canvasHeight = canvas.height;
-
-      // Calculate pixels per second to match TrackClipCanvas calculation
-      const projectDur = Math.max(1e-6, duration || 30);
-      const pixelsPerSecond = width / projectDur;
-
-      console.log('WalkingWaveform: Pixel calculation', {
-        width,
-        projectDur,
-        pixelsPerSecond,
-        startPositionPx: startPosition * pixelsPerSecond,
+      console.log('WalkingWaveform: Audio context initialized', {
+        sampleRate: audioContextRef.current.sampleRate,
+        state: audioContextRef.current.state,
+        baseLatency: audioContextRef.current.baseLatency,
       });
 
-      // Initialize recording start time
-      startTimeRef.current = Date.now();
-      waveformDataRef.current = [];
+      // Set up canvas with consistent pixels-per-second calculation
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
 
-      // Clear canvas
-      ctx.fillStyle = backgroundColor;
-      ctx.fillRect(0, 0, width, canvasHeight);
+      // Calculate base dimensions and pixels per second (matching MultitrackEditor)
+      const baseWidth = 310 + 3000 * (zoomLevel / 100); // 80px sidebar + 230px track controls
+      const baseContentWidth = baseWidth - 230; // Subtract controls
+      const baseDuration = duration > 0 ? duration : 30;
+      const pixelsPerSecond = baseContentWidth / baseDuration;
+
+      const canvasHeight = canvas.height;
+
+      console.log('WalkingWaveform: Setup', {
+        baseContentWidth,
+        baseDuration,
+        pixelsPerSecond,
+        startPosition,
+      });
+
+      // Initialize waveform data
+      waveformDataRef.current = [];
 
       let frameCount = 0;
 
@@ -103,13 +93,30 @@ export default function WalkingWaveform({
         }
 
         frameCount++;
+
+        // Calculate elapsed time from GLOBAL TIMELINE (not Date.now)
+        // This keeps waveform synchronized with the authoritative playhead
+        const elapsed = globalCurrentTime - startPosition;
+        const effectiveDuration = Math.max(baseDuration, elapsed + 20); // Keep 20s buffer
+        const newWidth = Math.max(1, Math.floor(pixelsPerSecond * effectiveDuration));
+
+        // Resize canvas if needed (without stretching)
+        if (canvas.width !== newWidth) {
+          canvas.width = newWidth;
+          canvas.style.width = newWidth + 'px';
+        }
+
+        const width = canvas.width;
+
         if (frameCount % 60 === 0) {
           // Log every second
-          const elapsed = (Date.now() - startTimeRef.current) / 1000;
           console.log('WalkingWaveform: Still animating...', {
             frameCount,
             startPosition,
+            globalCurrentTime,
             elapsed,
+            canvasWidth: width,
+            effectiveDuration,
             currentX: (startPosition + elapsed) * pixelsPerSecond,
           });
         }
@@ -127,8 +134,7 @@ export default function WalkingWaveform({
         const rms = Math.sqrt(sum / bufferLength);
         const amplitude = Math.min(rms * 3, 1); // Scale and clamp
 
-        // Calculate elapsed time since recording started (independent timing)
-        const elapsed = (Date.now() - startTimeRef.current) / 1000;
+        // Use the elapsed time already calculated above
         const currentTime = startPosition + elapsed; // absolute position in timeline
         
         // Store waveform data point with timestamp
@@ -136,58 +142,28 @@ export default function WalkingWaveform({
           amplitude,
           time: currentTime
         });
-        
-        // PRO DAW-STYLE AUTO-SCROLL: Playhead stays at fixed 75% position, waveform scrolls past
-        let viewportStart = viewportStartTime;
-        if (isRecording && currentTime > 0) {
-          const viewportDuration = width / pixelsPerSecond; // How many seconds fit in the viewport
-          
-          // FIXED PLAYHEAD POSITION: Keep playhead at 75% from left edge (like Pro Tools/Logic)
-          const playheadScreenPosition = 0.75; // 75% from left
-          
-          // Calculate where viewport should start so currentTime appears at 75% position
-          const targetViewportStart = Math.max(0, currentTime - (viewportDuration * playheadScreenPosition));
-          
-          // Smooth viewport updates to avoid jank - only update if significantly different
-          const timeDifference = Math.abs(targetViewportStart - viewportStart);
-          
-          if (timeDifference > 0.1) { // Update if >100ms difference
-            setViewportStartTime(targetViewportStart);
-            viewportStart = targetViewportStart;
-            
-            if (process.env.NODE_ENV === 'development') {
-              console.log('🎬 Audio Auto-scroll (Fixed Playhead @ 75%):', {
-                currentTime: currentTime.toFixed(3),
-                viewportStart: targetViewportStart.toFixed(3),
-                playheadWillAppearAt: `${(playheadScreenPosition * 100)}%`,
-                timeDiff: timeDifference.toFixed(3)
-              });
-            }
-          }
-        }
-        
-        // Clear and redraw entire viewport
+
+        // Clear and redraw entire canvas
+        // NOTE: No viewport scrolling here - parent MultitrackEditor handles that
         ctx.fillStyle = backgroundColor;
         ctx.fillRect(0, 0, width, canvasHeight);
-        
-        // Draw all waveform data that's visible in the current viewport
+
+        // Draw all waveform data in absolute timeline coordinates
         const barWidth = 2;
-        const barSpacing = 1;
-        const samplesPerPixel = 1 / pixelsPerSecond * 60; // Assume ~60fps
-        
+
         ctx.fillStyle = color;
         for (let i = 0; i < waveformDataRef.current.length; i++) {
           const sample = waveformDataRef.current[i];
-          const relativeTime = sample.time - viewportStart;
-          const xPosition = relativeTime * pixelsPerSecond;
-          
-          // Only draw if within viewport
+          // Convert absolute timeline time to pixel position
+          const xPosition = (sample.time - startPosition) * pixelsPerSecond;
+
+          // Draw all bars (parent handles scrolling via container scroll)
           if (xPosition >= 0 && xPosition < width) {
             const x = Math.floor(xPosition);
             const maxBarHeight = canvasHeight * 0.8;
             const barHeight = sample.amplitude * maxBarHeight;
             const y = (canvasHeight - barHeight) / 2;
-            
+
             ctx.fillRect(x, y, barWidth, barHeight);
           }
         }

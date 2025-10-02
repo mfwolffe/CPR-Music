@@ -48,15 +48,15 @@ export default function MultitrackTimeline({
     const scrollLeft = scrollContainerRef.current?.scrollLeft || 0;
     const x = e.clientX - rect.left + scrollLeft;
 
-    // Calculate time based on the actual content width
-    const scale = zoomLevel / 100;
-    const inner = document.getElementById('multitrack-tracks-inner');
-    const totalWidth = inner ? inner.offsetWidth : 310 + 3000 * scale; // 80px sidebar + 230px track controls
-    const contentWidth = Math.max(1, totalWidth - 310); // subtract left gutter
-    const projectDuration = duration > 0 ? duration : 30;
-    const clickTime = (x / contentWidth) * projectDuration;
+    // Calculate time based on base pixels-per-second (consistent with rendering)
+    const baseDuration = duration > 0 ? duration : 30;
+    const baseWidth = 310 + 3000 * (zoomLevel / 100);
+    const baseContentWidth = baseWidth - 310;
+    const pixelsPerSecond = baseContentWidth / baseDuration;
+    const clickTime = x / pixelsPerSecond;
 
-    // Convert to progress (0-1)
+    // Convert to progress (0-1) based on current duration
+    const projectDuration = duration > 0 ? duration : 30;
     const progress = clickTime / projectDuration;
     seek(Math.max(0, Math.min(1, progress)));
   };
@@ -83,9 +83,15 @@ export default function MultitrackTimeline({
     ctx.fillStyle = '#1e1e1e';
     ctx.fillRect(0, 0, width, height);
 
-    // Calculate pixels per second using the same formula as tracks
-    const projectDuration = duration > 0 ? duration : 30;
-    const pixelsPerSecond = contentWidth / projectDuration;
+    // Calculate pixels per second using BASE duration for consistency
+    // This prevents timeline from stretching during recording
+    const baseDuration = duration > 0 ? duration : 30;
+    const baseWidth = 310 + 3000 * scale;
+    const baseContentWidth = baseWidth - 310;
+    const pixelsPerSecond = baseContentWidth / baseDuration;
+
+    // Use base duration for drawing ticks (prevents stretching)
+    const projectDuration = baseDuration;
 
     // Determine appropriate tick intervals based on zoom level
     let majorTickInterval = 1; // seconds

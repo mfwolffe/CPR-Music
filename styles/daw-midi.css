@@ -15,10 +15,7 @@
 
 .track.midi-track .track-waveform {
   background-color: #1a1a2a;
-  background-image: 
-    linear-gradient(90deg, rgba(100, 149, 237, 0.1) 1px, transparent 1px),
-    linear-gradient(rgba(100, 149, 237, 0.1) 1px, transparent 1px);
-  background-size: 20px 10px;
+  /* Grid removed - causes stretching during recording. Grid is drawn on canvas instead. */
 }
 
 .track.midi-track:hover .track-waveform {
