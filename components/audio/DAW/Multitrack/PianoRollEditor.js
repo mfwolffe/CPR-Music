@@ -48,17 +48,37 @@ export default function PianoRollEditor({
   const canvasContainerRef = useRef(null);
   const keyboardRef = useRef(null);
 
-  // Initialize notes when modal opens or initialNotes change
+  // Track if this is initial mount/show to prevent reset loops
+  const initialShowRef = useRef(false);
+
+  // Initialize notes ONLY when modal first opens, not on note updates
   useEffect(() => {
-    if (show) {
+    if (show && !initialShowRef.current) {
+      // First time opening modal
+      initialShowRef.current = true;
       setNotes(initialNotes);
       setHistory([initialNotes]);
       setHistoryIndex(0);
       setHasChanges(false);
       setSelectedNotes(new Set());
       setScrollOffset({ x: 0, y: 0 }); // Reset scroll position
+    } else if (!show) {
+      // Reset flag when modal closes
+      initialShowRef.current = false;
     }
-  }, [show, initialNotes]);
+  }, [show]); // REMOVED initialNotes dependency to prevent reset on updates
+
+  // Separately handle external note updates during recording (without resetting state)
+  const prevNotesRef = useRef(initialNotes);
+  useEffect(() => {
+    if (show && initialShowRef.current && initialNotes !== prevNotesRef.current) {
+      // Modal is open and notes changed externally (e.g., during recording)
+      // Update notes WITHOUT resetting history or other state
+      setNotes(initialNotes);
+      // Don't mark as changes since these are external updates
+    }
+    prevNotesRef.current = initialNotes;
+  }, [initialNotes, show]);
 
   // Handle tool selection
   const handleToolChange = (tool) => {

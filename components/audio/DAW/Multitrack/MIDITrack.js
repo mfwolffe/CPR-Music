@@ -1,7 +1,7 @@
 // components/audio/DAW/Multitrack/MIDITrack.js
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { Button, Form, Dropdown, ButtonGroup } from 'react-bootstrap';
 import {
@@ -43,6 +43,7 @@ import {
   handlePatternClick,
   addPatternToArrangement,
 } from './PatternClipRenderer';
+import { exportToMIDIFile } from '../../../../lib/midiFileExport';
 
 export default function MIDITrack({ track, index, zoomLevel = 100 }) {
   const canvasRef = useRef(null);
@@ -57,11 +58,11 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [editingPatternId, setEditingPatternId] = useState(null);
   const [controlTab, setControlTab] = useState('vol'); // 'vol' or 'pan'
-  
+
   // Local countdown states (separate from hook states)
   const [isCountingDown, setIsCountingDown] = useState(false);
   const [countdownBeat, setCountdownBeat] = useState(0);
-  
+
   // Viewport tracking for smooth auto-scroll
   const [viewportFirstBeat, setViewportFirstBeat] = useState(0);
   // const scheduledNotesRef = useRef([]);
@@ -187,8 +188,8 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       const rect = parent.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
       // Use the same width calculation as the timeline container
-      const timelineWidth = 360 + 3000 * (zoomLevel / 100); // 80px sidebar + 280px track controls
-      const displayW = Math.max(1, Math.floor(timelineWidth - 280)); // Subtract control width
+      const timelineWidth = 310 + 3000 * (zoomLevel / 100); // 80px sidebar + 230px track controls
+      const displayW = Math.max(1, Math.floor(timelineWidth - 230)); // Subtract control width
       const displayH = Math.max(1, Math.floor(rect.height));
 
       const targetW = Math.floor(displayW * dpr);
@@ -439,6 +440,26 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       notes,
       color: `#${Math.floor(Math.random() * 16777215).toString(16)}`,
     });
+  };
+
+  // Export MIDI file
+  const handleExportMIDI = () => {
+    const notes = track.midiData?.notes || [];
+    if (notes.length === 0) {
+      alert('No notes to export');
+      return;
+    }
+
+    const tempo = track.midiData?.tempo || 120;
+    const filename = `${track.name.replace(/[^a-z0-9]/gi, '_')}-${Date.now()}.mid`;
+
+    try {
+      exportToMIDIFile(notes, tempo, filename);
+      console.log(`✅ Exported ${notes.length} notes to ${filename}`);
+    } catch (error) {
+      console.error('❌ MIDI export failed:', error);
+      alert('Failed to export MIDI file');
+    }
   };
 
 
@@ -734,7 +755,14 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
           className="track-controls"
         >
           <div className="track-header">
-            <span className="track-name">{track.name}</span>
+            <Form.Control
+              type="text"
+              value={track.name}
+              onChange={(e) => updateTrack(track.id, { name: e.target.value })}
+              className="track-name-input"
+              onClick={(e) => e.stopPropagation()}
+              style={{ marginBottom: '4px', fontSize: '0.85rem', padding: '4px 8px' }}
+            />
           </div>
 
           {/* Instrument Display */}
@@ -744,6 +772,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
               e.stopPropagation();
               setShowInstrumentSelector(true);
             }}
+            style={{ marginBottom: '4px', cursor: 'pointer', fontSize: '0.8rem', padding: '2px 4px' }}
           >
             <InstrumentIcon />
             <span>
@@ -752,11 +781,12 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
           </div>
 
           {/* View Mode Toggle */}
-          <ButtonGroup className="w-100 mb-2">
+          <ButtonGroup className="w-100" style={{ marginBottom: '4px' }}>
             <Button
               size="sm"
               variant={viewMode === 'notes' ? 'primary' : 'outline-primary'}
               onClick={() => setViewMode('notes')}
+              title="Notes Mode - Edit individual MIDI notes"
             >
               <MdMusicNote /> Notes
             </Button>
@@ -764,18 +794,20 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
               size="sm"
               variant={viewMode === 'patterns' ? 'primary' : 'outline-primary'}
               onClick={() => setViewMode('patterns')}
+              title="Patterns Mode - Work with repeating sequences"
             >
               <FaThLarge /> Patterns
             </Button>
           </ButtonGroup>
 
-          {/* Pattern Controls */}
+          {/* Pattern Controls - Collapsible */}
           {viewMode === 'patterns' && (
-            <>
+            <div style={{ marginBottom: '4px' }}>
               <Button
                 size="sm"
                 variant="outline-primary"
-                className="w-100 mb-2"
+                className="w-100"
+                style={{ marginBottom: '2px', padding: '2px 4px', fontSize: '0.75rem' }}
                 onClick={() => setShowPatternLibrary(true)}
               >
                 Pattern Library
@@ -784,17 +816,18 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
                 <Button
                   size="sm"
                   variant="outline-success"
-                  className="w-100 mb-2"
+                  className="w-100"
+                  style={{ padding: '2px 4px', fontSize: '0.75rem' }}
                   onClick={convertNotesToPattern}
                 >
                   Convert to Pattern
                 </Button>
               )}
-            </>
+            </div>
           )}
 
           {/* Track Buttons */}
-          <div className="track-buttons">
+          <div className="track-buttons" style={{ marginBottom: '4px' }}>
             <Button
               variant={track.muted ? 'danger' : 'outline-secondary'}
               size="sm"
@@ -829,14 +862,26 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
                 handleRecord();
               }}
               title={
-                isRecording 
-                  ? 'Stop Recording' 
-                  : isCountingDown 
-                  ? 'Cancel Countdown' 
+                isRecording
+                  ? 'Stop Recording'
+                  : isCountingDown
+                  ? 'Cancel Countdown'
                   : 'Record'
               }
             >
               {isRecording ? <FaStop /> : isCountingDown ? countdownBeat : <FaCircle />}
+            </Button>
+            <Button
+              variant="outline-primary"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleExportMIDI();
+              }}
+              title="Export MIDI File"
+              disabled={!track.midiData?.notes || track.midiData.notes.length === 0}
+            >
+              <FaDownload />
             </Button>
             <Button
               variant="outline-danger"
@@ -851,16 +896,17 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
             </Button>
           </div>
 
-          {/* Compact Vol/Pan switch */}
-          <ButtonGroup size="sm" className="control-tabs mb-1">
+          {/* Compact Vol/Pan toggle */}
+          <ButtonGroup size="sm" className="w-100" style={{ marginBottom: '2px' }}>
             <Button
               variant={controlTab === 'vol' ? 'secondary' : 'outline-secondary'}
               onClick={(e) => {
                 e.stopPropagation();
                 setControlTab('vol');
               }}
+              style={{ padding: '4px' }}
             >
-              Vol
+              <FaVolumeUp />
             </Button>
             <Button
               variant={controlTab === 'pan' ? 'secondary' : 'outline-secondary'}
@@ -868,19 +914,15 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
                 e.stopPropagation();
                 setControlTab('pan');
               }}
+              style={{ padding: '4px' }}
             >
-              Pan
+              <MdPanTool />
             </Button>
           </ButtonGroup>
 
+          {/* Volume or Pan Control (toggled) */}
           {controlTab === 'vol' ? (
-            <div className="track-control">
-              <label className="track-control-label">
-                <FaVolumeUp /> Volume
-                <span className="track-control-value">
-                  {Math.round(track.volume * 100)}%
-                </span>
-              </label>
+            <div className="track-control" style={{ marginBottom: 0 }}>
               <Form.Range
                 className="track-volume-slider"
                 min="0"
@@ -888,20 +930,11 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
                 value={track.volume * 100}
                 onChange={handleVolumeChange}
                 onClick={(e) => e.stopPropagation()}
+                style={{ margin: 0 }}
               />
             </div>
           ) : (
-            <div className="track-control">
-              <label className="track-control-label">
-                <MdPanTool /> Pan
-                <span className="track-control-value">
-                  {track.pan === 0
-                    ? 'C'
-                    : track.pan > 0
-                      ? `${Math.round(track.pan * 100)}R`
-                      : `${Math.round(Math.abs(track.pan * 100))}L`}
-                </span>
-              </label>
+            <div className="track-control" style={{ marginBottom: 0 }}>
               <Form.Range
                 className="track-pan-slider"
                 min="-100"
@@ -909,6 +942,7 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
                 value={track.pan * 100}
                 onChange={handlePanChange}
                 onClick={(e) => e.stopPropagation()}
+                style={{ margin: 0 }}
               />
             </div>
           )}

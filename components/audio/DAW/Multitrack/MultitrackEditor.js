@@ -335,10 +335,13 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
 
       // Derive content width from the shared inner container so 1s = 1s across UI
       const inner = document.getElementById('multitrack-tracks-inner');
+      // All tracks now use 230px controls for consistency
+      const controlsWidth = 230;
+      const gutterWidth = 80 + controlsWidth; // sidebar + track controls
       const totalWidth = inner
         ? inner.offsetWidth
-        : 310 + 3000 * (zoomLevel / 100); // 80px sidebar + 230px track controls
-      const contentWidth = Math.max(0, totalWidth - 310); // subtract left gutter (80+230)
+        : gutterWidth + 3000 * (zoomLevel / 100);
+      const contentWidth = Math.max(0, totalWidth - gutterWidth);
       // During recording with no content, use current time + buffer for duration
       const projectDuration = duration > 0 ? duration : Math.max(30, currentTime + 10);
       const pixelsPerSecond = contentWidth / projectDuration;
@@ -607,7 +610,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
               style={{
                 position: 'relative',
                 minHeight: '600px', // Default space for 3 recording tracks (200px each)
-                width: `${310 + 3000 * (zoomLevel / 100)}px`, // 80px sidebar + 230px track controls
+                width: `${310 + 3000 * (zoomLevel / 100)}px`, // 80px sidebar + 230px controls
                 backgroundImage: `
                   linear-gradient(90deg, rgba(100, 149, 237, 0.1) 1px, transparent 1px),
                   linear-gradient(rgba(100, 149, 237, 0.1) 1px, transparent 1px)
@@ -654,14 +657,14 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                         return totalHeight + 240; // MIDI tracks are 240px (from daw-midi.css)
                       } else {
                         // Audio tracks (including legacy 'recording' type) are 200px
-                        return totalHeight + 200; 
+                        return totalHeight + 200;
                       }
                     }, 0)}px`,
                     backgroundColor: '#ff3030',
                     boxShadow: '0 0 3px rgba(255, 48, 48, 0.8)',
                     pointerEvents: 'none',
                     zIndex: 1000,
-                    marginLeft: '310px', // Account for sidebar (80px) + controls (230px) width
+                    marginLeft: '310px', // 80px sidebar + 230px controls
                   }}
                 />
               )}

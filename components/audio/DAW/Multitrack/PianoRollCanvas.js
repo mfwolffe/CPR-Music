@@ -2,6 +2,7 @@
 'use client';
 
 import { useRef, useEffect, useState, useCallback } from 'react';
+import { beatsToPixels, pixelsToBeats, secondsToBeats, calculatePlayheadPosition } from '../../../../lib/midiTimeUtils';
 
 const NOTE_HEIGHT = 20; // Height of each piano key row
 const MIN_NOTE = 21; // A0
@@ -224,13 +225,12 @@ export default function PianoRollCanvas({
     [currentTool, mouseState],
   );
 
-  // Draw playhead
+  // Draw playhead using unified time conversion
   const drawPlayhead = useCallback(
     (ctx) => {
       if (!isPlaying) return;
-      // currentTime is in seconds; convert to beats for the grid
-      const secPerBeat = tempo ? 60 / tempo : 0.5;
-      const currentBeat = currentTime / secPerBeat;
+      // Use unified time conversion for consistency with scheduler
+      const currentBeat = secondsToBeats(currentTime, tempo || 120);
       const x = timeToPixel(currentBeat);
       if (x < 0 || x > actualCanvasSize.width) return;
 
@@ -241,7 +241,7 @@ export default function PianoRollCanvas({
       ctx.lineTo(x, actualCanvasSize.height);
       ctx.stroke();
     },
-    [isPlaying, currentTime, actualCanvasSize, tempo],
+    [isPlaying, currentTime, actualCanvasSize, tempo, timeToPixel],
   );
 
   // Main draw function with error handling

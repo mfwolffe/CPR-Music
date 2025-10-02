@@ -334,7 +334,7 @@ export function useMIDITrackAudio(
 
   // Play a single note (for preview/audition)
   const playNote = useCallback((note, velocity = 1, time) => {
-    if (!instrumentRef.current) return;
+    if (!instrumentRef.current) return null;
 
     // Simple debounce - ignore if same note was just played
     const now = Date.now();
@@ -342,14 +342,15 @@ export function useMIDITrackAudio(
     if (now - lastPlayed < 20) {
       // 20ms debounce window
       console.log('Debouncing duplicate note:', note);
-      return;
+      return null;
     }
     noteLastPlayedRef.current.set(note, now);
 
-    // Rest of playNote implementation...
+    // Play note and return voice handle for tokenization
     const audioContext = audioContextManager.getContext();
     const secondArg = time != null ? time : audioContext.currentTime;
-    instrumentRef.current.playNote(note, velocity, secondArg);
+    const handle = instrumentRef.current.playNote(note, velocity, secondArg);
+    return handle; // Return voice token for later cleanup
   }, []);
 
   // Stop a single note
@@ -359,6 +360,40 @@ export function useMIDITrackAudio(
       const secondArg = token ?? audioContext.currentTime; // handle-or-time
       instrumentRef.current.stopNote(note, secondArg);
     }
+  }, []);
+
+  // Window blur handler to prevent stuck notes
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && instrumentRef.current) {
+        // Stop all notes when tab becomes hidden
+        try {
+          instrumentRef.current.stopAllNotes?.();
+          console.log('🔇 Stopped all notes due to window blur');
+        } catch (error) {
+          console.warn('Error stopping notes on blur:', error);
+        }
+      }
+    };
+
+    const handleWindowBlur = () => {
+      if (instrumentRef.current) {
+        try {
+          instrumentRef.current.stopAllNotes?.();
+          console.log('🔇 Stopped all notes due to window blur');
+        } catch (error) {
+          console.warn('Error stopping notes on blur:', error);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleWindowBlur);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleWindowBlur);
+    };
   }, []);
 
   // Start recording
