@@ -134,6 +134,12 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
     setTracks,
   } = useMultitrack();
 
+  // Track latest globalCurrentTime to avoid stale closures in async callbacks
+  const currentTimeRef = useRef(globalCurrentTime);
+  useEffect(() => {
+    currentTimeRef.current = globalCurrentTime;
+  }, [globalCurrentTime]);
+
   const {
     isRecording,
     playNote,
@@ -192,14 +198,22 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       const baseTimelineWidth = 310 + 3000 * (zoomLevel / 100); // 80px sidebar + 230px track controls
       const baseContentWidth = baseTimelineWidth - 230; // Subtract controls
 
+      // Use FIXED baseDuration for consistent scale across all components
+      const baseDuration = duration || 30;
+
       // Calculate consistent pixels per second based on base width and duration
-      const baseDuration = duration > 0 ? duration : 30;
       const pixelsPerSecond = baseContentWidth / baseDuration;
 
-      // During recording, extend canvas width by adding pixels for the extra time
+      // Calculate maxClipEnd to ensure canvas includes all clips
+      const maxClipEnd = (track.clips || []).reduce((max, clip) => {
+        return Math.max(max, (clip.start || 0) + (clip.duration || 0));
+      }, 0);
+
+      // During recording, extend canvas width to include clips AND recording buffer
+      // Use currentTimeRef to get latest value (avoid stale closure)
       const effectiveDuration = isRecording
-        ? Math.max(baseDuration, globalCurrentTime + 20)
-        : baseDuration;
+        ? Math.max(baseDuration, maxClipEnd, currentTimeRef.current + 20)
+        : Math.max(baseDuration, maxClipEnd);
 
       // Use the SAME pixels-per-second ratio, just multiply by extended duration
       const displayW = Math.max(1, Math.floor(pixelsPerSecond * effectiveDuration));

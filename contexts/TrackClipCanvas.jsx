@@ -36,8 +36,8 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
         if (!clip.src) continue;
 
         try {
-          // Calculate pixels-per-second based on BASE duration for consistency
-          const baseDuration = Math.max(1e-6, duration || 30);
+          // Calculate pixels-per-second based on FIXED duration for consistency
+          const baseDuration = duration || 30;
           const baseWidth = 310 + 3000 * (zoomLevel / 100);
           const baseContentWidth = baseWidth - 230;
           const pixelsPerSecond = baseContentWidth / baseDuration;
@@ -74,9 +74,9 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
   };
 
   const clipRects = useMemo(() => {
-    // Calculate pixels-per-second based on BASE duration, not extended duration
-    // This keeps the scale constant even when timeline extends during recording
-    const baseDuration = Math.max(1e-6, duration || 30);
+    // Calculate pixels-per-second based on FIXED duration for consistent scale
+    // This keeps the scale constant across all components
+    const baseDuration = duration || 30;
     const baseWidth = 310 + 3000 * (zoomLevel / 100);
     const baseContentWidth = baseWidth - 230; // Subtract controls
     const pixelsPerSecond = baseContentWidth / baseDuration;

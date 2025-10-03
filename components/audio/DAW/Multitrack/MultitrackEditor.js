@@ -1,7 +1,7 @@
 // components/audio/DAW/Multitrack/MultitrackEditor.js
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Button,
   Container,
@@ -586,6 +586,22 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
           <MultitrackTimeline
             zoomLevel={zoomLevel}
             scrollRef={timelineScrollRef}
+            timelineExtent={(() => {
+              // Calculate timeline extent (same logic as tracks container width)
+              const isAnyTrackRecording = tracks.some(t => t.isRecording);
+              const baseDuration = duration || 30;
+              const maxClipEnd = tracks.reduce((max, track) => {
+                if (!track.clips) return max;
+                const trackEnd = track.clips.reduce((tMax, clip) => {
+                  return Math.max(tMax, (clip.start || 0) + (clip.duration || 0));
+                }, 0);
+                return Math.max(max, trackEnd);
+              }, 0);
+              const effectiveDuration = isAnyTrackRecording
+                ? Math.max(baseDuration, maxClipEnd, currentTime + 20)
+                : Math.max(baseDuration, maxClipEnd);
+              return effectiveDuration;
+            })()}
             onScroll={(e) => {
               if (!tracksScrollRef.current) return;
               if (isSyncingScrollRef.current) return;
@@ -604,8 +620,8 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
       </Row>
 
       {/* Tracks */}
-      <Row style={{ flex: 1, minHeight: 0 }}>
-        <Col style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <Row style={{ flex: 1, minHeight: 0, maxHeight: 'calc(100vh - 180px)' }}>
+        <Col style={{ display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%' }}>
           <div
             ref={tracksScrollRef}
             onScroll={(e) => {
@@ -624,7 +640,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
               overflowX: 'auto',
               overflowY: 'auto',
               position: 'relative',
-              paddingBottom: '20px', // minimal space for scrolling
+              height: '100%',
             }}
             className={`tracks-container ${showPiano ? 'piano-visible' : ''}`}
           >
@@ -636,34 +652,30 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                 const baseWidth = 310 + 3000 * (zoomLevel / 100);
                 const baseContentWidth = baseWidth - 230; // Subtract controls
 
-                // Use simple baseDuration (no clip calculations during recording)
-                // This ensures pixels-per-second stays CONSTANT during recording
+                // Use FIXED baseDuration for consistent scale across all components
                 const baseDuration = duration || 30;
 
-                // CONSTANT pixels-per-second - never changes during recording
+                // CONSTANT pixels-per-second - same across all components
                 const pixelsPerSecond = baseContentWidth / baseDuration;
 
-                // Calculate effectiveDuration based on state
-                let effectiveDuration;
-                if (isAnyTrackRecording) {
-                  // During recording: expand canvas ahead of playhead
-                  effectiveDuration = Math.max(baseDuration, currentTime + 20);
-                } else {
-                  // When not recording: include all clip extents to prevent cutoff
-                  const maxClipEnd = tracks.reduce((max, track) => {
-                    if (!track.clips) return max;
-                    const trackEnd = track.clips.reduce((tMax, clip) => {
-                      return Math.max(tMax, (clip.start || 0) + (clip.duration || 0));
-                    }, 0);
-                    return Math.max(max, trackEnd);
+                // Calculate maxClipEnd to ensure canvas includes all clips
+                const maxClipEnd = tracks.reduce((max, track) => {
+                  if (!track.clips) return max;
+                  const trackEnd = track.clips.reduce((tMax, clip) => {
+                    return Math.max(tMax, (clip.start || 0) + (clip.duration || 0));
                   }, 0);
-                  effectiveDuration = Math.max(baseDuration, maxClipEnd);
-                }
+                  return Math.max(max, trackEnd);
+                }, 0);
+
+                // effectiveDuration includes clips AND recording buffer
+                const effectiveDuration = isAnyTrackRecording
+                  ? Math.max(baseDuration, maxClipEnd, currentTime + 20)
+                  : Math.max(baseDuration, maxClipEnd);
 
                 // Width = controls + (pixels per second * duration)
                 const expandedWidth = 230 + (pixelsPerSecond * effectiveDuration);
 
-                // Grid size based on CONSTANT pixelsPerSecond (prevents grid movement)
+                // Grid size based on CONSTANT pixelsPerSecond
                 const gridSizeX = pixelsPerSecond; // 1 second
                 const gridSizeY = 20; // Fixed vertical spacing
 
@@ -671,11 +683,8 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                   position: 'relative',
                   minHeight: '600px',
                   width: `${expandedWidth}px`,
-                  backgroundImage: `
-                    linear-gradient(90deg, rgba(100, 149, 237, 0.1) 1px, transparent 1px),
-                    linear-gradient(rgba(100, 149, 237, 0.1) 1px, transparent 1px)
-                  `,
-                  backgroundSize: `${gridSizeX}px ${gridSizeY}px`
+                  // Grid background removed - CSS backgrounds shift during width changes
+                  // causing visual jarring during recording
                 };
               })()}
             >
@@ -735,43 +744,47 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
       </Row>
 
       {/* Zoom Control */}
-      <Row className="mt-3">
+      <Row className="mt-2">
         <Col>
-          <div className="d-flex align-items-center gap-2">
-            <label>Zoom:</label>
+          <div className="d-flex align-items-center gap-2" style={{ fontSize: '0.85rem' }}>
+            <label className="mb-0" style={{ fontSize: '0.8rem' }}>Zoom:</label>
             <input
               type="range"
               min="10"
               max="500"
               value={zoomLevel}
               onChange={(e) => setZoomLevel(parseInt(e.target.value))}
-              style={{ width: '200px' }}
+              style={{ width: '150px', height: '6px' }}
             />
-            <span>{zoomLevel}%</span>
+            <span style={{ fontSize: '0.8rem', minWidth: '45px' }}>{zoomLevel}%</span>
 
             {/* Zoom presets */}
-            <ButtonGroup size="sm" className="ms-3">
+            <ButtonGroup size="sm" className="ms-2">
               <Button
                 variant="outline-secondary"
                 onClick={() => setZoomLevel(50)}
+                style={{ padding: '2px 8px', fontSize: '0.75rem' }}
               >
                 50%
               </Button>
               <Button
                 variant="outline-secondary"
                 onClick={() => setZoomLevel(100)}
+                style={{ padding: '2px 8px', fontSize: '0.75rem' }}
               >
                 100%
               </Button>
               <Button
                 variant="outline-secondary"
                 onClick={() => setZoomLevel(200)}
+                style={{ padding: '2px 8px', fontSize: '0.75rem' }}
               >
                 200%
               </Button>
               <Button
                 variant="outline-secondary"
                 onClick={() => setZoomLevel(400)}
+                style={{ padding: '2px 8px', fontSize: '0.75rem' }}
               >
                 400%
               </Button>

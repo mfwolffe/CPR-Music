@@ -8,6 +8,7 @@ export default function MultitrackTimeline({
   zoomLevel = 100,
   scrollRef,
   onScroll,
+  timelineExtent, // Duration in seconds that the timeline should cover
 }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
@@ -83,18 +84,14 @@ export default function MultitrackTimeline({
     ctx.fillStyle = '#1e1e1e';
     ctx.fillRect(0, 0, width, height);
 
-    // Use simple baseDuration (no clip calculations during recording)
-    // This ensures pixels-per-second stays CONSTANT during recording
-    const baseDuration = duration || 30;
-
+    // Calculate pixels-per-second using consistent base duration
     const baseWidth = 310 + 3000 * scale;
     const baseContentWidth = baseWidth - 310;
-
-    // CONSTANT pixels-per-second - never changes during recording
+    const baseDuration = duration || 30;
     const pixelsPerSecond = baseContentWidth / baseDuration;
 
-    // Use base duration for drawing ticks (prevents stretching)
-    const projectDuration = baseDuration;
+    // Use timelineExtent from parent if provided, otherwise fall back to duration
+    const projectDuration = timelineExtent || duration || 30;
 
     // Determine appropriate tick intervals based on zoom level
     let majorTickInterval = 1; // seconds
@@ -185,7 +182,7 @@ export default function MultitrackTimeline({
     ctx.moveTo(0, height - 0.5);
     ctx.lineTo(width, height - 0.5);
     ctx.stroke();
-  }, [containerWidth, duration, zoomLevel, tracks]);
+  }, [containerWidth, duration, zoomLevel, tracks, timelineExtent]);
 
   // Update playhead position - REMOVED, now handled by MultitrackEditor
   // The MultitrackEditor component will control both playheads to ensure sync

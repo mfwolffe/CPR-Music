@@ -24,6 +24,14 @@ export default function WalkingWaveform({
   const startTimeRef = useRef(null);
   const waveformDataRef = useRef([]);
 
+  // Track the latest globalCurrentTime to avoid stale closure issues
+  const currentTimeRef = useRef(globalCurrentTime);
+
+  // Update ref whenever globalCurrentTime changes
+  useEffect(() => {
+    currentTimeRef.current = globalCurrentTime;
+  }, [globalCurrentTime]);
+
   useEffect(() => {
     console.log('WalkingWaveform effect:', {
       mediaStream,
@@ -70,8 +78,7 @@ export default function WalkingWaveform({
       const baseWidth = 310 + 3000 * (zoomLevel / 100); // 80px sidebar + 230px track controls
       const baseContentWidth = baseWidth - 230; // Subtract controls
 
-      // Use simple baseDuration (no clip calculations during recording)
-      // This ensures pixels-per-second stays CONSTANT during recording
+      // Use simple baseDuration for pixels-per-second calculation
       const baseDuration = duration || 30;
 
       // CONSTANT pixels-per-second - never changes during recording
@@ -86,8 +93,8 @@ export default function WalkingWaveform({
         startPosition,
       });
 
-      // Initialize recording start time using performance.now() for precision
-      startTimeRef.current = performance.now() / 1000;
+      // Store the initial globalCurrentTime to calculate elapsed time
+      startTimeRef.current = globalCurrentTime;
       waveformDataRef.current = [];
 
       let frameCount = 0;
@@ -101,10 +108,21 @@ export default function WalkingWaveform({
 
         frameCount++;
 
-        // Calculate elapsed time using performance.now() for smooth, independent timing
-        // This prevents drift and ensures waveform progresses smoothly
-        const now = performance.now() / 1000;
-        const elapsed = now - startTimeRef.current;
+        // Calculate elapsed time using currentTimeRef to get latest value (avoid stale closure)
+        // This ensures waveform and playhead move at EXACTLY the same rate
+        const elapsed = currentTimeRef.current - startTimeRef.current;
+
+        // Debug logging every 60 frames (~1 second)
+        if (frameCount % 60 === 0) {
+          console.log('🎵 WalkingWaveform timing:', {
+            frameCount,
+            currentTime: currentTimeRef.current.toFixed(3),
+            startTime: startTimeRef.current.toFixed(3),
+            elapsed: elapsed.toFixed(3),
+            startPosition,
+            currentTimeInTimeline: (startPosition + elapsed).toFixed(3),
+          });
+        }
         const effectiveDuration = Math.max(baseDuration, elapsed + 20); // Keep 20s buffer
         const newWidth = Math.max(1, Math.floor(pixelsPerSecond * effectiveDuration));
 
@@ -115,18 +133,6 @@ export default function WalkingWaveform({
         }
 
         const width = canvas.width;
-
-        if (frameCount % 60 === 0) {
-          // Log every second
-          console.log('WalkingWaveform: Still animating...', {
-            frameCount,
-            startPosition,
-            elapsed,
-            canvasWidth: width,
-            effectiveDuration,
-            currentX: (startPosition + elapsed) * pixelsPerSecond,
-          });
-        }
 
         const bufferLength = analyserRef.current.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
