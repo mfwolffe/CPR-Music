@@ -1174,6 +1174,7 @@ export class DrumSampler extends BaseInstrument {
   constructor(audioContext) {
     super(audioContext);
     this.samples = new Map();
+    this.activeHihat = null; // Track active open hihat for choking
     this.loadDefaultKit();
   }
 
@@ -1183,11 +1184,11 @@ export class DrumSampler extends BaseInstrument {
     this.drumMapping = {
       0: { name: 'kick', type: 'kick' }, // C (any octave)
       2: { name: 'snare', type: 'snare' }, // D
-      4: { name: 'hihat', type: 'hihat' }, // E
-      5: { name: 'openhat', type: 'openhat' }, // F
+      4: { name: 'hihat', type: 'hihat' }, // E (closed)
+      5: { name: 'openhat', type: 'openhat' }, // F (open)
       7: { name: 'crash', type: 'crash' }, // G
       9: { name: 'ride', type: 'ride' }, // A
-      11: { name: 'kick', type: 'kick' }, // B (duplicate kick)
+      11: { name: 'tom', type: 'tom' }, // B (low tom)
     };
   }
 
@@ -1198,6 +1199,15 @@ export class DrumSampler extends BaseInstrument {
     // Check if this note class maps to a drum
     const drumConfig = this.drumMapping[noteClass];
     if (!drumConfig) return; // Not a white key
+
+    // Hihat choking: closed hihat chokes open hihat
+    if (drumConfig.type === 'hihat' && this.activeHihat) {
+      // Choke the open hihat
+      this.activeHihat.gain.gain.cancelScheduledValues(time);
+      this.activeHihat.gain.gain.setValueAtTime(this.activeHihat.gain.gain.value, time);
+      this.activeHihat.gain.gain.exponentialRampToValueAtTime(0.01, time + 0.02);
+      this.activeHihat = null;
+    }
 
     // Play the corresponding drum sound
     switch (drumConfig.type) {
@@ -1219,127 +1229,227 @@ export class DrumSampler extends BaseInstrument {
       case 'ride':
         this.playRide(velocity, time);
         break;
+      case 'tom':
+        this.playTom(velocity, time);
+        break;
     }
   }
 
   playKick(velocity, time) {
+    // Non-linear velocity curve for more dynamic range
+    const vel = Math.pow(velocity, 0.7);
+
+    // Main body oscillator (sine wave frequency sweep)
     const osc = this.audioContext.createOscillator();
-    const gain = this.audioContext.createGain();
-
-    osc.frequency.setValueAtTime(60, time);
-    osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.5);
-
-    gain.gain.setValueAtTime(velocity, time);
-    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.5);
-
-    osc.connect(gain);
-    gain.connect(this.output);
-
-    osc.start(time);
-    osc.stop(time + 0.5);
-  }
-
-  playSnare(velocity, time) {
-    // Tone component
-    const osc = this.audioContext.createOscillator();
+    osc.type = 'sine';
     const oscGain = this.audioContext.createGain();
-    osc.frequency.value = 200;
-    oscGain.gain.setValueAtTime(velocity * 0.5, time);
-    oscGain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
 
-    // Noise component
-    const noise = this.audioContext.createBufferSource();
-    const noiseBuffer = this.audioContext.createBuffer(
-      1,
-      4096,
-      this.audioContext.sampleRate,
-    );
-    const data = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < 4096; i++) {
-      data[i] = Math.random() * 2 - 1;
-    }
-    noise.buffer = noiseBuffer;
+    // Fast attack, exponential decay for punch
+    osc.frequency.setValueAtTime(150, time);
+    osc.frequency.exponentialRampToValueAtTime(40, time + 0.05);
+    osc.frequency.exponentialRampToValueAtTime(30, time + 0.3);
 
-    const noiseFilter = this.audioContext.createBiquadFilter();
-    noiseFilter.type = 'highpass';
-    noiseFilter.frequency.value = 2000;
+    oscGain.gain.setValueAtTime(vel * 1.2, time);
+    oscGain.gain.exponentialRampToValueAtTime(0.01, time + 0.4);
 
-    const noiseGain = this.audioContext.createGain();
-    noiseGain.gain.setValueAtTime(velocity * 0.5, time);
-    noiseGain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+    // Attack click for punch (very short noise burst)
+    const click = this.audioContext.createOscillator();
+    click.type = 'square';
+    click.frequency.value = 60;
+    const clickGain = this.audioContext.createGain();
+
+    clickGain.gain.setValueAtTime(vel * 0.5, time);
+    clickGain.gain.exponentialRampToValueAtTime(0.01, time + 0.01);
+
+    // Sub bass for depth
+    const sub = this.audioContext.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.value = 50;
+    const subGain = this.audioContext.createGain();
+
+    subGain.gain.setValueAtTime(vel * 0.8, time);
+    subGain.gain.exponentialRampToValueAtTime(0.01, time + 0.5);
 
     // Connect
     osc.connect(oscGain);
     oscGain.connect(this.output);
-    noise.connect(noiseFilter);
-    noiseFilter.connect(noiseGain);
-    noiseGain.connect(this.output);
+    click.connect(clickGain);
+    clickGain.connect(this.output);
+    sub.connect(subGain);
+    subGain.connect(this.output);
 
-    // Start
+    // Play
     osc.start(time);
-    osc.stop(time + 0.2);
-    noise.start(time);
-    noise.stop(time + 0.2);
+    osc.stop(time + 0.5);
+    click.start(time);
+    click.stop(time + 0.015);
+    sub.start(time);
+    sub.stop(time + 0.6);
   }
 
-  playHihat(velocity, time) {
-    const noise = this.audioContext.createBufferSource();
-    const noiseBuffer = this.audioContext.createBuffer(
+  playSnare(velocity, time) {
+    const vel = Math.pow(velocity, 0.75);
+
+    // Body/tone component (two oscillators for more complex timbre)
+    const osc1 = this.audioContext.createOscillator();
+    const osc2 = this.audioContext.createOscillator();
+    osc1.type = 'triangle';
+    osc2.type = 'square';
+    osc1.frequency.value = 185;
+    osc2.frequency.value = 330;
+
+    const bodyGain = this.audioContext.createGain();
+    bodyGain.gain.setValueAtTime(vel * 0.6, time);
+    bodyGain.gain.exponentialRampToValueAtTime(0.01, time + 0.15);
+
+    // Snap/attack component (white noise through bandpass)
+    const snap = this.audioContext.createBufferSource();
+    const snapBuffer = this.audioContext.createBuffer(
       1,
       4096,
       this.audioContext.sampleRate,
     );
-    const data = noiseBuffer.getChannelData(0);
+    const snapData = snapBuffer.getChannelData(0);
     for (let i = 0; i < 4096; i++) {
-      data[i] = Math.random() * 2 - 1;
+      snapData[i] = Math.random() * 2 - 1;
     }
-    noise.buffer = noiseBuffer;
+    snap.buffer = snapBuffer;
+    snap.loop = true;
 
-    const filter = this.audioContext.createBiquadFilter();
-    filter.type = 'highpass';
-    filter.frequency.value = 8000;
-    filter.Q.value = 1;
+    const snapFilter = this.audioContext.createBiquadFilter();
+    snapFilter.type = 'bandpass';
+    snapFilter.frequency.value = 3500;
+    snapFilter.Q.value = 5;
 
-    const gain = this.audioContext.createGain();
-    gain.gain.setValueAtTime(velocity * 0.5, time);
-    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.05);
+    const snapGain = this.audioContext.createGain();
+    snapGain.gain.setValueAtTime(vel * 0.8, time);
+    snapGain.gain.exponentialRampToValueAtTime(0.01, time + 0.08);
 
-    noise.connect(filter);
-    filter.connect(gain);
-    gain.connect(this.output);
-
-    noise.start(time);
-    noise.stop(time + 0.05);
-  }
-
-  playOpenhat(velocity, time) {
-    const noise = this.audioContext.createBufferSource();
-    const noiseBuffer = this.audioContext.createBuffer(
+    // Rattle/snares component (white noise highpass)
+    const rattle = this.audioContext.createBufferSource();
+    const rattleBuffer = this.audioContext.createBuffer(
       1,
       8192,
       this.audioContext.sampleRate,
     );
-    const data = noiseBuffer.getChannelData(0);
+    const rattleData = rattleBuffer.getChannelData(0);
     for (let i = 0; i < 8192; i++) {
+      rattleData[i] = Math.random() * 2 - 1;
+    }
+    rattle.buffer = rattleBuffer;
+
+    const rattleFilter = this.audioContext.createBiquadFilter();
+    rattleFilter.type = 'highpass';
+    rattleFilter.frequency.value = 5000;
+    rattleFilter.Q.value = 1;
+
+    const rattleGain = this.audioContext.createGain();
+    rattleGain.gain.setValueAtTime(vel * 0.4, time);
+    rattleGain.gain.exponentialRampToValueAtTime(0.01, time + 0.18);
+
+    // Connect
+    osc1.connect(bodyGain);
+    osc2.connect(bodyGain);
+    bodyGain.connect(this.output);
+    snap.connect(snapFilter);
+    snapFilter.connect(snapGain);
+    snapGain.connect(this.output);
+    rattle.connect(rattleFilter);
+    rattleFilter.connect(rattleGain);
+    rattleGain.connect(this.output);
+
+    // Play
+    osc1.start(time);
+    osc1.stop(time + 0.2);
+    osc2.start(time);
+    osc2.stop(time + 0.2);
+    snap.start(time);
+    snap.stop(time + 0.1);
+    rattle.start(time);
+    rattle.stop(time + 0.2);
+  }
+
+  playHihat(velocity, time) {
+    const vel = Math.pow(velocity, 0.8);
+
+    // Multiple noise sources for metallic character
+    const noise1 = this.audioContext.createBufferSource();
+    const buffer1 = this.audioContext.createBuffer(1, 2048, this.audioContext.sampleRate);
+    const data1 = buffer1.getChannelData(0);
+    for (let i = 0; i < 2048; i++) {
+      data1[i] = Math.random() * 2 - 1;
+    }
+    noise1.buffer = buffer1;
+
+    // Bandpass filters for metallic overtones
+    const bp1 = this.audioContext.createBiquadFilter();
+    bp1.type = 'bandpass';
+    bp1.frequency.value = 5500;
+    bp1.Q.value = 3;
+
+    const bp2 = this.audioContext.createBiquadFilter();
+    bp2.type = 'bandpass';
+    bp2.frequency.value = 8200;
+    bp2.Q.value = 2;
+
+    const hp = this.audioContext.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 9000;
+    hp.Q.value = 1;
+
+    const gain = this.audioContext.createGain();
+    gain.gain.setValueAtTime(vel * 0.5, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.04);
+
+    // Connect in series for complex filtering
+    noise1.connect(bp1);
+    bp1.connect(bp2);
+    bp2.connect(hp);
+    hp.connect(gain);
+    gain.connect(this.output);
+
+    noise1.start(time);
+    noise1.stop(time + 0.05);
+  }
+
+  playOpenhat(velocity, time) {
+    const vel = Math.pow(velocity, 0.8);
+
+    // Longer, washier sound
+    const noise = this.audioContext.createBufferSource();
+    const noiseBuffer = this.audioContext.createBuffer(1, 16384, this.audioContext.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < 16384; i++) {
       data[i] = Math.random() * 2 - 1;
     }
     noise.buffer = noiseBuffer;
+    noise.loop = true;
 
-    const filter = this.audioContext.createBiquadFilter();
-    filter.type = 'highpass';
-    filter.frequency.value = 5000;
-    filter.Q.value = 0.5;
+    // Multiple filters for complex metallic timbre
+    const bp = this.audioContext.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 6500;
+    bp.Q.value = 1.5;
+
+    const hp = this.audioContext.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 7000;
+    hp.Q.value = 0.5;
 
     const gain = this.audioContext.createGain();
-    gain.gain.setValueAtTime(velocity * 0.4, time);
-    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
+    gain.gain.setValueAtTime(vel * 0.4, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.4);
 
-    noise.connect(filter);
-    filter.connect(gain);
+    noise.connect(bp);
+    bp.connect(hp);
+    hp.connect(gain);
     gain.connect(this.output);
 
     noise.start(time);
-    noise.stop(time + 0.3);
+    noise.stop(time + 0.5);
+
+    // Store for choking
+    this.activeHihat = { gain, source: noise };
   }
 
   playCrash(velocity, time) {
@@ -1401,6 +1511,56 @@ export class DrumSampler extends BaseInstrument {
 
     noise.start(time);
     noise.stop(time + 0.5);
+  }
+
+  playTom(velocity, time) {
+    const vel = Math.pow(velocity, 0.75);
+
+    // Body oscillator (tuned lower than kick)
+    const osc = this.audioContext.createOscillator();
+    osc.type = 'sine';
+    const oscGain = this.audioContext.createGain();
+
+    // Frequency sweep for tom character
+    osc.frequency.setValueAtTime(100, time);
+    osc.frequency.exponentialRampToValueAtTime(65, time + 0.08);
+
+    oscGain.gain.setValueAtTime(vel * 0.9, time);
+    oscGain.gain.exponentialRampToValueAtTime(0.01, time + 0.35);
+
+    // Attack transient
+    const attack = this.audioContext.createOscillator();
+    attack.type = 'square';
+    attack.frequency.value = 180;
+    const attackGain = this.audioContext.createGain();
+
+    attackGain.gain.setValueAtTime(vel * 0.3, time);
+    attackGain.gain.exponentialRampToValueAtTime(0.01, time + 0.02);
+
+    // Overtone for depth
+    const overtone = this.audioContext.createOscillator();
+    overtone.type = 'triangle';
+    overtone.frequency.value = 220;
+    const overtoneGain = this.audioContext.createGain();
+
+    overtoneGain.gain.setValueAtTime(vel * 0.2, time);
+    overtoneGain.gain.exponentialRampToValueAtTime(0.01, time + 0.25);
+
+    // Connect
+    osc.connect(oscGain);
+    oscGain.connect(this.output);
+    attack.connect(attackGain);
+    attackGain.connect(this.output);
+    overtone.connect(overtoneGain);
+    overtoneGain.connect(this.output);
+
+    // Play
+    osc.start(time);
+    osc.stop(time + 0.4);
+    attack.start(time);
+    attack.stop(time + 0.025);
+    overtone.start(time);
+    overtone.stop(time + 0.3);
   }
 
   stopNote(midiNote, _handleOrTime = this.audioContext.currentTime) {
