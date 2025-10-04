@@ -70,21 +70,8 @@ export default function MultitrackTimeline({
     const ctx = canvas.getContext('2d');
     const height = 40;
 
-    // Calculate content width based on zoom and DOM
-    const scale = zoomLevel / 100;
-    const inner = document.getElementById('multitrack-tracks-inner');
-    const totalWidth = inner ? inner.offsetWidth : 310 + 3000 * scale; // 80px sidebar + 230px track controls
-    const contentWidth = Math.max(1, totalWidth - 310);
-    const width = Math.max(containerWidth, contentWidth);
-
-    canvas.width = width;
-    canvas.height = height;
-
-    // Clear canvas with dark background
-    ctx.fillStyle = '#1e1e1e';
-    ctx.fillRect(0, 0, width, height);
-
     // Calculate pixels-per-second using consistent base duration
+    const scale = zoomLevel / 100;
     const baseWidth = 310 + 3000 * scale;
     const baseContentWidth = baseWidth - 310;
     const baseDuration = duration || 30;
@@ -92,6 +79,21 @@ export default function MultitrackTimeline({
 
     // Use timelineExtent from parent if provided, otherwise fall back to duration
     const projectDuration = timelineExtent || duration || 30;
+
+    // Calculate actual canvas width based on the duration we'll be drawing
+    const requiredWidth = pixelsPerSecond * projectDuration + 310; // Add sidebar/controls width
+    const width = Math.max(containerWidth, requiredWidth);
+
+    // Limit canvas size to prevent browser limits
+    const MAX_CANVAS_WIDTH = 32000;
+    const safeWidth = Math.min(width, MAX_CANVAS_WIDTH);
+
+    canvas.width = safeWidth;
+    canvas.height = height;
+
+    // Clear canvas with dark background
+    ctx.fillStyle = '#1e1e1e';
+    ctx.fillRect(0, 0, safeWidth, height);
 
     // Determine appropriate tick intervals based on zoom level
     let majorTickInterval = 1; // seconds
@@ -132,7 +134,8 @@ export default function MultitrackTimeline({
     for (let sec = 0; sec <= projectDuration; sec += majorTickInterval) {
       const x = sec * pixelsPerSecond;
 
-      if (x > width) break;
+      // Stop drawing if we exceed safe canvas width
+      if (x > safeWidth - 50) break; // Leave margin for text
 
       // Major tick
       ctx.beginPath();
@@ -156,7 +159,10 @@ export default function MultitrackTimeline({
         label = `${minutes}:${seconds.toString().padStart(2, '0')}`;
       }
 
-      ctx.fillText(label, x + 3, height - 15);
+      // Only draw text if it fits within canvas
+      if (x + 50 < safeWidth) {
+        ctx.fillText(label, x + 3, height - 15);
+      }
     }
 
     // Draw minor ticks
@@ -167,7 +173,8 @@ export default function MultitrackTimeline({
       if (sec % majorTickInterval !== 0) {
         const x = sec * pixelsPerSecond;
 
-        if (x > width) break;
+        // Stop drawing if we exceed safe canvas width
+        if (x > safeWidth - 10) break;
 
         ctx.beginPath();
         ctx.moveTo(x, height - 5);

@@ -597,9 +597,12 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                 }, 0);
                 return Math.max(max, trackEnd);
               }, 0);
-              const effectiveDuration = isAnyTrackRecording
-                ? Math.max(baseDuration, maxClipEnd, currentTime + 20)
-                : Math.max(baseDuration, maxClipEnd);
+              const WORKSPACE_BUFFER = 30; // Same buffer as tracks
+              const maxDuration = 180; // Cap at 3 minutes
+              const unboundedDuration = isAnyTrackRecording
+                ? Math.max(baseDuration, maxClipEnd + WORKSPACE_BUFFER, currentTime + 20)
+                : Math.max(baseDuration, maxClipEnd + WORKSPACE_BUFFER);
+              const effectiveDuration = Math.min(unboundedDuration, maxDuration);
               return effectiveDuration;
             })()}
             onScroll={(e) => {
@@ -667,10 +670,13 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                   return Math.max(max, trackEnd);
                 }, 0);
 
-                // effectiveDuration includes clips AND recording buffer
-                const effectiveDuration = isAnyTrackRecording
-                  ? Math.max(baseDuration, maxClipEnd, currentTime + 20)
-                  : Math.max(baseDuration, maxClipEnd);
+                // Add workspace buffer beyond clips (but limit to prevent canvas overflow)
+                const WORKSPACE_BUFFER = 30; // 30 seconds of extra workspace
+                const maxDuration = 180; // Cap at 3 minutes total to prevent canvas overflow
+                const unboundedDuration = isAnyTrackRecording
+                  ? Math.max(baseDuration, maxClipEnd + WORKSPACE_BUFFER, currentTime + 20)
+                  : Math.max(baseDuration, maxClipEnd + WORKSPACE_BUFFER);
+                const effectiveDuration = Math.min(unboundedDuration, maxDuration);
 
                 // Width = controls + (pixels per second * duration)
                 const expandedWidth = 230 + (pixelsPerSecond * effectiveDuration);

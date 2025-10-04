@@ -209,27 +209,53 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
         return Math.max(max, (clip.start || 0) + (clip.duration || 0));
       }, 0);
 
-      // During recording, extend canvas width to include clips AND recording buffer
-      // Use currentTimeRef to get latest value (avoid stale closure)
-      const effectiveDuration = isRecording
-        ? Math.max(baseDuration, maxClipEnd, currentTimeRef.current + 20)
-        : Math.max(baseDuration, maxClipEnd);
+      // Add workspace buffer beyond clips (but limit to prevent canvas overflow)
+      // Reduce buffer to prevent hitting canvas size limits at high zoom/DPR
+      const WORKSPACE_BUFFER = 30; // 30 seconds of extra workspace
+      const maxDuration = 180; // Cap at 3 minutes total to prevent canvas overflow
+      const unboundedDuration = isRecording
+        ? Math.max(baseDuration, maxClipEnd + WORKSPACE_BUFFER, currentTimeRef.current + 20)
+        : Math.max(baseDuration, maxClipEnd + WORKSPACE_BUFFER);
+      const effectiveDuration = Math.min(unboundedDuration, maxDuration);
 
       // Use the SAME pixels-per-second ratio, just multiply by extended duration
       const displayW = Math.max(1, Math.floor(pixelsPerSecond * effectiveDuration));
       const displayH = Math.max(1, Math.floor(rect.height));
 
-      const targetW = Math.floor(displayW * dpr);
-      const targetH = Math.floor(displayH * dpr);
+      // Browser canvas size limits (most browsers limit to ~32,767 pixels)
+      const MAX_CANVAS_DIM = 32000;
+
+      // Calculate target dimensions with DPR
+      let targetW = Math.floor(displayW * dpr);
+      let targetH = Math.floor(displayH * dpr);
+
+      // Clamp to maximum safe dimensions
+      if (targetW > MAX_CANVAS_DIM) {
+        console.warn(`MIDITrack canvas width ${targetW} exceeds max, clamping to ${MAX_CANVAS_DIM}`);
+        targetW = MAX_CANVAS_DIM;
+      }
+      if (targetH > MAX_CANVAS_DIM) {
+        console.warn(`MIDITrack canvas height ${targetH} exceeds max, clamping to ${MAX_CANVAS_DIM}`);
+        targetH = MAX_CANVAS_DIM;
+      }
+
       if (canvas.width !== targetW || canvas.height !== targetH) {
         const ctx = canvas.getContext('2d');
         // reset before resize to avoid compounding transforms
         if (ctx) ctx.setTransform(1, 0, 0, 1, 0, 0);
         canvas.width = targetW;
         canvas.height = targetH;
-        if (ctx && dpr !== 1) {
+
+        // Only set transform if canvas is valid size
+        if (ctx && dpr !== 1 && targetW <= MAX_CANVAS_DIM && targetH <= MAX_CANVAS_DIM) {
           // Draw using CSS pixels thereafter
-          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          try {
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          } catch (e) {
+            console.error('Failed to set canvas transform:', e);
+            // Fall back to no transform
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+          }
         }
       }
     };
@@ -571,14 +597,18 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       let firstSecond, secondsVisible;
       const tempo = track.midiData?.tempo || 120;
       const secPerBeat = 60 / tempo;
-      
-      // CRITICAL: Use the SAME time scale as the global timeline for BOTH recording and playback
-      // This ensures 1 second of audio = 1 second of visual pixels consistently
-      // During recording, extend canvas to keep buffer ahead of current time
+
+      // Use the SAME effectiveDuration calculation as canvas sizing to prevent out-of-bounds drawing
       const baseDuration = duration > 0 ? duration : 30;
-      const projectDuration = isRecording
-        ? Math.max(baseDuration, globalCurrentTime + 20) // Keep 20s buffer during recording
-        : baseDuration;
+      const maxClipEnd = (track.clips || []).reduce((max, clip) => {
+        return Math.max(max, (clip.start || 0) + (clip.duration || 0));
+      }, 0);
+      const WORKSPACE_BUFFER = 30;
+      const maxDuration = 180;
+      const unboundedDuration = isRecording
+        ? Math.max(baseDuration, maxClipEnd + WORKSPACE_BUFFER, globalCurrentTime + 20)
+        : Math.max(baseDuration, maxClipEnd + WORKSPACE_BUFFER);
+      const projectDuration = Math.min(unboundedDuration, maxDuration);
       secondsVisible = projectDuration;
 
       if (isRecording && globalCurrentTime > 0) {
