@@ -2,7 +2,7 @@
 'use client';
 
 import audioContextManager from './AudioContextManager';
-import { beatsToSeconds, beatToAudioTime } from '../../../../lib/midiTimeUtils';
+import { beatsToSeconds, secondsToBeats, beatToAudioTime } from '../../../../lib/midiTimeUtils';
 
 /**
  * Improved Note Scheduler using Web Audio API timing
@@ -12,7 +12,7 @@ export default class ImprovedNoteScheduler {
   constructor(instrument, options = {}) {
     this.instrument = instrument;
     this.tempo = options.tempo || 120;
-    this.lookaheadTime = options.lookaheadTime || 0.1; // 100ms
+    this.lookaheadTime = options.lookaheadTime || 0.2; // 200ms for better timing accuracy
     this.scheduleInterval = options.scheduleInterval || 25; // 25ms
     this.isPlaying = false;
     this.startTime = 0;
@@ -40,22 +40,16 @@ export default class ImprovedNoteScheduler {
 
   // Start playback
   // startBeat: the current beat position in the timeline (absolute, not relative)
-  // globalTimelineStartTime: optional audio context time when timeline started (for sync)
-  start(startBeat = 0, globalTimelineStartTime = null) {
+  start(startBeat = 0) {
     if (this.isPlaying) return;
 
     this.isPlaying = true;
     this.currentBeat = startBeat;
 
-    // Calculate reference time for timeline-absolute positioning
-    // If provided, use the global timeline's start reference
-    // Otherwise, calculate assuming timeline started at audio context time 0
-    if (globalTimelineStartTime !== null) {
-      this.startTime = globalTimelineStartTime;
-    } else {
-      // Fallback: assume we're starting playback now at the given beat position
-      this.startTime = this.audioContext.currentTime - (startBeat * 60) / this.tempo;
-    }
+    // Calculate when beat 0 occurred in audio context time
+    // If we're at beat X now, beat 0 was X beats ago
+    const secondsElapsed = beatsToSeconds(startBeat, this.tempo);
+    this.startTime = this.audioContext.currentTime - secondsElapsed;
 
     // Start the scheduler
     this.scheduleNotes();
@@ -123,9 +117,10 @@ export default class ImprovedNoteScheduler {
   getCurrentBeat() {
     if (!this.isPlaying) return this.pauseTime;
 
+    // Calculate elapsed time using audio context
     const elapsed = this.audioContext.currentTime - this.startTime;
-    // Use unified time conversion
-    return elapsed * (this.tempo / 60); // seconds to beats
+    // Convert elapsed seconds to beats
+    return secondsToBeats(elapsed, this.tempo);
   }
 
   // Schedule notes that fall within the lookahead window
@@ -154,10 +149,12 @@ export default class ImprovedNoteScheduler {
         // Schedule note on
         audioContextManager.scheduleAtTime(() => {
           if (this.isPlaying) {
+            // Don't pass the scheduled time - let the instrument use current time
+            // This prevents audio glitches from trying to schedule in the past
             this.instrument.playNote(
               note.note,
-              note.velocity || 0.8,
-              noteOnTime,
+              note.velocity || 0.8
+              // Removed noteOnTime parameter - instrument will use currentTime
             );
           }
         }, noteOnTime);
@@ -165,7 +162,8 @@ export default class ImprovedNoteScheduler {
         // Schedule note off
         audioContextManager.scheduleAtTime(() => {
           if (this.isPlaying) {
-            this.instrument.stopNote(note.note, noteOffTime);
+            // Don't pass the scheduled time - let the instrument use current time
+            this.instrument.stopNote(note.note);
           }
           // Remove from scheduled notes
           this.scheduledNotes.delete(noteKey);

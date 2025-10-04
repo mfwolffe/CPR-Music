@@ -57,6 +57,7 @@ export function useMIDITrackAudio(
   const pannerRef = useRef(null);
   const lastPlayStateRef = useRef(false);
   const noteLastPlayedRef = useRef(new Map()); // note -> timestamp
+  const globalTimelineStartRef = useRef(null); // Store the global timeline start time
 
   // Initialize audio nodes
   useEffect(() => {
@@ -278,11 +279,11 @@ export function useMIDITrackAudio(
 
     // Don't play live synthesis during mixdown to prevent dual synthesis
     const isMixdownActive = typeof window !== 'undefined' && window.__MIXDOWN_ACTIVE__;
-    
+
     const shouldPlay =
-      !isMixdownActive && 
-      isGlobalPlaying && 
-      !track.muted && 
+      !isMixdownActive &&
+      isGlobalPlaying &&
+      !track.muted &&
       track.midiData?.notes?.length > 0;
 
     // Only log in development and when state changes to reduce spam
@@ -301,8 +302,12 @@ export function useMIDITrackAudio(
     if (shouldPlay && !lastPlayStateRef.current) {
       // Start playback - use unified time conversion
       const beatPosition = secondsToBeats(globalCurrentTime, track.midiData?.tempo || 120);
+
       if (process.env.NODE_ENV === 'development') {
-        console.log(`▶️ Starting MIDI playback for track ${track.id} at beat ${beatPosition.toFixed(3)}`);
+        console.log(`▶️ Starting MIDI playback for track ${track.id} at beat ${beatPosition.toFixed(3)}`, {
+          globalCurrentTime,
+          beatPosition
+        });
       }
       schedulerRef.current.start(beatPosition);
     } else if (!shouldPlay && lastPlayStateRef.current) {
@@ -312,13 +317,18 @@ export function useMIDITrackAudio(
       }
       schedulerRef.current.stop();
     } else if (shouldPlay) {
-      // Update position during playback - use unified time conversion
+      // Detect seeks (large jumps)
       const beatPosition = secondsToBeats(globalCurrentTime, track.midiData?.tempo || 120);
       const currentSchedulerBeat = schedulerRef.current.getCurrentBeat();
 
-      // Detect seeks (large jumps)
       if (Math.abs(beatPosition - currentSchedulerBeat) > 0.5) {
-        schedulerRef.current.seek(beatPosition);
+        // Restart after seek
+        schedulerRef.current.stop();
+        schedulerRef.current.start(beatPosition);
+
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`🔄 Seeking MIDI track ${track.id} to beat ${beatPosition.toFixed(3)}`);
+        }
       }
     }
 

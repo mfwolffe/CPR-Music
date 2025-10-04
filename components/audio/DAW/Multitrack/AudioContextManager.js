@@ -10,6 +10,7 @@ class AudioContextManager {
     this.audioContext = null;
     this.initialized = false;
     this.startTime = 0;
+    this.globalTimelineStartTime = null; // Audio context time when global timeline started
   }
 
   /**
@@ -97,6 +98,29 @@ class AudioContextManager {
   }
 
   /**
+   * Set the global timeline start time
+   * Called when global playback starts
+   */
+  setGlobalTimelineStart(startBeat = 0) {
+    const context = this.getContext();
+    // Calculate the audio context time when timeline started
+    // startBeat is where we're starting in the timeline
+    this.globalTimelineStartTime = context.currentTime - startBeat;
+  }
+
+  /**
+   * Get the global timeline start time
+   * Returns the audio context time when the timeline started playing
+   */
+  getGlobalTimelineStart() {
+    // If not set, assume timeline started at context creation
+    if (this.globalTimelineStartTime === null) {
+      return this.startTime;
+    }
+    return this.globalTimelineStartTime;
+  }
+
+  /**
    * Clean up (rarely needed)
    */
   dispose() {
@@ -104,6 +128,7 @@ class AudioContextManager {
       this.audioContext.close();
       this.audioContext = null;
       this.initialized = false;
+      this.globalTimelineStartTime = null;
     }
   }
 }

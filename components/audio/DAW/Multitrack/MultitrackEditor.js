@@ -339,11 +339,11 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
       const controlsWidth = 230;
       const gutterWidth = 80 + controlsWidth; // sidebar + track controls
 
-      // Calculate consistent pixels per second
-      const baseDuration = duration > 0 ? duration : 30;
-      const baseTimelineWidth = gutterWidth + 3000 * (zoomLevel / 100);
-      const baseContentWidth = baseTimelineWidth - gutterWidth;
-      const pixelsPerSecond = baseContentWidth / baseDuration;
+      // Calculate FIXED pixels per second based on zoom level only
+      // At 100% zoom, we want 100 pixels per second
+      // This ensures consistent timing regardless of project duration
+      const PIXELS_PER_SECOND_AT_100_ZOOM = 100;
+      const pixelsPerSecond = PIXELS_PER_SECOND_AT_100_ZOOM * (zoomLevel / 100);
 
       // Playhead position is simply currentTime * pixelsPerSecond (no scaling needed)
       const x = currentTime * pixelsPerSecond;
@@ -652,14 +652,10 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
               style={(() => {
                 // Compute dynamic width and grid size during recording
                 const isAnyTrackRecording = tracks.some(t => t.isRecording);
-                const baseWidth = 310 + 3000 * (zoomLevel / 100);
-                const baseContentWidth = baseWidth - 230; // Subtract controls
 
-                // Use FIXED baseDuration for consistent scale across all components
-                const baseDuration = duration || 30;
-
-                // CONSTANT pixels-per-second - same across all components
-                const pixelsPerSecond = baseContentWidth / baseDuration;
+                // Use FIXED pixels per second based on zoom level only
+                const PIXELS_PER_SECOND_AT_100_ZOOM = 100;
+                const pixelsPerSecond = PIXELS_PER_SECOND_AT_100_ZOOM * (zoomLevel / 100);
 
                 // Calculate maxClipEnd to ensure canvas includes all clips
                 const maxClipEnd = tracks.reduce((max, track) => {
@@ -670,9 +666,10 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                   return Math.max(max, trackEnd);
                 }, 0);
 
-                // Add workspace buffer beyond clips (but limit to prevent canvas overflow)
+                // Calculate effective duration for the container
                 const WORKSPACE_BUFFER = 30; // 30 seconds of extra workspace
                 const maxDuration = 180; // Cap at 3 minutes total to prevent canvas overflow
+                const baseDuration = duration || 30;
                 const unboundedDuration = isAnyTrackRecording
                   ? Math.max(baseDuration, maxClipEnd + WORKSPACE_BUFFER, currentTime + 20)
                   : Math.max(baseDuration, maxClipEnd + WORKSPACE_BUFFER);
@@ -680,10 +677,6 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
 
                 // Width = controls + (pixels per second * duration)
                 const expandedWidth = 230 + (pixelsPerSecond * effectiveDuration);
-
-                // Grid size based on CONSTANT pixelsPerSecond
-                const gridSizeX = pixelsPerSecond; // 1 second
-                const gridSizeY = 20; // Fixed vertical spacing
 
                 return {
                   position: 'relative',

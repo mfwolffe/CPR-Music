@@ -198,11 +198,9 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       const baseTimelineWidth = 310 + 3000 * (zoomLevel / 100); // 80px sidebar + 230px track controls
       const baseContentWidth = baseTimelineWidth - 230; // Subtract controls
 
-      // Use FIXED baseDuration for consistent scale across all components
-      const baseDuration = duration || 30;
-
-      // Calculate consistent pixels per second based on base width and duration
-      const pixelsPerSecond = baseContentWidth / baseDuration;
+      // Use FIXED pixels per second to match playhead calculation
+      const PIXELS_PER_SECOND_AT_100_ZOOM = 100;
+      const pixelsPerSecond = PIXELS_PER_SECOND_AT_100_ZOOM * (zoomLevel / 100);
 
       // Calculate maxClipEnd to ensure canvas includes all clips
       const maxClipEnd = (track.clips || []).reduce((max, clip) => {
@@ -213,9 +211,10 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
       // Reduce buffer to prevent hitting canvas size limits at high zoom/DPR
       const WORKSPACE_BUFFER = 30; // 30 seconds of extra workspace
       const maxDuration = 180; // Cap at 3 minutes total to prevent canvas overflow
+      const defaultDuration = duration || 30; // Fallback if no duration set
       const unboundedDuration = isRecording
-        ? Math.max(baseDuration, maxClipEnd + WORKSPACE_BUFFER, currentTimeRef.current + 20)
-        : Math.max(baseDuration, maxClipEnd + WORKSPACE_BUFFER);
+        ? Math.max(defaultDuration, maxClipEnd + WORKSPACE_BUFFER, currentTimeRef.current + 20)
+        : Math.max(defaultDuration, maxClipEnd + WORKSPACE_BUFFER);
       const effectiveDuration = Math.min(unboundedDuration, maxDuration);
 
       // Use the SAME pixels-per-second ratio, just multiply by extended duration
@@ -647,8 +646,9 @@ export default function MIDITrack({ track, index, zoomLevel = 100 }) {
         firstSecond = 0;
       }
 
-      // Match MultitrackEditor's pixelsPerSecond calculation exactly
-      const pixelsPerSecond = displayWidth / secondsVisible;
+      // Use FIXED pixels per second to match playhead calculation
+      const PIXELS_PER_SECOND_AT_100_ZOOM = 100;
+      const pixelsPerSecond = PIXELS_PER_SECOND_AT_100_ZOOM * (zoomLevel / 100);
 
       // Draw grid - using seconds-based coordinates
       ctx.strokeStyle = '#333';

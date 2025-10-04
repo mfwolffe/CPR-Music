@@ -38,7 +38,11 @@ export default function PianoRollCanvas({
   });
 
   // Calculate grid dimensions
-  const pixelsPerBeat = zoom.x;
+  // Use FIXED pixels per second to match main editor
+  const PIXELS_PER_SECOND_AT_100_ZOOM = 100;
+  const zoomScale = zoom.x / 100; // Treat zoom.x as a percentage like main editor
+  const pixelsPerSecond = PIXELS_PER_SECOND_AT_100_ZOOM * zoomScale;
+  const pixelsPerBeat = pixelsPerSecond / ((tempo || 120) / 60);
   const noteHeight = NOTE_HEIGHT * zoom.y;
   const gridWidth = Math.max(canvasSize.width, pixelsPerBeat * 64);
   const gridHeight = Math.max(canvasSize.height, TOTAL_NOTES * noteHeight);

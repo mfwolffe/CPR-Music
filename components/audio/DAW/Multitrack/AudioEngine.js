@@ -8,6 +8,9 @@ function getAudioContext() {
   return _ctx;
 }
 
+// Export for use by transport
+export { getAudioContext };
+
 const _decodeCache = new Map();
 
 /**
@@ -52,23 +55,25 @@ export function getPeaks(audioBuffer, samplesPerPixel = 256) {
 }
 
 /**
- * A tiny transport with a single timebase.
+ * A tiny transport with a single timebase using AudioContext for timing.
  * - onTick(currentTimeSec) is called ~60fps when playing.
+ * - Uses AudioContext.currentTime for sample-accurate synchronization with audio
  */
 export function createTransport({ onTick, getProjectDurationSec }) {
+  const audioContext = getAudioContext();
+
   const state = {
     isPlaying: false,
     startAtSec: 0, // where playback started (project seconds)
-    wallAtSec: 0, // wall-clock seconds (performance.now()/1000) when we started
+    contextStartTime: 0, // AudioContext time when we started
     rafId: null,
   };
-
-  const now = () => performance.now() / 1000;
 
   const tick = () => {
     if (!state.isPlaying) return;
     const dur = getProjectDurationSec?.() ?? 0;
-    const t = state.startAtSec + (now() - state.wallAtSec);
+    const elapsed = audioContext.currentTime - state.contextStartTime;
+    const t = state.startAtSec + elapsed;
     const clamped = dur > 0 ? Math.min(t, dur) : t;
     onTick?.(clamped);
 
@@ -82,13 +87,13 @@ export function createTransport({ onTick, getProjectDurationSec }) {
 
   const api = {
     get currentTime() {
-      return state.isPlaying
-        ? state.startAtSec + (now() - state.wallAtSec)
-        : state.startAtSec;
+      if (!state.isPlaying) return state.startAtSec;
+      const elapsed = audioContext.currentTime - state.contextStartTime;
+      return state.startAtSec + elapsed;
     },
     play(fromSec = null) {
       if (fromSec != null) state.startAtSec = Math.max(0, fromSec);
-      state.wallAtSec = now();
+      state.contextStartTime = audioContext.currentTime;
       state.isPlaying = true;
       cancelAnimationFrame(state.rafId);
       state.rafId = requestAnimationFrame(tick);
@@ -109,7 +114,7 @@ export function createTransport({ onTick, getProjectDurationSec }) {
     },
     seek(toSec) {
       state.startAtSec = Math.max(0, toSec || 0);
-      state.wallAtSec = now();
+      state.contextStartTime = audioContext.currentTime;
       onTick?.(state.startAtSec);
     },
   };
