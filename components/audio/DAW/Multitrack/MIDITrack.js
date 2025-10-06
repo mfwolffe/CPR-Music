@@ -241,7 +241,7 @@ function MIDITrack({ track, index, zoomLevel = 100 }) {
       background-image: none !important;
     }
     .track-container.midi-track-override .track-controls {
-      padding-top: 2px !important;
+      padding-top: 6px !important;
       margin-top: 0 !important;
     }
     .track-container.midi-track-override .track-controls > *:first-child {
@@ -318,7 +318,7 @@ function MIDITrack({ track, index, zoomLevel = 100 }) {
             height: '200px !important',
             maxHeight: '200px !important',
             flexShrink: 0,
-            padding: '2px 8px 8px 8px',
+            padding: '6px 8px 8px 8px',
             borderRight: '1px solid #444',
             backgroundColor: '#232323 !important',
             display: 'flex',
