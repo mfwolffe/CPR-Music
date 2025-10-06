@@ -85,6 +85,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
     // effects modal system
     setShowEffectSelectionModal,
     setEffectTargetTrackId,
+    isAnyTrackRecording,
   } = useMultitrack();
 
   const [showEffectsPanel, setShowEffectsPanel] = useState(false);
@@ -329,9 +330,9 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
         'multitrack-tracks-playhead',
       );
 
-      // Allow playhead updates during recording even when project duration is 0
-      const isAnyTrackRecording = tracks.some(track => track.isRecording);
-      if ((!duration || duration === 0) && !isAnyTrackRecording) return;
+      // Allow playhead updates during recording or playback even when project duration is 0
+      const hasActiveRecording = isAnyTrackRecording && isAnyTrackRecording();
+      if ((!duration || duration === 0) && !hasActiveRecording && !isPlaying) return;
 
       // Derive content width from the shared inner container so 1s = 1s across UI
       const inner = document.getElementById('multitrack-tracks-inner');
@@ -356,7 +357,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
       }
 
       // Auto-scroll to keep playhead visible during playback/recording
-      if ((isPlaying || isAnyTrackRecording) && tracksScrollRef.current) {
+      if ((isPlaying || hasActiveRecording) && tracksScrollRef.current) {
         const scrollContainer = tracksScrollRef.current;
         const scrollLeft = scrollContainer.scrollLeft;
         const containerWidth = scrollContainer.clientWidth;
@@ -382,8 +383,8 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
 
     // Update on animation frame if playing OR if any track is recording
     let animationId;
-    const isAnyTrackRecording = tracks.some(track => track.isRecording);
-    if (isPlaying || isAnyTrackRecording) {
+    const hasActiveRecording = isAnyTrackRecording && isAnyTrackRecording();
+    if (isPlaying || hasActiveRecording) {
       const animate = () => {
         updatePlayheads();
         animationId = requestAnimationFrame(animate);
@@ -588,7 +589,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
             scrollRef={timelineScrollRef}
             timelineExtent={(() => {
               // Calculate timeline extent (same logic as tracks container width)
-              const isAnyTrackRecording = tracks.some(t => t.isRecording);
+              const hasRecording = isAnyTrackRecording && isAnyTrackRecording();
               const baseDuration = duration || 30;
               const maxClipEnd = tracks.reduce((max, track) => {
                 if (!track.clips) return max;
@@ -599,7 +600,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
               }, 0);
               const WORKSPACE_BUFFER = 30; // Same buffer as tracks
               const maxDuration = 180; // Cap at 3 minutes
-              const unboundedDuration = isAnyTrackRecording
+              const unboundedDuration = hasRecording
                 ? Math.max(baseDuration, maxClipEnd + WORKSPACE_BUFFER, currentTime + 20)
                 : Math.max(baseDuration, maxClipEnd + WORKSPACE_BUFFER);
               const effectiveDuration = Math.min(unboundedDuration, maxDuration);
@@ -651,7 +652,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
               id="multitrack-tracks-inner"
               style={(() => {
                 // Compute dynamic width and grid size during recording
-                const isAnyTrackRecording = tracks.some(t => t.isRecording);
+                const hasRecording = isAnyTrackRecording && isAnyTrackRecording();
 
                 // Use FIXED pixels per second based on zoom level only
                 const PIXELS_PER_SECOND_AT_100_ZOOM = 100;
@@ -670,7 +671,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                 const WORKSPACE_BUFFER = 30; // 30 seconds of extra workspace
                 const maxDuration = 180; // Cap at 3 minutes total to prevent canvas overflow
                 const baseDuration = duration || 30;
-                const unboundedDuration = isAnyTrackRecording
+                const unboundedDuration = hasRecording
                   ? Math.max(baseDuration, maxClipEnd + WORKSPACE_BUFFER, currentTime + 20)
                   : Math.max(baseDuration, maxClipEnd + WORKSPACE_BUFFER);
                 const effectiveDuration = Math.min(unboundedDuration, maxDuration);
@@ -722,12 +723,8 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                     width: '2px',
                     height: `${tracks.reduce((totalHeight, track) => {
                       // Calculate height based on track type
-                      if (track.type === 'midi') {
-                        return totalHeight + 240; // MIDI tracks are 240px (from daw-midi.css)
-                      } else {
-                        // Audio tracks (including legacy 'recording' type) are 200px
-                        return totalHeight + 200;
-                      }
+                      // Both audio and MIDI tracks are 200px tall for consistency
+                      return totalHeight + 200;
                     }, 0)}px`,
                     backgroundColor: '#ff3030',
                     boxShadow: '0 0 3px rgba(255, 48, 48, 0.8)',

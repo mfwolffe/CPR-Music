@@ -11,6 +11,7 @@ import {
 } from 'react';
 import audioContextManager from '../components/audio/DAW/Multitrack/AudioContextManager';
 import { createTransport } from '../components/audio/DAW/Multitrack/AudioEngine';
+import RecordingManager from '../components/audio/DAW/Multitrack/recording/RecordingManager';
 
 const MultitrackContext = createContext();
 
@@ -77,14 +78,52 @@ export const MultitrackProvider = ({ children }) => {
     };
   }, [duration]);
 
+  // Get live transport time directly from AudioContext
+  // This ensures components can sync with the exact same timing
+  const getTransportTime = useCallback(() => {
+    if (!transportRef.current) return 0;
+    // Access the transport's currentTime getter directly
+    return transportRef.current.currentTime || 0;
+  }, []);
+
+  // Check if any track is recording (using RecordingManager)
+  const isAnyTrackRecording = useCallback(() => {
+    return RecordingManager.hasActiveRecordings();
+  }, []);
+
+  // Check if specific track is recording
+  const isTrackRecording = useCallback((trackId) => {
+    return RecordingManager.isTrackRecording(trackId);
+  }, []);
+
   // (removed tick and useEffect for old transport)
 
-  // Clear any stuck mixdown state on component mount
+  // Clear any stuck mixdown state on component mount and initialize RecordingManager
   useEffect(() => {
     if (typeof window !== 'undefined' && window.__MIXDOWN_ACTIVE__) {
       window.__MIXDOWN_ACTIVE__ = false;
       console.log('🔧 Startup: Cleared stuck mixdown state from previous session');
     }
+
+    // Initialize RecordingManager with audio context
+    const audioContext = audioContextManager.getContext();
+    RecordingManager.initialize(audioContext);
+    console.log('🎙️ MultitrackContext: RecordingManager initialized');
+
+    // Subscribe to recording events to update track state
+    const handleRecordingComplete = (data) => {
+      console.log('🎙️ MultitrackContext: Recording complete', data);
+      // This will be handled by the individual track components
+    };
+
+    RecordingManager.on('audio-recording-complete', handleRecordingComplete);
+    RecordingManager.on('midi-recording-complete', handleRecordingComplete);
+
+    return () => {
+      RecordingManager.off('audio-recording-complete', handleRecordingComplete);
+      RecordingManager.off('midi-recording-complete', handleRecordingComplete);
+      RecordingManager.destroy();
+    };
   }, []); // Run once on mount
 
   // Debug: Log when instruments change (only in development and when non-empty)
@@ -194,8 +233,12 @@ export const MultitrackProvider = ({ children }) => {
         color: trackData.color || '#7bafd4',
         wavesurferInstance: null, // Will be set by Track component
         clips: trackData.clips || [], // Always initialize clips array
-        // Preserve any additional properties passed in
+        isRecording: false, // Explicitly ensure recording is false
+        armed: false, // Explicitly ensure not armed
+        // Preserve any additional properties passed in (except isRecording/armed)
         ...trackData,
+        isRecording: false, // Override any passed isRecording
+        armed: false, // Override any passed armed
       };
 
       console.log('MultitrackContext: Adding track:', newTrack);
@@ -1159,6 +1202,11 @@ export const MultitrackProvider = ({ children }) => {
     pause,
     stop,
     seek,
+    getTransportTime,
+    // Recording management (using RecordingManager)
+    isAnyTrackRecording,
+    isTrackRecording,
+    RecordingManager,
 
     // regions and effects
     activeRegion,

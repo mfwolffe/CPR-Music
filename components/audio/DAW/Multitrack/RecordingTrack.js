@@ -143,10 +143,17 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
     clipPlayerRef.current.seek(currentTime);
   }, [currentTime, isPlaying, isRecording]);
 
+  // Debug: Monitor isRecording state changes
+  useEffect(() => {
+    console.log('RecordingTrack: isRecording changed to:', isRecording);
+  }, [isRecording]);
+
   // No need to calculate pixelsPerSecond here - let WalkingWaveform handle it
   // to ensure consistency with TrackClipCanvas
 
   const handleRecord = () => {
+    console.log('RecordingTrack: handleRecord called', { isRecording, isCountingIn });
+
     if (isRecording || isCountingIn) {
       // Stop recording or cancel countdown
       if (isRecording) {
@@ -156,14 +163,17 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
       setCountInBeat(0);
     } else {
       // Start countdown
+      console.log('RecordingTrack: Starting countdown...');
       setIsCountingIn(true);
       setCountInBeat(3);
-      
+
       // Countdown timer
       const countdownInterval = setInterval(() => {
         setCountInBeat((prev) => {
+          console.log('RecordingTrack: Countdown beat:', prev);
           if (prev <= 1) {
             // Start recording
+            console.log('RecordingTrack: Countdown finished, starting recording...');
             clearInterval(countdownInterval);
             setIsCountingIn(false);
             setCountInBeat(0);
@@ -279,7 +289,7 @@ export default function RecordingTrack({ track, index, zoomLevel = 100 }) {
     // Start recording
     recorder.start(10); // Collect data every 10ms
     setIsRecording(true);
-    console.log('RecordingTrack: Recording started');
+    console.log('RecordingTrack: Recording started, setIsRecording(true) called');
 
     // Start the recording timer to advance playhead during recording
     startRecordingTimer();
