@@ -112,7 +112,7 @@ const EFFECTS_LIBRARY = [
     description: 'Multi-tap delay with diffusion',
     detailedDescription: 'Complex delay network with filtering',
     tooltip: 'Multi-tap delay system with filtering and modulation capabilities',
-    hasVisualization: false,
+    hasVisualization: true,
     color: '#7bafd4'
   },
   {
@@ -147,7 +147,7 @@ const EFFECTS_LIBRARY = [
     description: 'Multi-voice chorus',
     detailedDescription: 'Rich, lush chorus with up to 8 voices',
     tooltip: 'Combines slightly detuned copies to create a fuller sound',
-    hasVisualization: false,
+    hasVisualization: true,
     color: '#92ceaa'
   },
   {
@@ -169,7 +169,7 @@ const EFFECTS_LIBRARY = [
     description: 'Multi-stage phaser',
     detailedDescription: '4 to 12 stage phasing with LFO',
     tooltip: 'Phase-shifted signal creates notches that sweep through frequencies',
-    hasVisualization: false,
+    hasVisualization: true,
     color: '#92ce84'
   },
   {
@@ -202,7 +202,7 @@ const EFFECTS_LIBRARY = [
     description: 'Envelope-following filter',
     detailedDescription: 'Dynamic wah effect that responds to input',
     tooltip: 'Envelope-controlled filter that responds to input dynamics',
-    hasVisualization: false,
+    hasVisualization: true,
     color: '#ffb347'
   },
 
@@ -215,7 +215,7 @@ const EFFECTS_LIBRARY = [
     description: 'Real-time pitch shifting',
     detailedDescription: 'Change pitch without affecting timing',
     tooltip: 'Transposes audio frequency while maintaining temporal characteristics',
-    hasVisualization: false,
+    hasVisualization: true,
     color: '#9370db'
   },
   {
@@ -239,7 +239,7 @@ const EFFECTS_LIBRARY = [
     description: 'Ring modulation synthesis',
     detailedDescription: 'Create metallic and bell-like tones',
     tooltip: 'Multiplies two signals to generate sum and difference frequencies',
-    hasVisualization: false,
+    hasVisualization: true,
     color: '#ff1493'
   },
   {
