@@ -2,287 +2,309 @@
 
 import React, { useState } from 'react';
 import { Modal, Button, Card, Row, Col, Badge, Form, InputGroup, Dropdown, OverlayTrigger, Tooltip } from 'react-bootstrap';
-import { FaMagic, FaVolumeDown, FaMusic, FaCog, FaWaveSquare, FaRandom, FaSearch, FaFilter, FaMicrochip, FaGraduationCap, FaInfoCircle } from 'react-icons/fa';
+import { FaMagic, FaVolumeDown, FaMusic, FaCog, FaWaveSquare, FaRandom, FaSearch, FaFilter, FaMicrochip, FaGraduationCap, FaInfoCircle, FaPlay } from 'react-icons/fa';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 
 // Complete effects library from mono editor with detailed metadata
 const EFFECTS_LIBRARY = [
   // Frequency/EQ
-  { 
-    id: 'eq', 
-    name: 'EQ', 
-    category: 'Frequency', 
-    icon: FaCog, 
+  {
+    id: 'eq',
+    name: 'EQ',
+    category: 'Frequency',
+    icon: FaCog,
     description: '8-band parametric equalizer',
     detailedDescription: 'Professional parametric EQ with 8 frequency bands, adjustable Q, and multiple filter types.',
     parameters: ['frequency', 'gain', 'Q', 'filterType'],
     difficulty: 'Intermediate',
     cpuUsage: 'Medium',
-    tags: ['equalizer', 'frequency', 'tone', 'mixing']
+    tags: ['equalizer', 'frequency', 'tone', 'mixing'],
+    hasVisualization: true
   },
-  { 
-    id: 'spectralFilter', 
-    name: 'Spectral Filter', 
-    category: 'Frequency', 
-    icon: FaWaveSquare, 
+  {
+    id: 'spectralFilter',
+    name: 'Spectral Filter',
+    category: 'Frequency',
+    icon: FaWaveSquare,
     description: 'Advanced frequency-domain filtering',
     detailedDescription: 'FFT-based spectral processing for surgical frequency manipulation and creative sound design.',
     parameters: ['cutoff', 'resonance', 'morphing', 'spectralShape'],
     difficulty: 'Advanced',
     cpuUsage: 'High',
-    tags: ['spectral', 'experimental', 'frequency', 'creative']
+    tags: ['spectral', 'experimental', 'frequency', 'creative'],
+    hasVisualization: false
   },
-  
+
   // Dynamics
-  { 
-    id: 'compressor', 
-    name: 'Compressor', 
-    category: 'Dynamics', 
-    icon: FaVolumeDown, 
+  {
+    id: 'compressor',
+    name: 'Compressor',
+    category: 'Dynamics',
+    icon: FaVolumeDown,
     description: 'Professional dynamic range compressor',
     detailedDescription: 'Full-featured compressor with adjustable threshold, ratio, attack, release, knee, and makeup gain.',
     parameters: ['threshold', 'ratio', 'attack', 'release', 'knee', 'makeup'],
     difficulty: 'Intermediate',
     cpuUsage: 'Low',
-    tags: ['dynamics', 'compression', 'mixing', 'leveling']
+    tags: ['dynamics', 'compression', 'mixing', 'leveling'],
+    hasVisualization: true
   },
-  { 
-    id: 'gate', 
-    name: 'Gate', 
-    category: 'Dynamics', 
-    icon: FaVolumeDown, 
+  {
+    id: 'gate',
+    name: 'Gate',
+    category: 'Dynamics',
+    icon: FaVolumeDown,
     description: 'Noise gate with threshold control',
     detailedDescription: 'Intelligent noise gate that automatically mutes audio below a set threshold level.',
     parameters: ['threshold', 'attack', 'release', 'holdTime'],
     difficulty: 'Beginner',
     cpuUsage: 'Low',
-    tags: ['gate', 'noise', 'cleanup', 'threshold']
+    tags: ['gate', 'noise', 'cleanup', 'threshold'],
+    hasVisualization: true
   },
-  { 
-    id: 'distortion', 
-    name: 'Distortion', 
-    category: 'Dynamics', 
-    icon: FaWaveSquare, 
+  {
+    id: 'distortion',
+    name: 'Distortion',
+    category: 'Dynamics',
+    icon: FaWaveSquare,
     description: 'Harmonic saturation and distortion',
     detailedDescription: 'Versatile distortion effect with multiple saturation algorithms and tone shaping.',
     parameters: ['drive', 'tone', 'outputGain', 'saturationMode'],
     difficulty: 'Beginner',
     cpuUsage: 'Low',
-    tags: ['distortion', 'saturation', 'warmth', 'harmonics']
+    tags: ['distortion', 'saturation', 'warmth', 'harmonics'],
+    hasVisualization: true
   },
   
   // Time/Delay
-  { 
-    id: 'echo', 
-    name: 'Echo', 
-    category: 'Time', 
-    icon: FaMusic, 
+  {
+    id: 'echo',
+    name: 'Echo',
+    category: 'Time',
+    icon: FaMusic,
     description: 'Classic echo delay effect',
     detailedDescription: 'Simple and musical echo with adjustable delay time, feedback, and wet/dry mix.',
     parameters: ['delayTime', 'feedback', 'wetDryMix', 'highCut'],
     difficulty: 'Beginner',
     cpuUsage: 'Low',
-    tags: ['echo', 'delay', 'repeat', 'space']
+    tags: ['echo', 'delay', 'repeat', 'space'],
+    hasVisualization: false
   },
-  { 
-    id: 'advancedDelay', 
-    name: 'Advanced Delay', 
-    category: 'Time', 
-    icon: FaMusic, 
+  {
+    id: 'advancedDelay',
+    name: 'Advanced Delay',
+    category: 'Time',
+    icon: FaMusic,
     description: 'Multi-tap delay with filtering',
     detailedDescription: 'Professional delay with multiple taps, stereo positioning, filtering, and modulation.',
     parameters: ['delayTime', 'feedback', 'taps', 'stereoSpread', 'filtering'],
     difficulty: 'Advanced',
     cpuUsage: 'Medium',
-    tags: ['delay', 'multi-tap', 'stereo', 'filtering']
+    tags: ['delay', 'multi-tap', 'stereo', 'filtering'],
+    hasVisualization: true
   },
-  { 
-    id: 'paulstretch', 
-    name: 'Paulstretch', 
-    category: 'Time', 
-    icon: FaCog, 
+  {
+    id: 'paulstretch',
+    name: 'Paulstretch',
+    category: 'Time',
+    icon: FaCog,
     description: 'Extreme time stretching',
     detailedDescription: 'Paulstretch algorithm for extreme time stretching without pitch change, perfect for ambient textures.',
     parameters: ['stretchRatio', 'windowSize', 'overlap'],
     difficulty: 'Advanced',
     cpuUsage: 'High',
-    tags: ['timestretch', 'ambient', 'experimental', 'texture']
+    tags: ['timestretch', 'ambient', 'experimental', 'texture'],
+    hasVisualization: false
   },
   
   // Space/Reverb
-  { 
-    id: 'reverb', 
-    name: 'Reverb', 
-    category: 'Space', 
-    icon: FaMusic, 
+  {
+    id: 'reverb',
+    name: 'Reverb',
+    category: 'Space',
+    icon: FaMusic,
     description: 'Algorithmic reverb processor',
     detailedDescription: 'High-quality algorithmic reverb with multiple room types, pre-delay, and damping controls.',
     parameters: ['roomSize', 'damping', 'predelay', 'wetDryMix', 'stereoWidth'],
     difficulty: 'Intermediate',
     cpuUsage: 'Medium',
-    tags: ['reverb', 'space', 'ambient', 'room']
+    tags: ['reverb', 'space', 'ambient', 'room'],
+    hasVisualization: false
   },
-  { 
-    id: 'reverseReverb', 
-    name: 'Reverse Reverb', 
-    category: 'Space', 
-    icon: FaMagic, 
+  {
+    id: 'reverseReverb',
+    name: 'Reverse Reverb',
+    category: 'Space',
+    icon: FaMagic,
     description: 'Backwards reverb effect',
     detailedDescription: 'Creates reversed reverb tails that build up to the original signal for dramatic effect.',
     parameters: ['reverseTime', 'buildUp', 'wetDryMix'],
     difficulty: 'Intermediate',
     cpuUsage: 'Medium',
-    tags: ['reverse', 'creative', 'buildup', 'dramatic']
+    tags: ['reverse', 'creative', 'buildup', 'dramatic'],
+    hasVisualization: false
   },
-  { 
-    id: 'autoPan', 
-    name: 'Auto Pan', 
-    category: 'Space', 
-    icon: FaRandom, 
+  {
+    id: 'autoPan',
+    name: 'Auto Pan',
+    category: 'Space',
+    icon: FaRandom,
     description: 'Automatic stereo panning',
     detailedDescription: 'Rhythmic auto-panning with multiple waveform shapes and tempo sync options.',
     parameters: ['rate', 'depth', 'waveform', 'tempoSync'],
     difficulty: 'Beginner',
     cpuUsage: 'Low',
-    tags: ['pan', 'stereo', 'movement', 'rhythm']
+    tags: ['pan', 'stereo', 'movement', 'rhythm'],
+    hasVisualization: false
   },
-  { 
-    id: 'stereoWidener', 
-    name: 'Stereo Widener', 
-    category: 'Space', 
-    icon: FaRandom, 
+  {
+    id: 'stereoWidener',
+    name: 'Stereo Widener',
+    category: 'Space',
+    icon: FaRandom,
     description: 'Stereo field expansion',
     detailedDescription: 'Expands or narrows the stereo image using phase and delay techniques.',
     parameters: ['width', 'bassMonoFreq', 'stereoBalance'],
     difficulty: 'Intermediate',
     cpuUsage: 'Low',
-    tags: ['stereo', 'width', 'imaging', 'space']
+    tags: ['stereo', 'width', 'imaging', 'space'],
+    hasVisualization: true
   },
   
   // Modulation
-  { 
-    id: 'chorus', 
-    name: 'Chorus', 
-    category: 'Modulation', 
-    icon: FaWaveSquare, 
+  {
+    id: 'chorus',
+    name: 'Chorus',
+    category: 'Modulation',
+    icon: FaWaveSquare,
     description: 'Rich pitch modulation chorus',
     detailedDescription: 'Classic chorus effect with multiple voices, variable delay, and pitch modulation.',
     parameters: ['rate', 'depth', 'voices', 'predelay', 'wetDryMix'],
     difficulty: 'Beginner',
     cpuUsage: 'Medium',
-    tags: ['chorus', 'modulation', 'richness', 'ensemble']
+    tags: ['chorus', 'modulation', 'richness', 'ensemble'],
+    hasVisualization: true
   },
-  { 
-    id: 'flanger', 
-    name: 'Flanger', 
-    category: 'Modulation', 
-    icon: FaWaveSquare, 
+  {
+    id: 'flanger',
+    name: 'Flanger',
+    category: 'Modulation',
+    icon: FaWaveSquare,
     description: 'Sweeping comb filter effect',
     detailedDescription: 'Classic flanger with variable delay, feedback, and LFO modulation for that iconic swoosh.',
     parameters: ['rate', 'depth', 'feedback', 'delay', 'wetDryMix'],
     difficulty: 'Intermediate',
     cpuUsage: 'Medium',
-    tags: ['flanger', 'sweep', 'jet', 'modulation']
+    tags: ['flanger', 'sweep', 'jet', 'modulation'],
+    hasVisualization: false
   },
-  { 
-    id: 'phaser', 
-    name: 'Phaser', 
-    category: 'Modulation', 
-    icon: FaWaveSquare, 
+  {
+    id: 'phaser',
+    name: 'Phaser',
+    category: 'Modulation',
+    icon: FaWaveSquare,
     description: 'Phase shifting modulation',
     detailedDescription: 'Multi-stage phaser with adjustable stages, feedback, and modulation rate.',
     parameters: ['rate', 'depth', 'stages', 'feedback', 'wetDryMix'],
     difficulty: 'Intermediate',
     cpuUsage: 'Medium',
-    tags: ['phaser', 'phase', 'sweep', 'vintage']
+    tags: ['phaser', 'phase', 'sweep', 'vintage'],
+    hasVisualization: true
   },
-  { 
-    id: 'tremolo', 
-    name: 'Tremolo', 
-    category: 'Modulation', 
-    icon: FaWaveSquare, 
+  {
+    id: 'tremolo',
+    name: 'Tremolo',
+    category: 'Modulation',
+    icon: FaWaveSquare,
     description: 'Amplitude modulation effect',
     detailedDescription: 'Classic tremolo with variable rate, depth, and waveform shapes.',
     parameters: ['rate', 'depth', 'waveform', 'tempoSync'],
     difficulty: 'Beginner',
     cpuUsage: 'Low',
-    tags: ['tremolo', 'amplitude', 'vintage', 'modulation']
+    tags: ['tremolo', 'amplitude', 'vintage', 'modulation'],
+    hasVisualization: false
   },
-  { 
-    id: 'autoWah', 
-    name: 'Auto Wah', 
-    category: 'Modulation', 
-    icon: FaWaveSquare, 
+  {
+    id: 'autoWah',
+    name: 'Auto Wah',
+    category: 'Modulation',
+    icon: FaWaveSquare,
     description: 'Automatic wah filter',
     detailedDescription: 'Envelope-following wah filter that responds to input dynamics.',
     parameters: ['sensitivity', 'range', 'resonance', 'attack', 'release'],
     difficulty: 'Intermediate',
     cpuUsage: 'Medium',
-    tags: ['wah', 'filter', 'envelope', 'dynamic']
+    tags: ['wah', 'filter', 'envelope', 'dynamic'],
+    hasVisualization: true
   },
   
   // Pitch
-  { 
-    id: 'pitchShifter', 
-    name: 'Pitch Shifter', 
-    category: 'Pitch', 
-    icon: FaMagic, 
+  {
+    id: 'pitchShifter',
+    name: 'Pitch Shifter',
+    category: 'Pitch',
+    icon: FaMagic,
     description: 'Real-time pitch shifting',
     detailedDescription: 'High-quality pitch shifting without time change, with formant correction options.',
     parameters: ['pitch', 'formantCorrection', 'wetDryMix'],
     difficulty: 'Intermediate',
     cpuUsage: 'High',
-    tags: ['pitch', 'transpose', 'harmony', 'correction']
+    tags: ['pitch', 'transpose', 'harmony', 'correction'],
+    hasVisualization: true
   },
-  { 
-    id: 'frequencyShifter', 
-    name: 'Frequency Shifter', 
-    category: 'Pitch', 
-    icon: FaMagic, 
+  {
+    id: 'frequencyShifter',
+    name: 'Frequency Shifter',
+    category: 'Pitch',
+    icon: FaMagic,
     description: 'Linear frequency shifting',
     detailedDescription: 'Linear frequency shifting that moves all frequencies by a fixed amount, creating metallic effects.',
     parameters: ['shift', 'wetDryMix', 'feedback'],
     difficulty: 'Advanced',
     cpuUsage: 'Medium',
-    tags: ['frequency', 'shift', 'metallic', 'experimental']
+    tags: ['frequency', 'shift', 'metallic', 'experimental'],
+    hasVisualization: false
   },
-  
+
   // Creative/Experimental
-  { 
-    id: 'ringModulator', 
-    name: 'Ring Modulator', 
-    category: 'Creative', 
-    icon: FaMagic, 
+  {
+    id: 'ringModulator',
+    name: 'Ring Modulator',
+    category: 'Creative',
+    icon: FaMagic,
     description: 'Ring modulation synthesis',
     detailedDescription: 'Classic ring modulation effect for creating metallic, bell-like, and robotic sounds.',
     parameters: ['carrierFreq', 'amount', 'waveform'],
     difficulty: 'Advanced',
     cpuUsage: 'Low',
-    tags: ['ring', 'modulation', 'metallic', 'synthesis']
+    tags: ['ring', 'modulation', 'metallic', 'synthesis'],
+    hasVisualization: true
   },
-  { 
-    id: 'granularFreeze', 
-    name: 'Granular Freeze', 
-    category: 'Creative', 
-    icon: FaMagic, 
+  {
+    id: 'granularFreeze',
+    name: 'Granular Freeze',
+    category: 'Creative',
+    icon: FaMagic,
     description: 'Granular synthesis freezing',
     detailedDescription: 'Captures and granularly reconstructs audio fragments for ambient textures and soundscapes.',
     parameters: ['grainSize', 'position', 'density', 'pitch'],
     difficulty: 'Advanced',
     cpuUsage: 'High',
-    tags: ['granular', 'freeze', 'ambient', 'texture']
+    tags: ['granular', 'freeze', 'ambient', 'texture'],
+    hasVisualization: false
   },
-  { 
-    id: 'glitch', 
-    name: 'Glitch', 
-    category: 'Creative', 
-    icon: FaRandom, 
+  {
+    id: 'glitch',
+    name: 'Glitch',
+    category: 'Creative',
+    icon: FaRandom,
     description: 'Digital glitch effects',
     detailedDescription: 'Collection of digital artifacts including bit crushing, sample rate reduction, and buffer scrambling.',
     parameters: ['intensity', 'glitchType', 'rate', 'amount'],
     difficulty: 'Intermediate',
     cpuUsage: 'Medium',
-    tags: ['glitch', 'digital', 'artifacts', 'experimental']
+    tags: ['glitch', 'digital', 'artifacts', 'experimental'],
+    hasVisualization: false
   },
 ];
 
@@ -537,18 +559,27 @@ export default function EffectSelectionModal() {
                           </div>
                         </div>
 
-                        {/* Tags */}
-                        <div className="d-flex flex-wrap gap-1">
+                        {/* Tags and Visual Badge */}
+                        <div className="d-flex flex-wrap gap-1 align-items-center">
                           {effect.tags.slice(0, 2).map(tag => (
-                            <Badge 
-                              key={tag} 
-                              bg="light" 
-                              text="dark" 
+                            <Badge
+                              key={tag}
+                              bg="light"
+                              text="dark"
                               style={{ fontSize: '0.6rem' }}
                             >
                               {tag}
                             </Badge>
                           ))}
+                          {effect.hasVisualization && (
+                            <Badge
+                              bg="dark"
+                              style={{ fontSize: '0.6rem' }}
+                            >
+                              <FaPlay size={8} className="me-1" />
+                              Visual
+                            </Badge>
+                          )}
                         </div>
 
                         {/* Detailed Description Tooltip */}
