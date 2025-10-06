@@ -2882,3 +2882,39 @@ nav.navbar.navbar-dark .navbar-nav .nav-link {
   display: block !important;
   max-height: none !important;
 }
+
+/* Modal Close Button - High Contrast Styles */
+.modal-header .btn-close {
+  filter: brightness(0) invert(1);
+  opacity: 0.9 !important;
+  background-size: 1.5em !important;
+  transition: all 0.2s ease;
+}
+
+.modal-header .btn-close:hover {
+  opacity: 1 !important;
+  transform: scale(1.1);
+  filter: brightness(0) invert(1);
+}
+
+.modal-header .btn-close:focus {
+  opacity: 1 !important;
+  box-shadow: 0 0 0 0.25rem rgba(255, 255, 255, 0.3) !important;
+  filter: brightness(0) invert(1);
+}
+
+/* Alternative: Use a dark background on the close button itself */
+.modal .modal-header {
+  position: relative;
+}
+
+.modal .modal-header .btn-close {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  border-radius: 0.25rem;
+  padding: 0.5rem;
+  margin: -0.5rem -0.5rem -0.5rem auto;
+}
+
+.modal .modal-header .btn-close:hover {
+  background-color: rgba(255, 255, 255, 0.25) !important;
+}
