@@ -182,16 +182,14 @@ export const MultitrackProvider = ({ children }) => {
       }
     });
 
-    // Pass 2: MIDI tracks — convert beats → seconds using track tempo
+    // Pass 2: MIDI tracks — notes are in seconds
     tracks.forEach((track) => {
       if (track.type === 'midi' && track.midiData?.notes?.length > 0) {
-        const lastBeat = track.midiData.notes.reduce((latest, note) => {
-          const noteEnd = note.startTime + note.duration; // beats
+        const lastSecond = track.midiData.notes.reduce((latest, note) => {
+          const noteEnd = note.startTime + note.duration; // seconds
           return noteEnd > latest ? noteEnd : latest;
         }, 0);
-        const tempo = track.midiData?.tempo || 120;
-        const seconds = lastBeat * (60 / tempo);
-        maxDuration = Math.max(maxDuration, seconds);
+        maxDuration = Math.max(maxDuration, lastSecond);
       }
     });
 

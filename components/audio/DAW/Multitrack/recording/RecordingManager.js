@@ -83,6 +83,7 @@ class RecordingManager extends EventEmitter {
       recorder: null,
       mediaStream: options.mediaStream || null,
       midiInput: options.midiInput || null,
+      tempo: options.tempo || 120, // Store tempo for MIDI beat conversion
       isCountingIn: true,
       countdownValue: this.countdownDuration,
       chunks: [], // For audio
@@ -221,9 +222,11 @@ class RecordingManager extends EventEmitter {
     console.log(`🎹 RecordingManager: Starting MIDI recording for track ${trackId}`);
 
     // Create MIDI recorder object
+    const tempo = recordingState.tempo || 120;
     const midiRecorder = {
       isRecording: true,
       startTime: performance.now() / 1000,
+      tempo: tempo,
       notes: [],
       activeNotes: new Map(), // For tracking note on/off pairs
 
@@ -237,6 +240,8 @@ class RecordingManager extends EventEmitter {
         if (status >= 144 && status < 160 && velocity > 0) {
           const noteData = { note, velocity, startTime: timestamp };
           midiRecorder.activeNotes.set(note, noteData);
+
+          console.log(`🎹 RecordingManager: Note ON - pitch=${note}, startTime=${timestamp.toFixed(3)}s, tempo=${midiRecorder.tempo}`);
 
           this.emit('midi-note-on', {
             trackId,
@@ -258,6 +263,8 @@ class RecordingManager extends EventEmitter {
             };
             midiRecorder.notes.push(recordedNote);
             midiRecorder.activeNotes.delete(note);
+
+            console.log(`🎹 RecordingManager: Note OFF - pitch=${note}, startTime=${activeNote.startTime.toFixed(3)}s, duration=${duration.toFixed(3)}s`);
 
             this.emit('midi-note-off', {
               trackId,
@@ -393,7 +400,11 @@ class RecordingManager extends EventEmitter {
     console.log(`📍 RecordingManager: Created audioURL: ${audioURL}`);
 
     // Emit completion event
-    console.log(`📍 RecordingManager: Emitting audio-recording-complete event`);
+    console.log(`📍 RecordingManager: Emitting audio-recording-complete event`, {
+      trackId,
+      duration,
+      startPosition: recordingState.recordingStartPosition
+    });
     this.emit('audio-recording-complete', {
       trackId,
       blob,
@@ -417,10 +428,25 @@ class RecordingManager extends EventEmitter {
     // Get recorded notes
     const notes = recordingState.recorder?.notes || [];
 
+    console.log(`🎹 RecordingManager: MIDI recording complete`, {
+      trackId,
+      noteCount: notes.length,
+      firstNote: notes[0],
+      lastNote: notes[notes.length - 1],
+      allNotes: notes
+    });
+
     // Calculate duration
     const duration = notes.reduce((max, note) =>
       Math.max(max, (note.startTime + note.duration) || 0), 0
     );
+
+    console.log(`🎹 RecordingManager: Emitting midi-recording-complete`, {
+      trackId,
+      noteCount: notes.length,
+      duration,
+      startPosition: recordingState.recordingStartPosition
+    });
 
     // Emit completion event
     this.emit('midi-recording-complete', {

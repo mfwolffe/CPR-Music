@@ -27,9 +27,24 @@ export default class ClipPlayer {
       return;
     }
 
+    console.log(`🔊 ClipPlayer: prepareClip called`, {
+      clipId: clip.id,
+      clipStart: clip.start,
+      clipOffset: clip.offset,
+      clipDuration: clip.duration,
+      src: clip.src?.substring(0, 50) + '...'
+    });
+
     // Check if already loaded
     const existing = this.clips.get(clip.id);
     if (existing && existing.src === clip.src) {
+      console.log(`🔊 ClipPlayer: Updating existing clip`, {
+        clipId: clip.id,
+        bufferDuration: existing.buffer?.duration,
+        oldClipDuration: existing.duration,
+        newClipDuration: clip.duration
+      });
+
       // Update volume and pan
       try {
         existing.gainNode.gain.value = volume;
@@ -81,6 +96,15 @@ export default class ClipPlayer {
         offset: clip.offset || 0,
         duration: clip.duration || audioBuffer.duration,
       };
+
+      console.log(`🔊 ClipPlayer: Clip prepared successfully`, {
+        clipId: clip.id,
+        bufferDuration: audioBuffer.duration,
+        clipDuration: clipData.duration,
+        startTime: clipData.startTime,
+        offset: clipData.offset,
+        effectivePlayDuration: Math.min(clipData.duration, audioBuffer.duration - clipData.offset)
+      });
 
       this.clips.set(clip.id, clipData);
       return clipData;
@@ -148,8 +172,19 @@ export default class ClipPlayer {
     // Calculate when this clip should start playing
     const clipEndTime = startTime + duration;
 
+    console.log(`🔊 ClipPlayer: Scheduling clip`, {
+      clipId: clipData.id,
+      startTime: startTime.toFixed(3),
+      offset: offset.toFixed(3),
+      duration: duration.toFixed(3),
+      bufferDuration: buffer.duration.toFixed(3),
+      clipEndTime: clipEndTime.toFixed(3),
+      timelinePosition: timelinePosition.toFixed(3)
+    });
+
     // Skip if we're already past this clip
     if (timelinePosition >= clipEndTime) {
+      console.log(`🔊 ClipPlayer: Skipping clip (past end)`);
       return;
     }
 
@@ -198,14 +233,20 @@ export default class ClipPlayer {
         source.start(when, sourceOffset, sourceDuration);
         clipData.source = source;
 
-        console.log('ClipPlayer: Started source', {
+        console.log('🔊 ClipPlayer: Started source', {
+          clipId: clipData.id,
           when: when.toFixed(3),
           sourceOffset: sourceOffset.toFixed(3),
           sourceDuration: sourceDuration.toFixed(3),
           scheduleAhead: (when - now).toFixed(3),
+          bufferDuration: buffer.duration.toFixed(3),
+          clipStartTime: startTime.toFixed(3),
+          clipOffset: offset.toFixed(3),
+          clipDuration: duration.toFixed(3)
         });
       } catch (error) {
-        console.error('ClipPlayer: Error starting source:', error, {
+        console.error('🔊 ClipPlayer: Error starting source:', error, {
+          clipId: clipData.id,
           when,
           sourceOffset,
           sourceDuration,
@@ -216,6 +257,10 @@ export default class ClipPlayer {
 
       // Clean up when finished
       source.onended = () => {
+        console.log('🔊 ClipPlayer: Source ended', {
+          clipId: clipData.id,
+          endTime: this.audioContext.currentTime.toFixed(3)
+        });
         if (clipData.source === source) {
           clipData.source = null;
         }

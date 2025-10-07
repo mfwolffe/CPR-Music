@@ -61,15 +61,20 @@ export default function PianoRollCanvas({
   }, [zoom, canvasSize, gridWidth, gridHeight]);
 
   // Helper functions with bounds checking
+  // NOTE: Piano roll uses beat-based grid for visual display, but notes are stored in seconds
   const pixelToTime = (x) => {
-    // x is relative to the canvas content; the scroll container provides visual offset.
+    // Convert pixel to beats for grid snapping
     return Math.max(0, x / pixelsPerBeat);
   };
 
   const timeToPixel = (time) => {
-    // Draw in absolute coordinates; do not subtract scroll here.
+    // Convert beats to pixels for grid display
     return time * pixelsPerBeat;
   };
+
+  // Convert between seconds (storage) and beats (display)
+  const secondsToBeats = (seconds) => seconds * ((tempo || 120) / 60);
+  const beatsToSeconds = (beats) => beats / ((tempo || 120) / 60);
 
   const pixelToNote = (y) => {
     // y is relative to the canvas content; do not add scroll here.
@@ -88,20 +93,25 @@ export default function PianoRollCanvas({
 
   // Find note at position
   const getNoteAtPosition = (x, y) => {
-    const time = pixelToTime(x);
+    const timeInBeats = pixelToTime(x);
     const pitch = pixelToNote(y);
 
     return notes.find((note) => {
-      const noteStart = note.startTime;
-      const noteEnd = note.startTime + note.duration;
-      return note.note === pitch && time >= noteStart && time <= noteEnd;
+      // Convert note times from seconds to beats for comparison
+      const noteStartBeats = secondsToBeats(note.startTime);
+      const noteEndBeats = secondsToBeats(note.startTime + note.duration);
+      return note.note === pitch && timeInBeats >= noteStartBeats && timeInBeats <= noteEndBeats;
     });
   };
 
   // Check if near note edge for resizing
   const getNoteEdge = (x, note) => {
-    const startX = timeToPixel(note.startTime);
-    const endX = timeToPixel(note.startTime + note.duration);
+    // Convert note times from seconds to beats for display
+    const startBeats = secondsToBeats(note.startTime);
+    const endBeats = secondsToBeats(note.startTime + note.duration);
+
+    const startX = timeToPixel(startBeats);
+    const endX = timeToPixel(endBeats);
     const edgeThreshold = 5;
 
     if (Math.abs(x - startX) < edgeThreshold) return 'left';
@@ -159,11 +169,35 @@ export default function PianoRollCanvas({
     (ctx) => {
       const instrumentColor = instrument?.color || '#92ce84';
 
+      // Log notes for debugging every time they change
+      if (notes.length > 0) {
+        const logKey = notes.map(n => `${n.note}-${n.startTime}`).join(',');
+        if (window.__lastPianoRollNotesKey !== logKey) {
+          console.log(`🎹 PianoRoll Drawing ${notes.length} notes:`);
+          console.log(`   Tempo: ${tempo} BPM, PixelsPerBeat: ${pixelsPerBeat.toFixed(1)}px`);
+          console.log(`   First 3 notes:`, notes.slice(0, 3).map(n => {
+            const startBeats = secondsToBeats(n.startTime);
+            const durationBeats = secondsToBeats(n.duration);
+            return {
+              pitch: n.note,
+              startTime: `${n.startTime?.toFixed?.(3) ?? n.startTime}s (${startBeats.toFixed(3)} beats)`,
+              duration: `${n.duration?.toFixed?.(3) ?? n.duration}s (${durationBeats.toFixed(3)} beats)`,
+              startX: `${timeToPixel(startBeats).toFixed(1)}px`,
+              width: `${(durationBeats * pixelsPerBeat).toFixed(1)}px`
+            };
+          }));
+          window.__lastPianoRollNotesKey = logKey;
+        }
+      }
+
       notes.forEach((note) => {
-        const x = timeToPixel(note.startTime);
+        // Convert note times from seconds to beats for display
+        const startBeats = secondsToBeats(note.startTime);
+        const durationBeats = secondsToBeats(note.duration);
+
+        const x = timeToPixel(startBeats);
         const y = noteToPixel(note.note);
-        // Fix: Ensure proper width calculation for note duration
-        const width = Math.max(note.duration * pixelsPerBeat, 5); // Minimum 5px width
+        const width = Math.max(durationBeats * pixelsPerBeat, 5); // Minimum 5px width
         const height = noteHeight - 2;
 
         // Skip if outside visible area
@@ -233,10 +267,15 @@ export default function PianoRollCanvas({
   const drawPlayhead = useCallback(
     (ctx) => {
       if (!isPlaying) return;
-      // Use unified time conversion for consistency with scheduler
-      const currentBeat = secondsToBeats(currentTime, tempo || 120);
+      // currentTime is in seconds, convert to beats for beat-based grid display
+      const currentBeat = secondsToBeats(currentTime);
       const x = timeToPixel(currentBeat);
       if (x < 0 || x > actualCanvasSize.width) return;
+
+      // Log playhead position for debugging
+      if (Math.floor(currentTime * 10) % 10 === 0) { // Log every 0.1 seconds
+        console.log(`🎹 PianoRoll Playhead: currentTime=${currentTime.toFixed(3)}s, currentBeat=${currentBeat.toFixed(3)} beats, x=${x.toFixed(1)}px, pixelsPerBeat=${pixelsPerBeat.toFixed(1)}`);
+      }
 
       ctx.strokeStyle = '#ff3030';
       ctx.lineWidth = 2;
@@ -245,7 +284,7 @@ export default function PianoRollCanvas({
       ctx.lineTo(x, actualCanvasSize.height);
       ctx.stroke();
     },
-    [isPlaying, currentTime, actualCanvasSize, tempo, timeToPixel],
+    [isPlaying, currentTime, actualCanvasSize, tempo, timeToPixel, pixelsPerBeat],
   );
 
   // Main draw function with error handling
@@ -315,14 +354,17 @@ export default function PianoRollCanvas({
 
     if (currentTool === 'pencil') {
       // Add new note with proper default duration
-      const time = snapToGrid(pixelToTime(x));
+      const timeInBeats = snapToGrid(pixelToTime(x));
       const pitch = pixelToNote(y);
+      // Default duration in beats
+      const durationBeats = Math.max(snapValue && snapValue > 0 ? snapValue : 1, 0.0625);
+
+      // Convert from beats (UI) to seconds (storage)
       const newNote = {
         id: `note-${Date.now()}`,
         note: pitch,
-        startTime: time,
-        // Default length follows selected grid; if snapping is off, use 1 beat (with tiny floor)
-        duration: Math.max(snapValue && snapValue > 0 ? snapValue : 1, 0.0625),
+        startTime: beatsToSeconds(timeInBeats),
+        duration: beatsToSeconds(durationBeats),
         velocity: 100,
       };
       onNotesUpdate([...notes, newNote]);
@@ -380,40 +422,45 @@ export default function PianoRollCanvas({
 
       if (noteIndex !== -1) {
         if (mouseState.dragType === 'move') {
-          const deltaTime = pixelToTime(x) - pixelToTime(mouseState.startX);
+          const deltaTimeBeats = pixelToTime(x) - pixelToTime(mouseState.startX);
           const deltaPitch = pixelToNote(y) - pixelToNote(mouseState.startY);
+
+          // Convert note time to beats, adjust, then back to seconds
+          const currentStartBeats = secondsToBeats(draggedNote.startTime);
+          const newStartBeats = snapToGrid(currentStartBeats + deltaTimeBeats);
 
           updatedNotes[noteIndex] = {
             ...draggedNote,
-            startTime: snapToGrid(draggedNote.startTime + deltaTime),
+            startTime: beatsToSeconds(newStartBeats),
             note: Math.max(
               MIN_NOTE,
               Math.min(MAX_NOTE, draggedNote.note + deltaPitch),
             ),
           };
         } else if (mouseState.dragType === 'left') {
-          const newStartTime = snapToGrid(pixelToTime(x));
-          const endTime = draggedNote.startTime + draggedNote.duration;
-          const newDuration = Math.max(
+          const newStartTimeBeats = snapToGrid(pixelToTime(x));
+          const endTimeBeats = secondsToBeats(draggedNote.startTime + draggedNote.duration);
+          const newDurationBeats = Math.max(
             snapValue || 0.125,
-            endTime - newStartTime,
+            endTimeBeats - newStartTimeBeats,
           );
 
           updatedNotes[noteIndex] = {
             ...draggedNote,
-            startTime: newStartTime,
-            duration: newDuration,
+            startTime: beatsToSeconds(newStartTimeBeats),
+            duration: beatsToSeconds(newDurationBeats),
           };
         } else if (mouseState.dragType === 'right') {
-          const newEndTime = snapToGrid(pixelToTime(x));
-          const newDuration = Math.max(
+          const newEndTimeBeats = snapToGrid(pixelToTime(x));
+          const startTimeBeats = secondsToBeats(draggedNote.startTime);
+          const newDurationBeats = Math.max(
             snapValue || 0.125,
-            newEndTime - draggedNote.startTime,
+            newEndTimeBeats - startTimeBeats,
           );
 
           updatedNotes[noteIndex] = {
             ...draggedNote,
-            duration: newDuration,
+            duration: beatsToSeconds(newDurationBeats),
           };
         }
 

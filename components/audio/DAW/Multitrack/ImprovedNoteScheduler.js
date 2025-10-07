@@ -128,23 +128,26 @@ export default class ImprovedNoteScheduler {
     if (!this.isPlaying || !this.instrument) return;
 
     const currentBeat = this.getCurrentBeat();
-    const lookaheadBeats = (this.lookaheadTime * this.tempo) / 60;
-    const scheduleEndBeat = currentBeat + lookaheadBeats;
+    const currentSeconds = beatsToSeconds(currentBeat, this.tempo);
+    const scheduleEndSeconds = currentSeconds + this.lookaheadTime;
 
     // Find notes that need to be scheduled
     for (const note of this.notes) {
       const noteKey = `${note.note}-${note.startTime}`;
 
+      // NOTE: note.startTime and note.duration are in SECONDS
       // Check if note should be scheduled and hasn't been already
       if (
-        note.startTime >= currentBeat &&
-        note.startTime < scheduleEndBeat &&
+        note.startTime >= currentSeconds &&
+        note.startTime < scheduleEndSeconds &&
         !this.scheduledNotes.has(noteKey)
       ) {
         // Calculate when to play the note in audio context time
-        // Use unified time conversion utilities for consistency
-        const noteOnTime = beatToAudioTime(note.startTime, this.tempo, this.startTime);
-        const noteOffTime = beatToAudioTime(note.startTime + note.duration, this.tempo, this.startTime);
+        // Notes are already in seconds, just add to startTime reference
+        const noteOnTime = this.startTime + note.startTime;
+        const noteOffTime = this.startTime + note.startTime + note.duration;
+
+        console.log(`🎵 Scheduling note: pitch=${note.note}, startTime=${note.startTime.toFixed(3)}s, duration=${note.duration.toFixed(3)}s, noteOnTime=${noteOnTime.toFixed(3)}s, audioContextTime=${this.audioContext.currentTime.toFixed(3)}s`);
 
         // Schedule note on
         audioContextManager.scheduleAtTime(() => {

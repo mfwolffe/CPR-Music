@@ -36,10 +36,12 @@ function MIDITrack({ track, index, zoomLevel = 100 }) {
     setSelectedTrackId,
     selectedTrackId,
     soloTrackId,
+    setSoloTrackId,
     getTransportTime,
     isPlaying,
     currentTime,
     registerTrackInstrument,
+    duration,
   } = useMultitrack();
 
   const canvasRef = useRef(null);
@@ -140,10 +142,38 @@ function MIDITrack({ track, index, zoomLevel = 100 }) {
 
   // Simple MIDI visualization on canvas
   useEffect(() => {
-    if (!canvasRef.current || isRecording) return;
+    console.log(`🎹 MIDITrack visualization effect triggered`, {
+      hasCanvas: !!canvasRef.current,
+      isRecording,
+      trackId: track.id
+    });
+
+    if (!canvasRef.current || isRecording) {
+      console.log(`🎹 MIDITrack visualization skipped - no canvas or recording`);
+      return;
+    }
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
+
+    // Calculate proper canvas width based on duration and zoom
+    const pixelsPerSecond = 100 * (zoomLevel / 100);
+    const canvasWidth = Math.max(800, pixelsPerSecond * (duration || 30));
+
+    canvas.width = canvasWidth;
+    canvas.style.width = canvasWidth + 'px';
+
+    console.log(`🎹 MIDITrack visualization render:`, {
+      hasNotes: !!track.midiData?.notes?.length,
+      noteCount: track.midiData?.notes?.length || 0,
+      firstNoteRaw: track.midiData?.notes?.[0],
+      allNotes: track.midiData?.notes,
+      zoomLevel,
+      tempo: track.midiData?.tempo || 120,
+      canvasWidth,
+      pixelsPerSecond,
+      duration
+    });
 
     // Clear canvas with dark background
     ctx.fillStyle = '#1a1a1a';
@@ -151,16 +181,29 @@ function MIDITrack({ track, index, zoomLevel = 100 }) {
 
     // Draw MIDI notes if any
     if (track.midiData?.notes?.length > 0) {
-      const tempo = track.midiData.tempo || 120;
-      const beatsPerSecond = tempo / 60;
       const pixelsPerSecond = 100 * (zoomLevel / 100);
+
+      // Log first note to debug
+      if (track.midiData.notes[0]) {
+        console.log(`🎹 MIDITrack drawing notes:`, {
+          firstNote: {
+            startTime: track.midiData.notes[0].startTime,
+            duration: track.midiData.notes[0].duration,
+            note: track.midiData.notes[0].note
+          },
+          pixelsPerSecond,
+          x: track.midiData.notes[0].startTime * pixelsPerSecond,
+          width: track.midiData.notes[0].duration * pixelsPerSecond
+        });
+      }
 
       ctx.fillStyle = '#4CAF50';
       ctx.globalAlpha = 0.8;
 
       track.midiData.notes.forEach(note => {
-        const x = (note.startTime / beatsPerSecond) * pixelsPerSecond;
-        const width = (note.duration / beatsPerSecond) * pixelsPerSecond;
+        // Notes are stored in seconds, so just multiply by pixelsPerSecond
+        const x = note.startTime * pixelsPerSecond;
+        const width = note.duration * pixelsPerSecond;
         const noteHeight = canvas.height / 128;
         const y = canvas.height - ((note.note / 128) * canvas.height);
 
@@ -169,7 +212,7 @@ function MIDITrack({ track, index, zoomLevel = 100 }) {
 
       ctx.globalAlpha = 1.0;
     }
-  }, [track.midiData, zoomLevel, isRecording]);
+  }, [track.midiData, zoomLevel, isRecording, duration]);
 
   const handleInstrumentChange = (instrumentName) => {
     console.log(`🎹 MIDITrack: Changing instrument to ${instrumentName}`);
@@ -187,10 +230,14 @@ function MIDITrack({ track, index, zoomLevel = 100 }) {
       // Get current position from transport
       const startPosition = getTransportTime ? getTransportTime() : 0;
 
+      // Get tempo from track
+      const tempo = track.midiData?.tempo || 120;
+
       // Start recording
       await RecordingManager.startRecording(track.id, 'midi', {
         midiInput: selectedMidiDevice,
-        startPosition
+        startPosition,
+        tempo
       });
     }
   };

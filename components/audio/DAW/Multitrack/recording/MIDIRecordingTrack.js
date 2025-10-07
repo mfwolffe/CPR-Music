@@ -108,10 +108,14 @@ export default function MIDIRecordingTrack({
       // Get current position from transport
       const startPosition = getTransportTime ? getTransportTime() : 0;
 
+      // Get tempo from track
+      const tempo = track.midiData?.tempo || 120;
+
       // Start recording
       await RecordingManager.startRecording(track.id, 'midi', {
         midiInput: midiInputId,
-        startPosition
+        startPosition,
+        tempo
       });
     }
   };

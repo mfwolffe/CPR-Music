@@ -56,6 +56,7 @@ export default function PianoRollEditor({
     if (show && !initialShowRef.current) {
       // First time opening modal
       initialShowRef.current = true;
+      console.log(`🎹 PianoRollEditor: Opening with ${initialNotes.length} notes`, initialNotes.slice(0, 3));
       setNotes(initialNotes);
       setHistory([initialNotes]);
       setHistoryIndex(0);
