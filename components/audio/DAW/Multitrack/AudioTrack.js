@@ -729,7 +729,7 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
             <LiveWaveformVisualizer
               trackId={track.id}
               mediaStream={mediaStream}
-              height={160}
+              height={200}
               color="#ff6b6b"
               backgroundColor="transparent"
               zoomLevel={zoomLevel}
