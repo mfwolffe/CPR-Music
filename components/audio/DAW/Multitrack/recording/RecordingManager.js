@@ -337,8 +337,11 @@ class RecordingManager extends EventEmitter {
       }
     }
 
-    // Remove from active recordings
-    this.activeRecordings.delete(trackId);
+    // Don't delete audio recordings yet - let the onstop handler complete first
+    // For MIDI, we can delete now since we handle completion synchronously
+    if (recordingState.type === 'midi') {
+      this.activeRecordings.delete(trackId);
+    }
 
     // Emit stop event
     this.emit('recording-stop', { trackId, type: recordingState.type });
@@ -357,13 +360,22 @@ class RecordingManager extends EventEmitter {
    * Handle completed audio recording
    */
   async handleAudioRecordingComplete(trackId) {
+    console.log(`📍 RecordingManager: handleAudioRecordingComplete called for track ${trackId}`);
+
     const recordingState = this.activeRecordings.get(trackId);
-    if (!recordingState) return;
+    if (!recordingState) {
+      console.warn(`📍 RecordingManager: No recording state found for track ${trackId}`);
+      return;
+    }
+
+    console.log(`📍 RecordingManager: Found recording state, chunks: ${recordingState.chunks?.length || 0}`);
 
     // Create blob from chunks
     const blob = new Blob(recordingState.chunks, {
       type: recordingState.recorder?.mimeType || 'audio/webm'
     });
+
+    console.log(`📍 RecordingManager: Created blob, size: ${blob.size}`);
 
     // Decode audio to get duration
     let duration = 0;
@@ -371,19 +383,28 @@ class RecordingManager extends EventEmitter {
       const arrayBuffer = await blob.arrayBuffer();
       const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
       duration = audioBuffer.duration;
+      console.log(`📍 RecordingManager: Decoded audio, duration: ${duration}`);
     } catch (error) {
       console.error('📍 RecordingManager: Error decoding audio:', error);
       duration = 10; // Fallback duration
     }
 
+    const audioURL = URL.createObjectURL(blob);
+    console.log(`📍 RecordingManager: Created audioURL: ${audioURL}`);
+
     // Emit completion event
+    console.log(`📍 RecordingManager: Emitting audio-recording-complete event`);
     this.emit('audio-recording-complete', {
       trackId,
       blob,
       duration,
       startPosition: recordingState.recordingStartPosition,
-      url: URL.createObjectURL(blob)
+      audioURL  // Changed from 'url' to 'audioURL' to match AudioTrack expectations
     });
+
+    // Clean up recording state after completion
+    this.activeRecordings.delete(trackId);
+    console.log(`📍 RecordingManager: Cleaned up recording state for track ${trackId}`);
   }
 
   /**

@@ -605,6 +605,17 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                 ? Math.max(baseDuration, maxClipEnd + WORKSPACE_BUFFER, currentTime + 20)
                 : Math.max(baseDuration, maxClipEnd + WORKSPACE_BUFFER);
               const effectiveDuration = Math.min(unboundedDuration, maxDuration);
+
+              console.log(`📏 Timeline Extent Calculation:`, {
+                duration,
+                baseDuration,
+                maxClipEnd,
+                unboundedDuration,
+                effectiveDuration,
+                hasRecording,
+                currentTime
+              });
+
               return effectiveDuration;
             })()}
             onScroll={(e) => {
@@ -679,6 +690,16 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
 
                 // Width = controls + (pixels per second * duration)
                 const expandedWidth = 230 + (pixelsPerSecond * effectiveDuration);
+
+                console.log(`📐 Tracks Container Width:`, {
+                  duration,
+                  baseDuration,
+                  maxClipEnd,
+                  pixelsPerSecond,
+                  effectiveDuration,
+                  expandedWidth,
+                  zoomLevel
+                });
 
                 return {
                   position: 'relative',

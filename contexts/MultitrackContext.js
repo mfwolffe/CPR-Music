@@ -207,6 +207,17 @@ export const MultitrackProvider = ({ children }) => {
       );
     }
 
+    console.log(`📐 MultitrackContext: Updating duration`, {
+      maxDuration,
+      trackCount: tracks.length,
+      clipsPerTrack: tracks.map(t => ({
+        id: t.id,
+        type: t.type,
+        clipCount: t.clips?.length || 0,
+        clipEnds: t.clips?.map(c => (c.start || 0) + (c.duration || 0)) || []
+      }))
+    });
+
     setDuration(maxDuration);
   }, [tracks]);
 

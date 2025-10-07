@@ -36,11 +36,8 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
         if (!clip.src) continue;
 
         try {
-          // Calculate pixels-per-second based on FIXED duration for consistency
-          const baseDuration = duration || 30;
-          const baseWidth = 310 + 3000 * (zoomLevel / 100);
-          const baseContentWidth = baseWidth - 230;
-          const pixelsPerSecond = baseContentWidth / baseDuration;
+          // Calculate pixels-per-second to match timeline
+          const pixelsPerSecond = zoomLevel; // 100 zoom = 100 pixels/second
           const clipWidthPx = Math.max(1, (clip.duration || 0) * pixelsPerSecond);
           
           const peaks = await waveformCache.getPeaksForClip(
@@ -74,12 +71,9 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
   };
 
   const clipRects = useMemo(() => {
-    // Calculate pixels-per-second based on FIXED duration for consistent scale
-    // This keeps the scale constant across all components
-    const baseDuration = duration || 30;
-    const baseWidth = 310 + 3000 * (zoomLevel / 100);
-    const baseContentWidth = baseWidth - 230; // Subtract controls
-    const pixelsPerSecond = baseContentWidth / baseDuration;
+    // Calculate pixels-per-second to match timeline
+    // Use the same formula as MultitrackEditor for consistency
+    const pixelsPerSecond = zoomLevel; // 100 zoom = 100 pixels/second
 
     return (W) => {
       // Use the constant pixels-per-second ratio for all calculations

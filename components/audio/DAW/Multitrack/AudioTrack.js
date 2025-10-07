@@ -224,9 +224,21 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
             name: `Recording ${new Date().toLocaleTimeString()}`
           };
 
+          console.log(`🎤 AudioTrack: Creating clip`, {
+            clipStart: newClip.start,
+            clipDuration: newClip.duration,
+            clipEnd: newClip.start + newClip.duration,
+            existingClips: track.clips?.length || 0
+          });
+
           updateTrack(track.id, {
             audioURL: data.audioURL,
             clips: [...(track.clips || []), newClip]
+          });
+        } else {
+          console.warn(`🎤 AudioTrack: Skipping clip creation - invalid data`, {
+            hasAudioURL: !!data.audioURL,
+            duration: data.duration
           });
         }
       }
@@ -734,6 +746,7 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
               trackColor={track.color || '#7bafd4'}
               trackId={track.id}
               updateTrack={updateTrack}
+              height={200}
             />
           )}
         </div>
