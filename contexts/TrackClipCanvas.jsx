@@ -75,15 +75,15 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
     // Use the same formula as MultitrackEditor for consistency
     const pixelsPerSecond = zoomLevel; // 100 zoom = 100 pixels/second
 
-    return (W) => {
-      // Use the constant pixels-per-second ratio for all calculations
+    return (dpr) => {
+      // Return positions in physical canvas pixels (CSS pixels * dpr)
       return clips.map((c) => ({
         id: c.id,
         start: c.start || 0,
         duration: c.duration || 0,
         color: c.color || track?.color || '#7bafd4',
-        x: Math.max(0, Math.floor((c.start || 0) * pixelsPerSecond)),
-        w: Math.max(1, Math.floor((c.duration || 0) * pixelsPerSecond)),
+        x: Math.max(0, Math.floor((c.start || 0) * pixelsPerSecond * dpr)),
+        w: Math.max(1, Math.floor((c.duration || 0) * pixelsPerSecond * dpr)),
       }));
     };
   }, [clips, duration, zoomLevel, track?.color]);
@@ -253,13 +253,14 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
       const { dpr, width: W, height: H } = resizeToCSS(canvas);
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, W, H);
-      // Shared time→pixel mapping for this canvas (used by grid, hit-tests, etc.)
-      const projectDur = Math.max(1e-6, duration || 0);
-      const scale = Math.max(0.01, zoomLevel / 100);
-      const pxPerSec = (W * scale) / projectDur;
 
-      // Get clip rectangles
-      const rects = clipRects(W);
+      // Use consistent pixels-per-second calculation
+      const pixelsPerSecond = zoomLevel; // 100 zoom = 100 pixels/second (CSS pixels)
+      const pxPerSec = pixelsPerSecond * dpr; // Physical pixels for grid drawing
+      const projectDur = Math.max(0.001, duration || 0); // Local variable for grid
+
+      // Get clip rectangles (in physical canvas pixels)
+      const rects = clipRects(dpr);
       
       // Draw each clip
       for (let i = 0; i < rects.length; i++) {
@@ -334,11 +335,11 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
       // ctx.fillRect(phX, 0, Math.max(1, Math.floor(2 * dpr)), H);
       
       // Draw grid lines if snap is enabled
-      if (snapEnabled && gridSizeSec > 0) {
+      if (snapEnabled && gridSizeSec > 0 && projectDur > 0) {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
         ctx.lineWidth = dpr;
         ctx.setLineDash([4 * dpr, 4 * dpr]);
-        
+
         for (let t = 0; t < projectDur; t += gridSizeSec) {
           const x = Math.floor(t * pxPerSec);
           ctx.beginPath();
@@ -346,7 +347,7 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
           ctx.lineTo(x, H);
           ctx.stroke();
         }
-        
+
         ctx.setLineDash([]);
       }
     }
@@ -361,22 +362,24 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
     function hitTest(clientX) {
       const rect = canvas.getBoundingClientRect();
       const x = clientX - rect.left;
-      const projectDur = Math.max(1e-6, duration || 0);
-      const scale = Math.max(0.01, zoomLevel / 100);
-      const pxPerSec = (rect.width * scale) / projectDur;
-      const rects = clipRects(canvas.width);
-      
+
+      // Use consistent pixels-per-second calculation
+      const pixelsPerSecond = zoomLevel; // 100 zoom = 100 pixels/second (CSS pixels)
+
+      // Iterate in reverse order (top-most clip first)
       for (let i = clips.length - 1; i >= 0; i--) {
         const c = clips[i];
-        const x0 = (c.start || 0) * pxPerSec;
-        const w = (c.duration || 0) * pxPerSec;
+        // Calculate position in CSS pixels
+        const x0 = (c.start || 0) * pixelsPerSecond;
+        const w = (c.duration || 0) * pixelsPerSecond;
+
         if (x >= x0 && x <= x0 + w) {
           const nearL = x - x0 <= HANDLE_W;
           const nearR = x0 + w - x <= HANDLE_W;
-          return { index: i, edge: nearL ? 'L' : nearR ? 'R' : null, pxPerSecCSS: pxPerSec };
+          return { index: i, edge: nearL ? 'L' : nearR ? 'R' : null, pxPerSecCSS: pixelsPerSecond };
         }
       }
-      return { index: -1, edge: null, pxPerSecCSS: pxPerSec };
+      return { index: -1, edge: null, pxPerSecCSS: pixelsPerSecond };
     }
 
     function onPointerDown(e) {
@@ -439,11 +442,16 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
       draw();
       const { dpr, width: W, height: H } = resizeToCSS(canvas);
       const ctx = canvas.getContext('2d');
-      const projectDur = Math.max(1e-6, duration || 0);
-      const scale = Math.max(0.01, zoomLevel / 100);
-      const pxPerSec = (W * scale) / projectDur;
-      const x0 = Math.floor(newStart * pxPerSec);
-      const w = Math.max(1, Math.floor(newDur * pxPerSec));
+
+      // Use consistent pixels-per-second calculation
+      const pixelsPerSecond = zoomLevel; // 100 zoom = 100 pixels/second
+
+      // Convert newStart and newDur to physical canvas pixels
+      const x0CSS = newStart * pixelsPerSecond;
+      const wCSS = newDur * pixelsPerSecond;
+      const x0 = Math.floor(x0CSS * dpr);
+      const w = Math.max(1, Math.floor(wCSS * dpr));
+
       ctx.save();
       ctx.globalCompositeOperation = 'source-over';
       ctx.fillStyle = 'rgba(255,255,255,0.08)';
