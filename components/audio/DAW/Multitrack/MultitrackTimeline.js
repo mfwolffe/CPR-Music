@@ -49,11 +49,8 @@ export default function MultitrackTimeline({
     const scrollLeft = scrollContainerRef.current?.scrollLeft || 0;
     const x = e.clientX - rect.left + scrollLeft;
 
-    // Calculate time based on base pixels-per-second (consistent with rendering)
-    const baseDuration = duration > 0 ? duration : 30;
-    const baseWidth = 310 + 3000 * (zoomLevel / 100);
-    const baseContentWidth = baseWidth - 310;
-    const pixelsPerSecond = baseContentWidth / baseDuration;
+    // Use the same pixels-per-second calculation as rendering
+    const pixelsPerSecond = zoomLevel; // 100 zoom = 100 pixels/second
     const clickTime = x / pixelsPerSecond;
 
     // Convert to progress (0-1) based on current duration
@@ -70,18 +67,14 @@ export default function MultitrackTimeline({
     const ctx = canvas.getContext('2d');
     const height = 40;
 
-    // Calculate pixels-per-second using consistent base duration
-    const scale = zoomLevel / 100;
-    const baseWidth = 310 + 3000 * scale;
-    const baseContentWidth = baseWidth - 310;
-    const baseDuration = duration || 30;
-    const pixelsPerSecond = baseContentWidth / baseDuration;
+    // Use the same pixels-per-second calculation as tracks container
+    const pixelsPerSecond = zoomLevel; // 100 zoom = 100 pixels/second
 
     // Use timelineExtent from parent if provided, otherwise fall back to duration
     const projectDuration = timelineExtent || duration || 30;
 
     // Calculate actual canvas width based on the duration we'll be drawing
-    const requiredWidth = pixelsPerSecond * projectDuration + 310; // Add sidebar/controls width
+    const requiredWidth = pixelsPerSecond * projectDuration; // Just the timeline content, no sidebar
     const width = Math.max(containerWidth, requiredWidth);
 
     // Limit canvas size to prevent browser limits
@@ -195,14 +188,12 @@ export default function MultitrackTimeline({
   // The MultitrackEditor component will control both playheads to ensure sync
 
   // Calculate the actual width for the timeline
-  const scale = zoomLevel / 100;
   const innerEl =
     typeof document !== 'undefined'
       ? document.getElementById('multitrack-tracks-inner')
       : null;
-  const totalWidth = innerEl ? innerEl.offsetWidth : 310 + 3000 * scale; // 80px sidebar + 230px track controls
-  const contentWidth = Math.max(1, totalWidth - 310);
-  const timelineWidth = Math.max(containerWidth, contentWidth);
+  const totalWidth = innerEl ? innerEl.offsetWidth : (zoomLevel * (timelineExtent || duration || 30));
+  const timelineWidth = Math.max(containerWidth, totalWidth);
 
   return (
     <>
