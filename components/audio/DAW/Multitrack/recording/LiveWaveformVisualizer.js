@@ -74,15 +74,54 @@ export default function LiveWaveformVisualizer({
     };
   }, [mediaStream, trackId]);
 
-  // Subscribe to recording events
+  // Subscribe to recording events and handle already-in-progress recordings
   useEffect(() => {
-    const handleRecordingStart = ({ trackId: id, type, startPosition }) => {
+    // Check if recording is already in progress when component mounts
+    const checkAndStartRecording = () => {
+      const recordingState = RecordingManager.getTrackRecordingState(trackId);
+      // For audio recording, check if recorder exists
+      if (recordingState && (recordingState.recorder || recordingState.isRecording)) {
+        if (!analyserRef.current) {
+          console.log(`📊 LiveWaveformVisualizer: Recording in progress but analyser not ready yet`);
+          // Retry after a short delay
+          setTimeout(checkAndStartRecording, 50);
+          return;
+        }
+
+        console.log(`📊 LiveWaveformVisualizer: Recording already in progress for track ${trackId}, starting visualization`, {
+          hasRecorder: !!recordingState.recorder,
+          isRecording: recordingState.isRecording,
+          startTime: recordingState.startTime,
+          startPosition: recordingState.recordingStartPosition
+        });
+        // If startTime is not set yet (still counting down), use current time
+        if (!recordingState.startTime) {
+          console.log(`📊 LiveWaveformVisualizer: Start time not set yet, using current time`);
+          startTimeRef.current = performance.now() / 1000;
+        } else {
+          startTimeRef.current = recordingState.startTime;
+        }
+        startPositionRef.current = recordingState.recordingStartPosition || 0;
+        if (!isDrawingRef.current) {
+          waveformDataRef.current = [];
+        }
+        startDrawing();
+      }
+    };
+
+    const handleRecordingStart = ({ trackId: id, type, startPosition, startTime }) => {
       if (id === trackId && type === 'audio') {
-        console.log(`📊 LiveWaveformVisualizer: Starting visualization for track ${trackId}`);
-        startTimeRef.current = performance.now() / 1000;
+        console.log(`📊 LiveWaveformVisualizer: Recording started event for track ${trackId}`, {
+          startPosition,
+          startTime,
+          performanceNow: performance.now() / 1000
+        });
+        // Use the startTime from the event if available, otherwise use performance.now()
+        startTimeRef.current = startTime || performance.now() / 1000;
         startPositionRef.current = startPosition || 0;
-        waveformDataRef.current = [];
-        isDrawingRef.current = true;
+        if (!isDrawingRef.current) {
+          waveformDataRef.current = [];
+        }
         startDrawing();
       }
     };
@@ -97,7 +136,13 @@ export default function LiveWaveformVisualizer({
     RecordingManager.on('recording-start', handleRecordingStart);
     RecordingManager.on('recording-stop', handleRecordingStop);
 
+    // Small delay to ensure analyser is ready
+    const checkTimer = setTimeout(() => {
+      checkAndStartRecording();
+    }, 100);
+
     return () => {
+      clearTimeout(checkTimer);
       RecordingManager.off('recording-start', handleRecordingStart);
       RecordingManager.off('recording-stop', handleRecordingStop);
       stopDrawing();
@@ -119,6 +164,12 @@ export default function LiveWaveformVisualizer({
       return;
     }
 
+    // Check if already drawing
+    if (isDrawingRef.current) {
+      console.log(`📊 LiveWaveformVisualizer: Already drawing, skipping start`);
+      return;
+    }
+
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
 
@@ -126,41 +177,51 @@ export default function LiveWaveformVisualizer({
     const PIXELS_PER_SECOND_AT_100_ZOOM = 100;
     const pixelsPerSecond = PIXELS_PER_SECOND_AT_100_ZOOM * (zoomLevel / 100);
 
-    // Set initial canvas size
-    canvas.width = Math.floor(pixelsPerSecond * 120); // 2 minutes
-    canvas.style.width = canvas.width + 'px';
+    // Only initialize canvas if it hasn't been set up yet
+    if (!canvas.width || canvas.width === 800) {
+      // Set initial canvas size
+      canvas.width = Math.floor(pixelsPerSecond * 120); // 2 minutes
+      canvas.style.width = canvas.width + 'px';
 
-    // Clear canvas
-    ctx.fillStyle = backgroundColor === 'transparent' ? 'rgba(0,0,0,0)' : backgroundColor;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Clear canvas
+      ctx.fillStyle = backgroundColor === 'transparent' ? 'rgba(0,0,0,0)' : backgroundColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
 
     console.log(`📊 LiveWaveformVisualizer: Starting draw loop`, {
       width: canvas.width,
       height: canvas.height,
-      pixelsPerSecond
+      pixelsPerSecond,
+      isAlreadyDrawing: isDrawingRef.current
     });
 
+    isDrawingRef.current = true;
     let frameCount = 0;
 
     const draw = () => {
       if (!isDrawingRef.current || !analyserRef.current || !canvasRef.current) {
-        console.log(`📊 LiveWaveformVisualizer: Stopping draw loop`);
+        console.log(`📊 LiveWaveformVisualizer: Stopping draw loop`, {
+          isDrawing: isDrawingRef.current,
+          hasAnalyser: !!analyserRef.current,
+          hasCanvas: !!canvasRef.current
+        });
         return;
       }
 
       frameCount++;
 
-      // Get current time
-      let currentTime = startPositionRef.current;
-      if (getTransportTime && typeof getTransportTime === 'function') {
-        currentTime = getTransportTime();
-      } else if (startTimeRef.current !== null) {
-        const elapsed = (performance.now() / 1000) - startTimeRef.current;
-        currentTime = startPositionRef.current + elapsed;
+      // Ensure we have a start time
+      if (startTimeRef.current === null) {
+        console.warn(`📊 LiveWaveformVisualizer: startTimeRef not set, initializing now`);
+        startTimeRef.current = performance.now() / 1000;
       }
 
-      // Calculate X position
-      const currentX = currentTime * pixelsPerSecond;
+      // Get current time - always use elapsed time during recording
+      const elapsed = (performance.now() / 1000) - startTimeRef.current;
+
+      // For drawing, use only elapsed time (waveform starts at x=0)
+      // startPositionRef is kept for clip placement after recording
+      const currentX = elapsed * pixelsPerSecond;
 
       // Resize canvas if needed
       if (currentX > canvas.width - (10 * pixelsPerSecond)) {
@@ -193,7 +254,7 @@ export default function LiveWaveformVisualizer({
 
       // Store data point
       const dataPoint = {
-        time: currentTime,
+        time: elapsed,  // Store elapsed time for consistency
         amplitude: amplitude,
         x: currentX
       };
@@ -238,11 +299,15 @@ export default function LiveWaveformVisualizer({
       ctx.globalAlpha = 1.0;
 
       // Log progress periodically
-      if (frameCount % 60 === 0) {
+      if (frameCount % 30 === 0) {
         console.log(`📊 LiveWaveformVisualizer: Frame ${frameCount}`, {
-          time: currentTime.toFixed(2),
+          elapsed: elapsed.toFixed(2),
           x: currentX.toFixed(0),
-          samples: waveformDataRef.current.length
+          samples: waveformDataRef.current.length,
+          canvasWidth: canvas.width,
+          isDrawing: isDrawingRef.current,
+          startTime: startTimeRef.current?.toFixed(2),
+          startPosition: startPositionRef.current
         });
       }
 

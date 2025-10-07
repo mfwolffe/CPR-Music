@@ -55,65 +55,6 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
 
   // Use track.isRecording as single source of truth
   const isRecording = track.isRecording || false;
-  const isSolo = soloTrackId === track.id;
-  const isSelected = selectedTrackId === track.id;
-
-  // Initialize ClipPlayer
-  useEffect(() => {
-    if (!clipPlayerRef.current) {
-      try {
-        const audioContext = audioContextManager.getContext();
-        clipPlayerRef.current = new ClipPlayer(audioContext);
-        console.log('AudioTrack: ClipPlayer initialized');
-      } catch (error) {
-        console.error('AudioTrack: Error initializing ClipPlayer:', error);
-      }
-    }
-
-    return () => {
-      if (clipPlayerRef.current) {
-        clipPlayerRef.current.dispose();
-        clipPlayerRef.current = null;
-      }
-    };
-  }, []);
-
-  // Update clips and params on player
-  useEffect(() => {
-    if (!clipPlayerRef.current || !track.clips) return;
-
-    (async () => {
-      try {
-        await clipPlayerRef.current.updateClips(
-          track.clips,
-          track.muted ? 0 : track.volume || 1,
-          track.pan || 0
-        );
-      } catch (error) {
-        console.error('AudioTrack: Error updating clips:', error);
-      }
-    })();
-  }, [track.clips, track.volume, track.pan, track.muted]);
-
-  // Handle global play/stop
-  useEffect(() => {
-    if (!clipPlayerRef.current) return;
-
-    const shouldPlay = soloTrackId ? track.id === soloTrackId : !track.muted;
-
-    if (isPlaying && shouldPlay && !isRecording) {
-      const ctx = audioContextManager.getContext();
-      const currentTime = getTransportTime ? getTransportTime() : 0;
-
-      if (ctx.state === 'suspended') {
-        ctx.resume().then(() => clipPlayerRef.current.play(currentTime));
-      } else {
-        clipPlayerRef.current.play(currentTime);
-      }
-    } else {
-      clipPlayerRef.current.stop();
-    }
-  }, [isPlaying, track.id, track.muted, soloTrackId, isRecording, getTransportTime]);
 
   // Initialize media stream
   useEffect(() => {
@@ -276,6 +217,28 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
     }
   };
 
+  // Handle clip playback (existing code)
+  useEffect(() => {
+    if (clipPlayerRef.current) {
+      if (isPlaying && !track.muted && (soloTrackId === null || soloTrackId === track.id)) {
+        const updatedClips = track.clips?.map((clip) => ({
+          ...clip,
+          volume: track.volume || 1,
+          pan: track.pan || 0,
+        }));
+        clipPlayerRef.current.play(updatedClips, currentTime);
+      } else {
+        clipPlayerRef.current.pause();
+      }
+    }
+  }, [isPlaying, track.id, track.clips, track.muted, track.volume, track.pan, soloTrackId, currentTime]);
+
+  // Seek when playback starts
+  useEffect(() => {
+    if (isPlaying && !isRecording && clipPlayerRef.current) {
+      clipPlayerRef.current.seek(currentTime);
+    }
+  }, [isPlaying, track.id, track.muted, soloTrackId, isRecording, getTransportTime]);
 
   // Handler functions
   const handleRemove = () => {
@@ -429,47 +392,12 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
     }
   };
 
-
-  // Style reset to override external CSS
-  const styleReset = `
-    .track-container.audio-track-override,
-    .track-container.audio-track-override .track.audio-track {
-      height: 200px !important;
-      max-height: 200px !important;
-      min-height: 200px !important;
-      background-color: transparent !important;
-    }
-    .track-container.audio-track-override .track-controls {
-      height: 200px !important;
-      max-height: 200px !important;
-      overflow: visible !important;
-    }
-    .track-container.audio-track-override .track-content {
-      height: 200px !important;
-    }
-    .track-container.audio-track-override .track-name-input {
-      height: 24px !important;
-      max-height: 24px !important;
-      min-height: 24px !important;
-      padding: 2px 6px !important;
-      font-size: 0.75rem !important;
-      line-height: 20px !important;
-      box-sizing: border-box !important;
-      margin: 0 !important;
-    }
-  `;
+  const isSelected = selectedTrackId === track.id;
+  const isSolo = soloTrackId === track.id;
 
   // Render
   return (
-    <>
-      <style dangerouslySetInnerHTML={{ __html: styleReset }} />
-      <div className="track-container audio-track-override" style={{
-      display: 'flex',
-      height: '200px',
-      minHeight: '200px',
-      maxHeight: '200px',
-      overflow: 'visible'
-    }}>
+    <div className="track-container" style={{ display: 'flex' }}>
       {/* Sidebar spacer - matches timeline sidebar */}
       <div
         className="track-sidebar"
@@ -484,7 +412,6 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
           position: 'sticky',
           left: 0,
           zIndex: 10,
-          height: '200px',
         }}
       >
         <span style={{ color: '#666', fontSize: '14px', fontWeight: 'bold' }}>
@@ -494,15 +421,9 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
 
       {/* Main track div */}
       <div
-        className={`track audio-track ${isSelected ? 'track-selected' : ''}`}
+        className={`track ${isSelected ? 'track-selected' : ''}`}
         onClick={() => setSelectedTrackId(track.id)}
-        style={{
-          display: 'flex',
-          flex: 1,
-          height: '200px',
-          minHeight: '200px',
-          maxHeight: '200px'
-        }}
+        style={{ display: 'flex', flex: 1 }}
       >
         {/* Track Controls */}
         <div
@@ -510,17 +431,15 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
           style={{
             width: '230px',
             flexShrink: 0,
-            padding: '6px 10px',
+            padding: '10px',
             borderRight: '1px solid #444',
             backgroundColor: '#232323',
             display: 'flex',
             flexDirection: 'column',
-            gap: '6px',
+            gap: '8px',
             position: 'sticky',
             left: '80px',
             zIndex: 9,
-            height: '200px',
-            overflow: 'hidden'
           }}
         >
           {/* Track Name */}
@@ -530,6 +449,10 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
             onChange={(e) => updateTrack(track.id, { name: e.target.value })}
             onClick={(e) => e.stopPropagation()}
             className="track-name-input"
+            style={{
+              fontSize: '0.875rem',
+              padding: '4px 8px',
+            }}
           />
 
           {/* Record Button with Countdown */}
@@ -637,6 +560,9 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
                   disabled={track.muted}
                   style={{ flex: 1 }}
                 />
+                <span className="control-value" style={{ fontSize: '11px', width: 30 }}>
+                  {Math.round((track.volume || 1) * 100)}
+                </span>
               </div>
             ) : (
               <div className="track-control-row" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -653,6 +579,10 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
                   disabled={track.muted}
                   style={{ flex: 1 }}
                 />
+                <span className="control-value" style={{ fontSize: '11px', width: 30 }}>
+                  {track.pan > 0 ? `R${Math.round((track.pan || 0) * 100)}` :
+                   track.pan < 0 ? `L${Math.round(Math.abs((track.pan || 0) * 100))}` : 'C'}
+                </span>
               </div>
             )}
           </div>
@@ -705,7 +635,7 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
             flex: 1,
             position: 'relative',
             overflow: 'hidden',
-            height: '200px',
+            minHeight: '120px',
             backgroundColor: isDragOver ? 'rgba(100, 149, 237, 0.1)' : 'transparent',
             transition: 'background-color 0.2s, border 0.2s',
           }}
@@ -724,22 +654,29 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
               getTransportTime={getTransportTime}
             />
           ) : (
-            <TrackClipCanvas
-              track={track}
-              clips={track.clips || []}
-              zoomLevel={zoomLevel}
-              duration={duration}
-              currentTime={currentTime}
-              isPlaying={isPlaying}
-              trackColor={track.color || '#7bafd4'}
-              trackId={track.id}
-              updateTrack={updateTrack}
-            />
+            <>
+              <TrackClipCanvas
+                clips={track.clips || []}
+                zoomLevel={zoomLevel}
+                duration={duration}
+                currentTime={currentTime}
+                isPlaying={isPlaying}
+                trackColor={track.color || '#7bafd4'}
+                trackId={track.id}
+                updateTrack={updateTrack}
+              />
+              <ClipPlayer
+                ref={clipPlayerRef}
+                updateTrack={updateTrack}
+                trackId={track.id}
+                volume={track.volume || 1}
+                pan={track.pan || 0}
+              />
+            </>
           )}
         </div>
       </div>
     </div>
-    </>
   );
 }
 

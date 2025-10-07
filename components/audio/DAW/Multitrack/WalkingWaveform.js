@@ -86,7 +86,12 @@ export default function WalkingWaveform({
 
     // Setup audio analysis and start drawing
     const setupAndDraw = async () => {
-      console.log('🎤 WalkingWaveform: Setting up audio analysis');
+      console.log('🎤 WalkingWaveform: Setting up audio analysis', {
+        hasCanvas: !!canvasRef.current,
+        hasMediaStream: !!mediaStream,
+        isRecording,
+        canvasElement: canvasRef.current
+      });
 
       // Check canvas is ready
       if (!canvasRef.current) {
@@ -278,6 +283,7 @@ export default function WalkingWaveform({
 
     // Small delay to ensure canvas is in DOM
     const setupTimer = setTimeout(() => {
+      console.log('🎤 WalkingWaveform: Timeout fired, calling setupAndDraw');
       setupAndDraw();
     }, 50);
 
@@ -286,7 +292,7 @@ export default function WalkingWaveform({
       clearTimeout(setupTimer);
       cleanup();
     };
-  }, [isRecording, mediaStream, startPosition, zoomLevel, getTransportTime, color, backgroundColor, height]);
+  }, [isRecording, mediaStream]); // Only re-run when recording state or stream changes
 
   // Log mount/unmount
   useEffect(() => {

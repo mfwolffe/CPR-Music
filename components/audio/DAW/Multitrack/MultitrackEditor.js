@@ -331,7 +331,8 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
       );
 
       // Allow playhead updates during recording or playback even when project duration is 0
-      const hasActiveRecording = isAnyTrackRecording && isAnyTrackRecording();
+      // Check both RecordingManager AND track.isRecording for compatibility with both systems
+      const hasActiveRecording = (isAnyTrackRecording && isAnyTrackRecording()) || tracks.some(t => t.isRecording);
       if ((!duration || duration === 0) && !hasActiveRecording && !isPlaying) return;
 
       // Derive content width from the shared inner container so 1s = 1s across UI

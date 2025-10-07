@@ -188,7 +188,8 @@ class RecordingManager extends EventEmitter {
       // Handle recorder start
       recorder.onstart = () => {
         console.log(`🎤 RecordingManager: Audio recording started for track ${trackId}`);
-        recordingState.startTime = this.audioContext?.currentTime || performance.now() / 1000;
+        // Use performance.now() for consistency with recording timer and playhead
+        recordingState.startTime = performance.now() / 1000;
         this.emit('recording-start', {
           trackId,
           type: 'audio',
