@@ -6,13 +6,12 @@ import { MdOutlineWaves, MdGroups } from 'react-icons/md';
 import { RiSoundModuleFill, RiEqualizerLine } from 'react-icons/ri';
 import { BiWater } from 'react-icons/bi';
 import { IoArrowUndo, IoTrashOutline, IoArrowRedo, IoCutOutline } from 'react-icons/io5';
-import { 
-  useAudio, 
-  useEffects, 
-  useFFmpeg, 
-  useUI 
+import {
+  useAudio,
+  useEffects,
+  useUI
 } from '../../../contexts/DAWProvider';
-import { effectSliceRegions } from '../../../lib/dawUtils';
+import { effectSliceRegionsWebAudio } from '../../../lib/dawUtils';
 
 const icoSize = "1.25rem";
 const dawSpinner = <Spinner animation="grow" size="sm" />;
@@ -38,8 +37,6 @@ export default function Timeline() {
     setCutRegion
   } = useEffects();
 
-  const { ffmpegRef, loaded: ffmpegLoaded } = useFFmpeg();
-
   const {
     mapPresent,
     toggleMinimap,
@@ -55,15 +52,15 @@ export default function Timeline() {
   
   const wavesurfer = wavesurferRef?.current;
   
-  // Handle region slicing
+  // Handle region slicing using Web Audio API
   const sliceRegion = useCallback(async (keep) => {
-    if (!cutRegion || !ffmpegLoaded || !wavesurfer) return;
-    
+    if (!cutRegion || !wavesurfer) return;
+
     try {
       // Get the current audio URL from wavesurfer's media element
       const currentAudioURL = wavesurfer.getMediaElement()?.currentSrc || audioURL;
-      
-      // Create a wrapper for addToEditHistory that matches the old setEditList signature
+
+      // Create a wrapper for addToEditHistory
       const setEditListWrapper = (newList) => {
         if (newList && newList.length > 0) {
           const newURL = newList[newList.length - 1];
@@ -74,32 +71,27 @@ export default function Timeline() {
           });
         }
       };
-      
-      await effectSliceRegions(
+
+      // Use Web Audio API implementation (no FFmpeg needed!)
+      await effectSliceRegionsWebAudio(
         cutRegion,
-        ffmpegRef,
         setAudioURL,
         wavesurfer,
         setEditListWrapper,
-        [], // editList - not used but kept for compatibility
-        () => {}, // setEditListIndex - not used
-        0, // editListIndex - not used
         audioRef,
-        currentAudioURL, // Use the current URL from wavesurfer
+        currentAudioURL,
         keep
       );
-      
+
       cutRegion.remove();
       setCutRegion(null);
     } catch (error) {
       console.error('Error slicing region:', error);
     }
   }, [
-    cutRegion, 
-    ffmpegLoaded, 
-    wavesurfer, 
-    ffmpegRef, 
-    setAudioURL, 
+    cutRegion,
+    wavesurfer,
+    setAudioURL,
     addToEditHistory,
     audioRef,
     audioURL,
@@ -131,20 +123,22 @@ export default function Timeline() {
           />
         </Button>
         
-        {/* Cut/Delete region buttons */}
-        <Button className="prog-button" onClick={() => sliceRegion(true)}>
-          {ffmpegLoaded ? (
-            <IoCutOutline fontSize={icoSize} />
-          ) : (
-            dawSpinner
-          )}
+        {/* Cut/Delete region buttons - now using Web Audio API */}
+        <Button
+          className="prog-button"
+          onClick={() => sliceRegion(true)}
+          disabled={!cutRegion}
+          title="Excise - Keep selection, delete rest"
+        >
+          <IoCutOutline fontSize={icoSize} />
         </Button>
-        <Button className="prog-button" onClick={() => sliceRegion(false)}>
-          {ffmpegLoaded ? (
-            <IoTrashOutline fontSize={icoSize} />
-          ) : (
-            dawSpinner
-          )}
+        <Button
+          className="prog-button"
+          onClick={() => sliceRegion(false)}
+          disabled={!cutRegion}
+          title="Delete - Remove selection, splice ends"
+        >
+          <IoTrashOutline fontSize={icoSize} />
         </Button>
       </div>
       
