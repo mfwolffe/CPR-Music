@@ -86,6 +86,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
     setShowEffectSelectionModal,
     setEffectTargetTrackId,
     isAnyTrackRecording,
+    scrollResetCallbackRef,
   } = useMultitrack();
 
   const [showEffectsPanel, setShowEffectsPanel] = useState(false);
@@ -399,6 +400,27 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
       }
     };
   }, [duration, zoomLevel, isPlaying, tracks, currentTime]); // Include tracks to detect recording state changes and currentTime for playhead updates
+
+  // Register scroll reset callback with context
+  useEffect(() => {
+    if (scrollResetCallbackRef) {
+      scrollResetCallbackRef.current = () => {
+        // Reset scroll position to beginning
+        if (tracksScrollRef.current) {
+          tracksScrollRef.current.scrollLeft = 0;
+        }
+        if (timelineScrollRef.current) {
+          timelineScrollRef.current.scrollLeft = 0;
+        }
+      };
+    }
+
+    return () => {
+      if (scrollResetCallbackRef) {
+        scrollResetCallbackRef.current = null;
+      }
+    };
+  }, [scrollResetCallbackRef]);
 
   return (
     <Container fluid className={`multitrack-editor multitrack-editor-container p-3 ${showPiano ? 'piano-visible' : ''}`}>

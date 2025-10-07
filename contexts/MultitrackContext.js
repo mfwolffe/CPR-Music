@@ -500,6 +500,9 @@ export const MultitrackProvider = ({ children }) => {
     setCurrentTime(maxPosition);
   }, []);
 
+  // Ref for scroll reset callback (set by MultitrackEditor)
+  const scrollResetCallbackRef = useRef(null);
+
   const stop = useCallback(() => {
     // Stop transport
     try {
@@ -515,6 +518,11 @@ export const MultitrackProvider = ({ children }) => {
 
     setIsPlaying(false);
     setCurrentTime(0);
+
+    // Reset scroll position to beginning
+    if (scrollResetCallbackRef.current) {
+      scrollResetCallbackRef.current();
+    }
   }, []);
 
   // --- Non-destructive CLIP actions (audio + MIDI) ---
@@ -1212,6 +1220,7 @@ export const MultitrackProvider = ({ children }) => {
     stop,
     seek,
     getTransportTime,
+    scrollResetCallbackRef, // For scroll position reset on stop
     // Recording management (using RecordingManager)
     isAnyTrackRecording,
     isTrackRecording,

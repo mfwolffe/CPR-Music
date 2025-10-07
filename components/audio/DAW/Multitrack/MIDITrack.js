@@ -310,7 +310,9 @@ function MIDITrack({ track, index, zoomLevel = 100 }) {
         display: 'flex',
         height: '200px !important',
         maxHeight: '200px !important',
-        overflow: 'hidden'
+        overflowY: 'clip', // Clip vertical overflow while allowing sticky to work
+        overflowX: 'visible', // Allow horizontal sticky positioning
+        position: 'relative' // Establish positioning context
       }}>
         {/* Sidebar spacer - matches timeline sidebar */}
       <div
@@ -400,28 +402,18 @@ function MIDITrack({ track, index, zoomLevel = 100 }) {
         />
 
         {/* Instrument Selector */}
-        <div style={{ position: 'relative' }}>
-          <Button
-            size="sm"
-            variant="outline-success"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowInstrumentSelector(!showInstrumentSelector);
-            }}
-            style={{ width: '100%', fontSize: '0.75rem' }}
-            disabled={instrumentLoading}
-          >
-            <MdPiano /> {track.midiData?.instrument?.name || 'Select Instrument'}
-          </Button>
-
-          {showInstrumentSelector && (
-            <InstrumentSelector
-              currentInstrument={track.midiData?.instrument}
-              onSelect={handleInstrumentChange}
-              onClose={() => setShowInstrumentSelector(false)}
-            />
-          )}
-        </div>
+        <Button
+          size="sm"
+          variant="outline-success"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowInstrumentSelector(!showInstrumentSelector);
+          }}
+          style={{ width: '100%', fontSize: '0.75rem' }}
+          disabled={instrumentLoading}
+        >
+          <MdPiano /> {track.midiData?.instrument?.name || 'Select Instrument'}
+        </Button>
 
         {/* Editor Buttons */}
         <Button
@@ -606,7 +598,7 @@ function MIDITrack({ track, index, zoomLevel = 100 }) {
           style={{
             flex: 1,
             position: 'relative',
-            overflow: 'hidden',
+            overflow: 'hidden', // Clip canvas overflow but don't affect sticky controls
             height: '200px !important',
             maxHeight: '200px !important',
             backgroundColor: '#1a1a1a !important',
@@ -646,6 +638,14 @@ function MIDITrack({ track, index, zoomLevel = 100 }) {
           updateTrack={updateTrack}
         />
       )}
+
+      {/* Instrument Selector Modal */}
+      <InstrumentSelector
+        show={showInstrumentSelector}
+        onHide={() => setShowInstrumentSelector(false)}
+        onSelect={handleInstrumentChange}
+        currentInstrument={track.midiData?.instrument}
+      />
     </div>
     </>
   );
