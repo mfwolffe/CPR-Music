@@ -141,16 +141,23 @@ export const RecordingProvider = ({ children }) => {
   }, [blobURL, blobData, isRecordingToTrack]); // Remove clearTrackRecording from deps to prevent loop
   
   // Clean up on unmount
+  // NOTE: We use a ref to track blob URLs to avoid dependency issues
+  const blobInfoRef = useRef(blobInfo);
+
+  useEffect(() => {
+    blobInfoRef.current = blobInfo;
+  }, [blobInfo]);
+
   useEffect(() => {
     return () => {
-      // Clean up blob URLs
-      blobInfo.forEach(info => {
+      // Clean up blob URLs only on unmount (not when blobInfo changes)
+      blobInfoRef.current.forEach(info => {
         if (info.url) {
           URL.revokeObjectURL(info.url);
         }
       });
     };
-  }, [blobInfo]);
+  }, []); // Empty deps - cleanup only runs on unmount
   
   const value = {
     // State
