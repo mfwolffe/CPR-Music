@@ -36,8 +36,9 @@ export const MultitrackProvider = ({ children }) => {
 
   // Editor state
   const [activeRegion, setActiveRegion] = useState(null);
-  const [editorTool, setEditorTool] = useState('clip'); // 'clip' | 'region'
+  const [editorTool, setEditorTool] = useState('select'); // 'select' | 'clip' | 'cut'
   const [selectedClipId, setSelectedClipId] = useState(null);
+  const [selectedClipIds, setSelectedClipIds] = useState([]); // For multi-selection
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [gridSizeSec, setGridSizeSec] = useState(0.1);
 
@@ -1236,6 +1237,8 @@ export const MultitrackProvider = ({ children }) => {
     setEditorTool,
     selectedClipId,
     setSelectedClipId,
+    selectedClipIds,
+    setSelectedClipIds,
     snapEnabled,
     setSnapEnabled,
     gridSizeSec,

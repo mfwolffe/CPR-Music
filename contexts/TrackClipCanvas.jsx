@@ -12,6 +12,8 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
     setSelectedTrackId,
     selectedClipId,
     setSelectedClipId,
+    selectedClipIds,
+    setSelectedClipIds,
     editorTool,
     snapEnabled,
     gridSizeSec,
@@ -20,10 +22,11 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
 
   const canvasRef = useRef(null);
   const dragRef = useRef({ op: null, clipIndex: -1, startX: 0, pxPerSecCSS: 1, orig: null });
+  const selectionBoxRef = useRef({ active: false, startX: 0, startY: 0, endX: 0, endY: 0 });
   const [peaksCache, setPeaksCache] = useState(new Map()); // clip.id -> peaks
   const clips = Array.isArray(track?.clips) ? track.clips : [];
 
-  const interactive = (editorTool === 'clip' || editorTool === 'cut') && selectedTrackId === track.id;
+  const interactive = (editorTool === 'clip' || editorTool === 'cut' || editorTool === 'select') && selectedTrackId === track.id;
   const MIN_DUR = 0.02; // 20ms
   const HANDLE_W = 8;   // CSS px
 
@@ -266,8 +269,8 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
       for (let i = 0; i < rects.length; i++) {
         const r = rects[i];
         const clip = clips[i];
-        const isSel = r.id === selectedClipId && selectedTrackId === track.id;
-        
+        const isSel = (r.id === selectedClipId || selectedClipIds.includes(r.id)) && selectedTrackId === track.id;
+
         // Clip background
         ctx.fillStyle = hexToRgba(r.color, isSel ? 0.2 : 0.12);
         ctx.fillRect(r.x, Math.floor(6 * dpr), r.w, H - Math.floor(12 * dpr));
@@ -350,6 +353,21 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
 
         ctx.setLineDash([]);
       }
+
+      // Draw selection box if active
+      if (selectionBoxRef.current.active) {
+        const { startX, startY, endX, endY } = selectionBoxRef.current;
+        const x = Math.min(startX, endX) * dpr;
+        const y = Math.min(startY, endY) * dpr;
+        const w = Math.abs(endX - startX) * dpr;
+        const h = Math.abs(endY - startY) * dpr;
+
+        ctx.fillStyle = 'rgba(100, 150, 255, 0.15)';
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeStyle = 'rgba(100, 150, 255, 0.5)';
+        ctx.lineWidth = Math.max(1, dpr);
+        ctx.strokeRect(x, y, w, h);
+      }
     }
 
     // Pointer handlers remain the same as original
@@ -388,6 +406,48 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
       setSelectedTrackId(track.id);
       const hit = hitTest(e.clientX);
       dragRef.current.pxPerSecCSS = hit.pxPerSecCSS;
+
+      // Handle select tool
+      if (editorTool === 'select') {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        if (hit.index >= 0) {
+          // Clicked on a clip
+          const c = clips[hit.index];
+          const isShift = e.shiftKey;
+          const isCtrl = e.ctrlKey || e.metaKey;
+
+          if (isShift || isCtrl) {
+            // Add to or toggle from selection
+            if (selectedClipIds.includes(c.id)) {
+              setSelectedClipIds(selectedClipIds.filter(id => id !== c.id));
+            } else {
+              setSelectedClipIds([...selectedClipIds, c.id]);
+            }
+          } else {
+            // Single select (replace selection)
+            setSelectedClipId(c.id);
+            setSelectedClipIds([c.id]);
+          }
+        } else {
+          // Clicked on empty space - start selection box
+          selectionBoxRef.current = {
+            active: true,
+            startX: x,
+            startY: y,
+            endX: x,
+            endY: y,
+          };
+          // Clear selection unless shift/ctrl is held
+          if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
+            setSelectedClipId(null);
+            setSelectedClipIds([]);
+          }
+        }
+        return;
+      }
 
       // Handle cut tool
       if (editorTool === 'cut' && hit.index >= 0) {
@@ -448,11 +508,22 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
     function onPointerMove(e) {
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
       const hit = hitTest(e.clientX);
+
+      // Handle selection box dragging
+      if (selectionBoxRef.current.active) {
+        selectionBoxRef.current.endX = x;
+        selectionBoxRef.current.endY = y;
+        draw();
+        return;
+      }
 
       if (!dragRef.current.op) {
         // Set cursor based on tool and hover state
-        if (editorTool === 'cut') {
+        if (editorTool === 'select') {
+          canvas.style.cursor = 'default';
+        } else if (editorTool === 'cut') {
           canvas.style.cursor = hit.index >= 0 ? 'crosshair' : 'default';
         } else if (hit.index >= 0) {
           if (hit.edge) canvas.style.cursor = 'ew-resize';
@@ -461,7 +532,7 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
           canvas.style.cursor = 'default';
         }
       }
-      
+
       if (!interactive) return;
       if (!dragRef.current.op) return;
 
@@ -512,6 +583,53 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
 
     function onPointerUp(e) {
       canvas.releasePointerCapture?.(e.pointerId);
+
+      // Handle selection box completion
+      if (selectionBoxRef.current.active) {
+        const { startX, startY, endX, endY } = selectionBoxRef.current;
+        const minX = Math.min(startX, endX);
+        const maxX = Math.max(startX, endX);
+        const minY = Math.min(startY, endY);
+        const maxY = Math.max(startY, endY);
+
+        // Find all clips that intersect with the selection box
+        const pixelsPerSecond = zoomLevel;
+        const selectedIds = [];
+
+        for (const clip of clips) {
+          const clipStartX = (clip.start || 0) * pixelsPerSecond;
+          const clipEndX = clipStartX + (clip.duration || 0) * pixelsPerSecond;
+
+          // Check if clip intersects with selection box (in X direction, Y is always full height)
+          if (clipEndX >= minX && clipStartX <= maxX) {
+            selectedIds.push(clip.id);
+          }
+        }
+
+        // Update selection
+        const isShift = e.shiftKey;
+        const isCtrl = e.ctrlKey || e.metaKey;
+
+        if (isShift || isCtrl) {
+          // Add to existing selection
+          const combinedIds = [...new Set([...selectedClipIds, ...selectedIds])];
+          setSelectedClipIds(combinedIds);
+          if (combinedIds.length > 0) {
+            setSelectedClipId(combinedIds[0]);
+          }
+        } else {
+          // Replace selection
+          setSelectedClipIds(selectedIds);
+          if (selectedIds.length > 0) {
+            setSelectedClipId(selectedIds[0]);
+          }
+        }
+
+        selectionBoxRef.current.active = false;
+        draw();
+        return;
+      }
+
       if (!interactive) { draw(); return; }
       if (!dragRef.current.op || dragRef.current.clipIndex < 0) { draw(); return; }
       const idx = dragRef.current.clipIndex;
@@ -544,9 +662,9 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
         cancelAnimationFrame(animationId);
       }
     };
-  }, [clipRects, currentTime, duration, zoomLevel, interactive, selectedClipId, selectedTrackId,
-      snapEnabled, gridSizeSec, setSelectedTrackId, setSelectedClipId, setTracks, track?.id,
-      peaksCache, clips, editorTool]);
+  }, [clipRects, currentTime, duration, zoomLevel, interactive, selectedClipId, selectedClipIds,
+      selectedTrackId, snapEnabled, gridSizeSec, setSelectedTrackId, setSelectedClipId,
+      setSelectedClipIds, setTracks, track?.id, peaksCache, clips, editorTool]);
 
   return (
     <canvas
