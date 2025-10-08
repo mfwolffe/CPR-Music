@@ -34,24 +34,31 @@ export const AudioProvider = ({ children }) => {
   const wavesurferRef = useRef(null);
   const commandManagerRef = useRef(null);
   const hasInitialAudioRef = useRef(false); // Track if initial audio has been set
-  
+
   // Initialize command manager
   useEffect(() => {
     const manager = getCommandManager();
     commandManagerRef.current = manager;
-    
+
     // Listen for state changes
     const handleStateChange = (state) => {
       setCanUndo(state.canUndo);
       setCanRedo(state.canRedo);
     };
-    
+
     manager.addListener(handleStateChange);
-    
+
     return () => {
       manager.removeListener(handleStateChange);
     };
   }, []);
+
+  // Set hasInitialAudioRef when audioURL is first set
+  useEffect(() => {
+    if (audioURL && !hasInitialAudioRef.current) {
+      hasInitialAudioRef.current = true;
+    }
+  }, [audioURL]);
   
   // Load audio and handle wavesurfer updates
   const loadAudio = useCallback(async (url, skipHistory = false) => {
@@ -80,14 +87,6 @@ export const AudioProvider = ({ children }) => {
   // Add new audio state to history
   const addToEditHistory = useCallback((url, name = 'Edit', metadata = {}) => {
     if (!commandManagerRef.current) return;
-
-    // If this is the first audio being loaded, don't add to undo history
-    // This prevents undo being enabled when you first load a track
-    if (!hasInitialAudioRef.current) {
-      hasInitialAudioRef.current = true;
-      setAudioURL(url);
-      return;
-    }
 
     const command = createAudioCommand(name, url, metadata);
     commandManagerRef.current.execute(command);
