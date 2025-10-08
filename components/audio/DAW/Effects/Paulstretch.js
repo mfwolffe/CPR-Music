@@ -208,11 +208,12 @@ export async function processPaulstretchRegion(
     const olaWeight = new Float32Array(outputLength);
 
     // Process overlapping windows
-    // For smooth ethereal sound, use much smaller hop size (1/4 of window)
-    // This creates heavy overlap which is essential for paulstretch's characteristic sound
-    const overlapFactor = 4; // Standard paulstretch uses 4x overlap
-    const hopSize = Math.floor(windowSizeSamples / overlapFactor);
-    const outputHopSize = Math.floor(hopSize * stretch);
+    // Paulstretch formula: N = 4 (overlap factor)
+    // outputHop = windowSize / N (fixed, NOT scaled by stretch!)
+    // inputHop = windowSize / (N * stretch)
+    const overlapFactor = 4; // N = 4 for standard paulstretch
+    const outputHopSize = Math.floor(windowSizeSamples / overlapFactor);
+    const inputHopSize = Math.floor(windowSizeSamples / (overlapFactor * stretch));
 
     let inputPos = 0;
     let outputPos = 0;
@@ -304,7 +305,7 @@ export async function processPaulstretchRegion(
         }
       }
 
-      inputPos += hopSize;
+      inputPos += inputHopSize;
       outputPos += outputHopSize;
     }
 
