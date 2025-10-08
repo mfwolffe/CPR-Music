@@ -86,7 +86,7 @@ export default function RecorderRefactored({ submit, accompaniment }) {
   const { slug, piece, actCategory, partType } = router.query;
 
   // Context hooks
-  const { audioURL, setAudioURL, audioRef, addToEditHistory } = useAudio();
+  const { audioURL, setAudioURL, audioRef, addToEditHistory, clearHistory } = useAudio();
 
   const {
     isRecording,
@@ -397,10 +397,12 @@ export default function RecorderRefactored({ submit, accompaniment }) {
     if (activeTakeNo === -1 || blobInfo.length === 0) return;
     const take = blobInfo.find((o) => o.take === activeTakeNo);
     if (take && take.url !== audioURL) {
+      // Clear undo/redo history when switching takes
+      // Each take should have its own independent edit history
+      clearHistory();
       setAudioURL(take.url);
-      addToEditHistory(take.url);
     }
-  }, [activeTakeNo, blobInfo, audioURL, setAudioURL, addToEditHistory]);
+  }, [activeTakeNo, blobInfo, audioURL, setAudioURL, clearHistory]);
 
   // Recording timer
   useEffect(() => {
