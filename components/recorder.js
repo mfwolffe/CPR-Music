@@ -392,20 +392,48 @@ export default function RecorderRefactored({ submit, accompaniment }) {
     // Re-initialize when tracks change or DAW visibility changes
   }, []); // Empty dependency array - only run once
 
+  // Store per-take history and current URL
+  const takeHistoryRef = useRef({}); // { takeNo: { currentURL, history } }
+  const previousTakeNoRef = useRef(-1);
+
   // Update audio URL when active take changes
   useEffect(() => {
-    if (activeTakeNo === -1 || blobInfo.length === 0) return;
-    const take = blobInfo.find((o) => o.take === activeTakeNo);
-    if (take) {
-      // Clear undo/redo history when switching takes
-      // Each take should have its own independent edit history
-      clearHistory();
+    if (activeTakeNo === -1) return;
 
-      // Add the original recording as the initial state in history
-      // This allows users to undo back to the original recording
-      addToEditHistory(take.url, 'Original Recording', { isTakeLoad: true });
+    // Only run when activeTakeNo actually changes, not when blobInfo updates
+    if (previousTakeNoRef.current === activeTakeNo) {
+      return;
     }
-  }, [activeTakeNo, blobInfo, addToEditHistory, clearHistory]); // Removed audioURL from deps to prevent clearing on edits
+
+    const take = blobInfo.find((o) => o.take === activeTakeNo);
+    if (!take) return;
+
+    previousTakeNoRef.current = activeTakeNo;
+
+    // Get or initialize this take's state
+    if (!takeHistoryRef.current[activeTakeNo]) {
+      // First time loading this take - initialize with original recording
+      takeHistoryRef.current[activeTakeNo] = {
+        currentURL: take.url,
+        originalURL: take.url
+      };
+    }
+
+    // Always clear history when switching takes
+    // Each take has independent undo/redo history
+    clearHistory();
+
+    // Load the take's current state (either original or last edited)
+    const takeState = takeHistoryRef.current[activeTakeNo];
+    addToEditHistory(takeState.currentURL, 'Load Take', { isTakeLoad: true });
+  }, [activeTakeNo, blobInfo, addToEditHistory, clearHistory, setAudioURL]);
+
+  // Track current URL changes to store per-take state
+  useEffect(() => {
+    if (activeTakeNo !== -1 && audioURL && takeHistoryRef.current[activeTakeNo]) {
+      takeHistoryRef.current[activeTakeNo].currentURL = audioURL;
+    }
+  }, [audioURL, activeTakeNo]);
 
   // Recording timer
   useEffect(() => {
