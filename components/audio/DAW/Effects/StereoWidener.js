@@ -467,7 +467,7 @@ export async function processStereoWidenerRegion(audioBuffer, startSample, endSa
  * Professional Stereo Widener Effect
  * Features: Mid/Side processing, correlation monitoring, frequency-dependent widening
  */
-export default function StereoWidener({ width }) {
+export default function StereoWidener({ width, onApply }) {
   const {
     audioRef,
     wavesurferRef,
@@ -871,10 +871,13 @@ export default function StereoWidener({ width }) {
       
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
-      
+
+      // Call onApply callback if provided
+      onApply?.();
+
     } catch (error) {
       console.error('Error applying stereo widener:', error);
       alert('Error applying stereo widener. Please try again.');
@@ -882,7 +885,7 @@ export default function StereoWidener({ width }) {
   }, [audioURL, addToEditHistory, wavesurferRef, cutRegion, stereoWidenerWidth,
       stereoWidenerDelay, stereoWidenerBassRetain, stereoWidenerBassFreq, stereoWidenerMode,
       stereoWidenerMidGain, stereoWidenerSideGain, stereoWidenerPhase, stereoWidenerCorrelation,
-      stereoWidenerHighFreqLimit, stereoWidenerSafetyLimit, stereoWidenerOutputGain]);
+      stereoWidenerHighFreqLimit, stereoWidenerSafetyLimit, stereoWidenerOutputGain, onApply]);
   
   return (
     <Container fluid className="p-2">

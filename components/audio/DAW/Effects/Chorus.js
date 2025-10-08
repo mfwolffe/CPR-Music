@@ -293,7 +293,7 @@ export async function processChorusRegion(audioBuffer, startSample, endSample, p
  * Professional Multi-Voice Chorus Effect
  * Features: Multiple delay lines, LFO modulation, stereo processing
  */
-export default function Chorus({ width }) {
+export default function Chorus({ width, onApply }) {
   const {
     audioRef,
     wavesurferRef,
@@ -502,17 +502,20 @@ export default function Chorus({ width }) {
       
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
-      
+
+      // Call onApply callback if provided
+      onApply?.();
+
     } catch (error) {
       console.error('Error applying chorus:', error);
       alert('Error applying chorus. Please try again.');
     }
-  }, [audioURL, addToEditHistory, wavesurferRef, cutRegion, chorusRate, chorusDepth, 
+  }, [audioURL, addToEditHistory, wavesurferRef, cutRegion, chorusRate, chorusDepth,
       chorusDelay, chorusFeedback, chorusWetMix, chorusVoices, chorusStereoWidth,
-      chorusWaveform, chorusOutputGain, chorusTempoSync, chorusNoteDivision, globalBPM]);
+      chorusWaveform, chorusOutputGain, chorusTempoSync, chorusNoteDivision, globalBPM, onApply]);
   
   return (
     <Container fluid className="p-2">

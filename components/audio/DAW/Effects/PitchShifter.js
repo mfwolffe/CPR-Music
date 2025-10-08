@@ -481,7 +481,7 @@ export async function processPitchShiftRegion(audioBuffer, startSample, endSampl
  * Professional Pitch Shifter Effect with Formant Correction
  * Features: Phase vocoder, formant preservation, spectral analysis
  */
-export default function PitchShifter({ width }) {
+export default function PitchShifter({ width, onApply }) {
   const {
     audioRef,
     wavesurferRef,
@@ -701,17 +701,20 @@ export default function PitchShifter({ width }) {
       
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
-      
+
+      // Call onApply callback if provided
+      onApply?.();
+
     } catch (error) {
       console.error('Error applying pitch shift:', error);
       alert('Error applying pitch shift. Please try again.');
     }
   }, [audioURL, addToEditHistory, wavesurferRef, cutRegion, pitchShiftSemitones,
       pitchShiftCents, pitchShiftFormant, pitchShiftFormantCorrection, pitchShiftMix,
-      pitchShiftQuality, pitchShiftStretch, pitchShiftPreserveTimbre, pitchShiftOutputGain]);
+      pitchShiftQuality, pitchShiftStretch, pitchShiftPreserveTimbre, pitchShiftOutputGain, onApply]);
   
   return (
     <Container fluid className="p-2">

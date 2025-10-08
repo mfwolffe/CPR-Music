@@ -743,7 +743,7 @@ export async function processEQRegion(audioBuffer, startSample, endSample, param
  * Professional Parametric EQ with visual frequency response
  * Features: 8-band parametric EQ, spectrum analyzer, linear phase option
  */
-export default function EQ({ width, modalMode = false }) {
+export default function EQ({ width, modalMode = false, onApply }) {
   const {
     audioRef,
     wavesurferRef,
@@ -1065,15 +1065,18 @@ export default function EQ({ width, modalMode = false }) {
       
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
+
+      // Call onApply callback if provided
+      onApply?.();
       
     } catch (error) {
       console.error('Error applying EQ:', error);
       alert('Error applying EQ. Please try again.');
     }
-  }, [audioURL, addToEditHistory, wavesurferRef, eqBands, eqLinearPhase, eqGain, eqMidSideMode, eqMidFilters, eqSideFilters, eqMidGain, eqSideGain, cutRegion]);
+  }, [audioURL, addToEditHistory, wavesurferRef, eqBands, eqLinearPhase, eqGain, eqMidSideMode, eqMidFilters, eqSideFilters, eqMidGain, eqSideGain, cutRegion, onApply]);
   
   // Update band parameter
   const updateBand = useCallback((index, updates) => {

@@ -448,7 +448,7 @@ export async function processRingModulatorRegion(audioBuffer, startSample, endSa
  * Professional Ring Modulator Effect
  * Features: Multiple modes, frequency sync, filtering, stereo effects
  */
-export default function RingModulator({ width }) {
+export default function RingModulator({ width, onApply }) {
   const {
     audioRef,
     wavesurferRef,
@@ -696,10 +696,13 @@ export default function RingModulator({ width }) {
       
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
-      
+
+      // Call onApply callback if provided
+      onApply?.();
+
     } catch (error) {
       console.error('Error applying ring modulation:', error);
       alert('Error applying ring modulation. Please try again.');
@@ -707,7 +710,7 @@ export default function RingModulator({ width }) {
   }, [audioURL, addToEditHistory, wavesurferRef, cutRegion, ringModFrequency,
       ringModWaveform, ringModDepth, ringModMode, ringModSync, ringModOffset,
       ringModPhase, ringModFilterFreq, ringModFilterType, ringModOutputGain,
-      ringModStereoSpread, ringModMix]);
+      ringModStereoSpread, ringModMix, onApply]);
   
   const waveformTypes = [
     { key: 'sine', name: 'Sine' },

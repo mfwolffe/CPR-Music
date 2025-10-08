@@ -190,7 +190,7 @@ export async function processEchoRegion(audioBuffer, startSample, endSample, par
  * Enhanced Echo effect component with advanced mode
  * Backward compatible with simple interface, expandable to advanced features
  */
-export default function Echo({ width }) {
+export default function Echo({ width, onApply }) {
   const {
     audioRef,
     wavesurferRef,
@@ -290,11 +290,14 @@ export default function Echo({ width }) {
       // Clear region
       cutRegion.remove();
 
+      // Call onApply callback if provided
+      onApply?.();
+
     } catch (error) {
       console.error('Error applying echo:', error);
       alert('Error applying echo. Please try again.');
     }
-  }, [audioURL, addToEditHistory, wavesurferRef, cutRegion, echoDelay, echoFeedback, echoInputGain, echoOutputGain]);
+  }, [audioURL, addToEditHistory, wavesurferRef, cutRegion, echoDelay, echoFeedback, echoInputGain, echoOutputGain, onApply]);
   
   
   return (

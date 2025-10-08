@@ -115,7 +115,7 @@ export default function EffectControlModal() {
             >
               {EffectComponent ? (
                 <div className="effect-controls-container">
-                  <EffectComponent width={100} modalMode={true} />
+                  <EffectComponent width={100} modalMode={true} onApply={handleClose} />
                 </div>
               ) : (
                 <Alert variant="warning">

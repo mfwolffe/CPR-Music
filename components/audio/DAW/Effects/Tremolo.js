@@ -120,7 +120,7 @@ export async function processTremoloRegion(
 /**
  * Tremolo effect component - amplitude modulation
  */
-export default function Tremolo({ width }) {
+export default function Tremolo({ width, onApply }) {
   const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
 
   const {
@@ -211,6 +211,9 @@ export default function Tremolo({ width }) {
 
       // Clear region
       cutRegion.remove();
+
+      // Call onApply callback if provided
+      onApply?.();
     } catch (error) {
       console.error('Error applying tremolo:', error);
       alert('Error applying tremolo. Please try again.');
@@ -224,6 +227,7 @@ export default function Tremolo({ width }) {
     tremoloWaveform,
     tremoloPhase,
     cutRegion,
+    onApply,
   ]);
 
   const waveformTypes = [

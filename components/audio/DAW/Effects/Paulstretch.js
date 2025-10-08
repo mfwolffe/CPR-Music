@@ -344,7 +344,7 @@ export async function processPaulstretchRegion(
  * Paulstretch effect - extreme time stretching algorithm
  * Based on the algorithm by Paul Nasca
  */
-export default function Paulstretch({ width }) {
+export default function Paulstretch({ width, onApply }) {
   const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
 
   const { cutRegion } = useEffects();
@@ -421,6 +421,9 @@ export default function Paulstretch({ width }) {
 
       // Clear region
       cutRegion.remove();
+
+      // Call onApply callback if provided
+      onApply?.();
     } catch (error) {
       console.error('Error applying Paulstretch:', error);
       alert('Error applying Paulstretch. Please try again.');
@@ -435,6 +438,7 @@ export default function Paulstretch({ width }) {
     onset,
     makeupDb,
     limiterDb,
+    onApply,
   ]);
 
   return (

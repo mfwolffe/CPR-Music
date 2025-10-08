@@ -512,7 +512,7 @@ export async function processDistortionRegion(audioBuffer, startSample, endSampl
  * Professional Multi-Type Distortion/Saturation Effect
  * Features: Multiple distortion types, tone shaping, harmonic generation
  */
-export default function Distortion({ width }) {
+export default function Distortion({ width, onApply }) {
   const {
     audioRef,
     wavesurferRef,
@@ -879,9 +879,12 @@ export default function Distortion({ width }) {
       
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
+
+      // Call onApply callback if provided
+      onApply?.();
       
     } catch (error) {
       console.error('Error applying distortion:', error);
@@ -890,7 +893,7 @@ export default function Distortion({ width }) {
   }, [audioURL, addToEditHistory, wavesurferRef, cutRegion, distortionType,
       distortionDrive, distortionTone, distortionPresence, distortionBass,
       distortionMid, distortionTreble, distortionAsymmetry, distortionHarmonics,
-      distortionWetMix, distortionOutputGain]);
+      distortionWetMix, distortionOutputGain, onApply]);
   
   return (
     <Container fluid className="p-2">

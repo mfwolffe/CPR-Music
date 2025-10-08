@@ -558,7 +558,7 @@ export async function processCompressorRegion(audioBuffer, startSample, endSampl
   // Simple compressor processing - no complex modes
   const compressorChain = createCompressorChain(offlineContext, parameters);
   source.connect(compressorChain.input);
-  outputNode = compressorChain.output;
+  const outputNode = compressorChain.output;
   
   // Connect to destination
   outputNode.connect(offlineContext.destination);
@@ -598,7 +598,7 @@ export async function processCompressorRegion(audioBuffer, startSample, endSampl
 /**
  * Compressor effect component using Web Audio API DynamicsCompressorNode
  */
-export default function Compressor({ width, modalMode = false }) {
+export default function Compressor({ width, modalMode = false, onApply }) {
   const {
     audioRef,
     wavesurferRef,
@@ -759,15 +759,18 @@ export default function Compressor({ width, modalMode = false }) {
       
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
+
+      // Call onApply callback if provided
+      onApply?.();
       
     } catch (error) {
       console.error('Error applying compressor:', error);
       alert('Error applying compressor. Please try again.');
     }
-  }, [audioURL, addToEditHistory, wavesurferRef, compressorThreshold, compressorRatio, compressorAttack, compressorRelease, compressorKnee, compressorMakeup, cutRegion]);
+  }, [audioURL, addToEditHistory, wavesurferRef, compressorThreshold, compressorRatio, compressorAttack, compressorRelease, compressorKnee, compressorMakeup, cutRegion, onApply]);
   
   return (
     <Container fluid className="p-2">

@@ -135,7 +135,7 @@ export async function processReverseReverbRegion(audioBuffer, startSample, endSa
  * Reverse Reverb (Pre-verb) effect
  * Creates the supernatural effect of reverb that comes before the sound
  */
-export default function ReverseReverb({ width }) {
+export default function ReverseReverb({ width, onApply }) {
   const {
     audioRef,
     wavesurferRef,
@@ -236,15 +236,18 @@ export default function ReverseReverb({ width }) {
       
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
-      
+
+      // Call onApply callback if provided
+      onApply?.();
+
     } catch (error) {
       console.error('Error applying reverse reverb:', error);
       alert('Error applying reverse reverb. Please try again.');
     }
-  }, [audioURL, addToEditHistory, wavesurferRef, preset, wetMix, fadeTime, predelay, buildupTime, cutRegion]);
+  }, [audioURL, addToEditHistory, wavesurferRef, preset, wetMix, fadeTime, predelay, buildupTime, cutRegion, onApply]);
   
   const presetNames = getPresetNames();
   

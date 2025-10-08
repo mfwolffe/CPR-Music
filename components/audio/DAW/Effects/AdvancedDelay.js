@@ -457,7 +457,7 @@ export async function processAdvancedDelayRegion(audioBuffer, startSample, endSa
  * Professional Advanced Multi-Tap Delay Effect
  * Features: Multi-tap, modulation, diffusion, saturation, filtering
  */
-export default function AdvancedDelay({ width }) {
+export default function AdvancedDelay({ width, onApply }) {
   const {
     audioRef,
     wavesurferRef,
@@ -735,10 +735,13 @@ export default function AdvancedDelay({ width }) {
       
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
-      
+
+      // Call onApply callback if provided
+      onApply?.();
+
     } catch (error) {
       console.error('Error applying advanced delay:', error);
       alert('Error applying advanced delay. Please try again.');
@@ -747,7 +750,7 @@ export default function AdvancedDelay({ width }) {
       advDelayMix, advDelayTaps, advDelaySpread, advDelayModRate, advDelayModDepth,
       advDelayModWaveform, advDelaySaturation, advDelayDiffusion, advDelayFilterType,
       advDelayFilterFreq, advDelayStereoWidth, advDelayPingPong, advDelayOutputGain,
-      advDelayTempoSync, advDelayNoteDivision, globalBPM]);
+      advDelayTempoSync, advDelayNoteDivision, globalBPM, onApply]);
   
   const filterTypes = [
     { key: 'lowpass', name: 'Low Pass' },

@@ -135,7 +135,7 @@ export async function processAutoPanRegion(
 /**
  * Auto-Pan effect component using Web Audio API StereoPannerNode
  */
-export default function AutoPan({ width }) {
+export default function AutoPan({ width, onApply }) {
   const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
 
   const {
@@ -226,6 +226,9 @@ export default function AutoPan({ width }) {
 
       // Clear region
       cutRegion.remove();
+
+      // Call onApply callback if provided
+      onApply?.();
     } catch (error) {
       console.error('Error applying auto-pan:', error);
       alert('Error applying auto-pan. Please try again.');
@@ -239,6 +242,7 @@ export default function AutoPan({ width }) {
     autoPanWaveform,
     autoPanPhase,
     cutRegion,
+    onApply,
   ]);
 
   const waveformTypes = [

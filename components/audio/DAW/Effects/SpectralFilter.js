@@ -325,7 +325,7 @@ export async function processSpectralFilterRegion(
  * Spectral Filter effect - FFT-based frequency manipulation
  * Can create robotic voices, whisper effects, and frequency-based morphing
  */
-export default function SpectralFilter({ width }) {
+export default function SpectralFilter({ width, onApply }) {
   const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
 
   const { cutRegion } = useEffects();
@@ -398,6 +398,9 @@ export default function SpectralFilter({ width }) {
 
       // Clear region
       cutRegion.remove();
+
+      // Call onApply callback if provided
+      onApply?.();
     } catch (error) {
       console.error('Error applying spectral filter:', error);
       alert('Error applying spectral filter. Please try again.');
@@ -412,6 +415,7 @@ export default function SpectralFilter({ width }) {
     bands,
     spread,
     shift,
+    onApply,
   ]);
 
   return (

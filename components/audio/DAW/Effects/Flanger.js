@@ -77,6 +77,7 @@ export async function processFlangerRegion(audioBuffer, startSample, endSample, 
   
   // Apply stereo phase offset (in radians)
   const phaseOffset = (parameters.stereoPhase || 0) * Math.PI / 180;
+  lfoLeft.start();
   lfoRight.start(phaseOffset / (2 * Math.PI * lfoRight.frequency.value));
   
   // Connect LFOs to delay times
@@ -122,11 +123,9 @@ export async function processFlangerRegion(audioBuffer, startSample, endSample, 
   wetGain.connect(outputGain);
   
   outputGain.connect(offlineContext.destination);
-  
-  // Start source and LFOs
+
+  // Start source (LFOs already started earlier)
   source.start(0);
-  lfoLeft.start(0);
-  lfoRight.start(0);
   
   // Render
   const renderedBuffer = await offlineContext.startRendering();
@@ -159,7 +158,7 @@ export async function processFlangerRegion(audioBuffer, startSample, endSample, 
 /**
  * Flanger effect component - similar to phaser but with shorter delay times
  */
-export default function Flanger({ width }) {
+export default function Flanger({ width, onApply }) {
   const {
     audioRef,
     wavesurferRef,
@@ -263,15 +262,18 @@ export default function Flanger({ width }) {
       
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
+
+      // Call onApply callback if provided
+      onApply?.();
       
     } catch (error) {
       console.error('Error applying flanger:', error);
       alert('Error applying flanger. Please try again.');
     }
-  }, [audioURL, addToEditHistory, wavesurferRef, flangerRate, flangerDepth, flangerFeedback, flangerDelay, flangerMix, cutRegion]);
+  }, [audioURL, addToEditHistory, wavesurferRef, flangerRate, flangerDepth, flangerFeedback, flangerDelay, flangerMix, cutRegion, onApply]);
   
   return (
     <Container fluid className="p-2">

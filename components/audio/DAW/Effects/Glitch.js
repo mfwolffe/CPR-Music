@@ -129,7 +129,7 @@ export async function processGlitchRegion(
 /**
  * Glitch/Beat Repeat effect - rhythmic stutters and chaos
  */
-export default function Glitch({ width }) {
+export default function Glitch({ width, onApply }) {
   const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
 
   let effectsContext;
@@ -229,6 +229,9 @@ export default function Glitch({ width }) {
 
       // Clear region
       cutRegion.remove();
+
+      // Call onApply callback if provided
+      onApply?.();
     } catch (error) {
       console.error('Error applying glitch:', error);
       alert('Error applying glitch. Please try again.');
@@ -244,6 +247,7 @@ export default function Glitch({ width }) {
     glitchPitch,
     glitchCrush,
     cutRegion,
+    onApply,
   ]);
 
   const divisionOptions = [

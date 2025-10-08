@@ -412,7 +412,7 @@ export async function processAutoWahRegion(
 /**
  * Enhanced Auto-Wah effect component with multiple LFO modes
  */
-export default function AutoWah({ width }) {
+export default function AutoWah({ width, onApply }) {
   const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
 
   const {
@@ -671,6 +671,9 @@ export default function AutoWah({ width }) {
 
       // Clear region
       cutRegion.remove();
+
+      // Call onApply callback if provided
+      onApply?.();
     } catch (error) {
       console.error('Error applying auto-wah:', error);
       alert('Error applying auto-wah. Please try again.');
@@ -697,6 +700,7 @@ export default function AutoWah({ width }) {
     autoWahNoteDivision,
     globalBPM,
     cutRegion,
+    onApply,
   ]);
 
   // Helper functions for UI display

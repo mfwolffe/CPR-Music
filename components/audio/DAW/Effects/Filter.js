@@ -347,7 +347,7 @@ export async function processFilterRegion(
 /**
  * Professional Filter effect with LFO modulation
  */
-export default function Filter({ width, modalMode = false }) {
+export default function Filter({ width, modalMode = false, onApply }) {
   const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
   const [showFilterHelp, setShowFilterHelp] = useState(false);
   
@@ -547,9 +547,12 @@ export default function Filter({ width, modalMode = false }) {
       
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
+
+      // Call onApply callback if provided
+      onApply?.();
     } catch (error) {
       console.error('Error applying filter:', error);
       alert('Error applying filter. Please try again.');
@@ -570,6 +573,7 @@ export default function Filter({ width, modalMode = false }) {
     filterMix,
     globalBPM,
     cutRegion,
+    onApply,
   ]);
   
   const filterTypeOptions = [

@@ -791,7 +791,7 @@ function applyPunch(sample, amount) {
 /**
  * Professional Limiter component
  */
-export default function Limiter({ width, modalMode = false }) {
+export default function Limiter({ width, modalMode = false, onApply }) {
   const {
     audioRef,
     wavesurferRef,
@@ -881,15 +881,18 @@ export default function Limiter({ width, modalMode = false }) {
       
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
-      
+
+      // Call onApply callback if provided
+      onApply?.();
+
     } catch (error) {
       console.error('Error applying limiter:', error);
       alert('Error applying limiter. Please try again.');
     }
-  }, [audioURL, addToEditHistory, wavesurferRef, limiterCeiling, limiterRelease, limiterLookahead, limiterAlgorithm, limiterIsrMode, limiterDithering, limiterMasteringMode, cutRegion]);
+  }, [audioURL, addToEditHistory, wavesurferRef, limiterCeiling, limiterRelease, limiterLookahead, limiterAlgorithm, limiterIsrMode, limiterDithering, limiterMasteringMode, cutRegion, onApply]);
   
   return (
     <Container fluid className="p-2">

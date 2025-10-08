@@ -87,7 +87,7 @@ export async function processReverbRegion(audioBuffer, startSample, endSample, p
 /**
  * Reverb effect component using Web Audio API
  */
-export default function Reverb({ width }) {
+export default function Reverb({ width, onApply }) {
   const {
     audioRef,
     wavesurferRef,
@@ -214,15 +214,18 @@ export default function Reverb({ width }) {
       
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
-      
+
+      // Call onApply callback if provided
+      onApply?.();
+
     } catch (error) {
       console.error('Error applying reverb:', error);
       alert('Error applying reverb. Please try again.');
     }
-  }, [cutRegion, audioURL, addToEditHistory, wavesurferRef, reverbPreset, reverbWetMix, reverbPreDelay, reverbOutputGain, reverbHighDamp, reverbLowDamp, reverbStereoWidth, reverbEarlyLate]);
+  }, [cutRegion, audioURL, addToEditHistory, wavesurferRef, reverbPreset, reverbWetMix, reverbPreDelay, reverbOutputGain, reverbHighDamp, reverbLowDamp, reverbStereoWidth, reverbEarlyLate, onApply]);
   
   const presetNames = getPresetNames();
   

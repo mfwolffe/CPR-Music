@@ -147,7 +147,7 @@ export async function processGranularFreezeRegion(
  * Granular Freeze effect - captures and loops small grains of audio
  * Creates evolving textures and drones
  */
-export default function GranularFreeze({ width }) {
+export default function GranularFreeze({ width, onApply }) {
   const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
 
   const {
@@ -231,6 +231,9 @@ export default function GranularFreeze({ width }) {
 
       // Clear region
       cutRegion.remove();
+
+      // Call onApply callback if provided
+      onApply?.();
     } catch (error) {
       console.error('Error applying granular freeze:', error);
       alert('Error applying granular freeze. Please try again.');
@@ -246,6 +249,7 @@ export default function GranularFreeze({ width }) {
     granularDensity,
     granularReverse,
     cutRegion,
+    onApply,
   ]);
 
   return (

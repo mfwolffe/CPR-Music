@@ -108,7 +108,7 @@ export async function processGateRegion(
 /**
  * Gate effect component - cuts audio below threshold
  */
-export default function Gate({ width }) {
+export default function Gate({ width, onApply }) {
   const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
 
   const {
@@ -340,6 +340,9 @@ export default function Gate({ width }) {
 
       // Clear region
       cutRegion.remove();
+
+      // Call onApply callback if provided
+      onApply?.();
     } catch (error) {
       console.error('Error applying gate:', error);
       alert('Error applying gate. Please try again.');
@@ -354,6 +357,7 @@ export default function Gate({ width }) {
     gateHold,
     gateRange,
     cutRegion,
+    onApply,
   ]);
 
   return (

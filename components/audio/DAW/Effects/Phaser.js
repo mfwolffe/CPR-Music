@@ -362,7 +362,7 @@ export async function processPhaserRegion(audioBuffer, startSample, endSample, p
  * Professional Multi-Stage Phaser Effect
  * Features: Multiple all-pass stages, LFO modulation, feedback control
  */
-export default function Phaser({ width }) {
+export default function Phaser({ width, onApply }) {
   const {
     audioRef,
     wavesurferRef,
@@ -603,10 +603,13 @@ export default function Phaser({ width }) {
       
       // Load new audio
       await wavesurfer.load(url);
-      
+
       // Clear region
       cutRegion.remove();
-      
+
+      // Call onApply callback if provided
+      onApply?.();
+
     } catch (error) {
       console.error('Error applying phaser:', error);
       alert('Error applying phaser. Please try again.');
@@ -614,7 +617,7 @@ export default function Phaser({ width }) {
   }, [audioURL, addToEditHistory, wavesurferRef, cutRegion, phaserRate, phaserDepth,
       phaserFeedback, phaserStages, phaserWetMix, phaserFreqRange, phaserResonance,
       phaserWaveform, phaserStereoPhase, phaserOutputGain, phaserTempoSync,
-      phaserNoteDivision, globalBPM]);
+      phaserNoteDivision, globalBPM, onApply]);
   
   return (
     <Container fluid className="p-2">

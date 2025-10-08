@@ -275,7 +275,7 @@ export async function processFrequencyShifterRegion(
  * Frequency Shifter effect - shifts all frequencies by a fixed amount
  * Unlike pitch shifting, this destroys harmonic relationships for wild effects
  */
-export default function FrequencyShifter({ width }) {
+export default function FrequencyShifter({ width, onApply }) {
   const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
 
   const {
@@ -353,6 +353,9 @@ export default function FrequencyShifter({ width }) {
 
       // Clear region
       cutRegion.remove();
+
+      // Call onApply callback if provided
+      onApply?.();
     } catch (error) {
       console.error('Error applying frequency shifter:', error);
       alert('Error applying frequency shifter. Please try again.');
@@ -366,6 +369,7 @@ export default function FrequencyShifter({ width }) {
     freqShiftFeedback,
     freqShiftDirection,
     cutRegion,
+    onApply,
   ]);
 
   const directionOptions = [
