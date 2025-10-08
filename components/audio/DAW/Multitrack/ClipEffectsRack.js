@@ -273,7 +273,7 @@ function EffectChainItem({ effect, onRemove, onToggle, onMoveUp, onMoveDown, onE
  * Main Clip Effects Rack Component (Modal)
  */
 export default function ClipEffectsRack({ show, onHide, selectedClipId }) {
-  const { tracks, updateTrack } = useMultitrack();
+  const { tracks, updateTrack, selectedClipIds } = useMultitrack();
   const [showEffectsBrowser, setShowEffectsBrowser] = useState(false);
   const [showEffectParameters, setShowEffectParameters] = useState(false);
   const [selectedEffect, setSelectedEffect] = useState(null);
@@ -281,16 +281,23 @@ export default function ClipEffectsRack({ show, onHide, selectedClipId }) {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, clipName: '' });
 
-  // Find the selected clip
-  const selectedClip = tracks
-    .flatMap(track => (track.clips || []).map(clip => ({ ...clip, trackId: track.id, trackType: track.type })))
-    .find(clip => clip.id === selectedClipId);
+  // Find all selected clips (support both single and multi-selection)
+  const allClips = tracks
+    .flatMap(track => (track.clips || []).map(clip => ({ ...clip, trackId: track.id, trackType: track.type })));
 
+  const selectedClips = selectedClipIds && selectedClipIds.length > 0
+    ? allClips.filter(clip => selectedClipIds.includes(clip.id))
+    : allClips.filter(clip => clip.id === selectedClipId);
+
+  // Use first selected clip for effect chain UI
+  const selectedClip = selectedClips[0];
   const selectedTrack = tracks.find(track => track.id === selectedClip?.trackId);
 
   const effects = selectedClip?.effects || [];
   const isMidiClip = selectedClip?.trackType === 'midi';
+  const isMultiSelection = selectedClips.length > 1;
 
   // Effect Management Handlers
   const handleAddEffect = useCallback((effectType) => {
@@ -348,14 +355,9 @@ export default function ClipEffectsRack({ show, onHide, selectedClipId }) {
     setShowEffectParameters(true);
   }, []);
 
-  // Apply effects to clip audio
+  // Apply effects to clip audio (supports batch processing)
   const handleApplyEffects = useCallback(async () => {
-    if (!selectedClip || !selectedTrack || effects.length === 0) {
-      return;
-    }
-
-    if (!selectedClip.src) {
-      setError('Clip has no audio source');
+    if (selectedClips.length === 0 || effects.length === 0) {
       return;
     }
 
@@ -363,72 +365,112 @@ export default function ClipEffectsRack({ show, onHide, selectedClipId }) {
     setError(null);
     setSuccess(null);
     setProgress(0);
+    setBatchProgress({ current: 0, total: selectedClips.length, clipName: '' });
+
+    const results = { success: 0, failed: 0, errors: [] };
 
     try {
-      setProgress(10);
-
-      // Load the clip's audio buffer using the existing decodeAudioFromURL function
-      const audioBuffer = await decodeAudioFromURL(selectedClip.src);
-
-      if (!audioBuffer) {
-        throw new Error('Failed to decode audio from clip');
-      }
-
-      setProgress(40);
-
-      // Create audio context
+      // Create audio context once for all clips
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
-      // Process with effects chain
-      const processedBuffer = await processClipWithEffects(audioBuffer, selectedClip, audioContext);
+      // Process each selected clip
+      for (let i = 0; i < selectedClips.length; i++) {
+        const clip = selectedClips[i];
+        const clipTrack = tracks.find(t => t.id === clip.trackId);
 
-      setProgress(70);
+        setBatchProgress({
+          current: i + 1,
+          total: selectedClips.length,
+          clipName: clip.name || `Clip ${i + 1}`
+        });
 
-      // Convert to WAV blob
-      const wav = audioBufferToWav(processedBuffer);
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
+        try {
+          if (!clip.src) {
+            throw new Error('Clip has no audio source');
+          }
 
-      setProgress(90);
+          // Load the clip's audio buffer
+          setProgress(20);
+          const audioBuffer = await decodeAudioFromURL(clip.src);
 
-      // Update clip with new audio source
-      const updatedClip = {
-        ...selectedClip,
-        src: url,
-        // Keep the effects chain for future reference
-      };
+          if (!audioBuffer) {
+            throw new Error('Failed to decode audio from clip');
+          }
 
-      updateTrack(selectedTrack.id, {
-        clips: selectedTrack.clips.map(c => c.id === selectedClipId ? updatedClip : c)
-      });
+          // Process with effects chain (using first clip's effects)
+          setProgress(50);
+          const processedBuffer = await processClipWithEffects(audioBuffer, selectedClip, audioContext);
 
-      setProgress(100);
-      setSuccess(`Effects applied successfully! (${effects.filter(e => e.enabled).length} effects processed)`);
+          // Convert to WAV blob
+          setProgress(70);
+          const wav = audioBufferToWav(processedBuffer);
+          const blob = new Blob([wav], { type: 'audio/wav' });
+          const url = URL.createObjectURL(blob);
+
+          // Update clip with new audio source
+          setProgress(90);
+          const updatedClip = {
+            ...clip,
+            src: url,
+            // Keep the effects chain for future reference
+          };
+
+          updateTrack(clipTrack.id, {
+            clips: clipTrack.clips.map(c => c.id === clip.id ? updatedClip : c)
+          });
+
+          results.success++;
+          setProgress(100);
+
+        } catch (err) {
+          console.error(`Error processing clip ${clip.id}:`, err);
+          results.failed++;
+          results.errors.push({ clipName: clip.name || `Clip ${i + 1}`, error: err.message });
+        }
+      }
+
+      // Show final results
+      if (results.failed === 0) {
+        setSuccess(`✓ All ${results.success} clip${results.success > 1 ? 's' : ''} processed successfully! (${effects.filter(e => e.enabled).length} effects applied)`);
+      } else if (results.success > 0) {
+        setSuccess(`⚠ ${results.success} of ${selectedClips.length} clips processed successfully`);
+        setError(`${results.failed} clip${results.failed > 1 ? 's' : ''} failed: ${results.errors.map(e => e.clipName).join(', ')}`);
+      } else {
+        setError(`Failed to process all clips: ${results.errors[0]?.error || 'Unknown error'}`);
+      }
 
       // Reset after delay
       setTimeout(() => {
         setIsProcessing(false);
         setProgress(0);
-        setSuccess(null);
-      }, 2000);
+        setBatchProgress({ current: 0, total: 0, clipName: '' });
+        if (results.failed === 0) {
+          setSuccess(null);
+        }
+      }, 3000);
 
     } catch (err) {
       console.error('Error applying effects:', err);
       setError(err.message || 'Failed to apply effects');
       setIsProcessing(false);
       setProgress(0);
+      setBatchProgress({ current: 0, total: 0, clipName: '' });
     }
-  }, [selectedClip, selectedTrack, effects, selectedClipId, updateTrack]);
+  }, [selectedClips, selectedClip, effects, tracks, updateTrack]);
 
   return (
     <Modal show={show} onHide={onHide} size="lg" centered>
       <Modal.Header closeButton className="bg-dark text-white border-secondary">
         <Modal.Title>
           Clip Effects
-          {selectedClip && (
+          {selectedClips.length > 0 && (
             <>
               <span className="text-muted ms-2">—</span>
-              <span className="text-muted ms-2">{selectedClip.name || 'Unnamed Clip'}</span>
+              {isMultiSelection ? (
+                <span className="text-muted ms-2">{selectedClips.length} clips selected</span>
+              ) : (
+                <span className="text-muted ms-2">{selectedClip.name || 'Unnamed Clip'}</span>
+              )}
               {effects.length > 0 && (
                 <Badge bg="success" className="ms-2">{effects.length}</Badge>
               )}
@@ -468,6 +510,16 @@ export default function ClipEffectsRack({ show, onHide, selectedClipId }) {
         {/* Effects Controls */}
         {selectedClip && !isMidiClip && (
           <>
+            {/* Multi-selection info */}
+            {isMultiSelection && (
+              <Alert variant="info" className="mb-3">
+                <small>
+                  <strong>Batch Mode:</strong> Effects will be applied to all {selectedClips.length} selected clips.
+                  Configure the effect chain below, then click "Apply to {selectedClips.length} Clips".
+                </small>
+              </Alert>
+            )}
+
             {/* Action Buttons */}
             <div className="d-flex justify-content-between mb-3">
               <PresetsDropdown onApplyPreset={handleApplyPreset} />
@@ -488,7 +540,7 @@ export default function ClipEffectsRack({ show, onHide, selectedClipId }) {
                       onClick={handleApplyEffects}
                       disabled={isProcessing || effects.filter(e => e.enabled).length === 0}
                     >
-                      <FaCheck className="me-1" /> Apply Effects
+                      <FaCheck className="me-1" /> Apply to {isMultiSelection ? `${selectedClips.length} Clips` : 'Clip'}
                     </Button>
                     <Button
                       size="sm"
@@ -505,13 +557,39 @@ export default function ClipEffectsRack({ show, onHide, selectedClipId }) {
 
             {/* Processing Progress */}
             {isProcessing && (
-              <ProgressBar
-                now={progress}
-                label={`${Math.round(progress)}%`}
-                animated
-                striped
-                className="mb-3"
-              />
+              <div className="mb-3">
+                {/* Batch progress indicator */}
+                {batchProgress.total > 1 && (
+                  <div className="mb-2">
+                    <small className="text-muted">
+                      Processing clip {batchProgress.current} of {batchProgress.total}
+                      {batchProgress.clipName && `: ${batchProgress.clipName}`}
+                    </small>
+                  </div>
+                )}
+                {/* Per-clip progress bar */}
+                <ProgressBar
+                  now={progress}
+                  label={`${Math.round(progress)}%`}
+                  animated
+                  striped
+                  variant="info"
+                />
+                {/* Overall batch progress */}
+                {batchProgress.total > 1 && (
+                  <div className="mt-2">
+                    <small className="text-muted">
+                      Overall: {batchProgress.current - 1} of {batchProgress.total} complete
+                    </small>
+                    <ProgressBar
+                      now={((batchProgress.current - 1) / batchProgress.total) * 100}
+                      variant="success"
+                      className="mt-1"
+                      style={{ height: '8px' }}
+                    />
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Effects Chain */}
