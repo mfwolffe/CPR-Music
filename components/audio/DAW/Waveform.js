@@ -63,11 +63,18 @@ export default function Waveform() {
     }
   }, [currentTime, setCurrentTime]);
   
+  // Store region selection state
+  const disableRegionCreateRef = useRef(null);
+  const isLoadingRef = useRef(false);
+  const lastLoadedURLRef = useRef('');
+
   // Initialize plugins once wavesurfer is ready
   useEffect(() => {
     if (!wavesurfer) return;
-    
-    wavesurfer.once('ready', () => {
+
+    const handleReady = () => {
+      isLoadingRef.current = false;
+
       // Only add plugins if they haven't been added yet
       if (wavesurfer.getActivePlugins().length === 0) {
         // Zoom plugin
@@ -78,7 +85,7 @@ export default function Waveform() {
             scale: 0.125,
           })
         );
-        
+
         // Hover plugin
         const hover = wavesurfer.registerPlugin(
           Hover.create({
@@ -89,7 +96,7 @@ export default function Waveform() {
             lineColor: 'var(--jmu-gold)',
           })
         );
-        
+
         // Minimap plugin
         const minimap = wavesurfer.registerPlugin(
           Minimap.create({
@@ -102,7 +109,7 @@ export default function Waveform() {
             cursorWidth: 2,
           })
         );
-        
+
         // Timeline plugin
         const timeline = wavesurfer.registerPlugin(
           Timeline.create({
@@ -111,39 +118,79 @@ export default function Waveform() {
             style: 'color: #e6dfdc; background-color: var(--daw-timeline-bg)',
           })
         );
-        
+
         // Regions plugin
         const regions = wavesurfer.registerPlugin(RegionsPlugin.create());
-        let disableRegionCreate = regions.enableDragSelection({
+        disableRegionCreateRef.current = regions.enableDragSelection({
           color: 'rgba(155, 115, 215, 0.4)',
         });
-        
+
         // Region event handlers
         regions.on('region-created', (region) => {
-          disableRegionCreate();
+          if (disableRegionCreateRef.current) {
+            disableRegionCreateRef.current();
+          }
           setCutRegion(region);
         });
-        
+
         regions.on('region-double-clicked', (region) => {
           region.remove();
-          disableRegionCreate = regions.enableDragSelection();
+          disableRegionCreateRef.current = regions.enableDragSelection({
+            color: 'rgba(155, 115, 215, 0.4)',
+          });
         });
-        
+
         regions.on('region-removed', (region) => {
-          disableRegionCreate = regions.enableDragSelection();
+          disableRegionCreateRef.current = regions.enableDragSelection({
+            color: 'rgba(155, 115, 215, 0.4)',
+          });
         });
+      } else {
+        // Plugins already exist, re-enable region selection after reload
+        const regionsPlugin = wavesurfer.getActivePlugins().find(
+          (plugin) => plugin.constructor.name === 'RegionsPlugin'
+        );
+
+        if (regionsPlugin && !disableRegionCreateRef.current) {
+          console.log('Re-enabling region drag selection after reload');
+          disableRegionCreateRef.current = regionsPlugin.enableDragSelection({
+            color: 'rgba(155, 115, 215, 0.4)',
+          });
+        }
       }
-      
+
       // Update duration when ready
       setDuration(wavesurfer.getDuration());
-    });
-    
-    // Load audio when URL changes
-    if (audioURL && audioURL !== '') {
+    };
+
+    // Listen for ready event (fires on initial load and reloads)
+    wavesurfer.on('ready', handleReady);
+
+    // Load audio when URL changes (but avoid duplicate loads)
+    if (audioURL && audioURL !== '' && audioURL !== lastLoadedURLRef.current && !isLoadingRef.current) {
+      console.log('Waveform: Loading new audio URL:', {
+        newURL: audioURL,
+        previousURL: lastLoadedURLRef.current,
+        isCurrentlyLoading: isLoadingRef.current
+      });
+      isLoadingRef.current = true;
+      lastLoadedURLRef.current = audioURL;
+
       wavesurfer.load(audioURL).catch(err => {
-        console.error('Error loading audio:', err);
+        console.error('Waveform: Error loading audio:', err);
+        isLoadingRef.current = false;
+      });
+    } else if (audioURL && audioURL !== '') {
+      console.log('Waveform: Skipping load (already loading or same URL):', {
+        audioURL,
+        lastLoaded: lastLoadedURLRef.current,
+        isLoading: isLoadingRef.current
       });
     }
+
+    return () => {
+      wavesurfer.un('ready', handleReady);
+    };
   }, [wavesurfer, audioURL, setCutRegion, setDuration]);
   
   return (

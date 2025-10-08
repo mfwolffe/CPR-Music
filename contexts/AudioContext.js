@@ -21,18 +21,19 @@ export const AudioProvider = ({ children }) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  
+
   // DAW mode state
   const [dawMode, setDawMode] = useState('single'); // 'single' or 'multi'
-  
+
   // Undo/redo state
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
-  
+
   // References
   const audioRef = useRef(null);
   const wavesurferRef = useRef(null);
   const commandManagerRef = useRef(null);
+  const hasInitialAudioRef = useRef(false); // Track if initial audio has been set
   
   // Initialize command manager
   useEffect(() => {
@@ -79,10 +80,18 @@ export const AudioProvider = ({ children }) => {
   // Add new audio state to history
   const addToEditHistory = useCallback((url, name = 'Edit', metadata = {}) => {
     if (!commandManagerRef.current) return;
-    
+
+    // If this is the first audio being loaded, don't add to undo history
+    // This prevents undo being enabled when you first load a track
+    if (!hasInitialAudioRef.current) {
+      hasInitialAudioRef.current = true;
+      setAudioURL(url);
+      return;
+    }
+
     const command = createAudioCommand(name, url, metadata);
     commandManagerRef.current.execute(command);
-    
+
     // Update current audio URL
     setAudioURL(url);
   }, []);
@@ -139,6 +148,7 @@ export const AudioProvider = ({ children }) => {
   const clearHistory = useCallback(() => {
     if (!commandManagerRef.current) return;
     commandManagerRef.current.clear();
+    hasInitialAudioRef.current = false; // Reset so next audio load won't add to history
   }, []);
   
   const value = {
