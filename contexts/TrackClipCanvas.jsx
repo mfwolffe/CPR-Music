@@ -23,7 +23,7 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
   const [peaksCache, setPeaksCache] = useState(new Map()); // clip.id -> peaks
   const clips = Array.isArray(track?.clips) ? track.clips : [];
 
-  const interactive = editorTool === 'clip' && selectedTrackId === track.id;
+  const interactive = (editorTool === 'clip' || editorTool === 'cut') && selectedTrackId === track.id;
   const MIN_DUR = 0.02; // 20ms
   const HANDLE_W = 8;   // CSS px
 
@@ -388,6 +388,49 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
       setSelectedTrackId(track.id);
       const hit = hitTest(e.clientX);
       dragRef.current.pxPerSecCSS = hit.pxPerSecCSS;
+
+      // Handle cut tool
+      if (editorTool === 'cut' && hit.index >= 0) {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const pixelsPerSecond = zoomLevel;
+        const clickTime = x / pixelsPerSecond;
+
+        // Split the clip at the click position
+        const c = clips[hit.index];
+        const clipStart = c.start || 0;
+        const clipEnd = clipStart + (c.duration || 0);
+
+        // Only split if click is inside the clip (not on edges)
+        if (clickTime > clipStart + 0.01 && clickTime < clipEnd - 0.01) {
+          const leftDuration = clickTime - clipStart;
+          const rightDuration = clipEnd - clickTime;
+
+          const leftClip = {
+            ...c,
+            duration: leftDuration,
+          };
+
+          const rightClip = {
+            ...c,
+            id: `${c.id}-split-${Date.now()}`,
+            start: clickTime,
+            duration: rightDuration,
+            offset: (c.offset || 0) + leftDuration,
+          };
+
+          // Update the track with the split clips
+          setTracks((prev) => prev.map((t) => {
+            if (t.id !== track.id || !Array.isArray(t.clips)) return t;
+            const nextClips = [...t.clips];
+            nextClips.splice(hit.index, 1, leftClip, rightClip);
+            return { ...t, clips: nextClips };
+          }));
+        }
+        return;
+      }
+
+      // Handle clip tool (original behavior)
       if (hit.index >= 0) {
         const c = clips[hit.index];
         setSelectedClipId(c.id);
@@ -406,9 +449,12 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const hit = hitTest(e.clientX);
-      
+
       if (!dragRef.current.op) {
-        if (hit.index >= 0) {
+        // Set cursor based on tool and hover state
+        if (editorTool === 'cut') {
+          canvas.style.cursor = hit.index >= 0 ? 'crosshair' : 'default';
+        } else if (hit.index >= 0) {
           if (hit.edge) canvas.style.cursor = 'ew-resize';
           else canvas.style.cursor = 'grab';
         } else {
@@ -498,9 +544,9 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
         cancelAnimationFrame(animationId);
       }
     };
-  }, [clipRects, currentTime, duration, zoomLevel, interactive, selectedClipId, selectedTrackId, 
-      snapEnabled, gridSizeSec, setSelectedTrackId, setSelectedClipId, setTracks, track?.id, 
-      peaksCache, clips]);
+  }, [clipRects, currentTime, duration, zoomLevel, interactive, selectedClipId, selectedTrackId,
+      snapEnabled, gridSizeSec, setSelectedTrackId, setSelectedClipId, setTracks, track?.id,
+      peaksCache, clips, editorTool]);
 
   return (
     <canvas
