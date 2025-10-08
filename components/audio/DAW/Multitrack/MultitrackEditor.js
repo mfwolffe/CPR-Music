@@ -33,9 +33,7 @@ import { Dropdown } from 'react-bootstrap';
 import AudioTrack from './AudioTrack';
 import MIDITrack from './MIDITrack';
 import MultitrackTransport from './MultitrackTransport';
-import EffectsPanel from './EffectsPanel';
-import EffectSelectionModal from './EffectSelectionModal';
-import EffectParametersModal from './EffectParametersModal';
+import ClipEffectsRack from './ClipEffectsRack';
 import MultitrackTimeline from './MultitrackTimeline';
 import TakesImportModal from './TakesImportModal';
 import MultitrackMixdown from './MultitrackMixdown';
@@ -82,14 +80,12 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
     setSnapEnabled,
     gridSizeSec,
     setGridSizeSec,
-    // effects modal system
-    setShowEffectSelectionModal,
-    setEffectTargetTrackId,
+    // removed old track-based effects modal state
     isAnyTrackRecording,
     scrollResetCallbackRef,
   } = useMultitrack();
 
-  const [showEffectsPanel, setShowEffectsPanel] = useState(false);
+  const [showClipEffectsModal, setShowClipEffectsModal] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(100);
   const [showTakesModal, setShowTakesModal] = useState(false);
   // Use propTakes directly instead of state since it's managed by RecordingContext
@@ -573,15 +569,14 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                 variant="secondary"
                 size="sm"
                 onClick={() => {
-                  if (selectedTrackId) {
-                    setEffectTargetTrackId(selectedTrackId);
-                    setShowEffectSelectionModal(true);
+                  if (selectedClipId) {
+                    setShowClipEffectsModal(true);
                   } else {
-                    alert('Please select a track first to add effects.');
+                    alert('Please select a clip first to add effects.');
                   }
                 }}
-                disabled={!selectedTrackId}
-                title={selectedTrackId ? "Add effects to selected track" : "Select a track first"}
+                disabled={!selectedClipId}
+                title={selectedClipId ? "Add effects to selected clip" : "Select a clip first"}
               >
                 Effects
               </Button>
@@ -852,12 +847,12 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
         onImport={handleImportTake}
       />
 
-      {showEffectsPanel && (
-        <EffectsPanel
-          show={showEffectsPanel}
-          onHide={() => setShowEffectsPanel(false)}
-        />
-      )}
+      {/* Clip Effects Modal */}
+      <ClipEffectsRack
+        show={showClipEffectsModal}
+        onHide={() => setShowClipEffectsModal(false)}
+        selectedClipId={selectedClipId}
+      />
 
       {/* Piano Section - Bottom of Editor */}
       {showPiano && (
@@ -892,9 +887,6 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
         </Row>
       )}
 
-      {/* Effects Modal System */}
-      <EffectSelectionModal />
-      <EffectParametersModal />
     </Container>
   );
 }

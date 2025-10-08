@@ -8,6 +8,7 @@ import {
   FaStop,
   FaFileImport,
   FaTrash,
+  FaVolumeUp,
 } from 'react-icons/fa';
 import { MdPanTool } from 'react-icons/md';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
@@ -636,7 +637,7 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
 
             {controlTab === 'vol' ? (
               <div className="track-control-row" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className="control-icon" style={{ fontSize: '12px' }}>🔊</span>
+                <FaVolumeUp size={12} className="control-icon" />
                 <input
                   type="range"
                   className="track-volume-slider"
