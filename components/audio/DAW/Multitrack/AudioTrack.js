@@ -58,6 +58,7 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
   const isRecording = track.isRecording || false;
   const isSolo = soloTrackId === track.id;
   const isSelected = selectedTrackId === track.id;
+  const isMutedBySolo = soloTrackId && !isSolo; // Track is muted because another track is soloed
 
   // Initialize ClipPlayer
   useEffect(() => {
@@ -685,14 +686,23 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
               S
             </Button>
             <Button
-              variant={track.muted ? 'danger' : 'outline-secondary'}
+              variant={track.muted || isMutedBySolo ? 'danger' : 'outline-secondary'}
               size="sm"
               onClick={(e) => {
                 e.stopPropagation();
                 updateTrack(track.id, { muted: !track.muted });
               }}
-              title={track.muted ? 'Unmute' : 'Mute'}
-              style={{ flex: 1 }}
+              title={
+                isMutedBySolo
+                  ? 'Muted by solo (another track is soloed)'
+                  : track.muted
+                    ? 'Unmute'
+                    : 'Mute'
+              }
+              style={{
+                flex: 1,
+                opacity: isMutedBySolo ? 0.6 : 1 // Dimmed if muted by solo
+              }}
             >
               M
             </Button>

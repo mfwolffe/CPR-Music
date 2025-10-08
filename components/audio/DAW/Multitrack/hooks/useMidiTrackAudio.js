@@ -45,6 +45,7 @@ export function useMIDITrackAudio(
   isGlobalPlaying,
   globalCurrentTime,
   registerTrackInstrument,
+  soloTrackId = null,
 ) {
   const [isRecording, setIsRecording] = useState(false);
   const [isCountingIn, setIsCountingIn] = useState(false);
@@ -280,10 +281,13 @@ export function useMIDITrackAudio(
     // Don't play live synthesis during mixdown to prevent dual synthesis
     const isMixdownActive = typeof window !== 'undefined' && window.__MIXDOWN_ACTIVE__;
 
+    // Check if track should play based on solo and mute state
+    const isMutedBySolo = soloTrackId && soloTrackId !== track.id;
     const shouldPlay =
       !isMixdownActive &&
       isGlobalPlaying &&
       !track.muted &&
+      !isMutedBySolo &&
       track.midiData?.notes?.length > 0;
 
     // Only log in development and when state changes to reduce spam
@@ -339,6 +343,8 @@ export function useMIDITrackAudio(
     track.muted,
     track.midiData?.notes,
     track.midiData?.tempo,
+    track.id,
+    soloTrackId,
   ]);
 
   // Play a single note (for preview/audition)

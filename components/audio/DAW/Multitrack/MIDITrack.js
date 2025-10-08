@@ -58,7 +58,7 @@ function MIDITrack({ track, index, zoomLevel = 100 }) {
     instrumentRef,
     playNote,
     stopNote,
-  } = useMIDITrackAudio(track, isPlaying, currentTime, registerTrackInstrument);
+  } = useMIDITrackAudio(track, isPlaying, currentTime, registerTrackInstrument, soloTrackId);
 
   const instrument = instrumentRef?.current;
   const instrumentLoading = !instrument;
@@ -268,6 +268,7 @@ function MIDITrack({ track, index, zoomLevel = 100 }) {
 
   const isSelected = selectedTrackId === track.id;
   const isSolo = soloTrackId === track.id;
+  const isMutedBySolo = soloTrackId && !isSolo; // Track is muted because another track is soloed
 
   // Add style reset to override external CSS
   const styleReset = `
@@ -554,14 +555,24 @@ function MIDITrack({ track, index, zoomLevel = 100 }) {
             S
           </Button>
           <Button
-            variant={track.muted ? 'danger' : 'outline-secondary'}
+            variant={track.muted || isMutedBySolo ? 'danger' : 'outline-secondary'}
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
               updateTrack(track.id, { muted: !track.muted });
             }}
-            title={track.muted ? 'Unmute' : 'Mute'}
-            style={{ flex: 1, fontSize: '0.75rem' }}
+            title={
+              isMutedBySolo
+                ? 'Muted by solo (another track is soloed)'
+                : track.muted
+                  ? 'Unmute'
+                  : 'Mute'
+            }
+            style={{
+              flex: 1,
+              fontSize: '0.75rem',
+              opacity: isMutedBySolo ? 0.6 : 1 // Dimmed if muted by solo
+            }}
           >
             M
           </Button>
