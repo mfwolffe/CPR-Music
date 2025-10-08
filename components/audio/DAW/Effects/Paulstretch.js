@@ -208,7 +208,10 @@ export async function processPaulstretchRegion(
     const olaWeight = new Float32Array(outputLength);
 
     // Process overlapping windows
-    const hopSize = Math.floor(windowSizeSamples / (parameters.onset || 10));
+    // For smooth ethereal sound, use much smaller hop size (1/4 of window)
+    // This creates heavy overlap which is essential for paulstretch's characteristic sound
+    const overlapFactor = 4; // Standard paulstretch uses 4x overlap
+    const hopSize = Math.floor(windowSizeSamples / overlapFactor);
     const outputHopSize = Math.floor(hopSize * stretch);
 
     let inputPos = 0;
@@ -362,7 +365,6 @@ export default function Paulstretch({ width, onApply }) {
   // Paulstretch parameters
   const [stretchFactor, setStretchFactor] = useState(8);
   const [windowSize, setWindowSize] = useState(0.25);
-  const [onset, setOnset] = useState(10);
 
   // NEW: Output controls
   const [makeupDb, setMakeupDb] = useState(0); // 0..+24 dB
@@ -392,7 +394,6 @@ export default function Paulstretch({ width, onApply }) {
       const parameters = {
         stretchFactor: stretchFactor,
         windowSize: windowSize,
-        onset: onset,
         makeupDb: makeupDb,
         limiterDb: limiterDb,
       };
@@ -435,7 +436,6 @@ export default function Paulstretch({ width, onApply }) {
     cutRegion,
     stretchFactor,
     windowSize,
-    onset,
     makeupDb,
     limiterDb,
     onApply,
@@ -486,22 +486,6 @@ export default function Paulstretch({ width, onApply }) {
               />
             </div>
           </OverlayTrigger>
-        </Col>
-
-        <Col xs={6} sm={4} md={2} lg={1}>
-          <div>
-            <Knob
-              value={onset}
-              onChange={setOnset}
-              min={2}
-              max={50}
-              step={1}
-              label="Smoothness"
-              displayValue={`${onset}`}
-              size={45}
-              color="#92ce84"
-            />
-          </div>
         </Col>
 
         {/* NEW: Make-Up Gain (dB) */}
