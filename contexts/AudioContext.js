@@ -148,7 +148,10 @@ export const AudioProvider = ({ children }) => {
   const clearHistory = useCallback(() => {
     if (!commandManagerRef.current) return;
     commandManagerRef.current.clear();
-    hasInitialAudioRef.current = false; // Reset so next audio load won't add to history
+
+    // Set hasInitialAudioRef to true so that subsequent edits will be tracked
+    // When switching takes, we clear the history but want new edits to be added
+    hasInitialAudioRef.current = true;
   }, []);
   
   const value = {

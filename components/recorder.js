@@ -396,13 +396,16 @@ export default function RecorderRefactored({ submit, accompaniment }) {
   useEffect(() => {
     if (activeTakeNo === -1 || blobInfo.length === 0) return;
     const take = blobInfo.find((o) => o.take === activeTakeNo);
-    if (take && take.url !== audioURL) {
+    if (take) {
       // Clear undo/redo history when switching takes
       // Each take should have its own independent edit history
       clearHistory();
-      setAudioURL(take.url);
+
+      // Add the original recording as the initial state in history
+      // This allows users to undo back to the original recording
+      addToEditHistory(take.url, 'Original Recording', { isTakeLoad: true });
     }
-  }, [activeTakeNo, blobInfo, audioURL, setAudioURL, clearHistory]);
+  }, [activeTakeNo, blobInfo, addToEditHistory, clearHistory]); // Removed audioURL from deps to prevent clearing on edits
 
   // Recording timer
   useEffect(() => {
