@@ -22,11 +22,15 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
 
   const canvasRef = useRef(null);
   const dragRef = useRef({ op: null, clipIndex: -1, startX: 0, pxPerSecCSS: 1, orig: null });
-  const selectionBoxRef = useRef({ active: false, startX: 0, startY: 0, endX: 0, endY: 0 });
+  // selectionBoxRef removed - selection box now handled by SelectionOverlay component
   const [peaksCache, setPeaksCache] = useState(new Map()); // clip.id -> peaks
   const clips = Array.isArray(track?.clips) ? track.clips : [];
 
-  const interactive = (editorTool === 'clip' || editorTool === 'cut' || editorTool === 'select') && selectedTrackId === track.id;
+  // In select mode, all tracks are clickable (for cross-track selection)
+  // In other modes, only the selected track is interactive
+  const interactive = editorTool === 'select'
+    ? (editorTool === 'select')
+    : ((editorTool === 'clip' || editorTool === 'cut') && selectedTrackId === track.id);
   const MIN_DUR = 0.02; // 20ms
   const HANDLE_W = 8;   // CSS px
 
@@ -269,7 +273,8 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
       for (let i = 0; i < rects.length; i++) {
         const r = rects[i];
         const clip = clips[i];
-        const isSel = (r.id === selectedClipId || selectedClipIds.includes(r.id)) && selectedTrackId === track.id;
+        // Allow clips to show as selected even if track is not active (for cross-track selection)
+        const isSel = (r.id === selectedClipId || selectedClipIds.includes(r.id));
 
         // Clip background
         ctx.fillStyle = hexToRgba(r.color, isSel ? 0.2 : 0.12);
@@ -354,20 +359,7 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
         ctx.setLineDash([]);
       }
 
-      // Draw selection box if active
-      if (selectionBoxRef.current.active) {
-        const { startX, startY, endX, endY } = selectionBoxRef.current;
-        const x = Math.min(startX, endX) * dpr;
-        const y = Math.min(startY, endY) * dpr;
-        const w = Math.abs(endX - startX) * dpr;
-        const h = Math.abs(endY - startY) * dpr;
-
-        ctx.fillStyle = 'rgba(100, 150, 255, 0.15)';
-        ctx.fillRect(x, y, w, h);
-        ctx.strokeStyle = 'rgba(100, 150, 255, 0.5)';
-        ctx.lineWidth = Math.max(1, dpr);
-        ctx.strokeRect(x, y, w, h);
-      }
+      // Selection box drawing removed - now handled by SelectionOverlay component
     }
 
     // Pointer handlers remain the same as original
@@ -401,23 +393,50 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
     }
 
     function onPointerDown(e) {
-      if (!interactive) return;
+      if (!interactive) {
+        // Even if not interactive, allow shift-clicking clips for cross-track selection
+        if (editorTool === 'select' && (e.shiftKey || e.ctrlKey || e.metaKey)) {
+          const hit = hitTest(e.clientX);
+          if (hit.index >= 0) {
+            const c = clips[hit.index];
+            console.log('🔶 TrackClipCanvas: Cross-track shift-click', { trackId: track.id, clipId: c.id });
+
+            // Add to or toggle from selection
+            if (selectedClipIds.includes(c.id)) {
+              setSelectedClipIds(selectedClipIds.filter(id => id !== c.id));
+            } else {
+              setSelectedClipIds([...selectedClipIds, c.id]);
+            }
+
+            // Stop propagation so SelectionOverlay doesn't interfere
+            e.stopPropagation();
+            return;
+          }
+        }
+        return;
+      }
+
       canvas.setPointerCapture(e.pointerId);
-      setSelectedTrackId(track.id);
+
+      // Only change selected track if not shift-clicking (to allow cross-track selection)
+      const isModifierKey = e.shiftKey || e.ctrlKey || e.metaKey;
+      if (!isModifierKey) {
+        setSelectedTrackId(track.id);
+      }
+
       const hit = hitTest(e.clientX);
       dragRef.current.pxPerSecCSS = hit.pxPerSecCSS;
 
       // Handle select tool
       if (editorTool === 'select') {
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-
+        console.log('🔶 TrackClipCanvas: Select tool click', { trackId: track.id, hitIndex: hit.index, clipCount: clips.length });
         if (hit.index >= 0) {
-          // Clicked on a clip
+          // Clicked on a clip - handle selection
           const c = clips[hit.index];
           const isShift = e.shiftKey;
           const isCtrl = e.ctrlKey || e.metaKey;
+
+          console.log('🔶 TrackClipCanvas: Clicked on clip', { clipId: c.id, isShift, isCtrl });
 
           if (isShift || isCtrl) {
             // Add to or toggle from selection
@@ -430,22 +449,18 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
             // Single select (replace selection)
             setSelectedClipId(c.id);
             setSelectedClipIds([c.id]);
+            // Set track as selected when doing single selection
+            setSelectedTrackId(track.id);
           }
+
+          // Stop propagation so SelectionOverlay doesn't interfere
+          e.stopPropagation();
+          return;
         } else {
-          // Clicked on empty space - start selection box
-          selectionBoxRef.current = {
-            active: true,
-            startX: x,
-            startY: y,
-            endX: x,
-            endY: y,
-          };
-          // Clear selection unless shift/ctrl is held
-          if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
-            setSelectedClipId(null);
-            setSelectedClipIds([]);
-          }
+          console.log('🔶 TrackClipCanvas: Clicked on empty space, letting SelectionOverlay handle it');
         }
+        // Note: Selection box dragging is now handled by SelectionOverlay component
+        // which operates at the container level for cross-track selection
         return;
       }
 
@@ -506,18 +521,9 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
     }
 
     function onPointerMove(e) {
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
       const hit = hitTest(e.clientX);
 
-      // Handle selection box dragging
-      if (selectionBoxRef.current.active) {
-        selectionBoxRef.current.endX = x;
-        selectionBoxRef.current.endY = y;
-        draw();
-        return;
-      }
+      // Selection box dragging removed - now handled by SelectionOverlay component
 
       if (!dragRef.current.op) {
         // Set cursor based on tool and hover state
@@ -584,51 +590,7 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
     function onPointerUp(e) {
       canvas.releasePointerCapture?.(e.pointerId);
 
-      // Handle selection box completion
-      if (selectionBoxRef.current.active) {
-        const { startX, startY, endX, endY } = selectionBoxRef.current;
-        const minX = Math.min(startX, endX);
-        const maxX = Math.max(startX, endX);
-        const minY = Math.min(startY, endY);
-        const maxY = Math.max(startY, endY);
-
-        // Find all clips that intersect with the selection box
-        const pixelsPerSecond = zoomLevel;
-        const selectedIds = [];
-
-        for (const clip of clips) {
-          const clipStartX = (clip.start || 0) * pixelsPerSecond;
-          const clipEndX = clipStartX + (clip.duration || 0) * pixelsPerSecond;
-
-          // Check if clip intersects with selection box (in X direction, Y is always full height)
-          if (clipEndX >= minX && clipStartX <= maxX) {
-            selectedIds.push(clip.id);
-          }
-        }
-
-        // Update selection
-        const isShift = e.shiftKey;
-        const isCtrl = e.ctrlKey || e.metaKey;
-
-        if (isShift || isCtrl) {
-          // Add to existing selection
-          const combinedIds = [...new Set([...selectedClipIds, ...selectedIds])];
-          setSelectedClipIds(combinedIds);
-          if (combinedIds.length > 0) {
-            setSelectedClipId(combinedIds[0]);
-          }
-        } else {
-          // Replace selection
-          setSelectedClipIds(selectedIds);
-          if (selectedIds.length > 0) {
-            setSelectedClipId(selectedIds[0]);
-          }
-        }
-
-        selectionBoxRef.current.active = false;
-        draw();
-        return;
-      }
+      // Selection box completion removed - now handled by SelectionOverlay component
 
       if (!interactive) { draw(); return; }
       if (!dragRef.current.op || dragRef.current.clipIndex < 0) { draw(); return; }

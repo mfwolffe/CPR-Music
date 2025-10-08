@@ -41,6 +41,7 @@ import MIDIInputManager from './MIDIInputManager';
 import MIDIDeviceSelector from './MIDIDeviceSelector';
 import PianoKeyboard from './PianoKeyboard';
 import clipClipboard from './ClipClipboard';
+import SelectionOverlay from './SelectionOverlay';
 import {
   splitClipsAtTime,
   rippleDelete,
@@ -56,6 +57,7 @@ if (typeof window !== 'undefined') window.__midiInputManager = midiInputManager;
 export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   console.log('MultitrackEditor rendering');
   const tracksScrollRef = useRef(null);
+  const tracksInnerRef = useRef(null);
   const timelineScrollRef = useRef(null);
   const isSyncingScrollRef = useRef(false);
 
@@ -679,6 +681,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
           >
             <div
               id="multitrack-tracks-inner"
+              ref={tracksInnerRef}
               style={(() => {
                 // Compute dynamic width and grid size during recording
                 const hasRecording = isAnyTrackRecording && isAnyTrackRecording();
@@ -773,6 +776,9 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                   }}
                 />
               )}
+
+              {/* Selection Overlay for cross-track selection */}
+              <SelectionOverlay containerRef={tracksInnerRef} zoomLevel={zoomLevel} />
             </div>
           </div>
         </Col>
