@@ -4,8 +4,10 @@ import { useCallback, useRef, useEffect } from 'react';
 import { Container, Row, Col, Button, Form, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import {
   useAudio,
-  useEffects
+  useEffects,
+  useWaveform
 } from '../../../../contexts/DAWProvider';
+import { createEffectApplyFunction } from '../../../../lib/effects/effectsWaveformHelper';
 import Knob from '../../../Knob';
 
 /**
@@ -32,13 +34,13 @@ export async function processFlangerRegion(audioBuffer, startSample, endSample, 
   const regionLength = endSample - startSample;
   const regionDuration = (endSample - startSample) / sampleRate;
   
-  // Create offline context for processing
+  // Create offline context with region length only
   const offlineContext = new OfflineAudioContext(
     audioBuffer.numberOfChannels,
-    audioBuffer.length,
+    regionLength,
     sampleRate
   );
-  
+
   // Create source
   const source = offlineContext.createBufferSource();
   source.buffer = audioBuffer;
@@ -124,35 +126,14 @@ export async function processFlangerRegion(audioBuffer, startSample, endSample, 
   
   outputGain.connect(offlineContext.destination);
 
-  // Start source (LFOs already started earlier)
-  source.start(0);
-  
-  // Render
+  // Play only the region
+  const startTime = startSample / sampleRate;
+  const duration = regionLength / sampleRate;
+  source.start(0, startTime, duration);
+
+  // Render and return processed region directly
   const renderedBuffer = await offlineContext.startRendering();
-  
-  // Create output buffer with processed region
-  const outputBuffer = audioContext.createBuffer(
-    audioBuffer.numberOfChannels,
-    audioBuffer.length,
-    sampleRate
-  );
-  
-  // Mix the processed region back
-  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-    const inputData = audioBuffer.getChannelData(channel);
-    const processedData = renderedBuffer.getChannelData(channel);
-    const outputData = outputBuffer.getChannelData(channel);
-    
-    // Copy original audio
-    outputData.set(inputData);
-    
-    // Overwrite with processed region
-    for (let i = 0; i < regionLength; i++) {
-      outputData[startSample + i] = processedData[startSample + i];
-    }
-  }
-  
-  return outputBuffer;
+  return renderedBuffer;
 }
 
 /**
@@ -165,7 +146,10 @@ export default function Flanger({ width, onApply }) {
     addToEditHistory,
     audioURL
   } = useAudio();
-  
+
+  const { audioBuffer, applyProcessedAudio, activeRegion,
+    audioContext } = useWaveform();
+
   const {
     flangerRate,
     setFlangerRate,
@@ -209,28 +193,14 @@ export default function Flanger({ width, onApply }) {
   };
   
   // Apply flanger to selected region
-  const applyFlanger = useCallback(async () => {
-    if (!cutRegion || !wavesurferRef.current) {
-      alert('Please select a region first');
-      return;
-    }
-    
-    try {
-      const wavesurfer = wavesurferRef.current;
-      const context = audioContextRef.current;
-      
-      // Get the audio buffer
-      const response = await fetch(audioURL);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await context.decodeAudioData(arrayBuffer);
-      
-      // Calculate sample positions
-      const sampleRate = audioBuffer.sampleRate;
-      const startSample = Math.floor(cutRegion.start * sampleRate);
-      const endSample = Math.floor(cutRegion.end * sampleRate);
-      
-      // Use the exported processing function
-      const parameters = {
+  const applyFlanger = useCallback(
+    createEffectApplyFunction(processFlangerRegion, {
+      audioBuffer,
+      activeRegion,
+      cutRegion,
+      applyProcessedAudio,
+      audioContext,
+      parameters: {
         rate: getEffectiveRate(),
         depth: flangerDepth,
         feedback: flangerFeedback,
@@ -239,41 +209,11 @@ export default function Flanger({ width, onApply }) {
         throughZero: flangerThroughZero,
         stereoPhase: flangerStereoPhase,
         manualOffset: flangerManualOffset
-      };
-      
-      const outputBuffer = await processFlangerRegion(
-        audioBuffer,
-        startSample,
-        endSample,
-        parameters
-      );
-      
-      // Convert to blob and update
-      const wav = await audioBufferToWav(outputBuffer);
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-      
-      // Update audio and history
-      addToEditHistory(url, 'Apply Flanger', {
-        effect: 'flanger',
-        parameters,
-        region: { start: cutRegion.start, end: cutRegion.end }
-      });
-      
-      // Load new audio
-      await wavesurfer.load(url);
-
-      // Clear region
-      cutRegion.remove();
-
-      // Call onApply callback if provided
-      onApply?.();
-      
-    } catch (error) {
-      console.error('Error applying flanger:', error);
-      alert('Error applying flanger. Please try again.');
-    }
-  }, [audioURL, addToEditHistory, wavesurferRef, flangerRate, flangerDepth, flangerFeedback, flangerDelay, flangerMix, cutRegion, onApply]);
+      },
+      onApply
+    }),
+    [audioBuffer, activeRegion, cutRegion, applyProcessedAudio, audioContext, flangerRate, flangerDepth, flangerFeedback, flangerDelay, flangerMix, flangerThroughZero, flangerStereoPhase, flangerManualOffset, flangerTempoSync, flangerNoteDivision, globalBPM, onApply]
+  );
   
   return (
     <Container fluid className="p-2">

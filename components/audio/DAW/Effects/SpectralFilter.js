@@ -3,7 +3,8 @@
 
 import { useCallback, useRef, useEffect, useState } from 'react';
 import { Container, Row, Col, Button, Dropdown, OverlayTrigger, Tooltip } from 'react-bootstrap';
-import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
+import { useAudio, useEffects, useWaveform } from '../../../../contexts/DAWProvider';
+import { createEffectApplyFunction } from '../../../../lib/effects/effectsWaveformHelper';
 import Knob from '../../../Knob';
 
 /**
@@ -226,10 +227,10 @@ export async function processSpectralFilterRegion(
   const fftSize = 2048;
   const hopSize = fftSize / 4;
 
-  // Create output buffer
+  // Create output buffer with region length only
   const outputBuffer = audioContext.createBuffer(
     audioBuffer.numberOfChannels,
-    audioBuffer.length,
+    regionLength,
     sampleRate,
   );
 
@@ -237,9 +238,6 @@ export async function processSpectralFilterRegion(
   for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
     const inputData = audioBuffer.getChannelData(channel);
     const outputData = outputBuffer.getChannelData(channel);
-
-    // Copy original audio
-    outputData.set(inputData);
 
     // Process region with overlap-add
     const processedRegion = new Float32Array(regionLength);
@@ -314,7 +312,7 @@ export async function processSpectralFilterRegion(
 
     // Copy processed region back
     for (let i = 0; i < regionLength; i++) {
-      outputData[startSample + i] = processedRegion[i] * 0.8;
+      outputData[i] = processedRegion[i] * 0.8;
     }
   }
 
@@ -329,6 +327,9 @@ export default function SpectralFilter({ width, onApply }) {
   const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
 
   const { cutRegion } = useEffects();
+
+  const { audioBuffer, applyProcessedAudio, activeRegion,
+    audioContext } = useWaveform();
 
   const audioContextRef = useRef(null);
   const [filterType, setFilterType] = useState('robot');
@@ -346,77 +347,24 @@ export default function SpectralFilter({ width, onApply }) {
   }, []);
 
   // Apply spectral filter
-  const applySpectralFilter = useCallback(async () => {
-    if (!cutRegion || !wavesurferRef.current) {
-      alert('Please select a region first');
-      return;
-    }
-
-    try {
-      const wavesurfer = wavesurferRef.current;
-      const context = audioContextRef.current;
-
-      // Get the audio buffer
-      const response = await fetch(audioURL);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await context.decodeAudioData(arrayBuffer);
-
-      const sampleRate = audioBuffer.sampleRate;
-      const startSample = Math.floor(cutRegion.start * sampleRate);
-      const endSample = Math.floor(cutRegion.end * sampleRate);
-
-      // Use the exported processing function
-      const parameters = {
+  const applySpectralFilter = useCallback(
+    createEffectApplyFunction(processSpectralFilterRegion, {
+      audioBuffer,
+      activeRegion,
+      cutRegion,
+      applyProcessedAudio,
+      audioContext,
+      parameters: {
         type: filterType,
         threshold,
         bands,
         spread,
         shift,
-      };
-
-      const outputBuffer = await processSpectralFilterRegion(
-        audioBuffer,
-        startSample,
-        endSample,
-        parameters,
-      );
-
-      // Convert to blob and update
-      const wav = await audioBufferToWav(outputBuffer);
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-
-      // Update audio and history
-      addToEditHistory(url, 'Apply Spectral Filter', {
-        effect: 'spectralFilter',
-        parameters,
-        region: { start: cutRegion.start, end: cutRegion.end },
-      });
-
-      // Load new audio
-      await wavesurfer.load(url);
-
-      // Clear region
-      cutRegion.remove();
-
-      // Call onApply callback if provided
-      onApply?.();
-    } catch (error) {
-      console.error('Error applying spectral filter:', error);
-      alert('Error applying spectral filter. Please try again.');
-    }
-  }, [
-    audioURL,
-    addToEditHistory,
-    wavesurferRef,
-    cutRegion,
-    filterType,
-    threshold,
-    bands,
-    spread,
-    shift,
-    onApply,
-  ]);
+      },
+      onApply
+    }),
+    [audioBuffer, activeRegion, cutRegion, applyProcessedAudio, audioContext, filterType, threshold, bands, spread, shift, onApply]
+  );
 
   return (
     <Container fluid className="p-2">

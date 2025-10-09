@@ -2,7 +2,8 @@
 
 import { useCallback, useRef, useEffect, useState } from 'react';
 import { Container, Row, Col, Form, Button, OverlayTrigger, Tooltip } from 'react-bootstrap';
-import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
+import { useAudio, useEffects, useWaveform } from '../../../../contexts/DAWProvider';
+import { createEffectApplyFunction } from '../../../../lib/effects/effectsWaveformHelper';
 import Knob from '../../../Knob';
 
 /**
@@ -234,17 +235,17 @@ export async function processChorusRegion(audioBuffer, startSample, endSample, p
   const sampleRate = audioBuffer.sampleRate;
   const regionLength = endSample - startSample;
   
-  // Create offline context
+  // Create offline context with region length only
   const offlineContext = new OfflineAudioContext(
     audioBuffer.numberOfChannels,
-    audioBuffer.length,
+    regionLength,
     sampleRate
   );
-  
+
   // Create source
   const source = offlineContext.createBufferSource();
   source.buffer = audioBuffer;
-  
+
   // Create chorus processor
   const chorus = new ChorusProcessor(offlineContext);
   chorus.setRate(parameters.rate || 0.5);
@@ -256,37 +257,20 @@ export async function processChorusRegion(audioBuffer, startSample, endSample, p
   chorus.setStereoWidth(parameters.stereoWidth || 1.0);
   chorus.setWaveform(parameters.waveform || 'sine');
   chorus.setOutputGain(parameters.outputGain || 1.0);
-  
+
   // Connect and render
   source.connect(chorus.input);
   chorus.connect(offlineContext.destination);
-  
-  source.start(0);
+
+  // Play only the region
+  const startTime = startSample / sampleRate;
+  const duration = regionLength / sampleRate;
+  source.start(0, startTime, duration);
+
   const renderedBuffer = await offlineContext.startRendering();
-  
-  // Create output buffer with processed region
-  const outputBuffer = audioContext.createBuffer(
-    audioBuffer.numberOfChannels,
-    audioBuffer.length,
-    sampleRate
-  );
-  
-  // Mix the processed region back
-  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-    const inputData = audioBuffer.getChannelData(channel);
-    const processedData = renderedBuffer.getChannelData(channel);
-    const outputData = outputBuffer.getChannelData(channel);
-    
-    // Copy original audio
-    outputData.set(inputData);
-    
-    // Overwrite with processed region
-    for (let i = 0; i < regionLength; i++) {
-      outputData[startSample + i] = processedData[startSample + i];
-    }
-  }
-  
-  return outputBuffer;
+
+  // Return processed region directly
+  return renderedBuffer;
 }
 
 /**
@@ -300,7 +284,10 @@ export default function Chorus({ width, onApply }) {
     addToEditHistory,
     audioURL
   } = useAudio();
-  
+
+  const { audioBuffer, applyProcessedAudio, activeRegion,
+    audioContext } = useWaveform();
+
   const {
     cutRegion,
     chorusRate,
@@ -444,33 +431,15 @@ export default function Chorus({ width, onApply }) {
   }, [drawLFOVisualization]);
   
   // Apply chorus to selected region
-  const applyChorus = useCallback(async () => {
-    if (!cutRegion || !wavesurferRef.current) {
-      alert('Please select a region first');
-      return;
-    }
-    
-    try {
-      const wavesurfer = wavesurferRef.current;
-      const context = audioContextRef.current;
-      
-      // Get the audio buffer
-      const response = await fetch(audioURL);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await context.decodeAudioData(arrayBuffer);
-      
-      // Calculate sample positions
-      const sampleRate = audioBuffer.sampleRate;
-      const startSample = Math.floor(cutRegion.start * sampleRate);
-      const endSample = Math.floor(cutRegion.end * sampleRate);
-      
-      // Use the exported processing function
-      const effectiveRate = chorusTempoSync 
-        ? (globalBPM / 60) / (chorusNoteDivision / 4) 
-        : chorusRate;
-        
-      const parameters = {
-        rate: effectiveRate,
+  const applyChorus = useCallback(
+    createEffectApplyFunction(processChorusRegion, {
+      audioBuffer,
+      activeRegion,
+      cutRegion,
+      applyProcessedAudio,
+      audioContext,
+      parameters: {
+        rate: chorusTempoSync ? (globalBPM / 60) / (chorusNoteDivision / 4) : chorusRate,
         depth: chorusDepth,
         delay: chorusDelay,
         feedback: chorusFeedback,
@@ -479,43 +448,13 @@ export default function Chorus({ width, onApply }) {
         stereoWidth: chorusStereoWidth,
         waveform: chorusWaveform,
         outputGain: chorusOutputGain
-      };
-      
-      const outputBuffer = await processChorusRegion(
-        audioBuffer,
-        startSample,
-        endSample,
-        parameters
-      );
-      
-      // Convert to blob and update
-      const wav = await audioBufferToWav(outputBuffer);
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-      
-      // Update audio and history
-      addToEditHistory(url, 'Apply Chorus', {
-        effect: 'chorus',
-        parameters,
-        region: { start: cutRegion.start, end: cutRegion.end }
-      });
-      
-      // Load new audio
-      await wavesurfer.load(url);
-
-      // Clear region
-      cutRegion.remove();
-
-      // Call onApply callback if provided
-      onApply?.();
-
-    } catch (error) {
-      console.error('Error applying chorus:', error);
-      alert('Error applying chorus. Please try again.');
-    }
-  }, [audioURL, addToEditHistory, wavesurferRef, cutRegion, chorusRate, chorusDepth,
+      },
+      onApply
+    }),
+    [audioBuffer, activeRegion, cutRegion, applyProcessedAudio, audioContext, chorusRate, chorusDepth,
       chorusDelay, chorusFeedback, chorusWetMix, chorusVoices, chorusStereoWidth,
-      chorusWaveform, chorusOutputGain, chorusTempoSync, chorusNoteDivision, globalBPM, onApply]);
+      chorusWaveform, chorusOutputGain, chorusTempoSync, chorusNoteDivision, globalBPM, onApply]
+  );
   
   return (
     <Container fluid className="p-2">

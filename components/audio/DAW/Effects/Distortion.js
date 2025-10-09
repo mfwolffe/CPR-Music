@@ -3,7 +3,8 @@
 import { useCallback, useRef, useEffect, useState } from 'react';
 import { Container, Row, Col, Form, Button, OverlayTrigger, Tooltip, Modal } from 'react-bootstrap';
 import { FaQuestionCircle } from 'react-icons/fa';
-import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
+import { useAudio, useEffects, useWaveform } from '../../../../contexts/DAWProvider';
+import { createEffectApplyFunction } from '../../../../lib/effects/effectsWaveformHelper';
 import Knob from '../../../Knob';
 
 // Educational tooltips
@@ -451,17 +452,17 @@ export async function processDistortionRegion(audioBuffer, startSample, endSampl
   const sampleRate = audioBuffer.sampleRate;
   const regionLength = endSample - startSample;
   
-  // Create offline context
+  // Create offline context with region length only
   const offlineContext = new OfflineAudioContext(
     audioBuffer.numberOfChannels,
-    audioBuffer.length,
+    regionLength,
     sampleRate
   );
-  
+
   // Create source
   const source = offlineContext.createBufferSource();
   source.buffer = audioBuffer;
-  
+
   // Create distortion processor
   const distortion = new DistortionProcessor(offlineContext);
   distortion.setDistortionType(parameters.type || 'tubeSaturation');
@@ -475,37 +476,20 @@ export async function processDistortionRegion(audioBuffer, startSample, endSampl
   distortion.setHarmonics(parameters.harmonics || 0.5);
   distortion.setWetMix(parameters.wetMix || 1.0);
   distortion.setOutputGain(parameters.outputGain || 0.7);
-  
+
   // Connect and render
   source.connect(distortion.input);
   distortion.connect(offlineContext.destination);
-  
-  source.start(0);
+
+  // Play only the region
+  const startTime = startSample / sampleRate;
+  const duration = regionLength / sampleRate;
+  source.start(0, startTime, duration);
+
   const renderedBuffer = await offlineContext.startRendering();
-  
-  // Create output buffer with processed region
-  const outputBuffer = audioContext.createBuffer(
-    audioBuffer.numberOfChannels,
-    audioBuffer.length,
-    sampleRate
-  );
-  
-  // Mix the processed region back
-  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-    const inputData = audioBuffer.getChannelData(channel);
-    const processedData = renderedBuffer.getChannelData(channel);
-    const outputData = outputBuffer.getChannelData(channel);
-    
-    // Copy original audio
-    outputData.set(inputData);
-    
-    // Overwrite with processed region
-    for (let i = 0; i < regionLength; i++) {
-      outputData[startSample + i] = processedData[startSample + i];
-    }
-  }
-  
-  return outputBuffer;
+
+  // Return processed region directly
+  return renderedBuffer;
 }
 
 /**
@@ -519,7 +503,10 @@ export default function Distortion({ width, onApply }) {
     addToEditHistory,
     audioURL
   } = useAudio();
-  
+
+  const { audioBuffer, applyProcessedAudio, activeRegion,
+    audioContext } = useWaveform();
+
   const {
     cutRegion,
     distortionType,
@@ -823,28 +810,14 @@ export default function Distortion({ width, onApply }) {
   }, [drawDistortionCurve]);
   
   // Apply distortion to selected region
-  const applyDistortion = useCallback(async () => {
-    if (!cutRegion || !wavesurferRef.current) {
-      alert('Please select a region first');
-      return;
-    }
-    
-    try {
-      const wavesurfer = wavesurferRef.current;
-      const context = audioContextRef.current;
-      
-      // Get the audio buffer
-      const response = await fetch(audioURL);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await context.decodeAudioData(arrayBuffer);
-      
-      // Calculate sample positions
-      const sampleRate = audioBuffer.sampleRate;
-      const startSample = Math.floor(cutRegion.start * sampleRate);
-      const endSample = Math.floor(cutRegion.end * sampleRate);
-      
-      // Use the exported processing function
-      const parameters = {
+  const applyDistortion = useCallback(
+    createEffectApplyFunction(processDistortionRegion, {
+      audioBuffer,
+      activeRegion,
+      cutRegion,
+      applyProcessedAudio,
+      audioContext,
+      parameters: {
         type: distortionType,
         drive: distortionDrive,
         tone: distortionTone,
@@ -856,44 +829,14 @@ export default function Distortion({ width, onApply }) {
         harmonics: distortionHarmonics,
         wetMix: distortionWetMix,
         outputGain: distortionOutputGain
-      };
-      
-      const outputBuffer = await processDistortionRegion(
-        audioBuffer,
-        startSample,
-        endSample,
-        parameters
-      );
-      
-      // Convert to blob and update
-      const wav = await audioBufferToWav(outputBuffer);
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-      
-      // Update audio and history
-      addToEditHistory(url, 'Apply Distortion', {
-        effect: 'distortion',
-        parameters,
-        region: { start: cutRegion.start, end: cutRegion.end }
-      });
-      
-      // Load new audio
-      await wavesurfer.load(url);
-
-      // Clear region
-      cutRegion.remove();
-
-      // Call onApply callback if provided
-      onApply?.();
-      
-    } catch (error) {
-      console.error('Error applying distortion:', error);
-      alert('Error applying distortion. Please try again.');
-    }
-  }, [audioURL, addToEditHistory, wavesurferRef, cutRegion, distortionType,
+      },
+      onApply
+    }),
+    [audioBuffer, activeRegion, cutRegion, applyProcessedAudio, audioContext, distortionType,
       distortionDrive, distortionTone, distortionPresence, distortionBass,
       distortionMid, distortionTreble, distortionAsymmetry, distortionHarmonics,
-      distortionWetMix, distortionOutputGain, onApply]);
+      distortionWetMix, distortionOutputGain, onApply]
+  );
   
   return (
     <Container fluid className="p-2">

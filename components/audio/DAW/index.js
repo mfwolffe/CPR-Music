@@ -18,9 +18,7 @@ import {
   useUI,
   useRecording,
 } from '../../../contexts/DAWProvider';
-import Waveform from './Waveform';
-import Transport from './Transport';
-import Timeline from './Timeline';
+import CustomWaveform from './CustomWaveform';
 import EffectsModal from './Effects/EffectsModal';
 import EffectControlModal from './Effects/EffectControlModal';
 import HelpModal from '../daw-old/dawHelp';
@@ -46,6 +44,9 @@ export default function DAW({
 
   const [showRecordingModal, setShowRecordingModal] = useState(false);
   const [showTakesModal, setShowTakesModal] = useState(false);
+
+  // Always use custom waveform - WaveSurfer is deprecated
+  const useCustomWaveform = true;
 
   // Initialize FFmpeg when component mounts
   useEffect(() => {
@@ -171,12 +172,8 @@ export default function DAW({
         <CardBody style={{ background: 'lightsteelblue' }}>
           {/* Main waveform area - full width */}
           <div id="waveform-container" style={{ width: '100%' }}>
-            <Timeline />
-            <Waveform />
-            <Transport />
+            <CustomWaveform />
           </div>
-
-
         </CardBody>
 
         {showSubmitButton && (

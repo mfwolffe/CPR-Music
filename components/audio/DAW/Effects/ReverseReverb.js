@@ -4,8 +4,10 @@ import { useCallback, useRef, useEffect, useState } from 'react';
 import { Container, Row, Col, Button, Dropdown, Form, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import {
   useAudio,
-  useEffects
+  useEffects,
+  useWaveform
 } from '../../../../contexts/DAWProvider';
+import { createEffectApplyFunction } from '../../../../lib/effects/effectsWaveformHelper';
 import { ReverbProcessor } from '../../../../lib/ReverbProcessor';
 import { getPresetNames, impulseResponsePresets } from '../../../../lib/impulseResponses';
 import Knob from '../../../Knob';
@@ -142,7 +144,10 @@ export default function ReverseReverb({ width, onApply }) {
     addToEditHistory,
     audioURL
   } = useAudio();
-  
+
+  const { audioBuffer, applyProcessedAudio, activeRegion,
+    audioContext } = useWaveform();
+
   const {
     cutRegion
   } = useEffects();
@@ -187,67 +192,24 @@ export default function ReverseReverb({ width, onApply }) {
   }, [preset]);
   
   // Apply reverse reverb
-  const applyReverseReverb = useCallback(async () => {
-    if (!cutRegion || !wavesurferRef.current || !reverbProcessorRef.current) {
-      alert('Please select a region first');
-      return;
-    }
-    
-    try {
-      const wavesurfer = wavesurferRef.current;
-      const context = audioContextRef.current;
-      
-      // Get the audio buffer
-      const response = await fetch(audioURL);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await context.decodeAudioData(arrayBuffer);
-      
-      const sampleRate = audioBuffer.sampleRate;
-      const startSample = Math.floor(cutRegion.start * sampleRate);
-      const endSample = Math.floor(cutRegion.end * sampleRate);
-      
-      // Use the exported processing function
-      const parameters = {
+  const applyReverseReverb = useCallback(
+    createEffectApplyFunction(processReverseReverbRegion, {
+      audioBuffer,
+      activeRegion,
+      cutRegion,
+      applyProcessedAudio,
+      audioContext,
+      parameters: {
         preset,
         wetMix,
         fadeTime,
         predelay,
         buildupTime
-      };
-      
-      const outputBuffer = await processReverseReverbRegion(
-        audioBuffer,
-        startSample,
-        endSample,
-        parameters
-      );
-      
-      // Convert to blob and update
-      const wav = await audioBufferToWav(outputBuffer);
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-      
-      // Update audio and history
-      addToEditHistory(url, 'Apply Reverse Reverb', {
-        effect: 'reverseReverb',
-        parameters,
-        region: { start: cutRegion.start, end: cutRegion.end }
-      });
-      
-      // Load new audio
-      await wavesurfer.load(url);
-
-      // Clear region
-      cutRegion.remove();
-
-      // Call onApply callback if provided
-      onApply?.();
-
-    } catch (error) {
-      console.error('Error applying reverse reverb:', error);
-      alert('Error applying reverse reverb. Please try again.');
-    }
-  }, [audioURL, addToEditHistory, wavesurferRef, preset, wetMix, fadeTime, predelay, buildupTime, cutRegion, onApply]);
+      },
+      onApply
+    }),
+    [audioBuffer, activeRegion, cutRegion, applyProcessedAudio, audioContext, preset, wetMix, fadeTime, predelay, buildupTime, onApply]
+  );
   
   const presetNames = getPresetNames();
   

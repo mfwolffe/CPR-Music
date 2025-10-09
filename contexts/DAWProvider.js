@@ -8,10 +8,12 @@ import { EffectsProvider } from './EffectsContext';
 import { FFmpegProvider } from './FFmpegContext';
 import { UIProvider } from './UIContext';
 import { MultitrackProvider } from './MultitrackContext';
+import { WaveformProvider } from './WaveformContext';
 
 /**
  * DAWProvider combines all the context providers needed for the DAW
  * Now includes MultitrackProvider for multitrack functionality
+ * and WaveformProvider for custom waveform implementation
  */
 export const DAWProvider = ({ children }) => {
   return (
@@ -21,7 +23,9 @@ export const DAWProvider = ({ children }) => {
           <EffectsProvider>
             <UIProvider>
               <MultitrackProvider>
-                {children}
+                <WaveformProvider>
+                  {children}
+                </WaveformProvider>
               </MultitrackProvider>
             </UIProvider>
           </EffectsProvider>
@@ -38,3 +42,4 @@ export { useEffects } from './EffectsContext';
 export { useFFmpeg } from './FFmpegContext';
 export { useUI } from './UIContext';
 export { useMultitrack } from './MultitrackContext';
+export { useWaveform } from './WaveformContext';

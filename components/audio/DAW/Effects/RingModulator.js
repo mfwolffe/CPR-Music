@@ -2,7 +2,8 @@
 
 import { useCallback, useRef, useEffect, useState } from 'react';
 import { Container, Row, Col, Form, Button, OverlayTrigger, Tooltip } from 'react-bootstrap';
-import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
+import { useAudio, useEffects, useWaveform } from '../../../../contexts/DAWProvider';
+import { createEffectApplyFunction } from '../../../../lib/effects/effectsWaveformHelper';
 import Knob from '../../../Knob';
 
 /**
@@ -374,21 +375,18 @@ export async function processRingModulatorRegion(audioBuffer, startSample, endSa
   processor.setStereoSpread(parameters.stereoSpread || 0);
   processor.setWetMix(parameters.wetMix || 1.0);
   
-  // Create output buffer
+  // Create output buffer for just the region
   const outputBuffer = audioContext.createBuffer(
     audioBuffer.numberOfChannels,
-    audioBuffer.length,
+    regionLength,
     sampleRate
   );
-  
+
   // Process each channel
   for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
     const inputData = audioBuffer.getChannelData(channel);
     const outputData = outputBuffer.getChannelData(channel);
-    
-    // Copy original audio
-    outputData.set(inputData);
-    
+
     // Extract region for processing
     const regionData = new Float32Array(regionLength);
     for (let i = 0; i < regionLength; i++) {
@@ -435,9 +433,9 @@ export async function processRingModulatorRegion(audioBuffer, startSample, endSa
     // Mix back to output with wet/dry control
     const mixAmount = processor.wetMix;
     for (let i = 0; i < regionLength; i++) {
-      const original = inputData[startSample + i];
+      const original = regionData[i];
       const processed = filteredData[i] * processor.outputGain;
-      outputData[startSample + i] = original * (1 - mixAmount) + processed * mixAmount;
+      outputData[i] = original * (1 - mixAmount) + processed * mixAmount;
     }
   }
   
@@ -455,7 +453,10 @@ export default function RingModulator({ width, onApply }) {
     addToEditHistory,
     audioURL
   } = useAudio();
-  
+
+  const { audioBuffer, applyProcessedAudio, activeRegion,
+    audioContext } = useWaveform();
+
   const {
     cutRegion,
     ringModFrequency,
@@ -638,79 +639,35 @@ export default function RingModulator({ width, onApply }) {
     drawVisualization();
   }, [drawVisualization]);
   
-  // Apply ring modulation to selected region
-  const applyRingMod = useCallback(async () => {
-    if (!cutRegion || !wavesurferRef.current) {
-      alert('Please select a region first');
-      return;
-    }
-    
-    try {
-      const wavesurfer = wavesurferRef.current;
-      const context = audioContextRef.current;
-      
-      // Get the audio buffer
-      const response = await fetch(audioURL);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await context.decodeAudioData(arrayBuffer);
-      
-      // Calculate sample positions
-      const sampleRate = audioBuffer.sampleRate;
-      const startSample = Math.floor(cutRegion.start * sampleRate);
-      const endSample = Math.floor(cutRegion.end * sampleRate);
-      
-      // Use the exported processing function
-      const parameters = {
-        frequency: ringModFrequency,
-        waveform: ringModWaveform,
-        depth: ringModDepth,
-        mode: ringModMode,
-        sync: ringModSync,
-        offset: ringModOffset,
-        phase: ringModPhase,
-        filterFreq: ringModFilterFreq,
-        filterType: ringModFilterType,
-        outputGain: ringModOutputGain,
-        stereoSpread: ringModStereoSpread,
-        wetMix: ringModMix
-      };
-      
-      const outputBuffer = await processRingModulatorRegion(
-        audioBuffer,
-        startSample,
-        endSample,
-        parameters
-      );
-      
-      // Convert to blob and update
-      const wav = await audioBufferToWav(outputBuffer);
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-      
-      // Update audio and history
-      addToEditHistory(url, 'Apply Ring Modulator', {
-        effect: 'ringmod',
-        parameters,
-        region: { start: cutRegion.start, end: cutRegion.end }
-      });
-      
-      // Load new audio
-      await wavesurfer.load(url);
+  // Create ring modulator parameters object
+  const ringModParameters = {
+    frequency: ringModFrequency,
+    waveform: ringModWaveform,
+    depth: ringModDepth,
+    mode: ringModMode,
+    sync: ringModSync,
+    offset: ringModOffset,
+    phase: ringModPhase,
+    filterFreq: ringModFilterFreq,
+    filterType: ringModFilterType,
+    outputGain: ringModOutputGain,
+    stereoSpread: ringModStereoSpread,
+    wetMix: ringModMix
+  };
 
-      // Clear region
-      cutRegion.remove();
-
-      // Call onApply callback if provided
-      onApply?.();
-
-    } catch (error) {
-      console.error('Error applying ring modulation:', error);
-      alert('Error applying ring modulation. Please try again.');
-    }
-  }, [audioURL, addToEditHistory, wavesurferRef, cutRegion, ringModFrequency,
-      ringModWaveform, ringModDepth, ringModMode, ringModSync, ringModOffset,
-      ringModPhase, ringModFilterFreq, ringModFilterType, ringModOutputGain,
-      ringModStereoSpread, ringModMix, onApply]);
+  // Apply ring modulation to selected region using WaveformContext
+  const applyRingMod = useCallback(
+    createEffectApplyFunction(processRingModulatorRegion, {
+      audioBuffer,
+      activeRegion,
+      cutRegion,
+      applyProcessedAudio,
+      audioContext,
+      parameters: ringModParameters,
+      onApply
+    }),
+    [audioBuffer, activeRegion, cutRegion, applyProcessedAudio, audioContext, ringModFrequency, ringModWaveform, ringModDepth, ringModMode, ringModSync, ringModOffset, ringModPhase, ringModFilterFreq, ringModFilterType, ringModOutputGain, ringModStereoSpread, ringModMix, onApply]
+  );
   
   const waveformTypes = [
     { key: 'sine', name: 'Sine' },

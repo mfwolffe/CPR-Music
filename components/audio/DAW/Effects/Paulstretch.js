@@ -3,7 +3,8 @@
 
 import { useCallback, useRef, useEffect, useState } from 'react';
 import { Container, Row, Col, Button, OverlayTrigger, Tooltip } from 'react-bootstrap';
-import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
+import { useAudio, useEffects, useWaveform } from '../../../../contexts/DAWProvider';
+import { createEffectApplyFunction } from '../../../../lib/effects/effectsWaveformHelper';
 import Knob from '../../../Knob';
 
 /**
@@ -351,6 +352,9 @@ export async function processPaulstretchRegion(
 export default function Paulstretch({ width, onApply }) {
   const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
 
+  const { audioBuffer, applyProcessedAudio, activeRegion,
+    audioContext } = useWaveform();
+
   const { cutRegion } = useEffects();
 
   const audioContextRef = useRef(null);
@@ -372,75 +376,23 @@ export default function Paulstretch({ width, onApply }) {
   const [limiterDb, setLimiterDb] = useState(-1); // -24..-0.1 dBFS
 
   // Apply Paulstretch algorithm
-  const applyPaulstretch = useCallback(async () => {
-    if (!cutRegion || !wavesurferRef.current) {
-      alert('Please select a region first');
-      return;
-    }
-
-    try {
-      const wavesurfer = wavesurferRef.current;
-      const context = audioContextRef.current;
-
-      // Get the audio buffer
-      const response = await fetch(audioURL);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await context.decodeAudioData(arrayBuffer);
-
-      const sampleRate = audioBuffer.sampleRate;
-      const startSample = Math.floor(cutRegion.start * sampleRate);
-      const endSample = Math.floor(cutRegion.end * sampleRate);
-
-      // Use the exported processing function
-      const parameters = {
+  const applyPaulstretch = useCallback(
+    createEffectApplyFunction(processPaulstretchRegion, {
+      audioBuffer,
+      activeRegion,
+      cutRegion,
+      applyProcessedAudio,
+      audioContext,
+      parameters: {
         stretchFactor: stretchFactor,
         windowSize: windowSize,
         makeupDb: makeupDb,
-        limiterDb: limiterDb,
-      };
-
-      const outputBuffer = await processPaulstretchRegion(
-        audioBuffer,
-        startSample,
-        endSample,
-        parameters,
-      );
-
-      // Convert to blob and update
-      const wav = await audioBufferToWav(outputBuffer);
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-
-      // Update audio and history
-      addToEditHistory(url, 'Apply Paulstretch', {
-        effect: 'paulstretch',
-        parameters,
-        region: { start: cutRegion.start, end: cutRegion.end },
-      });
-
-      // Load new audio
-      await wavesurfer.load(url);
-
-      // Clear region
-      cutRegion.remove();
-
-      // Call onApply callback if provided
-      onApply?.();
-    } catch (error) {
-      console.error('Error applying Paulstretch:', error);
-      alert('Error applying Paulstretch. Please try again.');
-    }
-  }, [
-    audioURL,
-    addToEditHistory,
-    wavesurferRef,
-    cutRegion,
-    stretchFactor,
-    windowSize,
-    makeupDb,
-    limiterDb,
-    onApply,
-  ]);
+        limiterDb: limiterDb
+      },
+      onApply
+    }),
+    [audioBuffer, activeRegion, cutRegion, applyProcessedAudio, audioContext, stretchFactor, windowSize, makeupDb, limiterDb, onApply]
+  );
 
   return (
     <Container fluid className="p-2">

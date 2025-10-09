@@ -2,7 +2,8 @@
 
 import { useCallback, useRef, useEffect } from 'react';
 import { Container, Row, Col, Button, Dropdown, Form, OverlayTrigger, Tooltip } from 'react-bootstrap';
-import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
+import { useAudio, useEffects, useWaveform } from '../../../../contexts/DAWProvider';
+import { createEffectApplyFunction } from '../../../../lib/effects/effectsWaveformHelper';
 import Knob from '../../../Knob';
 
 /**
@@ -79,10 +80,10 @@ export async function processAutoPanRegion(
     parameters.phase || 0,
   );
 
-  // Create output buffer
+  // Create output buffer with region length only
   const outputBuffer = audioContext.createBuffer(
     audioBuffer.numberOfChannels,
-    audioBuffer.length,
+    regionLength,
     sampleRate,
   );
 
@@ -94,11 +95,7 @@ export async function processAutoPanRegion(
     const leftOut = outputBuffer.getChannelData(0);
     const rightOut = outputBuffer.getChannelData(1);
 
-    // Copy original audio
-    leftOut.set(leftIn);
-    rightOut.set(rightIn);
-
-    // Apply auto-pan to region
+    // Apply auto-pan to region only
     for (let i = 0; i < regionLength; i++) {
       const sampleIndex = startSample + i;
       const lfoValue = lfoWaveform[i] * (parameters.depth || 1);
@@ -112,18 +109,19 @@ export async function processAutoPanRegion(
       const originalRight = rightIn[sampleIndex];
 
       // Preserve stereo information: scale each channel instead of collapsing to mono
-      leftOut[sampleIndex] = originalLeft * leftGain;
-      rightOut[sampleIndex] = originalRight * rightGain;
+      leftOut[i] = originalLeft * leftGain;
+      rightOut[i] = originalRight * rightGain;
     }
   } else {
-    // Mono to stereo processing
+    // Mono processing - just copy region
     const monoIn = audioBuffer.getChannelData(0);
     const monoOut = outputBuffer.getChannelData(0);
 
-    // Copy original audio
-    monoOut.set(monoIn);
+    // Copy region data
+    for (let i = 0; i < regionLength; i++) {
+      monoOut[i] = monoIn[startSample + i];
+    }
 
-    // For mono, we can't pan - just copy the data
     console.warn(
       'Auto-pan works best with stereo audio. Mono audio will be unchanged.',
     );
@@ -137,6 +135,9 @@ export async function processAutoPanRegion(
  */
 export default function AutoPan({ width, onApply }) {
   const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+
+  const { audioBuffer, applyProcessedAudio, activeRegion,
+    audioContext } = useWaveform();
 
   const {
     autoPanRate,
@@ -174,76 +175,24 @@ export default function AutoPan({ width, onApply }) {
   };
 
   // Apply auto-pan to selected region
-  const applyAutoPan = useCallback(async () => {
-    if (!cutRegion || !wavesurferRef.current) {
-      alert('Please select a region first');
-      return;
-    }
-
-    try {
-      const wavesurfer = wavesurferRef.current;
-      const context = audioContextRef.current;
-
-      // Get the audio buffer
-      const response = await fetch(audioURL);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await context.decodeAudioData(arrayBuffer);
-
-      // Calculate sample positions
-      const sampleRate = audioBuffer.sampleRate;
-      const startSample = Math.floor(cutRegion.start * sampleRate);
-      const endSample = Math.floor(cutRegion.end * sampleRate);
-
-      // Use the exported processing function
-      const parameters = {
+  const applyAutoPan = useCallback(
+    createEffectApplyFunction(processAutoPanRegion, {
+      audioBuffer,
+      activeRegion,
+      cutRegion,
+      applyProcessedAudio,
+      audioContext,
+      parameters: {
         rate: getEffectiveRate(),
         depth: autoPanDepth,
         waveform: autoPanWaveform,
         phase: autoPanPhase,
-      };
-
-      const outputBuffer = await processAutoPanRegion(
-        audioBuffer,
-        startSample,
-        endSample,
-        parameters,
-      );
-
-      // Convert to blob and update
-      const wav = await audioBufferToWav(outputBuffer);
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-
-      // Update audio and history
-      addToEditHistory(url, 'Apply Auto-Pan', {
-        effect: 'autopan',
-        parameters,
-        region: { start: cutRegion.start, end: cutRegion.end },
-      });
-
-      // Load new audio
-      await wavesurfer.load(url);
-
-      // Clear region
-      cutRegion.remove();
-
-      // Call onApply callback if provided
-      onApply?.();
-    } catch (error) {
-      console.error('Error applying auto-pan:', error);
-      alert('Error applying auto-pan. Please try again.');
-    }
-  }, [
-    audioURL,
-    addToEditHistory,
-    wavesurferRef,
-    autoPanRate,
-    autoPanDepth,
-    autoPanWaveform,
-    autoPanPhase,
-    cutRegion,
-    onApply,
-  ]);
+      },
+      onApply
+    }),
+    [audioBuffer, activeRegion, cutRegion, applyProcessedAudio, audioContext, autoPanRate, autoPanDepth,
+      autoPanWaveform, autoPanPhase, autoPanTempoSync, autoPanNoteDivision, globalBPM, onApply]
+  );
 
   const waveformTypes = [
     { key: 'sine', name: 'Sine' },

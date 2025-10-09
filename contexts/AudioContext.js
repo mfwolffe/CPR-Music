@@ -60,13 +60,13 @@ export const AudioProvider = ({ children }) => {
     }
   }, [audioURL]);
   
-  // Load audio and handle wavesurfer updates
+  // Load audio and handle updates
   const loadAudio = useCallback(async (url, skipHistory = false) => {
-    if (!url || !wavesurferRef.current) return;
-    
+    if (!url) return;
+
     try {
       setAudioURL(url);
-      
+
       // Add to history unless explicitly skipped (like during undo/redo)
       if (!skipHistory && commandManagerRef.current) {
         const command = createAudioCommand('Load Audio', url, {
@@ -74,11 +74,9 @@ export const AudioProvider = ({ children }) => {
         });
         commandManagerRef.current.execute(command);
       }
-      
-      // Load into wavesurfer if available
-      if (wavesurferRef.current) {
-        await wavesurferRef.current.load(url);
-      }
+
+      // The WaveformContext will handle the actual audio loading
+      // when it detects the audioURL change
     } catch (error) {
       console.error('Error in loadAudio:', error);
     }
@@ -98,41 +96,35 @@ export const AudioProvider = ({ children }) => {
   // Undo operation
   const undo = useCallback(async () => {
     if (!commandManagerRef.current) return;
-    
+
     const command = commandManagerRef.current.undo();
     if (command) {
+      // Simply update the audioURL
+      // This will trigger the WaveformContext to reload the audio
       setAudioURL(command.audioData);
-      
-      // Load into wavesurfer without adding to history
-      if (wavesurferRef.current) {
-        await wavesurferRef.current.load(command.audioData);
-        
-        // Force audio element update to ensure sync
-        if (audioRef.current) {
-          audioRef.current.src = command.audioData;
-          audioRef.current.load();
-        }
+
+      // If there's still a legacy audio element, update it
+      if (audioRef.current) {
+        audioRef.current.src = command.audioData;
+        audioRef.current.load();
       }
     }
   }, []);
-  
+
   // Redo operation
   const redo = useCallback(async () => {
     if (!commandManagerRef.current) return;
-    
+
     const command = commandManagerRef.current.redo();
     if (command) {
+      // Simply update the audioURL
+      // This will trigger the WaveformContext to reload the audio
       setAudioURL(command.audioData);
-      
-      // Load into wavesurfer without adding to history
-      if (wavesurferRef.current) {
-        await wavesurferRef.current.load(command.audioData);
-        
-        // Force audio element update to ensure sync
-        if (audioRef.current) {
-          audioRef.current.src = command.audioData;
-          audioRef.current.load();
-        }
+
+      // If there's still a legacy audio element, update it
+      if (audioRef.current) {
+        audioRef.current.src = command.audioData;
+        audioRef.current.load();
       }
     }
   }, []);

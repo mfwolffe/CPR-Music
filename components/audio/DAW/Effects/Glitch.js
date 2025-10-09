@@ -2,7 +2,8 @@
 
 import { useCallback, useRef, useEffect } from 'react';
 import { Container, Row, Col, Button, Dropdown, Form, OverlayTrigger, Tooltip } from 'react-bootstrap';
-import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
+import { useAudio, useEffects, useWaveform } from '../../../../contexts/DAWProvider';
+import { createEffectApplyFunction } from '../../../../lib/effects/effectsWaveformHelper';
 import Knob from '../../../Knob';
 
 /**
@@ -33,10 +34,10 @@ export async function processGlitchRegion(
   const beatLength = (60 / bpm) * sampleRate;
   const divisionLength = Math.floor(beatLength / (parameters.division || 16));
 
-  // Create output buffer
+  // Create output buffer with region length only
   const outputBuffer = audioContext.createBuffer(
     audioBuffer.numberOfChannels,
-    audioBuffer.length,
+    regionLength,
     sampleRate,
   );
 
@@ -44,9 +45,6 @@ export async function processGlitchRegion(
   for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
     const inputData = audioBuffer.getChannelData(channel);
     const outputData = outputBuffer.getChannelData(channel);
-
-    // Copy original audio
-    outputData.set(inputData);
 
     // Process region with glitch
     let position = 0;
@@ -103,13 +101,13 @@ export async function processGlitchRegion(
         const writeLen = Math.min(processedSlice.length, sliceLength);
         for (let repeat = 0; repeat < (parameters.repeats || 1); repeat++) {
           for (let i = 0; i < writeLen; i++) {
-            const outputIndex =
-              startSample + position + repeat * sliceLength + i;
-            if (outputIndex < endSample) {
+            const regionIndex = position + repeat * sliceLength + i;
+            const sourceIndex = startSample + position + i;
+            if (regionIndex < regionLength && sourceIndex < endSample) {
               const mixAmount = 0.8 + Math.random() * 0.2; // 80–100% wet
-              const dry = outputData[outputIndex];
+              const dry = inputData[sourceIndex];
               const wet = processedSlice[i];
-              outputData[outputIndex] = dry * (1 - mixAmount) + wet * mixAmount;
+              outputData[regionIndex] = dry * (1 - mixAmount) + wet * mixAmount;
             }
           }
         }
@@ -131,6 +129,9 @@ export async function processGlitchRegion(
  */
 export default function Glitch({ width, onApply }) {
   const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+
+  const { audioBuffer, applyProcessedAudio, activeRegion,
+    audioContext } = useWaveform();
 
   let effectsContext;
   try {
@@ -175,80 +176,25 @@ export default function Glitch({ width, onApply }) {
   }, []);
 
   // Apply glitch effect to selected region
-  const applyGlitch = useCallback(async () => {
-    if (!cutRegion || !wavesurferRef.current) {
-      alert('Please select a region first');
-      return;
-    }
-
-    try {
-      const wavesurfer = wavesurferRef.current;
-      const context = audioContextRef.current;
-
-      // Get the audio buffer
-      const response = await fetch(audioURL);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await context.decodeAudioData(arrayBuffer);
-
-      // Calculate sample positions
-      const sampleRate = audioBuffer.sampleRate;
-      const startSample = Math.floor(cutRegion.start * sampleRate);
-      const endSample = Math.floor(cutRegion.end * sampleRate);
-
-      // Use the exported processing function
-      const parameters = {
+  const applyGlitch = useCallback(
+    createEffectApplyFunction(processGlitchRegion, {
+      audioBuffer,
+      activeRegion,
+      cutRegion,
+      applyProcessedAudio,
+      audioContext,
+      parameters: {
         division: glitchDivision,
         probability: glitchProbability,
         repeats: glitchRepeats,
         reverse: glitchReverse,
         pitch: glitchPitch,
-        crush: glitchCrush,
-      };
-
-      const outputBuffer = await processGlitchRegion(
-        audioBuffer,
-        startSample,
-        endSample,
-        parameters,
-      );
-
-      // Convert to blob and update
-      const wav = await audioBufferToWav(outputBuffer);
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-
-      // Update audio and history
-      addToEditHistory(url, 'Apply Glitch', {
-        effect: 'glitch',
-        parameters,
-        region: { start: cutRegion.start, end: cutRegion.end },
-      });
-
-      // Load new audio
-      await wavesurfer.load(url);
-
-      // Clear region
-      cutRegion.remove();
-
-      // Call onApply callback if provided
-      onApply?.();
-    } catch (error) {
-      console.error('Error applying glitch:', error);
-      alert('Error applying glitch. Please try again.');
-    }
-  }, [
-    audioURL,
-    addToEditHistory,
-    wavesurferRef,
-    glitchDivision,
-    glitchProbability,
-    glitchRepeats,
-    glitchReverse,
-    glitchPitch,
-    glitchCrush,
-    cutRegion,
-    onApply,
-  ]);
+        crush: glitchCrush
+      },
+      onApply
+    }),
+    [audioBuffer, activeRegion, cutRegion, applyProcessedAudio, audioContext, glitchDivision, glitchProbability, glitchRepeats, glitchReverse, glitchPitch, glitchCrush, onApply]
+  );
 
   const divisionOptions = [
     { value: 4, label: '1/4' },

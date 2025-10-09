@@ -5,8 +5,10 @@ import { useCallback, useEffect, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardBody, Button, Form, Dropdown, Nav, Container, Row, Col, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import {
   useAudio,
-  useEffects
+  useEffects,
+  useWaveform
 } from '../../../../contexts/DAWProvider';
+import { createEffectApplyFunction } from '../../../../lib/effects/effectsWaveformHelper';
 import { ReverbProcessor } from '../../../../lib/ReverbProcessor';
 import { getPresetNames, impulseResponsePresets } from '../../../../lib/impulseResponses';
 import Knob from '../../../Knob';
@@ -50,38 +52,8 @@ export async function processReverbRegion(audioBuffer, startSample, endSample, p
     endSample
   );
   
-  // Create output buffer with processed region
-  const outputBuffer = audioContext.createBuffer(
-    audioBuffer.numberOfChannels,
-    audioBuffer.length + result.tailLength,
-    audioBuffer.sampleRate
-  );
-  
-  // Copy audio with processed region
-  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-    const inputData = audioBuffer.getChannelData(channel);
-    const outputData = outputBuffer.getChannelData(channel);
-    const processedData = result.buffer.getChannelData(channel);
-    
-    // Copy before region
-    for (let i = 0; i < startSample; i++) {
-      outputData[i] = inputData[i];
-    }
-    
-    // Copy processed region (including tail)
-    for (let i = 0; i < processedData.length; i++) {
-      outputData[startSample + i] = processedData[i];
-    }
-    
-    // Copy after region (shifted by tail length)
-    for (let i = endSample; i < inputData.length; i++) {
-      if (startSample + (i - startSample) + result.tailLength < outputData.length) {
-        outputData[startSample + (i - startSample) + result.tailLength] = inputData[i];
-      }
-    }
-  }
-  
-  return outputBuffer;
+  // Return the processed region directly (including reverb tail)
+  return result.buffer;
 }
 
 /**
@@ -94,7 +66,14 @@ export default function Reverb({ width, onApply }) {
     addToEditHistory,
     audioURL
   } = useAudio();
-  
+
+  const {
+    audioBuffer,
+    applyProcessedAudio,
+    activeRegion,
+    audioContext
+  } = useWaveform();
+
   const {
     reverbPreset,
     setReverbPreset,
@@ -161,71 +140,32 @@ export default function Reverb({ width, onApply }) {
     }
   }, [reverbPreset, setReverbWetMix, setReverbPreDelay, setReverbHighDamp, setReverbLowDamp, setReverbEarlyLate, setReverbStereoWidth, setReverbOutputGain]);
   
-  // Apply reverb permanently to selected region
-  const applyReverb = useCallback(async () => {
-    if (!cutRegion || !wavesurferRef.current) {
-      alert('Please select a region first');
-      return;
-    }
-    
-    try {
-      const wavesurfer = wavesurferRef.current;
-      
-      // Get the audio buffer from current audio
-      const response = await fetch(audioURL);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
-      
-      // Calculate sample positions
-      const sampleRate = audioBuffer.sampleRate;
-      const startSample = Math.floor(cutRegion.start * sampleRate);
-      const endSample = Math.floor(cutRegion.end * sampleRate);
-      
-      // Use the exported processing function
-      const parameters = {
-        preset: reverbPreset,
-        wetMix: reverbWetMix,
-        preDelay: reverbPreDelay,
-        outputGain: reverbOutputGain,
-        highDamp: reverbHighDamp,
-        lowDamp: reverbLowDamp,
-        stereoWidth: reverbStereoWidth,
-        earlyLate: reverbEarlyLate
-      };
-      
-      const outputBuffer = await processReverbRegion(
-        audioBuffer,
-        startSample,
-        endSample,
-        parameters
-      );
-      
-      // Convert buffer to blob
-      const wav = await audioBufferToWav(outputBuffer);
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-      
-      // Update audio and history
-      addToEditHistory(url, 'Apply Reverb', {
-        effect: 'reverb',
-        parameters,
-        region: { start: cutRegion.start, end: cutRegion.end }
-      });
-      
-      // Load new audio
-      await wavesurfer.load(url);
+  // Create reverb parameters object
+  const reverbParameters = {
+    effectName: `Reverb (${impulseResponsePresets[reverbPreset]?.name || 'Custom'})`,
+    preset: reverbPreset,
+    wetMix: reverbWetMix,
+    preDelay: reverbPreDelay,
+    outputGain: reverbOutputGain,
+    highDamp: reverbHighDamp,
+    lowDamp: reverbLowDamp,
+    stereoWidth: reverbStereoWidth,
+    earlyLate: reverbEarlyLate
+  };
 
-      // Clear region
-      cutRegion.remove();
-
-      // Call onApply callback if provided
-      onApply?.();
-
-    } catch (error) {
-      console.error('Error applying reverb:', error);
-      alert('Error applying reverb. Please try again.');
-    }
-  }, [cutRegion, audioURL, addToEditHistory, wavesurferRef, reverbPreset, reverbWetMix, reverbPreDelay, reverbOutputGain, reverbHighDamp, reverbLowDamp, reverbStereoWidth, reverbEarlyLate, onApply]);
+  // Apply reverb permanently to selected region using WaveformContext
+  const applyReverb = useCallback(
+    createEffectApplyFunction(processReverbRegion, {
+      audioBuffer,
+      activeRegion,
+      cutRegion,
+      applyProcessedAudio,
+      audioContext,
+      parameters: reverbParameters,
+      onApply
+    }),
+    [audioBuffer, activeRegion, cutRegion, applyProcessedAudio, audioContext, reverbPreset, reverbWetMix, reverbPreDelay, reverbOutputGain, reverbHighDamp, reverbLowDamp, reverbStereoWidth, reverbEarlyLate, onApply]
+  );
   
   const presetNames = getPresetNames();
   

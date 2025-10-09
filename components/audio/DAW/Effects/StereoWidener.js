@@ -3,7 +3,8 @@
 import { useCallback, useRef, useEffect, useState } from 'react';
 import { Container, Row, Col, Form, Button, Modal, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { FaQuestionCircle } from 'react-icons/fa';
-import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
+import { useAudio, useEffects, useWaveform } from '../../../../contexts/DAWProvider';
+import { createEffectApplyFunction } from '../../../../lib/effects/effectsWaveformHelper';
 import Knob from '../../../Knob';
 
 /**
@@ -428,36 +429,31 @@ export async function processStereoWidenerRegion(audioBuffer, startSample, endSa
   processor.setSafetyLimit(parameters.safetyLimit !== false);
   processor.setOutputGain(parameters.outputGain || 1.0);
   
-  // Create output buffer
+  // Create output buffer with region length only
   const outputBuffer = audioContext.createBuffer(
     2, // Ensure stereo
-    audioBuffer.length,
+    regionLength,
     sampleRate
   );
-  
+
   // Get channel data
   const leftData = audioBuffer.getChannelData(0);
   const rightData = audioBuffer.getChannelData(1);
   const leftOut = outputBuffer.getChannelData(0);
   const rightOut = outputBuffer.getChannelData(1);
-  
-  // Copy original audio
-  leftOut.set(leftData);
-  rightOut.set(rightData);
-  
+
   // Process the selected region through the processor chain
   let processed = processor.processMidSide(leftData, rightData, startSample, endSample);
   processed = processor.applyBassMono(processed.left, processed.right, startSample, endSample);
   processed = processor.applyHaasEffect(processed.left, processed.right, startSample, endSample);
   processed = processor.applySafetyLimiting(processed.left, processed.right, startSample, endSample);
-  
-  // Apply output gain and copy processed region to output
+
+  // Apply output gain and copy processed region to output (using region indices)
   const outputGainLinear = processor.outputGain;
-  for (let i = startSample; i < endSample; i++) {
-    if (i < outputBuffer.length) {
-      leftOut[i] = processed.left[i] * outputGainLinear;
-      rightOut[i] = processed.right[i] * outputGainLinear;
-    }
+  for (let i = 0; i < regionLength; i++) {
+    const sourceIndex = startSample + i;
+    leftOut[i] = processed.left[sourceIndex] * outputGainLinear;
+    rightOut[i] = processed.right[sourceIndex] * outputGainLinear;
   }
   
   return outputBuffer;
@@ -474,7 +470,7 @@ export default function StereoWidener({ width, onApply }) {
     addToEditHistory,
     audioURL
   } = useAudio();
-  
+
   const {
     cutRegion,
     stereoWidenerWidth,
@@ -502,19 +498,22 @@ export default function StereoWidener({ width, onApply }) {
     stereoWidenerOutputGain,
     setStereoWidenerOutputGain
   } = useEffects();
-  
+
+  const { audioBuffer, applyProcessedAudio, activeRegion,
+    audioContext } = useWaveform();
+
   const audioContextRef = useRef(null);
   const processorRef = useRef(null);
   const canvasRef = useRef(null);
   const [correlationValue, setCorrelationValue] = useState(0);
   const [showHelpModal, setShowHelpModal] = useState(false);
-  
+
   // Initialize audio context and processor
   useEffect(() => {
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     }
-    
+
     if (!processorRef.current) {
       processorRef.current = new StereoWidenerProcessor(audioContextRef.current);
     }
@@ -802,40 +801,14 @@ export default function StereoWidener({ width, onApply }) {
   }, [drawVisualization]);
   
   // Apply stereo widener to selected region
-  const applyStereoWidener = useCallback(async () => {
-    if (!cutRegion || !wavesurferRef.current) {
-      alert('Please select a region first');
-      return;
-    }
-    
-    try {
-      const wavesurfer = wavesurferRef.current;
-      const context = audioContextRef.current;
-      
-      // Get the audio buffer
-      const response = await fetch(audioURL);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await context.decodeAudioData(arrayBuffer);
-      
-      // Check if audio is stereo
-      if (audioBuffer.numberOfChannels < 2) {
-        alert('Stereo widener requires stereo audio. Please convert to stereo first.');
-        return;
-      }
-      
-      // Calculate sample positions
-      const sampleRate = audioBuffer.sampleRate;
-      const startSample = Math.floor(cutRegion.start * sampleRate);
-      const endSample = Math.floor(cutRegion.end * sampleRate);
-      
-      // Calculate correlation for display
-      const leftData = audioBuffer.getChannelData(0);
-      const rightData = audioBuffer.getChannelData(1);
-      const correlation = processorRef.current?.calculateCorrelation(leftData, rightData, startSample, endSample) || 0;
-      setCorrelationValue(correlation);
-      
-      // Use the exported processing function
-      const parameters = {
+  const applyStereoWidener = useCallback(
+    createEffectApplyFunction(processStereoWidenerRegion, {
+      audioBuffer,
+      activeRegion,
+      cutRegion,
+      applyProcessedAudio,
+      audioContext,
+      parameters: {
         width: stereoWidenerWidth,
         delay: stereoWidenerDelay,
         bassRetain: stereoWidenerBassRetain,
@@ -848,44 +821,14 @@ export default function StereoWidener({ width, onApply }) {
         highFreqLimit: stereoWidenerHighFreqLimit,
         safetyLimit: stereoWidenerSafetyLimit,
         outputGain: stereoWidenerOutputGain
-      };
-      
-      const outputBuffer = await processStereoWidenerRegion(
-        audioBuffer,
-        startSample,
-        endSample,
-        parameters
-      );
-      
-      // Convert to blob and update
-      const wav = await audioBufferToWav(outputBuffer);
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-      
-      // Update audio and history
-      addToEditHistory(url, 'Apply Stereo Widener', {
-        effect: 'stereowidener',
-        parameters,
-        region: { start: cutRegion.start, end: cutRegion.end }
-      });
-      
-      // Load new audio
-      await wavesurfer.load(url);
-
-      // Clear region
-      cutRegion.remove();
-
-      // Call onApply callback if provided
-      onApply?.();
-
-    } catch (error) {
-      console.error('Error applying stereo widener:', error);
-      alert('Error applying stereo widener. Please try again.');
-    }
-  }, [audioURL, addToEditHistory, wavesurferRef, cutRegion, stereoWidenerWidth,
+      },
+      onApply
+    }),
+    [audioBuffer, activeRegion, cutRegion, applyProcessedAudio, audioContext, stereoWidenerWidth,
       stereoWidenerDelay, stereoWidenerBassRetain, stereoWidenerBassFreq, stereoWidenerMode,
       stereoWidenerMidGain, stereoWidenerSideGain, stereoWidenerPhase, stereoWidenerCorrelation,
-      stereoWidenerHighFreqLimit, stereoWidenerSafetyLimit, stereoWidenerOutputGain, onApply]);
+      stereoWidenerHighFreqLimit, stereoWidenerSafetyLimit, stereoWidenerOutputGain, onApply]
+  );
   
   return (
     <Container fluid className="p-2">

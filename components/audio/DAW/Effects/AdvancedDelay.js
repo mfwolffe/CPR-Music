@@ -2,7 +2,8 @@
 
 import { useCallback, useRef, useEffect, useState } from 'react';
 import { Container, Row, Col, Form, Button, OverlayTrigger, Tooltip } from 'react-bootstrap';
-import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
+import { useAudio, useEffects, useWaveform } from '../../../../contexts/DAWProvider';
+import { createEffectApplyFunction } from '../../../../lib/effects/effectsWaveformHelper';
 import Knob from '../../../Knob';
 
 /**
@@ -386,18 +387,17 @@ export async function processAdvancedDelayRegion(audioBuffer, startSample, endSa
   const maxDelayTime = (parameters.time || 500) / 1000;
   const delayTailSamples = Math.floor(maxDelayTime * sampleRate * 3); // 3x for reverb tail
   
-  // Create offline context
-  const totalLength = audioBuffer.length + delayTailSamples;
+  // Create offline context with region length only (delay tails are built in)
   const offlineContext = new OfflineAudioContext(
     audioBuffer.numberOfChannels,
-    totalLength,
+    regionLength,
     sampleRate
   );
-  
+
   // Create source
   const source = offlineContext.createBufferSource();
   source.buffer = audioBuffer;
-  
+
   // Create delay processor
   const delayProcessor = new AdvancedDelayProcessor(offlineContext);
   delayProcessor.setDelayTime(parameters.time || 500);
@@ -416,40 +416,37 @@ export async function processAdvancedDelayRegion(audioBuffer, startSample, endSa
   delayProcessor.setStereoWidth(parameters.stereoWidth || 1.0);
   delayProcessor.setPingPong(parameters.pingPong || false);
   delayProcessor.setOutputGain(parameters.outputGain || 1.0);
-  
+
   // Connect and process
   source.connect(delayProcessor.input);
   delayProcessor.processAudioWithFeedback(source);
   delayProcessor.connect(offlineContext.destination);
-  
-  source.start(0);
+
+  // Play only the region
+  const startTime = startSample / sampleRate;
+  const duration = regionLength / sampleRate;
+  source.start(0, startTime, duration);
+
   const renderedBuffer = await offlineContext.startRendering();
-  
-  // Create output buffer (trim to original length)
+
+  // Extract just the region length from rendered buffer (delay tails included)
   const outputBuffer = audioContext.createBuffer(
     audioBuffer.numberOfChannels,
-    audioBuffer.length,
+    regionLength,
     sampleRate
   );
-  
-  // Mix processed audio back to output
+
   for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-    const inputData = audioBuffer.getChannelData(channel);
     const processedData = renderedBuffer.getChannelData(channel);
     const outputData = outputBuffer.getChannelData(channel);
-    
-    // Copy original audio
-    outputData.set(inputData);
-    
-    // Mix processed region
-    for (let i = 0; i < regionLength; i++) {
-      const sampleIndex = startSample + i;
-      if (sampleIndex < outputData.length && i < processedData.length) {
-        outputData[sampleIndex] = processedData[sampleIndex];
-      }
+
+    // Copy processed data (delay tails are naturally included)
+    const copyLength = Math.min(regionLength, processedData.length);
+    for (let i = 0; i < copyLength; i++) {
+      outputData[i] = processedData[i];
     }
   }
-  
+
   return outputBuffer;
 }
 
@@ -464,7 +461,10 @@ export default function AdvancedDelay({ width, onApply }) {
     addToEditHistory,
     audioURL
   } = useAudio();
-  
+
+  const { audioBuffer, applyProcessedAudio, activeRegion,
+    audioContext } = useWaveform();
+
   const {
     cutRegion,
     globalBPM,
@@ -675,28 +675,14 @@ export default function AdvancedDelay({ width, onApply }) {
   }, [drawVisualization]);
   
   // Apply advanced delay to selected region
-  const applyAdvancedDelay = useCallback(async () => {
-    if (!cutRegion || !wavesurferRef.current) {
-      alert('Please select a region first');
-      return;
-    }
-    
-    try {
-      const wavesurfer = wavesurferRef.current;
-      const context = audioContextRef.current;
-      
-      // Get the audio buffer
-      const response = await fetch(audioURL);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await context.decodeAudioData(arrayBuffer);
-      
-      // Calculate sample positions
-      const sampleRate = audioBuffer.sampleRate;
-      const startSample = Math.floor(cutRegion.start * sampleRate);
-      const endSample = Math.floor(cutRegion.end * sampleRate);
-      
-      // Use the exported processing function
-      const parameters = {
+  const applyAdvancedDelay = useCallback(
+    createEffectApplyFunction(processAdvancedDelayRegion, {
+      audioBuffer,
+      activeRegion,
+      cutRegion,
+      applyProcessedAudio,
+      audioContext,
+      parameters: {
         time: getEffectiveDelayTime(),
         feedback: advDelayFeedback,
         mix: advDelayMix,
@@ -712,45 +698,15 @@ export default function AdvancedDelay({ width, onApply }) {
         stereoWidth: advDelayStereoWidth,
         pingPong: advDelayPingPong,
         outputGain: advDelayOutputGain
-      };
-      
-      const outputBuffer = await processAdvancedDelayRegion(
-        audioBuffer,
-        startSample,
-        endSample,
-        parameters
-      );
-      
-      // Convert to blob and update
-      const wav = await audioBufferToWav(outputBuffer);
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-      
-      // Update audio and history
-      addToEditHistory(url, 'Apply Advanced Delay', {
-        effect: 'advanceddelay',
-        parameters,
-        region: { start: cutRegion.start, end: cutRegion.end }
-      });
-      
-      // Load new audio
-      await wavesurfer.load(url);
-
-      // Clear region
-      cutRegion.remove();
-
-      // Call onApply callback if provided
-      onApply?.();
-
-    } catch (error) {
-      console.error('Error applying advanced delay:', error);
-      alert('Error applying advanced delay. Please try again.');
-    }
-  }, [audioURL, addToEditHistory, wavesurferRef, cutRegion, advDelayTime, advDelayFeedback,
+      },
+      onApply
+    }),
+    [audioBuffer, activeRegion, cutRegion, applyProcessedAudio, audioContext, advDelayTime, advDelayFeedback,
       advDelayMix, advDelayTaps, advDelaySpread, advDelayModRate, advDelayModDepth,
       advDelayModWaveform, advDelaySaturation, advDelayDiffusion, advDelayFilterType,
       advDelayFilterFreq, advDelayStereoWidth, advDelayPingPong, advDelayOutputGain,
-      advDelayTempoSync, advDelayNoteDivision, globalBPM, onApply]);
+      advDelayTempoSync, advDelayNoteDivision, globalBPM, onApply]
+  );
   
   const filterTypes = [
     { key: 'lowpass', name: 'Low Pass' },

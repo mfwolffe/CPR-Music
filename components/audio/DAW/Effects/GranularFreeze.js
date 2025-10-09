@@ -3,7 +3,8 @@
 
 import { useCallback, useRef, useEffect } from 'react';
 import { Container, Row, Col, Button, OverlayTrigger, Tooltip } from 'react-bootstrap';
-import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
+import { useAudio, useEffects, useWaveform } from '../../../../contexts/DAWProvider';
+import { createEffectApplyFunction } from '../../../../lib/effects/effectsWaveformHelper';
 import Knob from '../../../Knob';
 
 /**
@@ -150,6 +151,9 @@ export async function processGranularFreezeRegion(
 export default function GranularFreeze({ width, onApply }) {
   const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
 
+  const { audioBuffer, applyProcessedAudio, activeRegion,
+    audioContext } = useWaveform();
+
   const {
     granularGrainSize,
     setGranularGrainSize,
@@ -177,80 +181,25 @@ export default function GranularFreeze({ width, onApply }) {
   }, []);
 
   // Apply granular freeze to selected region
-  const applyGranularFreeze = useCallback(async () => {
-    if (!cutRegion || !wavesurferRef.current) {
-      alert('Please select a region first');
-      return;
-    }
-
-    try {
-      const wavesurfer = wavesurferRef.current;
-      const context = audioContextRef.current;
-
-      // Get the audio buffer
-      const response = await fetch(audioURL);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await context.decodeAudioData(arrayBuffer);
-
-      // Calculate sample positions
-      const sampleRate = audioBuffer.sampleRate;
-      const startSample = Math.floor(cutRegion.start * sampleRate);
-      const endSample = Math.floor(cutRegion.end * sampleRate);
-
-      // Use the exported processing function
-      const parameters = {
+  const applyGranularFreeze = useCallback(
+    createEffectApplyFunction(processGranularFreezeRegion, {
+      audioBuffer,
+      activeRegion,
+      cutRegion,
+      applyProcessedAudio,
+      audioContext,
+      parameters: {
         grainSize: granularGrainSize,
         position: granularPosition,
         spray: granularSpray,
         pitch: granularPitch,
         density: granularDensity,
-        reverse: granularReverse,
-      };
-
-      const outputBuffer = await processGranularFreezeRegion(
-        audioBuffer,
-        startSample,
-        endSample,
-        parameters,
-      );
-
-      // Convert to blob and update
-      const wav = await audioBufferToWav(outputBuffer);
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-
-      // Update audio and history
-      addToEditHistory(url, 'Apply Granular Freeze', {
-        effect: 'granularfreeze',
-        parameters,
-        region: { start: cutRegion.start, end: cutRegion.end },
-      });
-
-      // Load new audio
-      await wavesurfer.load(url);
-
-      // Clear region
-      cutRegion.remove();
-
-      // Call onApply callback if provided
-      onApply?.();
-    } catch (error) {
-      console.error('Error applying granular freeze:', error);
-      alert('Error applying granular freeze. Please try again.');
-    }
-  }, [
-    audioURL,
-    addToEditHistory,
-    wavesurferRef,
-    granularGrainSize,
-    granularPosition,
-    granularSpray,
-    granularPitch,
-    granularDensity,
-    granularReverse,
-    cutRegion,
-    onApply,
-  ]);
+        reverse: granularReverse
+      },
+      onApply
+    }),
+    [audioBuffer, activeRegion, cutRegion, applyProcessedAudio, audioContext, granularGrainSize, granularPosition, granularSpray, granularPitch, granularDensity, granularReverse, onApply]
+  );
 
   return (
     <Container fluid className="p-2">

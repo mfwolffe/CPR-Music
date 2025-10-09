@@ -3,7 +3,8 @@
 
 import { useCallback, useRef, useEffect } from 'react';
 import { Container, Row, Col, Button, Dropdown, Form, OverlayTrigger, Tooltip } from 'react-bootstrap';
-import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
+import { useAudio, useEffects, useWaveform } from '../../../../contexts/DAWProvider';
+import { createEffectApplyFunction } from '../../../../lib/effects/effectsWaveformHelper';
 import Knob from '../../../Knob';
 
 /**
@@ -89,10 +90,10 @@ export async function processTremoloRegion(
     parameters.depth || 0.5,
   );
 
-  // Create output buffer
+  // Create output buffer with region length only
   const outputBuffer = audioContext.createBuffer(
     audioBuffer.numberOfChannels,
-    audioBuffer.length,
+    regionLength,
     sampleRate,
   );
 
@@ -101,15 +102,12 @@ export async function processTremoloRegion(
     const inputData = audioBuffer.getChannelData(channel);
     const outputData = outputBuffer.getChannelData(channel);
 
-    // Copy original audio
-    outputData.set(inputData);
-
-    // Apply tremolo to region
+    // Apply tremolo to region only
     for (let i = 0; i < regionLength; i++) {
       const sampleIndex = startSample + i;
       if (i < lfoWaveform.length) {
         // Safety check
-        outputData[sampleIndex] = inputData[sampleIndex] * lfoWaveform[i];
+        outputData[i] = inputData[sampleIndex] * lfoWaveform[i];
       }
     }
   }
@@ -140,6 +138,9 @@ export default function Tremolo({ width, onApply }) {
     cutRegion,
   } = useEffects();
 
+  const { audioBuffer, applyProcessedAudio, activeRegion,
+    audioContext } = useWaveform();
+
   const audioContextRef = useRef(null);
 
   // Initialize audio context
@@ -159,76 +160,23 @@ export default function Tremolo({ width, onApply }) {
   };
 
   // Apply tremolo to selected region
-  const applyTremolo = useCallback(async () => {
-    if (!cutRegion || !wavesurferRef.current) {
-      alert('Please select a region first');
-      return;
-    }
-
-    try {
-      const wavesurfer = wavesurferRef.current;
-      const context = audioContextRef.current;
-
-      // Get the audio buffer
-      const response = await fetch(audioURL);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await context.decodeAudioData(arrayBuffer);
-
-      // Calculate sample positions
-      const sampleRate = audioBuffer.sampleRate;
-      const startSample = Math.floor(cutRegion.start * sampleRate);
-      const endSample = Math.floor(cutRegion.end * sampleRate);
-
-      // Use the exported processing function
-      const parameters = {
+  const applyTremolo = useCallback(
+    createEffectApplyFunction(processTremoloRegion, {
+      audioBuffer,
+      activeRegion,
+      cutRegion,
+      applyProcessedAudio,
+      audioContext,
+      parameters: {
         rate: getEffectiveRate(),
         depth: tremoloDepth,
         waveform: tremoloWaveform,
         phase: tremoloPhase,
-      };
-
-      const outputBuffer = await processTremoloRegion(
-        audioBuffer,
-        startSample,
-        endSample,
-        parameters,
-      );
-
-      // Convert to blob and update
-      const wav = await audioBufferToWav(outputBuffer);
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-
-      // Update audio and history
-      addToEditHistory(url, 'Apply Tremolo', {
-        effect: 'tremolo',
-        parameters,
-        region: { start: cutRegion.start, end: cutRegion.end },
-      });
-
-      // Load new audio
-      await wavesurfer.load(url);
-
-      // Clear region
-      cutRegion.remove();
-
-      // Call onApply callback if provided
-      onApply?.();
-    } catch (error) {
-      console.error('Error applying tremolo:', error);
-      alert('Error applying tremolo. Please try again.');
-    }
-  }, [
-    audioURL,
-    addToEditHistory,
-    wavesurferRef,
-    tremoloRate,
-    tremoloDepth,
-    tremoloWaveform,
-    tremoloPhase,
-    cutRegion,
-    onApply,
-  ]);
+      },
+      onApply
+    }),
+    [audioBuffer, activeRegion, cutRegion, applyProcessedAudio, audioContext, tremoloRate, tremoloDepth, tremoloWaveform, tremoloPhase, tremoloTempoSync, tremoloNoteDivision, globalBPM, onApply]
+  );
 
   const waveformTypes = [
     { key: 'sine', name: 'Sine' },

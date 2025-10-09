@@ -5,8 +5,10 @@ import { Container, Row, Col, Button, Form, Dropdown, OverlayTrigger, Tooltip, M
 import { FaQuestionCircle } from 'react-icons/fa';
 import {
   useAudio,
-  useEffects
+  useEffects,
+  useWaveform
 } from '../../../../contexts/DAWProvider';
+import { createEffectApplyFunction } from '../../../../lib/effects/effectsWaveformHelper';
 import Knob from '../../../Knob';
 
 // Educational tooltips
@@ -687,15 +689,14 @@ export async function processLimiterRegion(audioBuffer, startSample, endSample, 
   
   // Calculate lookahead delay in samples
   const lookaheadSamples = Math.floor((parameters.lookahead || algorithm.lookahead) * sampleRate / 1000);
-  
-  // Create offline context with extra length for lookahead
-  const totalLength = audioBuffer.length + lookaheadSamples;
+
+  // Create offline context with region length only (lookahead is internal to the limiter)
   const offlineContext = new OfflineAudioContext(
     audioBuffer.numberOfChannels,
-    totalLength,
+    regionLength,
     sampleRate
   );
-  
+
   // Create source
   const source = offlineContext.createBufferSource();
   source.buffer = audioBuffer;
@@ -732,45 +733,34 @@ export async function processLimiterRegion(audioBuffer, startSample, endSample, 
   
   // Connect to destination
   outputNode.connect(offlineContext.destination);
-  
-  // Start processing
-  source.start(0);
-  
+
+  // Play only the region
+  const startTime = startSample / sampleRate;
+  const duration = regionLength / sampleRate;
+  source.start(0, startTime, duration);
+
   // Render
   const renderedBuffer = await offlineContext.startRendering();
-  
-  // Create output buffer with processed region
-  const outputBuffer = audioContext.createBuffer(
-    audioBuffer.numberOfChannels,
-    audioBuffer.length,
-    sampleRate
-  );
-  
-  // Mix the processed region back
-  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-    const inputData = audioBuffer.getChannelData(channel);
-    const processedData = renderedBuffer.getChannelData(channel);
-    const outputData = outputBuffer.getChannelData(channel);
-    
-    // Copy original audio
-    outputData.set(inputData);
-    
-    // Overwrite with processed region
-    for (let i = 0; i < regionLength; i++) {
-      let sample = processedData[startSample + i];
-      
+
+  // Apply algorithm-specific coloration to the rendered buffer in-place
+  for (let channel = 0; channel < renderedBuffer.numberOfChannels; channel++) {
+    const data = renderedBuffer.getChannelData(channel);
+
+    for (let i = 0; i < data.length; i++) {
+      let sample = data[i];
+
       // Apply algorithm-specific coloration
       if (algorithm.character === 'warm') {
         sample = applyWarmth(sample, 0.1);
       } else if (algorithm.character === 'punchy') {
         sample = applyPunch(sample, 0.15);
       }
-      
-      outputData[startSample + i] = sample;
+
+      data[i] = sample;
     }
   }
-  
-  return outputBuffer;
+
+  return renderedBuffer;
 }
 
 /**
@@ -818,39 +808,28 @@ export default function Limiter({ width, modalMode = false, onApply }) {
     setLimiterMasteringMode,
     cutRegion
   } = useEffects();
-  
+
+  const { audioBuffer, applyProcessedAudio, activeRegion,
+    audioContext } = useWaveform();
+
   const audioContextRef = useRef(null);
-  
+
   // Initialize audio context
   useEffect(() => {
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     }
   }, []);
-  
+
   // Apply limiter to selected region
-  const applyLimiter = useCallback(async () => {
-    if (!cutRegion || !wavesurferRef.current) {
-      alert('Please select a region first');
-      return;
-    }
-    
-    try {
-      const wavesurfer = wavesurferRef.current;
-      const context = audioContextRef.current;
-      
-      // Get the audio buffer
-      const response = await fetch(audioURL);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await context.decodeAudioData(arrayBuffer);
-      
-      // Calculate sample positions
-      const sampleRate = audioBuffer.sampleRate;
-      const startSample = Math.floor(cutRegion.start * sampleRate);
-      const endSample = Math.floor(cutRegion.end * sampleRate);
-      
-      // Use the exported processing function
-      const parameters = {
+  const applyLimiter = useCallback(
+    createEffectApplyFunction(processLimiterRegion, {
+      audioBuffer,
+      activeRegion,
+      cutRegion,
+      applyProcessedAudio,
+      audioContext,
+      parameters: {
         ceiling: limiterCeiling,
         release: limiterRelease,
         lookahead: limiterLookahead,
@@ -858,41 +837,11 @@ export default function Limiter({ width, modalMode = false, onApply }) {
         isrMode: limiterIsrMode,
         dithering: limiterDithering,
         masteringMode: limiterMasteringMode
-      };
-      
-      const outputBuffer = await processLimiterRegion(
-        audioBuffer,
-        startSample,
-        endSample,
-        parameters
-      );
-      
-      // Convert to blob and update
-      const wav = await audioBufferToWav(outputBuffer);
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-      
-      // Update audio and history
-      addToEditHistory(url, 'Apply Limiter', {
-        effect: 'limiter',
-        parameters,
-        region: { start: cutRegion.start, end: cutRegion.end }
-      });
-      
-      // Load new audio
-      await wavesurfer.load(url);
-
-      // Clear region
-      cutRegion.remove();
-
-      // Call onApply callback if provided
-      onApply?.();
-
-    } catch (error) {
-      console.error('Error applying limiter:', error);
-      alert('Error applying limiter. Please try again.');
-    }
-  }, [audioURL, addToEditHistory, wavesurferRef, limiterCeiling, limiterRelease, limiterLookahead, limiterAlgorithm, limiterIsrMode, limiterDithering, limiterMasteringMode, cutRegion, onApply]);
+      },
+      onApply
+    }),
+    [audioBuffer, activeRegion, cutRegion, applyProcessedAudio, audioContext, limiterCeiling, limiterRelease, limiterLookahead, limiterAlgorithm, limiterIsrMode, limiterDithering, limiterMasteringMode, onApply]
+  );
   
   return (
     <Container fluid className="p-2">

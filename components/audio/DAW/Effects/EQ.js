@@ -13,7 +13,8 @@ import {
   Tooltip
 } from 'react-bootstrap';
 import { FaQuestionCircle } from 'react-icons/fa';
-import { useAudio, useEffects } from '../../../../contexts/DAWProvider';
+import { useAudio, useEffects, useWaveform } from '../../../../contexts/DAWProvider';
+import { createEffectApplyFunction } from '../../../../lib/effects/effectsWaveformHelper';
 import Knob from '../../../Knob';
 
 /**
@@ -579,7 +580,7 @@ export async function processEQRegion(audioBuffer, startSample, endSample, param
   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
   const sampleRate = audioBuffer.sampleRate;
   const regionLength = endSample - startSample;
-  
+
   // Default 8-band parametric EQ
   const defaultBands = [
     { frequency: 60, gain: 0, type: 'highpass', q: 0.7, enabled: false },
@@ -591,23 +592,39 @@ export async function processEQRegion(audioBuffer, startSample, endSample, param
     { frequency: 4000, gain: 0, type: 'peaking', q: 1, enabled: false },
     { frequency: 8000, gain: 0, type: 'highshelf', q: 0.7, enabled: false }
   ];
-  
+
   const bands = parameters.bands || defaultBands;
   const midBands = parameters.midBands || bands; // Separate Mid bands
   const sideBands = parameters.sideBands || bands; // Separate Side bands
   const isLinearPhase = parameters.linearPhase || false;
   const midSideMode = parameters.midSideMode || false;
-  
-  // Create offline context
-  const offlineContext = new OfflineAudioContext(
+
+  // Create a buffer with just the region to process
+  const regionBuffer = audioContext.createBuffer(
     audioBuffer.numberOfChannels,
-    audioBuffer.length,
+    regionLength,
     sampleRate
   );
-  
-  // Create source
+
+  // Copy the region to the new buffer
+  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+    const inputData = audioBuffer.getChannelData(channel);
+    const regionData = regionBuffer.getChannelData(channel);
+    for (let i = 0; i < regionLength; i++) {
+      regionData[i] = inputData[startSample + i];
+    }
+  }
+
+  // Create offline context for just the region
+  const offlineContext = new OfflineAudioContext(
+    regionBuffer.numberOfChannels,
+    regionLength,
+    sampleRate
+  );
+
+  // Create source with region buffer
   const source = offlineContext.createBufferSource();
-  source.buffer = audioBuffer;
+  source.buffer = regionBuffer;
   
   let currentNode = source;
   
@@ -713,30 +730,9 @@ export async function processEQRegion(audioBuffer, startSample, endSample, param
   // Start and render
   source.start(0);
   const renderedBuffer = await offlineContext.startRendering();
-  
-  // Create output buffer with processed region
-  const outputBuffer = audioContext.createBuffer(
-    audioBuffer.numberOfChannels,
-    audioBuffer.length,
-    sampleRate
-  );
-  
-  // Mix the processed region back
-  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-    const inputData = audioBuffer.getChannelData(channel);
-    const processedData = renderedBuffer.getChannelData(channel);
-    const outputData = outputBuffer.getChannelData(channel);
-    
-    // Copy original audio
-    outputData.set(inputData);
-    
-    // Overwrite with processed region
-    for (let i = 0; i < regionLength; i++) {
-      outputData[startSample + i] = processedData[startSample + i];
-    }
-  }
-  
-  return outputBuffer;
+
+  // Return the processed region directly
+  return renderedBuffer;
 }
 
 /**
@@ -750,8 +746,15 @@ export default function EQ({ width, modalMode = false, onApply }) {
     addToEditHistory,
     audioURL
   } = useAudio();
-  
-  const { 
+
+  const {
+    audioBuffer,
+    applyProcessedAudio,
+    activeRegion,
+    audioContext
+  } = useWaveform();
+
+  const {
     cutRegion,
     eqLinearPhase,
     setEqLinearPhase,
@@ -1011,29 +1014,16 @@ export default function EQ({ width, modalMode = false, onApply }) {
     }
   }, [audioRef, eqSpectrumAnalyzer]);
   
-  // Apply EQ to selected region
-  const applyEQ = useCallback(async () => {
-    if (!cutRegion || !wavesurferRef.current) {
-      alert('Please select a region first');
-      return;
-    }
-    
-    try {
-      const wavesurfer = wavesurferRef.current;
-      const context = audioContextRef.current;
-      
-      // Get the audio buffer
-      const response = await fetch(audioURL);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await context.decodeAudioData(arrayBuffer);
-      
-      // Calculate sample positions
-      const sampleRate = audioBuffer.sampleRate;
-      const startSample = Math.floor(cutRegion.start * sampleRate);
-      const endSample = Math.floor(cutRegion.end * sampleRate);
-      
-      // Use the exported processing function with current EQ bands
-      const parameters = {
+  // Apply EQ to selected region using the standard effect helper
+  const applyEQ = useCallback(
+    createEffectApplyFunction(processEQRegion, {
+      audioBuffer,
+      activeRegion,
+      cutRegion,
+      applyProcessedAudio,
+      audioContext,
+      parameters: {
+        effectName: 'EQ',
         bands: eqBands,
         midBands: eqMidSideMode ? (eqMidFilters.length > 0 ? eqMidFilters : eqBands) : eqBands,
         sideBands: eqMidSideMode ? (eqSideFilters.length > 0 ? eqSideFilters : eqBands) : eqBands,
@@ -1042,41 +1032,11 @@ export default function EQ({ width, modalMode = false, onApply }) {
         outputGain: eqGain,
         midGain: eqMidGain,
         sideGain: eqSideGain
-      };
-      
-      const outputBuffer = await processEQRegion(
-        audioBuffer,
-        startSample,
-        endSample,
-        parameters
-      );
-      
-      // Convert to blob and update
-      const wav = await audioBufferToWav(outputBuffer);
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-      
-      // Update audio and history
-      addToEditHistory(url, 'Apply EQ', {
-        effect: 'eq',
-        parameters,
-        region: { start: cutRegion.start, end: cutRegion.end }
-      });
-      
-      // Load new audio
-      await wavesurfer.load(url);
-
-      // Clear region
-      cutRegion.remove();
-
-      // Call onApply callback if provided
-      onApply?.();
-      
-    } catch (error) {
-      console.error('Error applying EQ:', error);
-      alert('Error applying EQ. Please try again.');
-    }
-  }, [audioURL, addToEditHistory, wavesurferRef, eqBands, eqLinearPhase, eqGain, eqMidSideMode, eqMidFilters, eqSideFilters, eqMidGain, eqSideGain, cutRegion, onApply]);
+      },
+      onApply
+    }),
+    [audioBuffer, activeRegion, cutRegion, applyProcessedAudio, audioContext, eqBands, eqLinearPhase, eqGain, eqMidSideMode, eqMidFilters, eqSideFilters, eqMidGain, eqSideGain, onApply]
+  );
   
   // Update band parameter
   const updateBand = useCallback((index, updates) => {
