@@ -383,6 +383,7 @@ export default function WaveformRenderer({ height = 180 }) {
         position: 'relative',
         backgroundColor: '#1e1e1e',
         cursor: isDragging ? 'col-resize' : 'crosshair',
+        overflow: 'hidden',  // Prevent canvas from overflowing
       }}
     >
       <canvas

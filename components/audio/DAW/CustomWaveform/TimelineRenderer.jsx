@@ -72,7 +72,8 @@ export default function TimelineRenderer({ height = 30 }) {
         width: '100%',
         height: `${height}px`,
         backgroundColor: '#2a2a2a',
-        cursor: 'pointer'
+        cursor: 'pointer',
+        overflow: 'hidden'  // Prevent canvas overflow
       }}
     >
       <canvas

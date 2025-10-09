@@ -122,7 +122,8 @@ export default function MinimapRenderer({ height = 40 }) {
         height: `${height}px`,
         backgroundColor: '#2a2a2a',
         borderTop: '1px solid #444',
-        cursor: 'pointer'
+        cursor: 'pointer',
+        overflow: 'hidden'  // Prevent canvas overflow
       }}
     >
       <canvas
