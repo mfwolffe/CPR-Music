@@ -440,14 +440,17 @@ export async function processPitchShiftRegion(audioBuffer, startSample, endSampl
   processor.setWetMix(parameters.wetMix || 1.0);
   processor.setOutputGain(parameters.outputGain || 1.0);
   
-  // Create output buffer with region length only
+  const pitchRatio = processor.getPitchRatio();
+
+  // Calculate the output length based on stretch ratio
+  const outputLength = Math.floor(regionLength / processor.stretch);
+
+  // Create output buffer with the correct length based on stretch
   const outputBuffer = audioContext.createBuffer(
     audioBuffer.numberOfChannels,
-    regionLength,
+    outputLength,
     sampleRate
   );
-
-  const pitchRatio = processor.getPitchRatio();
 
   // Process each channel
   for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
@@ -463,11 +466,13 @@ export async function processPitchShiftRegion(audioBuffer, startSample, endSampl
     // Apply pitch shifting using phase vocoder
     const processedData = processor.processPhaseVocoder(regionData, pitchRatio, processor.stretch);
 
-    // Mix to output (region indices only)
+    // Mix to output - handle both dry and wet signals with correct lengths
     const mixAmount = processor.wetMix;
-    for (let i = 0; i < Math.min(regionLength, processedData.length); i++) {
-      const original = regionData[i];
-      const processed = processedData[i] * processor.outputGain;
+    for (let i = 0; i < outputLength; i++) {
+      // For stretched audio, we need to interpolate the dry signal or repeat/skip samples
+      const dryIndex = Math.min(Math.floor(i * processor.stretch), regionLength - 1);
+      const original = regionData[dryIndex];
+      const processed = i < processedData.length ? processedData[i] * processor.outputGain : 0;
       outputData[i] = original * (1 - mixAmount) + processed * mixAmount;
     }
   }

@@ -180,10 +180,11 @@ export async function processPaulstretchRegion(
   // Output length after stretching
   const outputLength = Math.floor(regionLength * stretch);
 
-  // Create output buffer
+  // Create output buffer for JUST the processed region
+  // (replaceRegionInBuffer will handle integrating it with the full audio)
   const outputBuffer = audioContext.createBuffer(
     audioBuffer.numberOfChannels,
-    audioBuffer.length - regionLength + outputLength,
+    outputLength,
     sampleRate,
   );
 
@@ -191,11 +192,6 @@ export async function processPaulstretchRegion(
   for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
     const inputData = audioBuffer.getChannelData(channel);
     const outputData = outputBuffer.getChannelData(channel);
-
-    // Copy before region
-    for (let i = 0; i < startSample; i++) {
-      outputData[i] = inputData[i];
-    }
 
     // Extract region data
     const regionData = new Float32Array(regionLength);
@@ -327,18 +323,10 @@ export async function processPaulstretchRegion(
       stretchedData[i] = s;
     }
 
-    // Copy stretched data to output
+    // Copy stretched data directly to output buffer
+    // (no offset needed since we're returning only the processed region)
     for (let i = 0; i < outputLength; i++) {
-      // Leave at unity now; limiter handles overs
-      outputData[startSample + i] = stretchedData[i];
-    }
-
-    // Copy after region
-    for (let i = endSample; i < inputData.length; i++) {
-      const outputIndex = startSample + outputLength + (i - endSample);
-      if (outputIndex < outputData.length) {
-        outputData[outputIndex] = inputData[i];
-      }
+      outputData[i] = stretchedData[i];
     }
   }
 
