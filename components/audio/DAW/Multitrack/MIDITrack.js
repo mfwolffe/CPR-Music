@@ -22,7 +22,7 @@ import MIDIInputManager from './MIDIInputManager';
 import PianoRollEditor from './PianoRollEditor';
 import InstrumentSelector from './InstrumentSelector';
 import { exportToMIDIFile } from '../../../../lib/midiFileExport';
-import { useMIDITrackAudio } from './hooks/useMIDITrackAudio';
+import { useMIDITrackAudio } from './hooks/useMidiTrackAudio';
 
 // Get singleton MIDI manager
 const midiInputManager = typeof window !== 'undefined' && window.__midiInputManager
