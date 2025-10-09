@@ -299,14 +299,35 @@ export const MultitrackProvider = ({ children }) => {
     const { mergeMidiData = true } = options;
     let wavesurferChanged = false;
 
-    setTracks((prev) =>
-      prev.map((track) => {
+    console.log('🔄 updateTrack called:', {
+      trackId,
+      updates: typeof updatesOrFn === 'function' ? 'function' : updatesOrFn,
+      options
+    });
+
+    setTracks((prev) => {
+      const beforeTrack = prev.find(t => t.id === trackId);
+      console.log('🔄 Track before update:', {
+        id: beforeTrack?.id,
+        name: beforeTrack?.name,
+        clipCount: beforeTrack?.clips?.length,
+        clipIds: beforeTrack?.clips?.map(c => c.id)
+      });
+
+      const updated = prev.map((track) => {
         if (track.id !== trackId) return track;
 
         const updates =
           typeof updatesOrFn === 'function'
             ? updatesOrFn(track)
             : updatesOrFn || {};
+
+        console.log('🔄 Applying updates to track:', {
+          trackId: track.id,
+          updates,
+          oldClipCount: track.clips?.length,
+          newClipCount: updates.clips?.length
+        });
 
         // Start with a shallow merge
         let next = { ...track, ...updates };
@@ -329,9 +350,18 @@ export const MultitrackProvider = ({ children }) => {
           wavesurferChanged = true;
         }
 
+        console.log('🔄 Track after update:', {
+          id: next.id,
+          name: next.name,
+          clipCount: next.clips?.length,
+          clipIds: next.clips?.map(c => c.id)
+        });
+
         return next;
-      }),
-    );
+      });
+
+      return updated;
+    });
 
     if (wavesurferChanged) {
       // Force a re-render to update duration after wavesurfer instance changes

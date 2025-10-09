@@ -55,7 +55,6 @@ const midiInputManager = new MIDIInputManager();
 if (typeof window !== 'undefined') window.__midiInputManager = midiInputManager;
 
 export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
-  console.log('MultitrackEditor rendering');
   const tracksScrollRef = useRef(null);
   const tracksInnerRef = useRef(null);
   const timelineScrollRef = useRef(null);
@@ -70,6 +69,8 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
     setSelectedTrackId,
     selectedClipId,
     setSelectedClipId,
+    selectedClipIds,
+    setSelectedClipIds,
     currentTime,
     duration,
     isPlaying,
@@ -104,33 +105,121 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
 
+  // Debug: Log when tracks change
+  useEffect(() => {
+    console.log('📊 Tracks state changed:', {
+      trackCount: tracks.length,
+      tracks: tracks.map(t => ({
+        id: t.id,
+        name: t.name,
+        clipCount: t.clips?.length || 0,
+        clipIds: (t.clips || []).map(c => c.id)
+      }))
+    });
+  }, [tracks]);
+
+  // Use ref to ensure we always have the latest selectedClipIds value
+  const selectedClipIdsRef = useRef(selectedClipIds);
+  useEffect(() => {
+    selectedClipIdsRef.current = selectedClipIds;
+  }, [selectedClipIds]);
+
   // Get selected track and clips
   const selectedTrack = tracks.find((t) => t.id === selectedTrackId);
-  const selectedClips =
-    selectedTrack?.clips?.filter((c) => c.id === selectedClipId) || [];
 
-  // Handle copy
+  // Support both single selection (selectedClipId) and multi-selection (selectedClipIds)
+  const selectedClips = (() => {
+    // Use ref value to ensure we get the latest selectedClipIds
+    const currentSelectedClipIds = selectedClipIdsRef.current;
+
+    // If we have multiple selections, use those
+    if (currentSelectedClipIds && currentSelectedClipIds.length > 0) {
+      // Get all clips from all tracks that match selectedClipIds
+      const allSelectedClips = [];
+      tracks.forEach(track => {
+        if (track.clips) {
+          const trackClips = track.clips.filter(clip =>
+            currentSelectedClipIds.includes(clip.id)
+          );
+          allSelectedClips.push(...trackClips);
+        }
+      });
+      return allSelectedClips;
+    }
+    // Fall back to single selection
+    else if (selectedClipId && selectedTrack?.clips) {
+      return selectedTrack.clips.filter((c) => c.id === selectedClipId);
+    }
+    return [];
+  })();
+
+  // Handle copy - supports batch copying of multiple selected clips
   const handleCopy = useCallback(() => {
-    if (!selectedTrack || selectedClips.length === 0) return;
+    if (selectedClips.length === 0) return;
 
-    clipClipboard.copy(selectedClips, selectedTrack.id);
+    // Note: clipClipboard.copy expects trackId for context, but with multi-selection
+    // clips might be from different tracks. Pass first track's ID or null
+    const firstTrackId = selectedTrack?.id ||
+      (selectedClips.length > 0 && tracks.find(t =>
+        t.clips?.some(c => c.id === selectedClips[0].id))?.id);
+
+    clipClipboard.copy(selectedClips, firstTrackId);
     console.log('Copied', selectedClips.length, 'clips');
-  }, [selectedTrack, selectedClips]);
+  }, [selectedTrack, selectedClips, tracks]);
 
-  // Handle cut
+  // Handle cut - supports batch cutting of multiple selected clips
   const handleCut = useCallback(() => {
-    if (!selectedTrack || selectedClips.length === 0) return;
+    if (selectedClips.length === 0) return;
 
-    const clipIds = clipClipboard.cut(selectedClips, selectedTrack.id);
+    // Note: clipClipboard.cut expects trackId for context, but with multi-selection
+    // clips might be from different tracks. Pass first track's ID or null
+    const firstTrackId = selectedTrack?.id ||
+      (selectedClips.length > 0 && tracks.find(t =>
+        t.clips?.some(c => c.id === selectedClips[0].id))?.id);
 
-    // Remove cut clips
-    updateTrack(selectedTrack.id, {
-      clips: selectedTrack.clips.filter((c) => !clipIds.includes(c.id)),
-    });
+    const clipIds = clipClipboard.cut(selectedClips, firstTrackId);
+
+    // Use ref value to ensure we get the latest selectedClipIds
+    const currentSelectedClipIds = selectedClipIdsRef.current;
+
+    // For multi-selection across tracks, update all affected tracks
+    if (currentSelectedClipIds && currentSelectedClipIds.length > 0) {
+      // Group clips by track for efficient updates
+      const clipsByTrack = {};
+      tracks.forEach(track => {
+        if (track.clips) {
+          const clipsToRemove = track.clips.filter(clip =>
+            clipIds.includes(clip.id)
+          );
+          if (clipsToRemove.length > 0) {
+            clipsByTrack[track.id] = clipsToRemove.map(c => c.id);
+          }
+        }
+      });
+
+      // Update each affected track
+      Object.entries(clipsByTrack).forEach(([trackId, clipIdsToRemove]) => {
+        const track = tracks.find(t => t.id === trackId);
+        if (track) {
+          updateTrack(trackId, {
+            clips: track.clips.filter(c => !clipIdsToRemove.includes(c.id))
+          });
+        }
+      });
+
+      // Clear multi-selection
+      setSelectedClipIds([]);
+    }
+    // Single track cut (backward compatibility)
+    else if (selectedTrack) {
+      updateTrack(selectedTrack.id, {
+        clips: selectedTrack.clips.filter((c) => !clipIds.includes(c.id)),
+      });
+    }
 
     setSelectedClipId(null);
     console.log('Cut', selectedClips.length, 'clips');
-  }, [selectedTrack, selectedClips, updateTrack, setSelectedClipId]);
+  }, [selectedTrack, selectedClips, tracks, updateTrack, setSelectedClipId, setSelectedClipIds]);
 
   // Handle paste
   const handlePaste = useCallback(() => {
@@ -151,16 +240,77 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
     }
   }, [selectedTrack, currentTime, updateTrack, setSelectedClipId]);
 
-  // Handle delete
+  // Handle delete - supports batch deletion of multiple selected clips
   const handleDelete = useCallback(() => {
-    if (!selectedTrack || !selectedClipId) return;
+    // Use ref value to ensure we get the latest selectedClipIds
+    const currentSelectedClipIds = selectedClipIdsRef.current;
 
-    updateTrack(selectedTrack.id, {
-      clips: selectedTrack.clips.filter((c) => c.id !== selectedClipId),
+    // Check if we have any selection at all
+    const hasMultiSelection = currentSelectedClipIds && currentSelectedClipIds.length > 0;
+    const hasSingleSelection = selectedClipId && selectedTrack;
+
+    console.log('🗑️ Delete handler called:', {
+      selectedClipIds: currentSelectedClipIds,
+      selectedClipIdsLength: currentSelectedClipIds?.length,
+      selectedClipId,
+      hasMultiSelection,
+      hasSingleSelection,
+      selectedTrack: selectedTrack?.id
     });
 
-    setSelectedClipId(null);
-  }, [selectedTrack, selectedClipId, updateTrack, setSelectedClipId]);
+    if (!hasMultiSelection && !hasSingleSelection) {
+      console.log('🗑️ No selection to delete, returning');
+      return;
+    }
+
+    // For multi-selection, delete clips from all tracks
+    if (hasMultiSelection) {
+      console.log(`🗑️ Deleting ${currentSelectedClipIds.length} clips:`, currentSelectedClipIds);
+
+      // Instead of using tracks from closure, use updateTrack with function form
+      // to access current track state
+      tracks.forEach(track => {
+        // Use function form of updateTrack to get current track state
+        updateTrack(track.id, (currentTrack) => {
+          if (!currentTrack.clips || currentTrack.clips.length === 0) {
+            return {}; // No changes needed
+          }
+
+          const clipsToDelete = currentTrack.clips.filter(clip =>
+            currentSelectedClipIds.includes(clip.id)
+          );
+
+          if (clipsToDelete.length > 0) {
+            const remainingClips = currentTrack.clips.filter(c =>
+              !currentSelectedClipIds.includes(c.id)
+            );
+            console.log(`🗑️ Track ${track.id}: Removing ${clipsToDelete.length} clips, ${remainingClips.length} remaining`);
+            return { clips: remainingClips };
+          }
+
+          return {}; // No changes needed for this track
+        });
+      });
+
+      console.log('🗑️ Clearing selections');
+      // Clear selections
+      setSelectedClipIds([]);
+      setSelectedClipId(null);
+    }
+    // For single selection (backward compatibility)
+    else if (hasSingleSelection) {
+      console.log(`Deleting single clip: ${selectedClipId}`);
+
+      updateTrack(selectedTrack.id, (currentTrack) => {
+        if (!currentTrack.clips) return {};
+        return {
+          clips: currentTrack.clips.filter((c) => c.id !== selectedClipId)
+        };
+      });
+
+      setSelectedClipId(null);
+    }
+  }, [selectedTrack, selectedClipId, tracks, updateTrack, setSelectedClipId, setSelectedClipIds]);
 
   // Handle split at playhead
   const handleSplitAtPlayhead = useCallback(() => {
@@ -214,6 +364,22 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // Ignore if typing in an input field
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      console.log('🎹 MultitrackEditor keydown:', {
+        key: e.key,
+        code: e.code,
+        target: e.target.tagName,
+        selectedClipIds: selectedClipIdsRef.current,
+        selectedClipId,
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+        shiftKey: e.shiftKey
+      });
+
       // Tool shortcuts
       if (e.key === '1') setEditorTool('select');
       if (e.key === '2') setEditorTool('clip');
@@ -233,7 +399,9 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
         handlePaste();
       }
       if (e.key === 'Delete' || e.key === 'Backspace') {
+        console.log('🎹 Delete/Backspace pressed, calling handleDelete');
         e.preventDefault();
+        e.stopPropagation(); // Prevent other handlers from interfering
         handleDelete();
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
@@ -261,6 +429,8 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
     handleSplitAtPlayhead,
     handleQuantize,
     setEditorTool,
+    setSelectedClipIds,
+    selectedClipId, // Keep this for single selection
   ]);
 
   // MIDI setup
@@ -311,7 +481,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
   };
 
   const canPaste = clipClipboard.hasContent();
-  const hasSelection = selectedClipId !== null;
+  const hasSelection = (selectedClipId !== null) || (selectedClipIdsRef.current && selectedClipIdsRef.current.length > 0);
 
   // Update playhead positions for both timeline and tracks
   useEffect(() => {
