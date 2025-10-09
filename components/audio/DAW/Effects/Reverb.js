@@ -62,7 +62,6 @@ export async function processReverbRegion(audioBuffer, startSample, endSample, p
 export default function Reverb({ width, onApply }) {
   const {
     audioRef,
-    wavesurferRef,
     addToEditHistory,
     audioURL
   } = useAudio();

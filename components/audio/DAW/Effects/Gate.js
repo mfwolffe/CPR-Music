@@ -107,7 +107,7 @@ export async function processGateRegion(
  * Gate effect component - cuts audio below threshold
  */
 export default function Gate({ width, onApply }) {
-  const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+  const { audioRef, addToEditHistory, audioURL } = useAudio();
 
   const { audioBuffer, applyProcessedAudio, activeRegion,
     audioContext } = useWaveform();

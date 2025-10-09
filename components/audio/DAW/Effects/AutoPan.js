@@ -134,7 +134,7 @@ export async function processAutoPanRegion(
  * Auto-Pan effect component using Web Audio API StereoPannerNode
  */
 export default function AutoPan({ width, onApply }) {
-  const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+  const { audioRef, addToEditHistory, audioURL } = useAudio();
 
   const { audioBuffer, applyProcessedAudio, activeRegion,
     audioContext } = useWaveform();

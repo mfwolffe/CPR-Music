@@ -36,7 +36,7 @@ export default function DAW({
   showSubmitButton = false,
   silenceWarning = false,
 }) {
-  const { audioURL, wavesurferRef, dawMode, setDawMode } = useAudio();
+  const { audioURL, dawMode, setDawMode } = useAudio();
   const { loadFFmpeg, loaded: ffmpegLoaded } = useFFmpeg();
   const { showDAW, showHelp, setShowHelp, mapPresent, useEffectsRack } =
     useUI();

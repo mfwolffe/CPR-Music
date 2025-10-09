@@ -449,7 +449,6 @@ export async function processRingModulatorRegion(audioBuffer, startSample, endSa
 export default function RingModulator({ width, onApply }) {
   const {
     audioRef,
-    wavesurferRef,
     addToEditHistory,
     audioURL
   } = useAudio();

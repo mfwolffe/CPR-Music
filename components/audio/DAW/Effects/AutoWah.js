@@ -394,7 +394,7 @@ export async function processAutoWahRegion(
  * Enhanced Auto-Wah effect component with multiple LFO modes
  */
 export default function AutoWah({ width, onApply }) {
-  const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+  const { audioRef, addToEditHistory, audioURL } = useAudio();
 
   const { audioBuffer, applyProcessedAudio, activeRegion,
     audioContext } = useWaveform();

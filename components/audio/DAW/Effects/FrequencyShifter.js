@@ -274,7 +274,7 @@ export async function processFrequencyShifterRegion(
  * Unlike pitch shifting, this destroys harmonic relationships for wild effects
  */
 export default function FrequencyShifter({ width, onApply }) {
-  const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+  const { audioRef, addToEditHistory, audioURL } = useAudio();
 
   const { audioBuffer, applyProcessedAudio, activeRegion,
     audioContext } = useWaveform();

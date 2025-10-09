@@ -329,7 +329,7 @@ export async function processFilterRegion(
  * Professional Filter effect with LFO modulation
  */
 export default function Filter({ width, modalMode = false, onApply }) {
-  const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+  const { audioRef, addToEditHistory, audioURL } = useAudio();
   const [showFilterHelp, setShowFilterHelp] = useState(false);
 
   const { audioBuffer, applyProcessedAudio, activeRegion,

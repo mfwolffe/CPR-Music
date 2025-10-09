@@ -128,7 +128,7 @@ export async function processGlitchRegion(
  * Glitch/Beat Repeat effect - rhythmic stutters and chaos
  */
 export default function Glitch({ width, onApply }) {
-  const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+  const { audioRef, addToEditHistory, audioURL } = useAudio();
 
   const { audioBuffer, applyProcessedAudio, activeRegion,
     audioContext } = useWaveform();

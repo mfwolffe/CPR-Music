@@ -349,7 +349,6 @@ export async function processPhaserRegion(audioBuffer, startSample, endSample, p
 export default function Phaser({ width, onApply }) {
   const {
     audioRef,
-    wavesurferRef,
     addToEditHistory,
     audioURL
   } = useAudio();

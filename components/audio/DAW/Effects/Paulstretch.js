@@ -350,7 +350,7 @@ export async function processPaulstretchRegion(
  * Based on the algorithm by Paul Nasca
  */
 export default function Paulstretch({ width, onApply }) {
-  const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+  const { audioRef, addToEditHistory, audioURL } = useAudio();
 
   const { audioBuffer, applyProcessedAudio, activeRegion,
     audioContext } = useWaveform();

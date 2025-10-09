@@ -499,7 +499,6 @@ export async function processDistortionRegion(audioBuffer, startSample, endSampl
 export default function Distortion({ width, onApply }) {
   const {
     audioRef,
-    wavesurferRef,
     addToEditHistory,
     audioURL
   } = useAudio();

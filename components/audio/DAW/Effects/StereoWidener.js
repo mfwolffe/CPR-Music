@@ -466,7 +466,6 @@ export async function processStereoWidenerRegion(audioBuffer, startSample, endSa
 export default function StereoWidener({ width, onApply }) {
   const {
     audioRef,
-    wavesurferRef,
     addToEditHistory,
     audioURL
   } = useAudio();

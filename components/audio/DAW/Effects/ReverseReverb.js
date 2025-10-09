@@ -140,7 +140,6 @@ export async function processReverseReverbRegion(audioBuffer, startSample, endSa
 export default function ReverseReverb({ width, onApply }) {
   const {
     audioRef,
-    wavesurferRef,
     addToEditHistory,
     audioURL
   } = useAudio();

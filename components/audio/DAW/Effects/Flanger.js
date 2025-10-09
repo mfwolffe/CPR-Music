@@ -142,7 +142,6 @@ export async function processFlangerRegion(audioBuffer, startSample, endSample, 
 export default function Flanger({ width, onApply }) {
   const {
     audioRef,
-    wavesurferRef,
     addToEditHistory,
     audioURL
   } = useAudio();

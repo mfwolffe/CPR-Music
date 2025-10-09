@@ -482,7 +482,6 @@ export async function processPitchShiftRegion(audioBuffer, startSample, endSampl
 export default function PitchShifter({ width, onApply }) {
   const {
     audioRef,
-    wavesurferRef,
     addToEditHistory,
     audioURL
   } = useAudio();

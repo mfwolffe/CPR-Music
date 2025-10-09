@@ -119,7 +119,7 @@ export async function processTremoloRegion(
  * Tremolo effect component - amplitude modulation
  */
 export default function Tremolo({ width, onApply }) {
-  const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+  const { audioRef, addToEditHistory, audioURL } = useAudio();
 
   const {
     tremoloRate,

@@ -190,7 +190,6 @@ export async function processEchoRegion(audioBuffer, startSample, endSample, par
 export default function Echo({ width, onApply }) {
   const {
     audioRef,
-    wavesurferRef,
     addToEditHistory,
     audioURL
   } = useAudio();

@@ -742,7 +742,6 @@ export async function processEQRegion(audioBuffer, startSample, endSample, param
 export default function EQ({ width, modalMode = false, onApply }) {
   const {
     audioRef,
-    wavesurferRef,
     addToEditHistory,
     audioURL
   } = useAudio();

@@ -581,7 +581,6 @@ export async function processCompressorRegion(audioBuffer, startSample, endSampl
 export default function Compressor({ width, modalMode = false, onApply }) {
   const {
     audioRef,
-    wavesurferRef,
     addToEditHistory,
     audioURL
   } = useAudio();

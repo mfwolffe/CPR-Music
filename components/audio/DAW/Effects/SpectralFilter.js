@@ -324,7 +324,7 @@ export async function processSpectralFilterRegion(
  * Can create robotic voices, whisper effects, and frequency-based morphing
  */
 export default function SpectralFilter({ width, onApply }) {
-  const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+  const { audioRef, addToEditHistory, audioURL } = useAudio();
 
   const { cutRegion } = useEffects();
 

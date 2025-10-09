@@ -280,7 +280,6 @@ export async function processChorusRegion(audioBuffer, startSample, endSample, p
 export default function Chorus({ width, onApply }) {
   const {
     audioRef,
-    wavesurferRef,
     addToEditHistory,
     audioURL
   } = useAudio();

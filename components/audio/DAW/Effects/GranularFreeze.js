@@ -149,7 +149,7 @@ export async function processGranularFreezeRegion(
  * Creates evolving textures and drones
  */
 export default function GranularFreeze({ width, onApply }) {
-  const { audioRef, wavesurferRef, addToEditHistory, audioURL } = useAudio();
+  const { audioRef, addToEditHistory, audioURL } = useAudio();
 
   const { audioBuffer, applyProcessedAudio, activeRegion,
     audioContext } = useWaveform();

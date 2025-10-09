@@ -457,7 +457,6 @@ export async function processAdvancedDelayRegion(audioBuffer, startSample, endSa
 export default function AdvancedDelay({ width, onApply }) {
   const {
     audioRef,
-    wavesurferRef,
     addToEditHistory,
     audioURL
   } = useAudio();

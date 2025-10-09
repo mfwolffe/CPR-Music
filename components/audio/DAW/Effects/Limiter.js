@@ -784,7 +784,6 @@ function applyPunch(sample, amount) {
 export default function Limiter({ width, modalMode = false, onApply }) {
   const {
     audioRef,
-    wavesurferRef,
     addToEditHistory,
     audioURL
   } = useAudio();
