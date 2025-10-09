@@ -143,11 +143,14 @@ export default function CustomTransport() {
 
       </div>
 
-      {/* Center controls - time and speed */}
+      {/* Center controls - time display only */}
       <div className="d-flex align-items-center">
         <div className="ml-2 mr-2">{formatTime(currentTime)}</div>
+      </div>
 
-        {/* Playback speed dropdown */}
+      {/* Right side controls - playback speed and zoom */}
+      <div className="d-flex align-items-center gap-05">
+        {/* Playback speed dropdown - moved here */}
         <Dropdown align="end" className="drop">
           <Dropdown.Toggle className="prog-button speed-drop-toggle" bsPrefix="wavesurfer">
             <BsSpeedometer2 fontSize={icoSize} className="speed-gague" />
@@ -173,10 +176,11 @@ export default function CustomTransport() {
             </Dropdown.Item>
           </Dropdown.Menu>
         </Dropdown>
-      </div>
 
-      {/* Zoom controls on right side */}
-      <div className="d-flex align-items-center gap-05">
+        {/* Divider between speed and zoom */}
+        <div className="vr" style={{ height: '20px', margin: '0 4px' }} />
+
+        {/* Zoom controls */}
         <Button
           onClick={zoomOut}
           className="prog-button"
