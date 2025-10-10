@@ -674,10 +674,8 @@ export default function RecorderRefactored({ submit, accompaniment }) {
           )}
           {showDAW && (
             <DAW
-              audioURL={audioURL}
-              submitFn={submitEditedRecording}
-              closeFn={() => setShowDAW(false)}
-              hideCloseBtn={false}
+              onSubmit={submitEditedRecording}
+              showSubmitButton={true}
             />
           )}
           <StatusIndicator
