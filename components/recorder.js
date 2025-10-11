@@ -539,8 +539,8 @@ export default function RecorderRefactored({ submit, accompaniment }) {
           const silenceResult = await catchSilence(
             ffmpegRef,
             url,
-            10,
-            30,
+            '-30dB',  // Use proper dB format for cutoff threshold
+            10,       // Duration in seconds to detect silence
             null,
           );
           setSilenceData(silenceResult);
@@ -552,25 +552,39 @@ export default function RecorderRefactored({ submit, accompaniment }) {
         }
 
         const response = await fetch(url);
+        // The blob from response.blob() should preserve the original MIME type
         const blob = await response.blob();
+        console.log('📊 Submitting audio blob:', {
+          size: blob.size,
+          type: blob.type || 'unknown',
+          url: url.substring(0, 50) + '...'
+        });
 
         if (submit) {
-          // If we have activity log data, include it in the submission
+          // IMPORTANT: Never modify the blob directly as it will corrupt it
+          // Keep the blob pristine for submission
+
           if (activityLogData) {
-            console.log('📊 Submitting with activity log data');
+            console.log('📊 Activity log data available, will be submitted separately');
+            console.log('📊 Activity log size:', activityLogData.length, 'characters');
 
-            // Create a FormData object that includes both audio and activity log
-            const formData = new FormData();
-            formData.append('audio', blob, 'recording.wav');
-            formData.append('activityLog', activityLogData);
-            formData.append('timestamp', new Date().toISOString());
+            // Store activity log in window for the submission handler to access
+            // This is a temporary solution until the backend is updated to handle it properly
+            if (typeof window !== 'undefined') {
+              window.__PENDING_ACTIVITY_LOG__ = activityLogData;
+              window.__PENDING_ACTIVITY_LOG_TIMESTAMP__ = new Date().toISOString();
+            }
+          }
 
-            // Note: The parent's submit function should be updated to handle FormData
-            // For backward compatibility, check if parent expects FormData or blob
-            submit(formData);
-          } else {
-            // Fallback to old behavior if no activity log
-            submit(blob);
+          // Always submit the pristine blob - DO NOT MODIFY IT
+          submit(blob);
+
+          // Clear the pending activity log after a delay
+          if (activityLogData && typeof window !== 'undefined') {
+            setTimeout(() => {
+              window.__PENDING_ACTIVITY_LOG__ = null;
+              window.__PENDING_ACTIVITY_LOG_TIMESTAMP__ = null;
+            }, 5000);
           }
         }
       } catch (error) {
@@ -708,7 +722,8 @@ export default function RecorderRefactored({ submit, accompaniment }) {
         onIgnore={() => {
           setIgnoreSilence(true);
           setShowAudioDrop(false);
-          submitEditedRecording(audioURL);
+          // Pass null for activity log when retrying after silence warning
+          submitEditedRecording(audioURL, null);
         }}
         onUploadNew={() => setShowAudioDrop(false)}
       />

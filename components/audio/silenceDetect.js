@@ -40,11 +40,14 @@ const silenceDataTable = (silenceData) => {
   );
 };
 
-const AudioDropModal = ({ show, setShow, silenceData, setIgnore }) => {
-  const closeModal = useCallback(() => setShow(false));
+const AudioDropModal = ({ show, silenceData, onIgnore, onUploadNew }) => {
+  const closeModal = useCallback(() => {
+    if (onUploadNew) onUploadNew();
+  }, [onUploadNew]);
+
   const closeAndSubmit = useCallback(() => {
-    setIgnore(true);
-  })
+    if (onIgnore) onIgnore();
+  }, [onIgnore]);
 
   return (
     <>
