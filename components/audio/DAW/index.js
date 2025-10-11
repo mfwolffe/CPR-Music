@@ -17,6 +17,7 @@ import {
   useFFmpeg,
   useUI,
   useRecording,
+  useMultitrack,
 } from '../../../contexts/DAWProvider';
 import CustomWaveform from './CustomWaveform';
 import EffectsModal from './Effects/EffectsModal';
@@ -41,6 +42,7 @@ export default function DAW({
   const { showDAW, showHelp, setShowHelp, mapPresent, useEffectsRack } =
     useUI();
   const { blobInfo } = useRecording();
+  const { tracks, selectedTrackId } = useMultitrack();
 
   const [showRecordingModal, setShowRecordingModal] = useState(false);
   const [showTakesModal, setShowTakesModal] = useState(false);
@@ -92,6 +94,10 @@ export default function DAW({
 
   // For multitrack mode
   if (dawMode === 'multi') {
+    // Get the selected track
+    const selectedTrack = tracks.find(t => t.id === selectedTrackId);
+    const hasValidAudio = selectedTrack && selectedTrack.audioURL;
+
     return (
       <>
         <Card className="mt-2 mb-2" id="daw-card">
@@ -120,6 +126,43 @@ export default function DAW({
           <CardBody style={{ backgroundColor: '#2d2c29' }}>
             <MultitrackWithTakes />
           </CardBody>
+
+          {showSubmitButton && (
+            <CardFooter className="dawHeaderFooter">
+              <div className="d-flex justify-content-between align-items-center">
+                <span className="text-muted" style={{ fontSize: '0.9rem' }}>
+                  {selectedTrack
+                    ? `Selected track: ${selectedTrack.name}`
+                    : 'Select a track to submit'}
+                </span>
+                <Button
+                  variant={hasValidAudio ? 'primary' : 'secondary'}
+                  disabled={!hasValidAudio}
+                  onClick={() => {
+                    if (onSubmit && hasValidAudio) {
+                      // Generate activity log summary
+                      let activityLogData = null;
+                      try {
+                        if (activityLogger && activityLogger.isActive) {
+                          activityLogData = activityLogger.toCompressedString();
+                          console.log('📊 Activity log generated for multitrack submission');
+                        }
+                      } catch (error) {
+                        console.error('📊 Error generating activity log:', error);
+                      }
+
+                      // Pass the selected track's audio URL and activity log
+                      console.log(`🎵 Submitting audio from track: ${selectedTrack.name}`);
+                      onSubmit(selectedTrack.audioURL, activityLogData);
+                    }
+                  }}
+                  title={!hasValidAudio ? "Select a track with audio to submit" : "Submit selected track"}
+                >
+                  Submit {selectedTrack && `"${selectedTrack.name}"`} {silenceWarning && <PiWarningDuotone />}
+                </Button>
+              </div>
+            </CardFooter>
+          )}
         </Card>
 
         {/* Recording Modal - needed in multitrack mode too */}
