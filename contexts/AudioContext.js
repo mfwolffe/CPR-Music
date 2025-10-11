@@ -3,6 +3,7 @@
 
 import { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react';
 import { getCommandManager, createAudioCommand } from '../lib/AudioCommandManager';
+import { getDAWActivityLogger } from '../lib/activity/DAWActivityLogger';
 
 const AudioContext = createContext();
 
@@ -34,11 +35,17 @@ export const AudioProvider = ({ children }) => {
   const wavesurferRef = useRef(null);
   const commandManagerRef = useRef(null);
   const hasInitialAudioRef = useRef(false); // Track if initial audio has been set
+  const activityLoggerRef = useRef(null);
 
-  // Initialize command manager
+  // Initialize command manager and activity logger
   useEffect(() => {
     const manager = getCommandManager();
     commandManagerRef.current = manager;
+
+    // Initialize activity logger (but don't start it yet)
+    const logger = getDAWActivityLogger();
+    activityLoggerRef.current = logger;
+    console.log('📊 DAW Activity Logger initialized (not active yet)');
 
     // Listen for state changes
     const handleStateChange = (state) => {
@@ -157,15 +164,15 @@ export const AudioProvider = ({ children }) => {
     setDuration,
     playbackSpeed,
     setPlaybackSpeed,
-    
+
     // DAW mode
     dawMode,
     setDawMode,
-    
+
     // Refs
     audioRef,
     wavesurferRef,
-    
+
     // Command history
     canUndo,
     canRedo,
@@ -174,9 +181,12 @@ export const AudioProvider = ({ children }) => {
     redo,
     getCurrentCommand,
     clearHistory,
-    
+
     // Methods
     loadAudio,
+
+    // Activity Logger (Phase 1 - not active yet)
+    activityLogger: activityLoggerRef.current,
   };
   
   return (
