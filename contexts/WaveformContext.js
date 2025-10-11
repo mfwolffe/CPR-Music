@@ -17,7 +17,7 @@ export const useWaveform = () => {
 
 export const WaveformProvider = ({ children }) => {
   // Get global audio state
-  const { audioURL, addToEditHistory, wavesurferRef } = useAudio();
+  const { audioURL, addToEditHistory, wavesurferRef, activityLogger } = useAudio();
   const { setCutRegion } = useEffects();
 
   // Audio engine instances
@@ -227,14 +227,32 @@ export const WaveformProvider = ({ children }) => {
 
     audioEngineRef.current.play(currentTime);
     setIsPlaying(true);
-  }, [audioBuffer, currentTime]);
+
+    // Log playback action
+    try {
+      if (activityLogger?.isActive) {
+        activityLogger.logPlaybackAction('play');
+      }
+    } catch (error) {
+      console.error('📊 Error logging play action:', error);
+    }
+  }, [audioBuffer, currentTime, activityLogger]);
 
   const pause = useCallback(() => {
     if (!audioEngineRef.current) return;
 
     audioEngineRef.current.pause();
     setIsPlaying(false);
-  }, []);
+
+    // Log playback action
+    try {
+      if (activityLogger?.isActive) {
+        activityLogger.logPlaybackAction('pause');
+      }
+    } catch (error) {
+      console.error('📊 Error logging pause action:', error);
+    }
+  }, [activityLogger]);
 
   const stop = useCallback(() => {
     if (!audioEngineRef.current) return;
@@ -242,7 +260,16 @@ export const WaveformProvider = ({ children }) => {
     audioEngineRef.current.stop();
     setIsPlaying(false);
     setCurrentTime(0);
-  }, []);
+
+    // Log playback action
+    try {
+      if (activityLogger?.isActive) {
+        activityLogger.logPlaybackAction('stop');
+      }
+    } catch (error) {
+      console.error('📊 Error logging stop action:', error);
+    }
+  }, [activityLogger]);
 
   const seek = useCallback((time) => {
     if (!audioEngineRef.current) return;
@@ -277,14 +304,34 @@ export const WaveformProvider = ({ children }) => {
     // Zoom in by 1.5x, max 50x the fit-to-view level
     const fitZoom = containerWidth / duration;
     const maxZoom = Math.max(3000, fitZoom * 50);
-    setZoom(Math.min(maxZoom, zoomLevel * 1.5));
-  }, [zoomLevel, setZoom, containerWidth, duration]);
+    const newZoom = Math.min(maxZoom, zoomLevel * 1.5);
+    setZoom(newZoom);
+
+    // Log zoom operation
+    try {
+      if (activityLogger?.isActive) {
+        activityLogger.logZoomOperation(newZoom, 'in');
+      }
+    } catch (error) {
+      console.error('📊 Error logging zoom in:', error);
+    }
+  }, [zoomLevel, setZoom, containerWidth, duration, activityLogger]);
 
   const zoomOut = useCallback(() => {
     // Zoom out by 1.5x, min is fit-to-view
     const fitZoom = containerWidth / duration;
-    setZoom(Math.max(fitZoom, zoomLevel / 1.5));
-  }, [zoomLevel, setZoom, containerWidth, duration]);
+    const newZoom = Math.max(fitZoom, zoomLevel / 1.5);
+    setZoom(newZoom);
+
+    // Log zoom operation
+    try {
+      if (activityLogger?.isActive) {
+        activityLogger.logZoomOperation(newZoom, 'out');
+      }
+    } catch (error) {
+      console.error('📊 Error logging zoom out:', error);
+    }
+  }, [zoomLevel, setZoom, containerWidth, duration, activityLogger]);
 
   const resetZoom = useCallback(() => {
     // Calculate zoom to fit entire waveform in view
@@ -292,8 +339,17 @@ export const WaveformProvider = ({ children }) => {
       const fitZoom = containerWidth / duration;
       setZoom(fitZoom);
       setScrollPosition(0);
+
+      // Log zoom operation
+      try {
+        if (activityLogger?.isActive) {
+          activityLogger.logZoomOperation(fitZoom, 'reset');
+        }
+      } catch (error) {
+        console.error('📊 Error logging zoom reset:', error);
+      }
     }
-  }, [duration, containerWidth, setZoom]);
+  }, [duration, containerWidth, setZoom, activityLogger]);
 
   // Region management
   const createRegion = useCallback((start, end) => {
@@ -312,8 +368,17 @@ export const WaveformProvider = ({ children }) => {
       setCutRegion(region);
     }
 
+    // Log region creation
+    try {
+      if (activityLogger?.isActive) {
+        activityLogger.logRegionCreated(region.start, region.end);
+      }
+    } catch (error) {
+      console.error('📊 Error logging region creation:', error);
+    }
+
     return region;
-  }, [setCutRegion]);
+  }, [setCutRegion, activityLogger]);
 
   const updateRegion = useCallback((id, updates) => {
     setRegions(regions =>
@@ -387,16 +452,27 @@ export const WaveformProvider = ({ children }) => {
       console.log('Updating audioURL through addToEditHistory to trigger reload');
       // Pass effect name from metadata if available
       const effectName = processedBuffer.effectName || 'Effect Applied';
+      const effectParameters = processedBuffer.effectParameters || {};
+
       addToEditHistory(url, effectName, {
         type: 'effect',
         timestamp: Date.now()
       });
+
+      // Log effect application
+      try {
+        if (activityLogger?.isActive) {
+          activityLogger.logEffectApplied(effectName, effectParameters);
+        }
+      } catch (error) {
+        console.error('📊 Error logging effect application:', error);
+      }
     } else {
       console.error('addToEditHistory not available, cannot update audio');
     }
 
     console.log('Effect applied, audio reload triggered');
-  }, [clearRegions, addToEditHistory]);
+  }, [clearRegions, addToEditHistory, activityLogger]);
 
   // Auto-scroll during playback to keep cursor in view
   useEffect(() => {

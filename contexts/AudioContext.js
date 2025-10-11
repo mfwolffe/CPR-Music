@@ -115,6 +115,15 @@ export const AudioProvider = ({ children }) => {
         audioRef.current.src = command.audioData;
         audioRef.current.load();
       }
+
+      // Log undo action
+      try {
+        if (activityLoggerRef.current?.isActive) {
+          activityLoggerRef.current.logUndo();
+        }
+      } catch (error) {
+        console.error('📊 Error logging undo:', error);
+      }
     }
   }, []);
 
@@ -132,6 +141,15 @@ export const AudioProvider = ({ children }) => {
       if (audioRef.current) {
         audioRef.current.src = command.audioData;
         audioRef.current.load();
+      }
+
+      // Log redo action
+      try {
+        if (activityLoggerRef.current?.isActive) {
+          activityLoggerRef.current.logRedo();
+        }
+      } catch (error) {
+        console.error('📊 Error logging redo:', error);
       }
     }
   }, []);
