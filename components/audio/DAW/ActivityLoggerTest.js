@@ -10,7 +10,7 @@ import { useAudio } from '../../../contexts/DAWProvider';
 import { Button, Card, Badge } from 'react-bootstrap';
 
 export default function ActivityLoggerTest({ show = false }) {
-  const { activityLogger } = useAudio();
+  const { activityLogger, dawMode, setDawMode } = useAudio();
   const [stats, setStats] = useState(null);
   const [isLogging, setIsLogging] = useState(false);
 
@@ -18,7 +18,10 @@ export default function ActivityLoggerTest({ show = false }) {
     if (activityLogger && show) {
       // Update stats every second
       const interval = setInterval(() => {
-        setStats(activityLogger.getStats());
+        const currentStats = activityLogger.getStats();
+        setStats(currentStats);
+        // Sync isLogging state with activityLogger's state
+        setIsLogging(currentStats.isActive);
       }, 1000);
 
       return () => clearInterval(interval);
@@ -67,6 +70,11 @@ export default function ActivityLoggerTest({ show = false }) {
     }
   };
 
+  const handleTestModeSwitch = (mode) => {
+    setDawMode(mode);
+    console.log('📊 Test: Switched to mode:', mode);
+  };
+
   return (
     <Card className="mt-2 mb-2" style={{ backgroundColor: '#f8f9fa', border: '2px dashed #dee2e6' }}>
       <Card.Body>
@@ -88,7 +96,7 @@ export default function ActivityLoggerTest({ show = false }) {
           </div>
         )}
 
-        <div className="d-flex gap-2">
+        <div className="d-flex gap-2 flex-wrap">
           <Button
             size="sm"
             variant={isLogging ? 'danger' : 'success'}
@@ -113,6 +121,26 @@ export default function ActivityLoggerTest({ show = false }) {
           >
             Export Log
           </Button>
+
+          {/* Mode switch test buttons */}
+          <div className="d-flex gap-1">
+            <Button
+              size="sm"
+              variant={dawMode === 'single' ? 'warning' : 'outline-warning'}
+              onClick={() => handleTestModeSwitch('single')}
+              disabled={!isLogging}
+            >
+              Single
+            </Button>
+            <Button
+              size="sm"
+              variant={dawMode === 'multi' ? 'warning' : 'outline-warning'}
+              onClick={() => handleTestModeSwitch('multi')}
+              disabled={!isLogging}
+            >
+              Multi
+            </Button>
+          </div>
         </div>
 
         <div className="mt-2">

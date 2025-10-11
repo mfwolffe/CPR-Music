@@ -36,7 +36,7 @@ export default function DAW({
   showSubmitButton = false,
   silenceWarning = false,
 }) {
-  const { audioURL, dawMode, setDawMode } = useAudio();
+  const { audioURL, dawMode, setDawMode, activityLogger } = useAudio();
   const { loadFFmpeg, loaded: ffmpegLoaded } = useFFmpeg();
   const { showDAW, showHelp, setShowHelp, mapPresent, useEffectsRack } =
     useUI();
@@ -48,12 +48,29 @@ export default function DAW({
   // Always use custom waveform - WaveSurfer is deprecated
   const useCustomWaveform = true;
 
-  // Initialize FFmpeg when component mounts
+  // Initialize FFmpeg and activity logger when component mounts
   useEffect(() => {
     if (!ffmpegLoaded) {
       loadFFmpeg();
     }
-  }, [ffmpegLoaded, loadFFmpeg]);
+
+    // Start activity logging session when DAW is first shown
+    try {
+      if (activityLogger && !activityLogger.isActive) {
+        activityLogger.startSession({
+          // These will be populated from context in production
+          assignmentId: 'unknown',
+          userId: 'unknown',
+          courseId: 'unknown'
+        });
+        // Set initial mode
+        activityLogger.switchMode(dawMode);
+        console.log('📊 Activity logging started with initial mode:', dawMode);
+      }
+    } catch (error) {
+      console.error('📊 Error starting activity logger:', error);
+    }
+  }, [ffmpegLoaded, loadFFmpeg, activityLogger, dawMode]);
 
   // Handle switching to single track mode
   const handleSwitchToSingleTrack = useCallback(() => {

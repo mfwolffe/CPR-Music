@@ -24,7 +24,7 @@ export const AudioProvider = ({ children }) => {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
 
   // DAW mode state
-  const [dawMode, setDawMode] = useState('single'); // 'single' or 'multi'
+  const [dawMode, setDawModeState] = useState('single'); // 'single' or 'multi'
 
   // Undo/redo state
   const [canUndo, setCanUndo] = useState(false);
@@ -150,6 +150,33 @@ export const AudioProvider = ({ children }) => {
     // Set hasInitialAudioRef to true so that subsequent edits will be tracked
     // When switching takes, we clear the history but want new edits to be added
     hasInitialAudioRef.current = true;
+  }, []);
+
+  // Wrapped setDawMode with logging
+  const setDawMode = useCallback((newMode) => {
+    try {
+      // Start logging session if not already started
+      if (activityLoggerRef.current && !activityLoggerRef.current.isActive) {
+        activityLoggerRef.current.startSession({
+          // These will be populated properly in production
+          assignmentId: 'unknown',
+          userId: 'unknown',
+          courseId: 'unknown'
+        });
+        console.log('📊 Activity logging started automatically');
+      }
+
+      // Log the mode switch
+      if (activityLoggerRef.current && activityLoggerRef.current.isActive) {
+        activityLoggerRef.current.switchMode(newMode);
+      }
+    } catch (error) {
+      // Don't let logging errors break the app
+      console.error('📊 Error logging mode switch:', error);
+    }
+
+    // Always update the actual mode
+    setDawModeState(newMode);
   }, []);
   
   const value = {
