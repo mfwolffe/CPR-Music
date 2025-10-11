@@ -199,7 +199,19 @@ export default function DAW({
               style={{ float: 'right' }}
               onClick={() => {
                 if (onSubmit) {
-                  onSubmit(audioURL);
+                  // Generate activity log summary
+                  let activityLogData = null;
+                  try {
+                    if (activityLogger && activityLogger.isActive) {
+                      activityLogData = activityLogger.toCompressedString();
+                      console.log('📊 Activity log generated for submission');
+                    }
+                  } catch (error) {
+                    console.error('📊 Error generating activity log:', error);
+                  }
+
+                  // Pass both audio URL and activity log
+                  onSubmit(audioURL, activityLogData);
                 }
               }}
             >

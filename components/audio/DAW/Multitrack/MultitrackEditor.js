@@ -30,6 +30,7 @@ import {
 import { RiScissors2Fill } from 'react-icons/ri';
 import { useMultitrack } from '../../../../contexts/MultitrackContext';
 import { Dropdown } from 'react-bootstrap';
+import { getDAWActivityLogger } from '../../../../lib/activity/DAWActivityLogger';
 import AudioTrack from './AudioTrack';
 import MIDITrack from './MIDITrack';
 import MultitrackTransport from './MultitrackTransport';
@@ -165,6 +166,22 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
 
     clipClipboard.copy(selectedClips, firstTrackId);
     console.log('Copied', selectedClips.length, 'clips');
+
+    // Log copy operation
+    try {
+      const activityLogger = getDAWActivityLogger();
+      if (activityLogger?.isActive) {
+        if (selectedClips.length > 1) {
+          activityLogger.logBatchOperation('copy', selectedClips.length);
+        } else {
+          activityLogger.logClipOperation('copy', {
+            clipId: selectedClips[0]?.id
+          });
+        }
+      }
+    } catch (error) {
+      console.error('📊 Error logging copy operation:', error);
+    }
   }, [selectedTrack, selectedClips, tracks]);
 
   // Handle cut - supports batch cutting of multiple selected clips
@@ -178,6 +195,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
         t.clips?.some(c => c.id === selectedClips[0].id))?.id);
 
     const clipIds = clipClipboard.cut(selectedClips, firstTrackId);
+    const clipCount = selectedClips.length;
 
     // Use ref value to ensure we get the latest selectedClipIds
     const currentSelectedClipIds = selectedClipIdsRef.current;
@@ -219,6 +237,22 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
 
     setSelectedClipId(null);
     console.log('Cut', selectedClips.length, 'clips');
+
+    // Log cut operation
+    try {
+      const activityLogger = getDAWActivityLogger();
+      if (activityLogger?.isActive) {
+        if (clipCount > 1) {
+          activityLogger.logBatchOperation('cut', clipCount);
+        } else {
+          activityLogger.logClipOperation('cut', {
+            clipId: clipIds[0]
+          });
+        }
+      }
+    } catch (error) {
+      console.error('📊 Error logging cut operation:', error);
+    }
   }, [selectedTrack, selectedClips, tracks, updateTrack, setSelectedClipId, setSelectedClipIds]);
 
   // Handle paste
@@ -237,6 +271,20 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
       // Select first pasted clip
       setSelectedClipId(newClips[0].id);
       console.log('Pasted', newClips.length, 'clips at', pastePosition);
+
+      // Log paste operation
+      try {
+        const activityLogger = getDAWActivityLogger();
+        if (activityLogger?.isActive) {
+          activityLogger.logClipOperation('paste', {
+            clipCount: newClips.length,
+            pastePosition,
+            targetTrackId: selectedTrack.id
+          });
+        }
+      } catch (error) {
+        console.error('📊 Error logging paste operation:', error);
+      }
     }
   }, [selectedTrack, currentTime, updateTrack, setSelectedClipId]);
 
@@ -262,6 +310,8 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
       console.log('🗑️ No selection to delete, returning');
       return;
     }
+
+    const clipCount = hasMultiSelection ? currentSelectedClipIds.length : 1;
 
     // For multi-selection, delete clips from all tracks
     if (hasMultiSelection) {
@@ -310,18 +360,53 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
 
       setSelectedClipId(null);
     }
+
+    // Log deletion
+    try {
+      const activityLogger = getDAWActivityLogger();
+      if (activityLogger?.isActive) {
+        if (clipCount > 1) {
+          activityLogger.logBatchOperation('delete', clipCount);
+        } else {
+          activityLogger.logClipOperation('delete', {
+            clipId: selectedClipId || currentSelectedClipIds[0]
+          });
+        }
+      }
+    } catch (error) {
+      console.error('📊 Error logging delete operation:', error);
+    }
   }, [selectedTrack, selectedClipId, tracks, updateTrack, setSelectedClipId, setSelectedClipIds]);
 
   // Handle split at playhead
   const handleSplitAtPlayhead = useCallback(() => {
+    let clipsAffected = 0;
+
     tracks.forEach((track) => {
       if (!track.clips || track.clips.length === 0) return;
 
       const newClips = splitClipsAtTime(track.clips, currentTime);
       if (newClips.length > track.clips.length) {
+        clipsAffected += newClips.length - track.clips.length;
         updateTrack(track.id, { clips: newClips });
       }
     });
+
+    // Log split operation if clips were affected
+    if (clipsAffected > 0) {
+      try {
+        const activityLogger = getDAWActivityLogger();
+        if (activityLogger?.isActive) {
+          activityLogger.logClipOperation('split', {
+            splitTime: currentTime,
+            clipsAffected,
+            scope: 'all'
+          });
+        }
+      } catch (error) {
+        console.error('📊 Error logging split operation:', error);
+      }
+    }
   }, [tracks, currentTime, updateTrack]);
 
   // Handle duplicate
@@ -344,6 +429,19 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
     // Select first duplicated clip
     if (duplicated.length > 0) {
       setSelectedClipId(duplicated[0].id);
+    }
+
+    // Log duplicate operation
+    try {
+      const activityLogger = getDAWActivityLogger();
+      if (activityLogger?.isActive) {
+        activityLogger.logClipOperation('duplicate', {
+          clipCount: duplicated.length,
+          offset
+        });
+      }
+    } catch (error) {
+      console.error('📊 Error logging duplicate operation:', error);
     }
   }, [selectedTrack, selectedClips, updateTrack, setSelectedClipId]);
 
@@ -380,10 +478,40 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
         shiftKey: e.shiftKey
       });
 
-      // Tool shortcuts
-      if (e.key === '1') setEditorTool('select');
-      if (e.key === '2') setEditorTool('clip');
-      if (e.key === '3') setEditorTool('cut');
+      // Tool shortcuts with logging
+      if (e.key === '1') {
+        setEditorTool('select');
+        try {
+          const activityLogger = getDAWActivityLogger();
+          if (activityLogger?.isActive) {
+            activityLogger.logToolUsed('select');
+          }
+        } catch (error) {
+          console.error('📊 Error logging tool change:', error);
+        }
+      }
+      if (e.key === '2') {
+        setEditorTool('clip');
+        try {
+          const activityLogger = getDAWActivityLogger();
+          if (activityLogger?.isActive) {
+            activityLogger.logToolUsed('clip');
+          }
+        } catch (error) {
+          console.error('📊 Error logging tool change:', error);
+        }
+      }
+      if (e.key === '3') {
+        setEditorTool('cut');
+        try {
+          const activityLogger = getDAWActivityLogger();
+          if (activityLogger?.isActive) {
+            activityLogger.logToolUsed('cut');
+          }
+        } catch (error) {
+          console.error('📊 Error logging tool change:', error);
+        }
+      }
 
       // Edit shortcuts
       if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
@@ -605,7 +733,17 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                   name="tool"
                   value="select"
                   checked={editorTool === 'select'}
-                  onChange={(e) => setEditorTool(e.currentTarget.value)}
+                  onChange={(e) => {
+                    setEditorTool(e.currentTarget.value);
+                    try {
+                      const activityLogger = getDAWActivityLogger();
+                      if (activityLogger?.isActive) {
+                        activityLogger.logToolUsed('select');
+                      }
+                    } catch (error) {
+                      console.error('📊 Error logging tool change:', error);
+                    }
+                  }}
                   title="Selection Tool (1)"
                 >
                   <FaMousePointer />
@@ -617,7 +755,17 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                   name="tool"
                   value="clip"
                   checked={editorTool === 'clip'}
-                  onChange={(e) => setEditorTool(e.currentTarget.value)}
+                  onChange={(e) => {
+                    setEditorTool(e.currentTarget.value);
+                    try {
+                      const activityLogger = getDAWActivityLogger();
+                      if (activityLogger?.isActive) {
+                        activityLogger.logToolUsed('clip');
+                      }
+                    } catch (error) {
+                      console.error('📊 Error logging tool change:', error);
+                    }
+                  }}
                   title="Clip Tool (2)"
                 >
                   <FaHandPaper />
@@ -629,7 +777,17 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                   name="tool"
                   value="cut"
                   checked={editorTool === 'cut'}
-                  onChange={(e) => setEditorTool(e.currentTarget.value)}
+                  onChange={(e) => {
+                    setEditorTool(e.currentTarget.value);
+                    try {
+                      const activityLogger = getDAWActivityLogger();
+                      if (activityLogger?.isActive) {
+                        activityLogger.logToolUsed('cut');
+                      }
+                    } catch (error) {
+                      console.error('📊 Error logging tool change:', error);
+                    }
+                  }}
                   title="Cut Tool (3)"
                 >
                   <RiScissors2Fill />

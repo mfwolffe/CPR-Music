@@ -528,7 +528,7 @@ export default function RecorderRefactored({ submit, accompaniment }) {
   }, []);
 
   const submitEditedRecording = useCallback(
-    async (url) => {
+    async (url, activityLogData = null) => {
       if (!url || url === scratchURL) {
         alert('Please record audio before submitting');
         return;
@@ -555,7 +555,23 @@ export default function RecorderRefactored({ submit, accompaniment }) {
         const blob = await response.blob();
 
         if (submit) {
-          submit(blob);
+          // If we have activity log data, include it in the submission
+          if (activityLogData) {
+            console.log('📊 Submitting with activity log data');
+
+            // Create a FormData object that includes both audio and activity log
+            const formData = new FormData();
+            formData.append('audio', blob, 'recording.wav');
+            formData.append('activityLog', activityLogData);
+            formData.append('timestamp', new Date().toISOString());
+
+            // Note: The parent's submit function should be updated to handle FormData
+            // For backward compatibility, check if parent expects FormData or blob
+            submit(formData);
+          } else {
+            // Fallback to old behavior if no activity log
+            submit(blob);
+          }
         }
       } catch (error) {
         console.error('Error submitting recording:', error);

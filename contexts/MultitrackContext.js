@@ -12,6 +12,7 @@ import {
 import audioContextManager from '../components/audio/DAW/Multitrack/AudioContextManager';
 import { createTransport } from '../components/audio/DAW/Multitrack/AudioEngine';
 import RecordingManager from '../components/audio/DAW/Multitrack/recording/RecordingManager';
+import { getDAWActivityLogger } from '../lib/activity/DAWActivityLogger';
 
 const MultitrackContext = createContext();
 
@@ -24,6 +25,9 @@ export const useMultitrack = () => {
 };
 
 export const MultitrackProvider = ({ children }) => {
+  // Get activity logger instance
+  const activityLogger = getDAWActivityLogger();
+
   // Track state
   const [tracks, setTracks] = useState([]);
   const [selectedTrackId, setSelectedTrackId] = useState(null);
@@ -254,6 +258,16 @@ export const MultitrackProvider = ({ children }) => {
       console.log('MultitrackContext: Adding track:', newTrack);
 
       setTracks((prev) => [...prev, newTrack]);
+
+      // Log track addition
+      try {
+        if (activityLogger?.isActive) {
+          activityLogger.logTrackAdded(newTrack.id, newTrack.type, newTrack.name);
+        }
+      } catch (error) {
+        console.error('📊 Error logging track addition:', error);
+      }
+
       return newTrack;
     },
     [tracks.length],
@@ -270,6 +284,9 @@ export const MultitrackProvider = ({ children }) => {
         delete trackInstrumentsRef.current[trackId];
       }
 
+      // Get track type before deletion for logging
+      const trackToDelete = tracks.find(t => t.id === trackId);
+
       setTracks((prev) => prev.filter((track) => track.id !== trackId));
       if (selectedTrackId === trackId) {
         setSelectedTrackId(null);
@@ -277,8 +294,17 @@ export const MultitrackProvider = ({ children }) => {
       if (soloTrackId === trackId) {
         setSoloTrackId(null);
       }
+
+      // Log track deletion
+      try {
+        if (activityLogger?.isActive && trackToDelete) {
+          activityLogger.logTrackDeleted(trackId, trackToDelete.type);
+        }
+      } catch (error) {
+        console.error('📊 Error logging track deletion:', error);
+      }
     },
-    [selectedTrackId, soloTrackId],
+    [selectedTrackId, soloTrackId, tracks],
   );
 
   /**
@@ -510,6 +536,18 @@ export const MultitrackProvider = ({ children }) => {
     });
 
     setIsPlaying(true);
+
+    // Log play action for multitrack
+    try {
+      if (activityLogger?.isActive) {
+        activityLogger.logEvent('multitrack_play', {
+          trackCount: tracks.length,
+          currentTime
+        });
+      }
+    } catch (error) {
+      console.error('📊 Error logging multitrack play:', error);
+    }
   }, [currentTime, tracks, soloTrackId]);
 
   const pause = useCallback(() => {
@@ -529,7 +567,19 @@ export const MultitrackProvider = ({ children }) => {
 
     setIsPlaying(false);
     setCurrentTime(maxPosition);
-  }, []);
+
+    // Log pause action for multitrack
+    try {
+      if (activityLogger?.isActive) {
+        activityLogger.logEvent('multitrack_pause', {
+          trackCount: tracks.length,
+          currentTime: maxPosition
+        });
+      }
+    } catch (error) {
+      console.error('📊 Error logging multitrack pause:', error);
+    }
+  }, [tracks]);
 
   // Ref for scroll reset callback (set by MultitrackEditor)
   const scrollResetCallbackRef = useRef(null);
@@ -554,7 +604,18 @@ export const MultitrackProvider = ({ children }) => {
     if (scrollResetCallbackRef.current) {
       scrollResetCallbackRef.current();
     }
-  }, []);
+
+    // Log stop action for multitrack
+    try {
+      if (activityLogger?.isActive) {
+        activityLogger.logEvent('multitrack_stop', {
+          trackCount: tracks.length
+        });
+      }
+    } catch (error) {
+      console.error('📊 Error logging multitrack stop:', error);
+    }
+  }, [tracks]);
 
   // --- Non-destructive CLIP actions (audio + MIDI) ---
   const splitAtPlayhead = useCallback(

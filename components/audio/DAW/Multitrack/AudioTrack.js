@@ -20,6 +20,7 @@ import audioContextManager from './AudioContextManager';
 import { decodeAudioFromURL } from './AudioEngine';
 import waveformCache from './WaveformCache';
 import { getAudioProcessor } from './AudioProcessor';
+import { getDAWActivityLogger } from '../../../../lib/activity/DAWActivityLogger';
 
 function AudioTrack({ track, index, zoomLevel = 100 }) {
   const {
@@ -191,6 +192,16 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
           isRecording: true,
           recordingStartPosition: getTransportTime ? getTransportTime() : 0
         });
+
+        // Log recording start
+        try {
+          const activityLogger = getDAWActivityLogger();
+          if (activityLogger?.isActive) {
+            activityLogger.logRecordingStarted(track.id);
+          }
+        } catch (error) {
+          console.error('📊 Error logging recording start:', error);
+        }
       }
     };
 
@@ -237,6 +248,16 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
             audioURL: data.audioURL,
             clips: [...(track.clips || []), newClip]
           });
+
+          // Log recording completion
+          try {
+            const activityLogger = getDAWActivityLogger();
+            if (activityLogger?.isActive) {
+              activityLogger.logRecordingCompleted(track.id, data.duration, true);
+            }
+          } catch (error) {
+            console.error('📊 Error logging recording completion:', error);
+          }
         } else {
           console.warn(`🎤 AudioTrack: Skipping clip creation - invalid data`, {
             hasAudioURL: !!data.audioURL,
@@ -646,7 +667,19 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
                   max="1"
                   step="0.01"
                   value={track.volume || 1}
-                  onChange={(e) => updateTrack(track.id, { volume: parseFloat(e.target.value) })}
+                  onChange={(e) => {
+                    const newVolume = parseFloat(e.target.value);
+                    updateTrack(track.id, { volume: newVolume });
+                    // Log volume change
+                    try {
+                      const activityLogger = getDAWActivityLogger();
+                      if (activityLogger?.isActive) {
+                        activityLogger.logMixingOperation('volume', track.id, newVolume);
+                      }
+                    } catch (error) {
+                      console.error('📊 Error logging volume change:', error);
+                    }
+                  }}
                   onClick={(e) => e.stopPropagation()}
                   disabled={track.muted}
                   style={{ flex: 1 }}
@@ -662,7 +695,19 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
                   max="1"
                   step="0.01"
                   value={track.pan || 0}
-                  onChange={(e) => updateTrack(track.id, { pan: parseFloat(e.target.value) })}
+                  onChange={(e) => {
+                    const newPan = parseFloat(e.target.value);
+                    updateTrack(track.id, { pan: newPan });
+                    // Log pan change
+                    try {
+                      const activityLogger = getDAWActivityLogger();
+                      if (activityLogger?.isActive) {
+                        activityLogger.logMixingOperation('pan', track.id, newPan);
+                      }
+                    } catch (error) {
+                      console.error('📊 Error logging pan change:', error);
+                    }
+                  }}
                   onClick={(e) => e.stopPropagation()}
                   disabled={track.muted}
                   style={{ flex: 1 }}
@@ -678,7 +723,17 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
               size="sm"
               onClick={(e) => {
                 e.stopPropagation();
-                setSoloTrackId(isSolo ? null : track.id);
+                const newSoloState = !isSolo;
+                setSoloTrackId(newSoloState ? track.id : null);
+                // Log solo toggle
+                try {
+                  const activityLogger = getDAWActivityLogger();
+                  if (activityLogger?.isActive) {
+                    activityLogger.logMixingOperation('solo', track.id, newSoloState);
+                  }
+                } catch (error) {
+                  console.error('📊 Error logging solo toggle:', error);
+                }
               }}
               title="Solo"
               style={{ flex: 1 }}
@@ -690,7 +745,17 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
               size="sm"
               onClick={(e) => {
                 e.stopPropagation();
-                updateTrack(track.id, { muted: !track.muted });
+                const newMutedState = !track.muted;
+                updateTrack(track.id, { muted: newMutedState });
+                // Log mute toggle
+                try {
+                  const activityLogger = getDAWActivityLogger();
+                  if (activityLogger?.isActive) {
+                    activityLogger.logMixingOperation('mute', track.id, newMutedState);
+                  }
+                } catch (error) {
+                  console.error('📊 Error logging mute toggle:', error);
+                }
               }}
               title={
                 isMutedBySolo
