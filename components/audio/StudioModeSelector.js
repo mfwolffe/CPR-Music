@@ -4,6 +4,8 @@ import { Modal, Card, Row, Col } from 'react-bootstrap';
 import { MdMusicNote, MdVolumeOff } from 'react-icons/md';
 import { FaWaveSquare } from 'react-icons/fa';
 import { BiAnalyse } from 'react-icons/bi';
+import { GiSoundWaves } from 'react-icons/gi';
+import { IoSettingsSharp } from 'react-icons/io5';
 
 const StudioModeSelector = ({ show, onSelectMode }) => {
   return (
@@ -27,7 +29,7 @@ const StudioModeSelector = ({ show, onSelectMode }) => {
       <Modal.Body className="pt-2 pb-4">
         <Row className="g-4 mt-2">
           {/* DAWn_EE Card */}
-          <Col md={6}>
+          <Col lg={4} md={6}>
             <Card
               className="h-100 studio-mode-card"
               style={{
@@ -66,7 +68,7 @@ const StudioModeSelector = ({ show, onSelectMode }) => {
           </Col>
 
           {/* Silence Sandbox Card */}
-          <Col md={6}>
+          <Col lg={4} md={6}>
             <Card
               className="h-100 studio-mode-card"
               style={{
@@ -99,6 +101,45 @@ const StudioModeSelector = ({ show, onSelectMode }) => {
                 </p>
                 <p className="small text-muted mt-2">
                   Detect and analyze silence in audio files with customizable parameters
+                </p>
+              </Card.Body>
+            </Card>
+          </Col>
+
+          {/* Instrument Sandbox Card */}
+          <Col lg={4} md={6}>
+            <Card
+              className="h-100 studio-mode-card"
+              style={{
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                border: '2px solid #dee2e6'
+              }}
+              onClick={() => onSelectMode('instrument-sandbox')}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-5px)';
+                e.currentTarget.style.boxShadow = '0 5px 15px rgba(0,0,0,0.3)';
+                e.currentTarget.style.borderColor = '#9b59b6';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = 'none';
+                e.currentTarget.style.borderColor = '#dee2e6';
+              }}
+            >
+              <Card.Body className="text-center d-flex flex-column justify-content-center p-4">
+                <div className="mb-3">
+                  <div className="d-flex justify-content-center align-items-center" style={{ fontSize: '3rem', color: '#9b59b6' }}>
+                    <GiSoundWaves />
+                    <IoSettingsSharp className="ms-2" />
+                  </div>
+                </div>
+                <h3 className="mb-2">Instrument Sandbox</h3>
+                <p className="text-muted mb-0">
+                  Virtual Synth Designer
+                </p>
+                <p className="small text-muted mt-2">
+                  Design and test custom instruments with oscillators, filters, and effects
                 </p>
               </Card.Body>
             </Card>

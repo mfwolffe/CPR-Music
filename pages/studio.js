@@ -8,6 +8,7 @@ import Layout from '../components/layout';
 import DAW from '../components/audio/DAW';
 import { DAWProvider, useAudio, useUI } from '../contexts/DAWProvider';
 import SilenceSandboxComponent from '../components/audio/SilenceSandboxComponent';
+import InstrumentSandbox from '../components/audio/InstrumentSandbox/InstrumentSandbox';
 
 // Dynamically import the modal to avoid SSR issues
 const StudioModeSelector = dynamic(
@@ -100,6 +101,16 @@ const Studio = () => {
               Analyze audio files for silence detection
             </p>
             <SilenceSandboxComponent />
+          </>
+        )}
+
+        {selectedMode === 'instrument-sandbox' && (
+          <>
+            <h1 className="mb-3">Instrument Sandbox</h1>
+            <p className="text-muted mb-4">
+              Design and test custom virtual instruments
+            </p>
+            <InstrumentSandbox />
           </>
         )}
       </div>
