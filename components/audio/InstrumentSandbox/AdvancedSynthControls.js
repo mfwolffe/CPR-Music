@@ -295,6 +295,58 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
             </Card.Body>
           </Card>
         </Col>
+
+        {/* Granular & Glitch Section */}
+        <Col md={6}>
+          <Card className="h-100 bg-dark border-secondary">
+            <Card.Header className="bg-gradient text-light py-2 border-secondary">
+              <div className="d-flex align-items-center gap-2">
+                <IoMdOptions />
+                <span className="fw-bold small">GRANULAR & GLITCH</span>
+              </div>
+            </Card.Header>
+            <Card.Body className="p-3">
+              {/* Granular Buffer */}
+              <h6 className="text-info small mb-2">Grain Buffer</h6>
+              {createSlider('grainSize', 'Grain Size', 10, 500, 10, ' ms')}
+              {createSlider('grainSpeed', 'Playback Speed', 0.1, 2.0, 0.1, 'x')}
+              {createToggle('grainReverse', 'Direction', [
+                { value: false, label: 'Forward' },
+                { value: true, label: 'Reverse' }
+              ])}
+              <div className="mt-2">
+                {createToggle('grainFreeze', 'Freeze', [
+                  { value: false, label: 'Off' },
+                  { value: true, label: 'Frozen' }
+                ])}
+              </div>
+
+              {/* Comb Filter */}
+              <div className="mt-3 pt-3 border-top border-secondary">
+                <h6 className="text-info small mb-2">Metallic Resonator</h6>
+                {createSlider('combFreq', 'Frequency', 50, 2000, 10, ' Hz')}
+                {createSlider('combFeedback', 'Resonance', 0, 95, 1, '%')}
+                {createSlider('combMix', 'Mix', 0, 100, 1, '%')}
+              </div>
+
+              {/* Sample & Hold */}
+              <div className="mt-3 pt-3 border-top border-secondary">
+                <h6 className="text-info small mb-2">Sample & Hold</h6>
+                {createSlider('sampleHoldRate', 'Rate', 0.5, 50, 0.5, ' Hz')}
+                {createSlider('sampleHoldAmount', 'Amount', 0, 100, 1, '%')}
+                {params.sampleHoldAmount > 0 && (
+                  <div className="mt-2">
+                    {createToggle('sampleHoldTarget', 'Target', [
+                      { value: 'pitch', label: 'Pitch' },
+                      { value: 'filter', label: 'Filter' },
+                      { value: 'pwm', label: 'PWM' }
+                    ])}
+                  </div>
+                )}
+              </div>
+            </Card.Body>
+          </Card>
+        </Col>
       </Row>
 
       {/* Custom styles */}

@@ -982,7 +982,306 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         bitCrushRate: 22000,
         waveFoldAmount: 30,
         feedbackAmount: 85,  // Maximum safe feedback
-        formantShift: 0
+        formantShift: 0,
+        grainSize: 100,
+        grainSpeed: 1.0,
+        grainReverse: false,
+        grainFreeze: false,
+        combFreq: 440,
+        combFeedback: 0,
+        combMix: 0,
+        sampleHoldRate: 10,
+        sampleHoldAmount: 0,
+        sampleHoldTarget: 'pitch'
+      },
+      factory: true
+    },
+    {
+      name: 'Stutter Glitch',
+      params: {
+        oscillatorType: 'sawtooth',
+        filterCutoff: 3000,
+        filterResonance: 10,
+        filterType: 'lowpass',
+        attack: 0.001,
+        decay: 0.05,
+        sustain: 0.8,
+        release: 0.1,
+        detune: 5,
+        lfoRate: 12,
+        lfoAmount: 15,
+        reverb: 30,
+        delay: 40,
+        distortion: 20,
+        osc2Enabled: true,
+        osc2Type: 'square',
+        osc2Detune: 20,
+        osc2Pitch: -5,
+        oscMix: 60,
+        subOscEnabled: false,
+        noiseLevel: 15,
+        noiseType: 'white',
+        filterEnvAmount: 50,
+        filterAttack: 0.001,
+        filterDecay: 0.03,
+        filterSustain: 0.4,
+        filterRelease: 0.1,
+        pulseWidth: 30,
+        pwmAmount: 50,
+        pwmRate: 18,
+        lfo2Target: 'amp',
+        lfo2Rate: 16,
+        lfo2Amount: 50,
+        fmAmount: 25,
+        ringModAmount: 30,
+        oscSync: false,
+        bitCrushBits: 8,
+        bitCrushRate: 16000,
+        waveFoldAmount: 40,
+        feedbackAmount: 45,
+        formantShift: 0,
+        grainSize: 50,  // Small grain size for stutter effect
+        grainSpeed: 0.5,  // Half speed playback
+        grainReverse: false,
+        grainFreeze: false,
+        combFreq: 440,
+        combFeedback: 0,
+        combMix: 0,
+        sampleHoldRate: 20,
+        sampleHoldAmount: 60,
+        sampleHoldTarget: 'pitch'  // Random pitch jumps
+      },
+      factory: true
+    },
+    {
+      name: 'Metallic Bell',
+      params: {
+        oscillatorType: 'sine',
+        filterCutoff: 8000,
+        filterResonance: 3,
+        filterType: 'lowpass',
+        attack: 0.001,
+        decay: 0.8,
+        sustain: 0.2,
+        release: 2.5,
+        detune: 0,
+        lfoRate: 2,
+        lfoAmount: 3,
+        reverb: 50,
+        delay: 35,
+        distortion: 5,
+        osc2Enabled: true,
+        osc2Type: 'triangle',
+        osc2Detune: 0,
+        osc2Pitch: 19,  // Non-harmonic interval
+        oscMix: 25,
+        subOscEnabled: false,
+        noiseLevel: 5,
+        noiseType: 'pink',
+        filterEnvAmount: -40,
+        filterAttack: 0.001,
+        filterDecay: 0.5,
+        filterSustain: 0.1,
+        filterRelease: 1.5,
+        pulseWidth: 50,
+        pwmAmount: 0,
+        pwmRate: 4,
+        lfo2Target: 'off',
+        lfo2Rate: 2,
+        lfo2Amount: 0,
+        fmAmount: 45,
+        ringModAmount: 0,
+        oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0,
+        grainSize: 100,
+        grainSpeed: 1.0,
+        grainReverse: false,
+        grainFreeze: false,
+        combFreq: 800,  // Comb filter for metallic resonance
+        combFeedback: 70,  // High resonance
+        combMix: 50,  // 50% wet
+        sampleHoldRate: 10,
+        sampleHoldAmount: 0,
+        sampleHoldTarget: 'pitch'
+      },
+      factory: true
+    },
+    {
+      name: 'Frozen Texture',
+      params: {
+        oscillatorType: 'triangle',
+        filterCutoff: 2000,
+        filterResonance: 8,
+        filterType: 'bandpass',
+        attack: 0.5,
+        decay: 0.3,
+        sustain: 0.8,
+        release: 1.5,
+        detune: 10,
+        lfoRate: 0.3,
+        lfoAmount: 20,
+        reverb: 70,
+        delay: 55,
+        distortion: 10,
+        osc2Enabled: true,
+        osc2Type: 'sine',
+        osc2Detune: -8,
+        osc2Pitch: 12,
+        oscMix: 45,
+        subOscEnabled: true,
+        subOscType: 'square',
+        subOscLevel: 40,
+        noiseLevel: 25,
+        noiseType: 'pink',
+        filterEnvAmount: 30,
+        filterAttack: 0.3,
+        filterDecay: 0.5,
+        filterSustain: 0.6,
+        filterRelease: 1.2,
+        pulseWidth: 50,
+        pwmAmount: 0,
+        pwmRate: 4,
+        lfo2Target: 'filter',
+        lfo2Rate: 0.15,
+        lfo2Amount: 50,
+        fmAmount: 15,
+        ringModAmount: 0,
+        oscSync: false,
+        bitCrushBits: 14,
+        bitCrushRate: 32000,
+        waveFoldAmount: 20,
+        feedbackAmount: 25,
+        formantShift: 0,
+        grainSize: 300,  // Large grains
+        grainSpeed: 0.7,  // Slow motion
+        grainReverse: true,  // Reversed playback
+        grainFreeze: false,  // Can freeze manually
+        combFreq: 440,
+        combFeedback: 0,
+        combMix: 0,
+        sampleHoldRate: 10,
+        sampleHoldAmount: 0,
+        sampleHoldTarget: 'pitch'
+      },
+      factory: true
+    },
+    {
+      name: 'Random Walk',
+      params: {
+        oscillatorType: 'square',
+        filterCutoff: 1500,
+        filterResonance: 18,
+        filterType: 'lowpass',
+        attack: 0.01,
+        decay: 0.15,
+        sustain: 0.6,
+        release: 0.3,
+        detune: 0,
+        lfoRate: 8,
+        lfoAmount: 10,
+        reverb: 35,
+        delay: 45,
+        distortion: 15,
+        osc2Enabled: true,
+        osc2Type: 'sawtooth',
+        osc2Detune: 5,
+        osc2Pitch: 0,
+        oscMix: 55,
+        subOscEnabled: false,
+        noiseLevel: 10,
+        noiseType: 'white',
+        filterEnvAmount: 60,
+        filterAttack: 0.01,
+        filterDecay: 0.2,
+        filterSustain: 0.4,
+        filterRelease: 0.3,
+        pulseWidth: 40,
+        pwmAmount: 35,
+        pwmRate: 7,
+        lfo2Target: 'pitch',
+        lfo2Rate: 3,
+        lfo2Amount: 30,
+        fmAmount: 20,
+        ringModAmount: 15,
+        oscSync: false,
+        bitCrushBits: 10,
+        bitCrushRate: 18000,
+        waveFoldAmount: 35,
+        feedbackAmount: 30,
+        formantShift: 0,
+        grainSize: 100,
+        grainSpeed: 1.0,
+        grainReverse: false,
+        grainFreeze: false,
+        combFreq: 440,
+        combFeedback: 0,
+        combMix: 0,
+        sampleHoldRate: 8,  // Sample & hold creates random stepped modulation
+        sampleHoldAmount: 80,  // High amount
+        sampleHoldTarget: 'filter'  // Random filter cutoff changes
+      },
+      factory: true
+    },
+    {
+      name: 'IDM Pluck',
+      params: {
+        oscillatorType: 'sawtooth',
+        filterCutoff: 4000,
+        filterResonance: 12,
+        filterType: 'lowpass',
+        attack: 0.001,
+        decay: 0.15,
+        sustain: 0.1,
+        release: 0.4,
+        detune: 3,
+        lfoRate: 10,
+        lfoAmount: 5,
+        reverb: 40,
+        delay: 30,
+        distortion: 12,
+        osc2Enabled: true,
+        osc2Type: 'triangle',
+        osc2Detune: -4,
+        osc2Pitch: -12,
+        oscMix: 40,
+        subOscEnabled: true,
+        subOscType: 'sine',
+        subOscLevel: 50,
+        noiseLevel: 8,
+        noiseType: 'pink',
+        filterEnvAmount: 70,
+        filterAttack: 0.001,
+        filterDecay: 0.1,
+        filterSustain: 0.2,
+        filterRelease: 0.3,
+        pulseWidth: 50,
+        pwmAmount: 0,
+        pwmRate: 4,
+        lfo2Target: 'amp',
+        lfo2Rate: 12,
+        lfo2Amount: 25,
+        fmAmount: 30,
+        ringModAmount: 10,
+        oscSync: false,
+        bitCrushBits: 12,
+        bitCrushRate: 24000,
+        waveFoldAmount: 25,
+        feedbackAmount: 20,
+        formantShift: 0,
+        grainSize: 80,  // Short grains for glitchy texture
+        grainSpeed: 1.2,  // Slightly faster
+        grainReverse: false,
+        grainFreeze: false,
+        combFreq: 1200,  // Higher resonant frequency
+        combFeedback: 55,  // Moderate resonance
+        combMix: 35,  // Subtle metallic character
+        sampleHoldRate: 15,
+        sampleHoldAmount: 40,
+        sampleHoldTarget: 'pwm'  // Random pulse width variations
       },
       factory: true
     }
@@ -1048,8 +1347,10 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
     if (name.includes('filter')) return <MdGraphicEq size={20} style={{ color: '#2ecc71' }} />;
     if (name.includes('tremolo')) return <FaMicrophone size={20} style={{ color: '#27ae60' }} />;
 
-    // Noise/Texture presets - orange
+    // Noise/Texture presets - orange/red
     if (name.includes('noise')) return <GiSoundWaves size={20} style={{ color: '#e74c3c' }} />;
+    if (name.includes('texture')) return <GiSoundWaves size={20} style={{ color: '#d35400' }} />;
+    if (name.includes('frozen')) return <FaWater size={20} style={{ color: '#3498db' }} />;
 
     // Saw presets - pink
     if (name.includes('saw')) return <FaWaveSquare size={20} style={{ color: '#e91e63' }} />;
@@ -1058,6 +1359,19 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
     // Warm/Pure presets - warm orange
     if (name.includes('warm') || name.includes('triangle')) return <GiSoundWaves size={20} style={{ color: '#ff9800' }} />;
     if (name.includes('pure') || name.includes('sine')) return <FaMusic size={20} style={{ color: '#ff5722' }} />;
+
+    // Experimental/Glitch presets - neon colors
+    if (name.includes('glitch')) return <MdGraphicEq size={20} style={{ color: '#00ff00' }} />;
+    if (name.includes('stutter')) return <FaDrum size={20} style={{ color: '#00ffff' }} />;
+    if (name.includes('bit crush') || name.includes('chaos')) return <FaMicrophone size={20} style={{ color: '#ff00ff' }} />;
+    if (name.includes('feedback')) return <GiSoundWaves size={20} style={{ color: '#ff6b6b' }} />;
+    if (name.includes('vowel') || name.includes('morph')) return <FaMicrophone size={20} style={{ color: '#a29bfe' }} />;
+    if (name.includes('robot') || name.includes('ring')) return <FaDrum size={20} style={{ color: '#fd79a8' }} />;
+    if (name.includes('sync')) return <FaWaveSquare size={20} style={{ color: '#fdcb6e' }} />;
+    if (name.includes('fm')) return <FaKeyboard size={20} style={{ color: '#fab1a0' }} />;
+    if (name.includes('metallic')) return <FaBell size={20} style={{ color: '#c0c0c0' }} />;
+    if (name.includes('random')) return <MdGraphicEq size={20} style={{ color: '#6c5ce7' }} />;
+    if (name.includes('idm')) return <GiPianoKeys size={20} style={{ color: '#74b9ff' }} />;
 
     // Default preset - gray-blue
     if (name.includes('default')) return <FaWaveSquare size={20} style={{ color: '#607d8b' }} />;

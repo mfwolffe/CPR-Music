@@ -85,7 +85,23 @@ const InstrumentSandbox = () => {
     bitCrushRate: 44100, // Sample rate reduction
     waveFoldAmount: 0,    // Wave folding distortion
     feedbackAmount: 0,    // Internal feedback loop
-    formantShift: 0      // Vowel-like formant filtering
+    formantShift: 0,      // Vowel-like formant filtering
+
+    // Granular/Buffer Effects
+    grainSize: 100,       // Grain size in ms
+    grainSpeed: 1.0,      // Playback speed
+    grainReverse: false,  // Reverse grains
+    grainFreeze: false,   // Freeze/hold buffer
+
+    // Comb Filter
+    combFreq: 440,        // Comb filter frequency
+    combFeedback: 0,      // Resonance amount
+    combMix: 0,           // Dry/wet mix
+
+    // Sample & Hold
+    sampleHoldRate: 10,   // S&H rate in Hz
+    sampleHoldAmount: 0,  // Amount of S&H modulation
+    sampleHoldTarget: 'pitch' // What to modulate
   });
 
   // Refs

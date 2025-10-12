@@ -70,7 +70,20 @@ class SandboxSynth {
       bitCrushRate: 44100,
       waveFoldAmount: 0,
       feedbackAmount: 0,
-      formantShift: 0
+      formantShift: 0,
+      // Granular
+      grainSize: 100,
+      grainSpeed: 1.0,
+      grainReverse: false,
+      grainFreeze: false,
+      // Comb Filter
+      combFreq: 440,
+      combFeedback: 0,
+      combMix: 0,
+      // Sample & Hold
+      sampleHoldRate: 10,
+      sampleHoldAmount: 0,
+      sampleHoldTarget: 'pitch'
     };
 
     // Experimental effects setup (must be after params, before effects chain)
@@ -178,6 +191,100 @@ class SandboxSynth {
     this.formantGain.gain.value = 0;
     this.updateFormantFilters();
 
+    // Granular Buffer Effects (stutter/freeze)
+    this.grainBufferSize = 8192;
+    this.grainBuffer = new Float32Array(this.grainBufferSize);
+    this.grainBufferIndex = 0;
+    this.grainFrozen = false;
+    this.grainFreezeBuffer = null;
+    this.grainPhase = 0;
+
+    this.granularProcessor = this.audioContext.createScriptProcessor(256, 1, 1);
+    this.granularProcessor.onaudioprocess = (e) => {
+      const input = e.inputBuffer.getChannelData(0);
+      const output = e.outputBuffer.getChannelData(0);
+
+      const grainSize = Math.max(32, Math.floor((this.params.grainSize || 100) * this.audioContext.sampleRate / 1000));
+      const grainSpeed = this.params.grainSpeed || 1.0;
+      const reverse = this.params.grainReverse || false;
+      const freeze = this.params.grainFreeze || false;
+
+      // Handle freeze mode
+      if (freeze && !this.grainFrozen) {
+        // Capture buffer on freeze start
+        this.grainFreezeBuffer = new Float32Array(this.grainBuffer);
+        this.grainFrozen = true;
+      } else if (!freeze && this.grainFrozen) {
+        this.grainFrozen = false;
+        this.grainFreezeBuffer = null;
+      }
+
+      // Use frozen buffer if available
+      const sourceBuffer = this.grainFrozen && this.grainFreezeBuffer ? this.grainFreezeBuffer : this.grainBuffer;
+
+      for (let i = 0; i < input.length; i++) {
+        // Update circular buffer (unless frozen)
+        if (!this.grainFrozen) {
+          this.grainBuffer[this.grainBufferIndex] = input[i];
+          this.grainBufferIndex = (this.grainBufferIndex + 1) % this.grainBufferSize;
+        }
+
+        // Calculate grain position with speed control
+        this.grainPhase += grainSpeed;
+        if (this.grainPhase >= grainSize) {
+          this.grainPhase = 0;
+        }
+
+        let grainPos = Math.floor(this.grainPhase);
+        if (reverse) {
+          grainPos = grainSize - 1 - grainPos;
+        }
+
+        // Get sample from buffer with wrapping (read backwards from current write position)
+        let readPos = this.grainBufferIndex - grainSize + grainPos;
+        while (readPos < 0) readPos += this.grainBufferSize;
+        readPos = readPos % this.grainBufferSize;
+
+        // Apply Hann window for smooth grains
+        const window = 0.5 - 0.5 * Math.cos(2 * Math.PI * grainPos / grainSize);
+        output[i] = sourceBuffer[readPos] * window;
+      }
+    };
+    this.granularGain = this.audioContext.createGain();
+    this.granularGain.gain.value = 0;
+
+    // Comb Filter (metallic resonance)
+    this.combDelay = this.audioContext.createDelay(1);
+    this.combFeedback = this.audioContext.createGain();
+    this.combGain = this.audioContext.createGain();
+    this.combGain.gain.value = 0;
+    this.updateCombFilter();
+
+    // Sample & Hold
+    this.sampleHoldValue = 0;
+    this.sampleHoldPhase = 0;
+    this.sampleHoldRandom = () => Math.random() * 2 - 1;
+
+    this.sampleHoldProcessor = this.audioContext.createScriptProcessor(256, 0, 1);
+    this.sampleHoldProcessor.onaudioprocess = (e) => {
+      const output = e.outputBuffer.getChannelData(0);
+      const rate = this.params.sampleHoldRate || 10;
+      const amount = (this.params.sampleHoldAmount || 0) / 100;
+      const samplesPerHold = this.audioContext.sampleRate / rate;
+
+      for (let i = 0; i < output.length; i++) {
+        this.sampleHoldPhase++;
+        if (this.sampleHoldPhase >= samplesPerHold) {
+          this.sampleHoldPhase = 0;
+          this.sampleHoldValue = this.sampleHoldRandom();
+        }
+        output[i] = this.sampleHoldValue * amount;
+      }
+    };
+
+    this.sampleHoldGain = this.audioContext.createGain();
+    this.sampleHoldGain.gain.value = 0;
+
     // Experimental effects mixer
     this.experimentalMixer = this.audioContext.createGain();
     this.experimentalMixer.gain.value = 1;
@@ -239,6 +346,24 @@ class SandboxSynth {
       filter.frequency.value = formants[i];
       filter.Q.value = 10;
     });
+  }
+
+  updateCombFilter() {
+    if (!this.params || !this.combDelay || !this.combFeedback) return;
+
+    const freq = this.params.combFreq || 440;
+    const delayTime = 1 / freq;
+
+    // Clamp delay time to valid range (0 to 1 second)
+    this.combDelay.delayTime.value = Math.min(Math.max(delayTime, 0.001), 1);
+
+    // Feedback controls resonance (0 to 0.98 to prevent runaway feedback)
+    const feedback = Math.min((this.params.combFeedback || 0) / 100 * 0.98, 0.98);
+    this.combFeedback.gain.value = feedback;
+
+    // Mix controls dry/wet
+    const mix = (this.params.combMix || 0) / 100;
+    this.combGain.gain.value = mix;
   }
 
   setupEffectsChain() {
@@ -310,11 +435,25 @@ class SandboxSynth {
     this.formantFilters[1].connect(this.formantFilters[2]);
     this.formantFilters[2].connect(this.formantGain);
 
+    // Granular buffer path
+    this.preEffectsGain.connect(this.granularProcessor);
+    this.granularProcessor.connect(this.granularGain);
+
+    // Comb filter path (with feedback loop)
+    this.combInput = this.audioContext.createGain();
+    this.preEffectsGain.connect(this.combInput);
+    this.combInput.connect(this.combDelay);
+    this.combDelay.connect(this.combFeedback);
+    this.combFeedback.connect(this.combInput); // Feedback loop back to input
+    this.combDelay.connect(this.combGain); // Output
+
     // Mix experimental effects
     this.preEffectsGain.connect(this.experimentalMixer);
     this.bitCrusherGain.connect(this.experimentalMixer);
     this.waveFolderGain.connect(this.experimentalMixer);
     this.formantGain.connect(this.experimentalMixer);
+    this.granularGain.connect(this.experimentalMixer);
+    this.combGain.connect(this.experimentalMixer);
 
     // Feedback loop (from experimental mixer back to itself)
     this.experimentalMixer.connect(this.feedbackDelay);
@@ -412,12 +551,52 @@ class SandboxSynth {
     this.updateFormantFilters();
     this.formantGain.gain.value = this.params.formantShift > 0 ? 1 : 0;
 
+    // Granular buffer effects
+    const granularActive = (this.params.grainSize !== 100 ||
+                           this.params.grainSpeed !== 1.0 ||
+                           this.params.grainReverse ||
+                           this.params.grainFreeze);
+    this.granularGain.gain.value = granularActive ? 1 : 0;
+    if (granularActive && this.params.grainSize) {
+      console.log('[SandboxSynth] Granular active:', {
+        grainSize: this.params.grainSize,
+        grainSpeed: this.params.grainSpeed,
+        reverse: this.params.grainReverse,
+        freeze: this.params.grainFreeze
+      });
+    }
+
+    // Comb filter
+    this.updateCombFilter();
+    if (this.params.combMix > 0) {
+      console.log('[SandboxSynth] Comb filter active:', {
+        freq: this.params.combFreq,
+        feedback: this.params.combFeedback,
+        mix: this.params.combMix
+      });
+    }
+
+    // Sample & Hold
+    const sampleHoldActive = this.params.sampleHoldAmount > 0;
+    this.sampleHoldGain.gain.value = sampleHoldActive ? 1 : 0;
+    if (sampleHoldActive) {
+      console.log('[SandboxSynth] Sample & Hold active:', {
+        rate: this.params.sampleHoldRate,
+        amount: this.params.sampleHoldAmount,
+        target: this.params.sampleHoldTarget
+      });
+    }
+
     // Adjust pre-effects gain to compensate for experimental effects
     const experimentalActive = bitCrushAmount +
                               (this.params.waveFoldAmount > 0 ? 1 : 0) +
-                              (this.params.formantShift > 0 ? 1 : 0);
-    this.preEffectsGain.gain.value = experimentalActive > 0 ? 0.5 : 1;
-    this.experimentalMixer.gain.value = experimentalActive > 0 ? 0.8 : 1;
+                              (this.params.formantShift > 0 ? 1 : 0) +
+                              (granularActive ? 1 : 0) +
+                              (this.params.combMix > 0 ? 1 : 0) +
+                              (sampleHoldActive ? 1 : 0);
+    // Less aggressive gain compensation - let the effects be more audible
+    this.preEffectsGain.gain.value = experimentalActive > 0 ? 0.6 : 1;
+    this.experimentalMixer.gain.value = experimentalActive > 0 ? 0.9 : 1;
 
     // Update effects levels
     this.distortionGain.gain.value = this.params.distortion / 100;
@@ -746,6 +925,44 @@ class SandboxSynth {
         this.lfo2.connect(ampModGain);
         ampModGain.connect(voice.envelope.gain);
         voice.lfo2AmpMod = ampModGain;
+      }
+    }
+
+    // Apply Sample & Hold routing
+    if (this.params.sampleHoldAmount > 0 && this.params.sampleHoldTarget) {
+      const sampleHoldTarget = this.params.sampleHoldTarget || 'pitch';
+
+      // Start the sample & hold processor if not running
+      if (!this.sampleHoldRunning) {
+        this.sampleHoldProcessor.connect(this.sampleHoldGain);
+        this.sampleHoldRunning = true;
+      }
+
+      if (sampleHoldTarget === 'pitch') {
+        // Modulate pitch with sample & hold
+        const pitchModGain = this.audioContext.createGain();
+        pitchModGain.gain.value = frequency * 0.15; // +/- 15% pitch variation
+        this.sampleHoldGain.connect(pitchModGain);
+        pitchModGain.connect(voice.oscillator.frequency);
+        if (voice.oscillator2) {
+          pitchModGain.connect(voice.oscillator2.frequency);
+        }
+        voice.sampleHoldMod = pitchModGain;
+      } else if (sampleHoldTarget === 'filter') {
+        // Modulate filter with sample & hold
+        const filterModGain = this.audioContext.createGain();
+        filterModGain.gain.value = effectiveCutoff * 0.6;
+        this.sampleHoldGain.connect(filterModGain);
+        filterModGain.connect(voice.filter.frequency);
+        voice.sampleHoldMod = filterModGain;
+      } else if (sampleHoldTarget === 'pwm') {
+        // For PWM modulation, we'd need to modulate the pulse shaper's threshold
+        // This is complex with square waves, so we'll modulate filter instead
+        const filterModGain = this.audioContext.createGain();
+        filterModGain.gain.value = effectiveCutoff * 0.4;
+        this.sampleHoldGain.connect(filterModGain);
+        filterModGain.connect(voice.filter.frequency);
+        voice.sampleHoldMod = filterModGain;
       }
     }
 
