@@ -246,8 +246,19 @@ const InstrumentSandbox = () => {
             width={900}
             height={150}
             showNoteNames={true}
+            captureComputerKeyboard={true}
           />
         </Card.Body>
+        <Card.Footer className="bg-dark text-muted small border-0">
+          <div className="d-flex justify-content-between align-items-center">
+            <div>
+              <strong>Keyboard Controls:</strong> Z-M (white keys), S/D/G/H/J (black keys) | Q-I (upper octave) | [ ] (shift octave)
+            </div>
+            <div>
+              Press and hold keys to sustain notes
+            </div>
+          </div>
+        </Card.Footer>
       </Card>
 
       {/* Preset Manager Modal */}
