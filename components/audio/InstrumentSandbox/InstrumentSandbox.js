@@ -8,6 +8,7 @@ import SynthControls from './SynthControls';
 import PianoKeyboard from '../DAW/Multitrack/PianoKeyboard';
 import SandboxSynth from './SandboxSynth';
 import PresetManager from './PresetManager';
+import WaveformVisualizer from './WaveformVisualizer';
 
 const InstrumentSandbox = () => {
   // State
@@ -16,6 +17,7 @@ const InstrumentSandbox = () => {
   const [currentPreset, setCurrentPreset] = useState('default');
   const [showPresetModal, setShowPresetModal] = useState(false);
   const [masterVolume, setMasterVolume] = useState(0.8);
+  const [analyserNode, setAnalyserNode] = useState(null);
 
   // Synth parameters state
   const [synthParams, setSynthParams] = useState({
@@ -45,6 +47,9 @@ const InstrumentSandbox = () => {
       synthRef.current = new SandboxSynth(audioContextRef.current);
       synthRef.current.connect(audioContextRef.current.destination);
       synthRef.current.setVolume(masterVolume);
+
+      // Get analyser node for visualization
+      setAnalyserNode(synthRef.current.getAnalyser());
 
       // Apply initial params
       synthRef.current.updateParams(synthParams);
@@ -192,20 +197,14 @@ const InstrumentSandbox = () => {
         <Col lg={4}>
           <Card className="h-100 border-0 shadow" style={{ backgroundColor: '#2a2a2a' }}>
             <Card.Header className="bg-dark text-light border-0">
-              <h6 className="mb-0">Oscilloscope</h6>
+              <h6 className="mb-0">Waveform Visualizer</h6>
             </Card.Header>
-            <Card.Body>
-              <div
-                className="oscilloscope-placeholder d-flex align-items-center justify-content-center"
-                style={{
-                  height: '200px',
-                  backgroundColor: '#1a1a1a',
-                  borderRadius: '8px',
-                  border: '1px solid #333'
-                }}
-              >
-                <span className="text-muted">Waveform Visualizer</span>
-              </div>
+            <Card.Body className="p-2" style={{ backgroundColor: '#1a1a1a' }}>
+              <WaveformVisualizer
+                analyserNode={analyserNode}
+                isPlaying={isPlaying}
+                activeNotes={activeNotes}
+              />
 
               {/* Current Preset Display */}
               <div className="mt-3 p-3 rounded" style={{ backgroundColor: '#1a1a1a' }}>
@@ -269,15 +268,6 @@ const InstrumentSandbox = () => {
 
         .form-range {
           accent-color: #0d6efd;
-        }
-
-        .oscilloscope-placeholder {
-          background-image: linear-gradient(45deg, #1a1a1a 25%, transparent 25%),
-                            linear-gradient(-45deg, #1a1a1a 25%, transparent 25%),
-                            linear-gradient(45deg, transparent 75%, #1a1a1a 75%),
-                            linear-gradient(-45deg, transparent 75%, #1a1a1a 75%);
-          background-size: 20px 20px;
-          background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
         }
       `}</style>
     </Container>

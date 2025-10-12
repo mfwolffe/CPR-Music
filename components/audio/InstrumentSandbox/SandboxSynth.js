@@ -16,6 +16,11 @@ class SandboxSynth {
     this.masterGain = audioContext.createGain();
     this.masterGain.gain.value = 0.8;
 
+    // Analyser for visualization
+    this.analyser = audioContext.createAnalyser();
+    this.analyser.fftSize = 2048;
+    this.analyser.smoothingTimeConstant = 0.8;
+
     // Effects chain
     this.setupEffectsChain();
 
@@ -152,11 +157,21 @@ class SandboxSynth {
   }
 
   connect(destination) {
+    // Connect through analyser for visualization
+    this.masterGain.connect(this.analyser);
+    this.analyser.connect(destination);
+
+    // Also connect directly for unaffected audio
     this.masterGain.connect(destination);
+  }
+
+  getAnalyser() {
+    return this.analyser;
   }
 
   disconnect() {
     this.masterGain.disconnect();
+    this.analyser.disconnect();
   }
 
   setVolume(value) {
