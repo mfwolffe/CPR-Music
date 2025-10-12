@@ -399,37 +399,6 @@ class SandboxSynth {
       }
     }
 
-    // Apply LFO2 routing
-    if (this.params.lfo2Target && this.params.lfo2Target !== 'off' && this.params.lfo2Amount > 0) {
-      const lfo2Amount = this.params.lfo2Amount / 100;
-
-      if (this.params.lfo2Target === 'pitch') {
-        // Modulate pitch
-        const pitchModGain = this.audioContext.createGain();
-        pitchModGain.gain.value = frequency * 0.05 * lfo2Amount; // +/- 5% pitch mod
-        this.lfo2.connect(pitchModGain);
-        pitchModGain.connect(voice.oscillator.frequency);
-        if (voice.oscillator2) {
-          pitchModGain.connect(voice.oscillator2.frequency);
-        }
-        voice.lfo2PitchMod = pitchModGain;
-      } else if (this.params.lfo2Target === 'filter') {
-        // Modulate filter cutoff
-        const filterModGain = this.audioContext.createGain();
-        filterModGain.gain.value = effectiveCutoff * 0.5 * lfo2Amount;
-        this.lfo2.connect(filterModGain);
-        filterModGain.connect(voice.filter.frequency);
-        voice.lfo2FilterMod = filterModGain;
-      } else if (this.params.lfo2Target === 'amp') {
-        // Modulate amplitude (tremolo)
-        const ampModGain = this.audioContext.createGain();
-        ampModGain.gain.value = 0.5 * lfo2Amount;
-        this.lfo2.connect(ampModGain);
-        ampModGain.connect(voice.envelope.gain);
-        voice.lfo2AmpMod = ampModGain;
-      }
-    }
-
     // Filter - with multiple types
     voice.filter = this.audioContext.createBiquadFilter();
     voice.filter.type = this.params.filterType;
@@ -512,6 +481,37 @@ class SandboxSynth {
     voice.envelope.gain.setValueAtTime(0, now);
     voice.envelope.gain.linearRampToValueAtTime(1, attackEnd);
     voice.envelope.gain.linearRampToValueAtTime(this.params.sustain, decayEnd);
+
+    // Apply LFO2 routing (must be after envelope and filter creation)
+    if (this.params.lfo2Target && this.params.lfo2Target !== 'off' && this.params.lfo2Amount > 0) {
+      const lfo2Amount = this.params.lfo2Amount / 100;
+
+      if (this.params.lfo2Target === 'pitch') {
+        // Modulate pitch
+        const pitchModGain = this.audioContext.createGain();
+        pitchModGain.gain.value = frequency * 0.05 * lfo2Amount; // +/- 5% pitch mod
+        this.lfo2.connect(pitchModGain);
+        pitchModGain.connect(voice.oscillator.frequency);
+        if (voice.oscillator2) {
+          pitchModGain.connect(voice.oscillator2.frequency);
+        }
+        voice.lfo2PitchMod = pitchModGain;
+      } else if (this.params.lfo2Target === 'filter') {
+        // Modulate filter cutoff
+        const filterModGain = this.audioContext.createGain();
+        filterModGain.gain.value = effectiveCutoff * 0.5 * lfo2Amount;
+        this.lfo2.connect(filterModGain);
+        filterModGain.connect(voice.filter.frequency);
+        voice.lfo2FilterMod = filterModGain;
+      } else if (this.params.lfo2Target === 'amp') {
+        // Modulate amplitude (tremolo)
+        const ampModGain = this.audioContext.createGain();
+        ampModGain.gain.value = 0.5 * lfo2Amount;
+        this.lfo2.connect(ampModGain);
+        ampModGain.connect(voice.envelope.gain);
+        voice.lfo2AmpMod = ampModGain;
+      }
+    }
 
     // Start all oscillators
     voice.oscillator.start(time);
