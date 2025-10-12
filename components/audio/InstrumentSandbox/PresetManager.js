@@ -14,8 +14,8 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
       name: 'Default Saw',
       params: {
         oscillatorType: 'sawtooth',
-        filterCutoff: 2000,
-        filterResonance: 5,
+        filterCutoff: 8000,
+        filterResonance: 2,
         attack: 0.01,
         decay: 0.1,
         sustain: 0.7,
@@ -109,8 +109,8 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
       name: 'Ethereal Bell',
       params: {
         oscillatorType: 'sine',
-        filterCutoff: 5000,
-        filterResonance: 5,
+        filterCutoff: 12000,
+        filterResonance: 1,
         attack: 0.001,
         decay: 1.0,
         sustain: 0.3,
@@ -120,6 +120,44 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfoAmount: 3,
         reverb: 50,
         delay: 25,
+        distortion: 0
+      },
+      factory: true
+    },
+    {
+      name: 'Pure Sine',
+      params: {
+        oscillatorType: 'sine',
+        filterCutoff: 20000,
+        filterResonance: 0,
+        attack: 0.01,
+        decay: 0.1,
+        sustain: 0.8,
+        release: 0.2,
+        detune: 0,
+        lfoRate: 4,
+        lfoAmount: 0,
+        reverb: 10,
+        delay: 0,
+        distortion: 0
+      },
+      factory: true
+    },
+    {
+      name: 'Warm Triangle',
+      params: {
+        oscillatorType: 'triangle',
+        filterCutoff: 10000,
+        filterResonance: 1,
+        attack: 0.02,
+        decay: 0.15,
+        sustain: 0.7,
+        release: 0.3,
+        detune: 2,
+        lfoRate: 2,
+        lfoAmount: 5,
+        reverb: 15,
+        delay: 10,
         distortion: 0
       },
       factory: true

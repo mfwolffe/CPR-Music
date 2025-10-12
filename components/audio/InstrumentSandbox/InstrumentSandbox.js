@@ -22,8 +22,8 @@ const InstrumentSandbox = () => {
   // Synth parameters state
   const [synthParams, setSynthParams] = useState({
     oscillatorType: 'sawtooth',
-    filterCutoff: 2000,
-    filterResonance: 5,
+    filterCutoff: 8000,  // Higher default for better audibility
+    filterResonance: 2,  // Lower default resonance
     attack: 0.01,
     decay: 0.1,
     sustain: 0.7,

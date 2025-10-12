@@ -27,8 +27,8 @@ class SandboxSynth {
     // Default parameters
     this.params = {
       oscillatorType: 'sawtooth',
-      filterCutoff: 2000,
-      filterResonance: 5,
+      filterCutoff: 8000,  // Higher default for better audibility
+      filterResonance: 2,  // Lower default resonance
       attack: 0.01,
       decay: 0.1,
       sustain: 0.7,
@@ -246,19 +246,43 @@ class SandboxSynth {
       this.lfoGain.connect(voice.oscillator.frequency);
     }
 
-    // Filter
+    // Filter - with intelligent handling for different waveforms
     voice.filter = this.audioContext.createBiquadFilter();
     voice.filter.type = 'lowpass';
-    voice.filter.frequency.value = this.params.filterCutoff;
-    voice.filter.Q.value = this.params.filterResonance;
+
+    // For sine and triangle waves, open up the filter more or bypass if cutoff is low
+    let effectiveCutoff = this.params.filterCutoff;
+    let effectiveResonance = this.params.filterResonance;
+
+    if (this.params.oscillatorType === 'sine') {
+      // Sine waves: ensure filter doesn't cut fundamental
+      effectiveCutoff = Math.max(this.params.filterCutoff, frequency * 2, 8000);
+      effectiveResonance = Math.min(this.params.filterResonance, 1); // Reduce resonance for sine
+    } else if (this.params.oscillatorType === 'triangle') {
+      // Triangle waves: need some harmonics but not as aggressive filtering
+      effectiveCutoff = Math.max(this.params.filterCutoff, frequency * 3, 4000);
+      effectiveResonance = Math.min(this.params.filterResonance, 3);
+    }
+
+    voice.filter.frequency.value = effectiveCutoff;
+    voice.filter.Q.value = effectiveResonance;
 
     // Envelope
     voice.envelope = this.audioContext.createGain();
     voice.envelope.gain.value = 0;
 
-    // Note gain (for velocity)
+    // Note gain (for velocity) - with waveform compensation
     voice.noteGain = this.audioContext.createGain();
-    voice.noteGain.gain.value = velocityGain;
+
+    // Gain compensation for different waveforms
+    let gainCompensation = 1.0;
+    if (this.params.oscillatorType === 'sine') {
+      gainCompensation = 1.5; // Sine waves need more gain
+    } else if (this.params.oscillatorType === 'triangle') {
+      gainCompensation = 1.3; // Triangle waves need some gain boost
+    }
+
+    voice.noteGain.gain.value = velocityGain * gainCompensation;
 
     // Connect voice chain
     voice.oscillator.connect(voice.filter);
