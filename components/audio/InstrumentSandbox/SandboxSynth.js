@@ -26,6 +26,7 @@ class SandboxSynth {
 
     // Default parameters
     this.params = {
+      // Basic
       oscillatorType: 'sawtooth',
       filterCutoff: 8000,  // Higher default for better audibility
       filterResonance: 2,  // Lower default resonance
@@ -38,7 +39,35 @@ class SandboxSynth {
       lfoAmount: 0,
       reverb: 0,
       delay: 0,
-      distortion: 0
+      distortion: 0,
+
+      // Advanced parameters
+      osc2Enabled: false,
+      osc2Type: 'sawtooth',
+      osc2Detune: 7,
+      osc2Pitch: 0,
+      oscMix: 50,
+      fmAmount: 0,
+      ringModAmount: 0,
+      oscSync: false,
+      subOscEnabled: false,
+      subOscType: 'square',
+      subOscLevel: 50,
+      noiseLevel: 0,
+      noiseType: 'white',
+      filterType: 'lowpass',
+      filterDrive: 0,
+      filterEnvAmount: 0,
+      filterAttack: 0.01,
+      filterDecay: 0.2,
+      filterSustain: 0.5,
+      filterRelease: 0.3,
+      pulseWidth: 50,
+      pwmAmount: 0,
+      pwmRate: 4,
+      lfo2Target: 'off',
+      lfo2Rate: 2,
+      lfo2Amount: 0
     };
 
     // LFO setup
@@ -48,6 +77,22 @@ class SandboxSynth {
     this.lfoGain.gain.value = 0;
     this.lfo.connect(this.lfoGain);
     this.lfo.start();
+
+    // LFO 2 setup
+    this.lfo2 = audioContext.createOscillator();
+    this.lfo2Gain = audioContext.createGain();
+    this.lfo2.frequency.value = this.params.lfo2Rate || 2;
+    this.lfo2Gain.gain.value = 0;
+    this.lfo2.connect(this.lfo2Gain);
+    this.lfo2.start();
+
+    // PWM LFO setup
+    this.pwmLfo = audioContext.createOscillator();
+    this.pwmLfoGain = audioContext.createGain();
+    this.pwmLfo.frequency.value = this.params.pwmRate || 4;
+    this.pwmLfoGain.gain.value = 0;
+    this.pwmLfo.connect(this.pwmLfoGain);
+    this.pwmLfo.start();
 
     // Periodic cleanup to catch orphaned voices
     this.cleanupInterval = setInterval(() => {
@@ -185,6 +230,14 @@ class SandboxSynth {
     this.lfo.frequency.value = this.params.lfoRate;
     this.lfoGain.gain.value = this.params.lfoAmount / 100;
 
+    // Update LFO 2
+    this.lfo2.frequency.value = this.params.lfo2Rate || 2;
+    this.lfo2Gain.gain.value = (this.params.lfo2Amount || 0) / 100;
+
+    // Update PWM LFO
+    this.pwmLfo.frequency.value = this.params.pwmRate || 4;
+    this.pwmLfoGain.gain.value = (this.params.pwmAmount || 0) / 100;
+
     // Update effects levels
     this.distortionGain.gain.value = this.params.distortion / 100;
     this.delayGain.gain.value = this.params.delay / 100;
@@ -228,6 +281,10 @@ class SandboxSynth {
       id: voiceId,
       note: midiNote,
       oscillator: null,
+      oscillator2: null,
+      subOscillator: null,
+      noiseSource: null,
+      oscMixer: null,
       filter: null,
       envelope: null,
       noteGain: null,
@@ -235,20 +292,147 @@ class SandboxSynth {
       cleanup: null // Track cleanup timeout
     };
 
-    // Oscillator
+    // Create oscillator mixer
+    voice.oscMixer = this.audioContext.createGain();
+
+    // Main Oscillator
     voice.oscillator = this.audioContext.createOscillator();
-    voice.oscillator.type = this.params.oscillatorType;
+
+    // For square waves with PWM, we'll use a custom periodic wave
+    if (this.params.oscillatorType === 'square' && this.params.pwmAmount > 0) {
+      // Create a pulse wave with variable width
+      const pulseWidth = this.params.pulseWidth / 100;
+      const real = new Float32Array(128);
+      const imag = new Float32Array(128);
+
+      for (let i = 1; i < 128; i++) {
+        const harmonic = i;
+        imag[i] = (2 / (Math.PI * harmonic)) * Math.sin(Math.PI * harmonic * pulseWidth);
+      }
+
+      const pulseWave = this.audioContext.createPeriodicWave(real, imag);
+      voice.oscillator.setPeriodicWave(pulseWave);
+
+      // Store pulse wave data for PWM modulation
+      voice.isPulseWave = true;
+      voice.basePulseWidth = this.params.pulseWidth;
+    } else {
+      voice.oscillator.type = this.params.oscillatorType;
+      voice.isPulseWave = false;
+    }
+
     voice.oscillator.frequency.value = frequency;
     voice.oscillator.detune.value = this.params.detune;
+
+    // Oscillator 1 gain (controlled by mix)
+    const osc1Gain = this.audioContext.createGain();
+    osc1Gain.gain.value = this.params.osc2Enabled ? (100 - this.params.oscMix) / 100 : 1;
+    voice.oscillator.connect(osc1Gain);
+    osc1Gain.connect(voice.oscMixer);
+
+    // Second Oscillator (if enabled)
+    if (this.params.osc2Enabled) {
+      voice.oscillator2 = this.audioContext.createOscillator();
+      voice.oscillator2.type = this.params.osc2Type;
+      voice.oscillator2.frequency.value = frequency * Math.pow(2, this.params.osc2Pitch / 12);
+      voice.oscillator2.detune.value = this.params.osc2Detune;
+
+      const osc2Gain = this.audioContext.createGain();
+      osc2Gain.gain.value = this.params.oscMix / 100;
+      voice.oscillator2.connect(osc2Gain);
+      osc2Gain.connect(voice.oscMixer);
+    }
+
+    // Sub-Oscillator (if enabled)
+    if (this.params.subOscEnabled) {
+      voice.subOscillator = this.audioContext.createOscillator();
+      voice.subOscillator.type = this.params.subOscType;
+      voice.subOscillator.frequency.value = frequency / 2; // One octave below
+
+      const subGain = this.audioContext.createGain();
+      subGain.gain.value = this.params.subOscLevel / 100;
+      voice.subOscillator.connect(subGain);
+      subGain.connect(voice.oscMixer);
+    }
+
+    // Noise Generator (if enabled)
+    if (this.params.noiseLevel > 0) {
+      const bufferSize = this.audioContext.sampleRate * 2; // 2 seconds of noise
+      const noiseBuffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+      const data = noiseBuffer.getChannelData(0);
+
+      // Generate noise based on type
+      if (this.params.noiseType === 'white') {
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+      } else if (this.params.noiseType === 'pink') {
+        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          b0 = 0.99886 * b0 + white * 0.0555179;
+          b1 = 0.99332 * b1 + white * 0.0750759;
+          b2 = 0.96900 * b2 + white * 0.1538520;
+          b3 = 0.86650 * b3 + white * 0.3104856;
+          b4 = 0.55000 * b4 + white * 0.5329522;
+          b5 = -0.7616 * b5 - white * 0.0168980;
+          data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+          b6 = white * 0.115926;
+        }
+      }
+
+      voice.noiseSource = this.audioContext.createBufferSource();
+      voice.noiseSource.buffer = noiseBuffer;
+      voice.noiseSource.loop = true;
+
+      const noiseGain = this.audioContext.createGain();
+      noiseGain.gain.value = this.params.noiseLevel / 100;
+      voice.noiseSource.connect(noiseGain);
+      noiseGain.connect(voice.oscMixer);
+    }
 
     // Apply LFO to pitch
     if (this.params.lfoAmount > 0) {
       this.lfoGain.connect(voice.oscillator.frequency);
+      if (voice.oscillator2) {
+        this.lfoGain.connect(voice.oscillator2.frequency);
+      }
     }
 
-    // Filter - with intelligent handling for different waveforms
+    // Apply LFO2 routing
+    if (this.params.lfo2Target && this.params.lfo2Target !== 'off' && this.params.lfo2Amount > 0) {
+      const lfo2Amount = this.params.lfo2Amount / 100;
+
+      if (this.params.lfo2Target === 'pitch') {
+        // Modulate pitch
+        const pitchModGain = this.audioContext.createGain();
+        pitchModGain.gain.value = frequency * 0.05 * lfo2Amount; // +/- 5% pitch mod
+        this.lfo2.connect(pitchModGain);
+        pitchModGain.connect(voice.oscillator.frequency);
+        if (voice.oscillator2) {
+          pitchModGain.connect(voice.oscillator2.frequency);
+        }
+        voice.lfo2PitchMod = pitchModGain;
+      } else if (this.params.lfo2Target === 'filter') {
+        // Modulate filter cutoff
+        const filterModGain = this.audioContext.createGain();
+        filterModGain.gain.value = effectiveCutoff * 0.5 * lfo2Amount;
+        this.lfo2.connect(filterModGain);
+        filterModGain.connect(voice.filter.frequency);
+        voice.lfo2FilterMod = filterModGain;
+      } else if (this.params.lfo2Target === 'amp') {
+        // Modulate amplitude (tremolo)
+        const ampModGain = this.audioContext.createGain();
+        ampModGain.gain.value = 0.5 * lfo2Amount;
+        this.lfo2.connect(ampModGain);
+        ampModGain.connect(voice.envelope.gain);
+        voice.lfo2AmpMod = ampModGain;
+      }
+    }
+
+    // Filter - with multiple types
     voice.filter = this.audioContext.createBiquadFilter();
-    voice.filter.type = 'lowpass';
+    voice.filter.type = this.params.filterType;
 
     // For sine and triangle waves, open up the filter more or bypass if cutoff is low
     let effectiveCutoff = this.params.filterCutoff;
@@ -267,6 +451,36 @@ class SandboxSynth {
     voice.filter.frequency.value = effectiveCutoff;
     voice.filter.Q.value = effectiveResonance;
 
+    // Apply Filter Envelope if enabled
+    if (this.params.filterEnvAmount && this.params.filterEnvAmount !== 0) {
+      const filterEnvAmount = this.params.filterEnvAmount / 100;
+      const baseFreq = effectiveCutoff;
+      const maxFreq = Math.min(20000, baseFreq + (baseFreq * 4 * Math.abs(filterEnvAmount)));
+      const minFreq = Math.max(20, baseFreq - (baseFreq * 0.9 * Math.abs(filterEnvAmount)));
+
+      const targetFreq = filterEnvAmount > 0 ? maxFreq : minFreq;
+
+      // Filter ADSR
+      const filterAttackEnd = time + (this.params.filterAttack || 0.01);
+      const filterDecayEnd = filterAttackEnd + (this.params.filterDecay || 0.2);
+      const filterSustainLevel = this.params.filterSustain || 0.5;
+
+      voice.filter.frequency.cancelScheduledValues(time);
+      voice.filter.frequency.setValueAtTime(baseFreq, time);
+      voice.filter.frequency.exponentialRampToValueAtTime(targetFreq, filterAttackEnd);
+      voice.filter.frequency.exponentialRampToValueAtTime(
+        baseFreq + (targetFreq - baseFreq) * filterSustainLevel,
+        filterDecayEnd
+      );
+
+      // Store for release phase
+      voice.filterEnvelope = {
+        baseFreq,
+        targetFreq,
+        sustain: filterSustainLevel
+      };
+    }
+
     // Envelope
     voice.envelope = this.audioContext.createGain();
     voice.envelope.gain.value = 0;
@@ -284,8 +498,8 @@ class SandboxSynth {
 
     voice.noteGain.gain.value = velocityGain * gainCompensation;
 
-    // Connect voice chain
-    voice.oscillator.connect(voice.filter);
+    // Connect voice chain (oscMixer -> filter -> envelope -> noteGain -> effects)
+    voice.oscMixer.connect(voice.filter);
     voice.filter.connect(voice.envelope);
     voice.envelope.connect(voice.noteGain);
     voice.noteGain.connect(this.effectsInput);
@@ -299,8 +513,17 @@ class SandboxSynth {
     voice.envelope.gain.linearRampToValueAtTime(1, attackEnd);
     voice.envelope.gain.linearRampToValueAtTime(this.params.sustain, decayEnd);
 
-    // Start oscillator
+    // Start all oscillators
     voice.oscillator.start(time);
+    if (voice.oscillator2) {
+      voice.oscillator2.start(time);
+    }
+    if (voice.subOscillator) {
+      voice.subOscillator.start(time);
+    }
+    if (voice.noiseSource) {
+      voice.noiseSource.start(time);
+    }
 
     // Store voice with unique ID
     this.activeVoices.set(voiceId, voice);
@@ -341,8 +564,29 @@ class SandboxSynth {
         voice.envelope.gain.setValueAtTime(currentGain, time);
         voice.envelope.gain.linearRampToValueAtTime(0, releaseTime);
 
-        // Stop oscillator after release
+        // Apply filter envelope release if it exists
+        if (voice.filterEnvelope) {
+          const filterReleaseTime = time + (this.params.filterRelease || 0.3);
+          voice.filter.frequency.cancelScheduledValues(time);
+          const currentFreq = voice.filter.frequency.value;
+          voice.filter.frequency.setValueAtTime(currentFreq, time);
+          voice.filter.frequency.exponentialRampToValueAtTime(
+            voice.filterEnvelope.baseFreq,
+            filterReleaseTime
+          );
+        }
+
+        // Stop all oscillators after release
         voice.oscillator.stop(releaseTime);
+        if (voice.oscillator2) {
+          voice.oscillator2.stop(releaseTime);
+        }
+        if (voice.subOscillator) {
+          voice.subOscillator.stop(releaseTime);
+        }
+        if (voice.noiseSource) {
+          voice.noiseSource.stop(releaseTime);
+        }
 
         // Disconnect LFO if it was connected
         if (this.params.lfoAmount > 0) {
@@ -381,9 +625,27 @@ class SandboxSynth {
     // Disconnect all nodes
     try {
       voice.oscillator.disconnect();
+      if (voice.oscillator2) voice.oscillator2.disconnect();
+      if (voice.subOscillator) voice.subOscillator.disconnect();
+      if (voice.noiseSource) voice.noiseSource.disconnect();
+      if (voice.oscMixer) voice.oscMixer.disconnect();
       voice.filter.disconnect();
       voice.envelope.disconnect();
       voice.noteGain.disconnect();
+
+      // Disconnect LFO2 modulation if exists
+      if (voice.lfo2PitchMod) {
+        this.lfo2.disconnect(voice.lfo2PitchMod);
+        voice.lfo2PitchMod.disconnect();
+      }
+      if (voice.lfo2FilterMod) {
+        this.lfo2.disconnect(voice.lfo2FilterMod);
+        voice.lfo2FilterMod.disconnect();
+      }
+      if (voice.lfo2AmpMod) {
+        this.lfo2.disconnect(voice.lfo2AmpMod);
+        voice.lfo2AmpMod.disconnect();
+      }
     } catch (e) {
       // Ignore disconnection errors
     }
@@ -417,9 +679,20 @@ class SandboxSynth {
     }
 
     this.stopAllNotes();
+
+    // Stop and disconnect all LFOs
     this.lfo.stop();
     this.lfo.disconnect();
     this.lfoGain.disconnect();
+
+    this.lfo2.stop();
+    this.lfo2.disconnect();
+    this.lfo2Gain.disconnect();
+
+    this.pwmLfo.stop();
+    this.pwmLfo.disconnect();
+    this.pwmLfoGain.disconnect();
+
     this.masterGain.disconnect();
 
     // Clean up effects

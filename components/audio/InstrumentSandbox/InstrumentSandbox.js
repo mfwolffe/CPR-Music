@@ -2,9 +2,10 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Card, Button, ButtonGroup, Badge } from 'react-bootstrap';
-import { FaPlay, FaStop, FaVolumeUp, FaSave, FaFolder } from 'react-icons/fa';
+import { FaPlay, FaStop, FaVolumeUp, FaSave, FaFolder, FaCog } from 'react-icons/fa';
 import { GiSoundWaves } from 'react-icons/gi';
 import SynthControls from './SynthControls';
+import AdvancedSynthControls from './AdvancedSynthControls';
 import PianoKeyboard from '../DAW/Multitrack/PianoKeyboard';
 import SandboxSynth from './SandboxSynth';
 import PresetManager from './PresetManager';
@@ -18,9 +19,11 @@ const InstrumentSandbox = () => {
   const [showPresetModal, setShowPresetModal] = useState(false);
   const [masterVolume, setMasterVolume] = useState(0.8);
   const [analyserNode, setAnalyserNode] = useState(null);
+  const [showAdvanced, setShowAdvanced] = useState(true); // Show advanced by default
 
   // Synth parameters state
   const [synthParams, setSynthParams] = useState({
+    // Basic parameters
     oscillatorType: 'sawtooth',
     filterCutoff: 8000,  // Higher default for better audibility
     filterResonance: 2,  // Lower default resonance
@@ -33,7 +36,44 @@ const InstrumentSandbox = () => {
     lfoAmount: 0,
     reverb: 0,
     delay: 0,
-    distortion: 0
+    distortion: 0,
+
+    // Advanced parameters (only implemented features)
+    // Oscillator 2
+    osc2Enabled: false,
+    osc2Type: 'sawtooth',
+    osc2Detune: 7,
+    osc2Pitch: 0,
+    oscMix: 50,
+
+    // Sub oscillator
+    subOscEnabled: false,
+    subOscType: 'square',
+    subOscLevel: 50,
+
+    // Noise
+    noiseLevel: 0,
+    noiseType: 'white',
+
+    // Filter type
+    filterType: 'lowpass',
+
+    // Filter Envelope
+    filterEnvAmount: 0,
+    filterAttack: 0.01,
+    filterDecay: 0.2,
+    filterSustain: 0.5,
+    filterRelease: 0.3,
+
+    // Pulse Width Modulation
+    pulseWidth: 50,
+    pwmAmount: 0,
+    pwmRate: 4,
+
+    // LFO 2
+    lfo2Target: 'off',
+    lfo2Rate: 2,
+    lfo2Amount: 0
   });
 
   // Refs
@@ -158,6 +198,12 @@ const InstrumentSandbox = () => {
                 >
                   <FaSave /> Save
                 </Button>
+                <Button
+                  variant={showAdvanced ? 'warning' : 'outline-warning'}
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                >
+                  <FaCog /> {showAdvanced ? 'Basic' : 'Advanced'}
+                </Button>
               </ButtonGroup>
             </Col>
             <Col xs="auto">
@@ -231,6 +277,16 @@ const InstrumentSandbox = () => {
           </Card>
         </Col>
       </Row>
+
+      {/* Advanced Controls */}
+      {showAdvanced && (
+        <div className="mt-3">
+          <AdvancedSynthControls
+            params={synthParams}
+            onParamChange={handleParamChange}
+          />
+        </div>
+      )}
 
       {/* Piano Keyboard */}
       <Card className="mt-3 border-0 shadow" style={{ backgroundColor: '#2a2a2a' }}>
