@@ -51,6 +51,8 @@ export default function PianoKeyboard({
 }) {
   const canvasRef = useRef(null);
   const [mouseDownNote, setMouseDownNote] = useState(null);
+  const activeMouseNotesRef = useRef(new Set()); // Track ALL active mouse/pointer notes
+  const activePointerIdsRef = useRef(new Map()); // Map pointerId -> note for multi-touch
   const containerRef = useRef(null);
   const isActiveRef = useRef(false); // only capture keys while hovered/focused
   const downCodesRef = useRef(new Set());
@@ -58,8 +60,8 @@ export default function PianoKeyboard({
   const blurTimeoutRef = useRef(null);
   const visibilityTimeoutRef = useRef(null);
 
-  // Pointer-mode guard (prevents double firing from mouse & pointer)
-  const usingPointerRef = useRef(false);
+  // Interaction mode tracking
+  const interactionModeRef = useRef(null); // 'mouse', 'pointer', or null
 
   // Octave shift (in 12-semitone steps, affects typing keyboard mapping only)
   const octaveShiftRef = useRef(0);
@@ -89,6 +91,19 @@ export default function PianoKeyboard({
     startNoteRef.current = startNote;
     endNoteRef.current = endNote;
   }, [startNote, endNote]);
+
+  // Cleanup effect to stop any stuck notes on unmount
+  useEffect(() => {
+    return () => {
+      // Stop all active mouse/pointer notes
+      activeMouseNotesRef.current.forEach(note => {
+        console.log('[PianoKeyboard] Cleanup: stopping stuck note', note);
+        onNoteClickRef.current?.(note, 'up');
+      });
+      activeMouseNotesRef.current.clear();
+      activePointerIdsRef.current.clear();
+    };
+  }, []);
 
   // Computer keyboard → note on/off (optional)
   useEffect(() => {
@@ -358,65 +373,178 @@ export default function PianoKeyboard({
     return null;
   }
 
+  // Helper to start a note (with deduplication)
+  const startNoteHelper = (note) => {
+    if (activeMouseNotesRef.current.has(note)) {
+      console.warn('[PianoKeyboard] Note already active, skipping:', note);
+      return false;
+    }
+    activeMouseNotesRef.current.add(note);
+    onNoteClick?.(note, 'down');
+    console.log('[PianoKeyboard] Started note:', note, 'Active:', Array.from(activeMouseNotesRef.current));
+    return true;
+  };
+
+  // Helper to stop a note (with safety check)
+  const stopNoteHelper = (note) => {
+    if (!activeMouseNotesRef.current.has(note)) {
+      console.log('[PianoKeyboard] Note not active, skipping stop:', note);
+      return false;
+    }
+    activeMouseNotesRef.current.delete(note);
+    onNoteClick?.(note, 'up');
+    console.log('[PianoKeyboard] Stopped note:', note, 'Active:', Array.from(activeMouseNotesRef.current));
+    return true;
+  };
+
+  // Stop all active notes
+  const stopAllNotes = () => {
+    const notes = Array.from(activeMouseNotesRef.current);
+    console.log('[PianoKeyboard] Stopping all notes:', notes);
+    notes.forEach(note => stopNoteHelper(note));
+    activePointerIdsRef.current.clear();
+    setMouseDownNote(null);
+  };
+
+  // Global event listener setup (persistent)
+  useEffect(() => {
+    const handleGlobalMouseUp = (e) => {
+      if (interactionModeRef.current === 'mouse') {
+        console.log('[PianoKeyboard] Global mouseup, stopping all notes');
+        stopAllNotes();
+        interactionModeRef.current = null;
+      }
+    };
+
+    const handleGlobalPointerUp = (e) => {
+      if (interactionModeRef.current === 'pointer') {
+        const note = activePointerIdsRef.current.get(e.pointerId);
+        if (note) {
+          console.log('[PianoKeyboard] Global pointerup for id:', e.pointerId, 'note:', note);
+          stopNoteHelper(note);
+          activePointerIdsRef.current.delete(e.pointerId);
+        }
+        if (activePointerIdsRef.current.size === 0) {
+          interactionModeRef.current = null;
+        }
+      }
+    };
+
+    const handleGlobalPointerCancel = (e) => {
+      if (interactionModeRef.current === 'pointer') {
+        console.log('[PianoKeyboard] Pointer cancelled, stopping all notes');
+        stopAllNotes();
+        interactionModeRef.current = null;
+      }
+    };
+
+    // Handle window blur/focus to prevent stuck notes
+    const handleWindowBlur = () => {
+      console.log('[PianoKeyboard] Window blurred, stopping all notes');
+      stopAllNotes();
+      interactionModeRef.current = null;
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        console.log('[PianoKeyboard] Document hidden, stopping all notes');
+        stopAllNotes();
+        interactionModeRef.current = null;
+      }
+    };
+
+    document.addEventListener('mouseup', handleGlobalMouseUp);
+    document.addEventListener('pointerup', handleGlobalPointerUp);
+    document.addEventListener('pointercancel', handleGlobalPointerCancel);
+    window.addEventListener('blur', handleWindowBlur);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('mouseup', handleGlobalMouseUp);
+      document.removeEventListener('pointerup', handleGlobalPointerUp);
+      document.removeEventListener('pointercancel', handleGlobalPointerCancel);
+      window.removeEventListener('blur', handleWindowBlur);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
   const handleMouseDown = (e) => {
-    if (usingPointerRef.current) return; // pointer events will handle this
+    if (interactionModeRef.current === 'pointer') return;
+    e.preventDefault();
+
+    interactionModeRef.current = 'mouse';
     const { x, y } = getLogicalCoords(e);
     const note = getNoteFromPosition(x, y);
-    if (note && onNoteClick) {
-      setMouseDownNote(note);
-      onNoteClick(note, 'down');
+
+    if (note) {
+      if (startNoteHelper(note)) {
+        setMouseDownNote(note);
+      }
     }
   };
 
-  const handleMouseUp = () => {
-    if (usingPointerRef.current) return;
-    if (mouseDownNote && onNoteClick) {
-      onNoteClick(mouseDownNote, 'up');
-      setMouseDownNote(null);
-    }
+  const handleMouseUp = (e) => {
+    // Global handler will take care of this
   };
 
   const handleMouseMove = (e) => {
-    if (usingPointerRef.current) return;
-    if (!mouseDownNote) return;
+    if (interactionModeRef.current !== 'mouse') return;
+    if (activeMouseNotesRef.current.size === 0) return;
+
     const { x, y } = getLogicalCoords(e);
     const note = getNoteFromPosition(x, y);
-    if (note && note !== mouseDownNote && onNoteClick) {
-      onNoteClick(mouseDownNote, 'up');
-      onNoteClick(note, 'down');
-      setMouseDownNote(note);
+    const currentNote = Array.from(activeMouseNotesRef.current)[0]; // Get first (should only be one for mouse)
+
+    if (note && note !== currentNote) {
+      console.log('[PianoKeyboard] Mouse moved from', currentNote, 'to', note);
+      stopNoteHelper(currentNote);
+      if (startNoteHelper(note)) {
+        setMouseDownNote(note);
+      }
     }
   };
 
-  const handleMouseLeave = () => {
-    if (usingPointerRef.current) return;
-    if (mouseDownNote && onNoteClick) {
-      onNoteClick(mouseDownNote, 'up');
-      setMouseDownNote(null);
-    }
+  const handleMouseLeave = (e) => {
+    // Don't stop notes on leave - global handler will handle it
   };
 
   const handlePointerDown = (e) => {
-    usingPointerRef.current = true;
+    if (interactionModeRef.current === 'mouse') return;
+    e.preventDefault();
+
+    interactionModeRef.current = 'pointer';
+
     try {
       canvasRef.current?.setPointerCapture?.(e.pointerId);
     } catch {}
+
     const { x, y } = getLogicalCoords(e);
     const note = getNoteFromPosition(x, y);
-    if (note && onNoteClick) {
-      setMouseDownNote(note);
-      onNoteClick(note, 'down');
+
+    if (note) {
+      if (startNoteHelper(note)) {
+        activePointerIdsRef.current.set(e.pointerId, note);
+        setMouseDownNote(note);
+      }
     }
   };
 
   const handlePointerMove = (e) => {
-    if (!usingPointerRef.current || !mouseDownNote) return;
+    if (interactionModeRef.current !== 'pointer') return;
+
+    const currentNote = activePointerIdsRef.current.get(e.pointerId);
+    if (!currentNote) return;
+
     const { x, y } = getLogicalCoords(e);
     const note = getNoteFromPosition(x, y);
-    if (note && note !== mouseDownNote && onNoteClick) {
-      onNoteClick(mouseDownNote, 'up');
-      onNoteClick(note, 'down');
-      setMouseDownNote(note);
+
+    if (note && note !== currentNote) {
+      console.log('[PianoKeyboard] Pointer', e.pointerId, 'moved from', currentNote, 'to', note);
+      stopNoteHelper(currentNote);
+      if (startNoteHelper(note)) {
+        activePointerIdsRef.current.set(e.pointerId, note);
+        setMouseDownNote(note);
+      }
     }
   };
 
@@ -424,11 +552,18 @@ export default function PianoKeyboard({
     try {
       canvasRef.current?.releasePointerCapture?.(e.pointerId);
     } catch {}
-    if (mouseDownNote && onNoteClick) {
-      onNoteClick(mouseDownNote, 'up');
+
+    const note = activePointerIdsRef.current.get(e.pointerId);
+    if (note) {
+      console.log('[PianoKeyboard] Pointer up for id:', e.pointerId, 'note:', note);
+      stopNoteHelper(note);
+      activePointerIdsRef.current.delete(e.pointerId);
       setMouseDownNote(null);
     }
-    usingPointerRef.current = false;
+
+    if (activePointerIdsRef.current.size === 0) {
+      interactionModeRef.current = null;
+    }
   };
 
   const handleContextMenu = (e) => {
@@ -459,9 +594,6 @@ export default function PianoKeyboard({
         ref={canvasRef}
         width={width}
         height={height}
-        onPointerDownCapture={() => {
-          usingPointerRef.current = true;
-        }}
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
         onMouseMove={handleMouseMove}
