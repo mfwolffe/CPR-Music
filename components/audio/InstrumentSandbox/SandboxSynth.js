@@ -316,6 +316,22 @@ class SandboxSynth {
       // Store pulse wave data for PWM modulation
       voice.isPulseWave = true;
       voice.basePulseWidth = this.params.pulseWidth;
+    } else if (this.params.oscSync && this.params.osc2Enabled) {
+      // Oscillator Sync - create a synced waveform
+      // This creates a "hard sync" effect where osc2 resets osc1's phase
+      const real = new Float32Array(128);
+      const imag = new Float32Array(128);
+      const syncRatio = Math.pow(2, this.params.osc2Pitch / 12) * (1 + this.params.osc2Detune / 100);
+
+      for (let i = 1; i < 128; i++) {
+        // Generate harmonics with sync artifacts
+        const phase = (i * syncRatio) % (2 * Math.PI);
+        imag[i] = Math.sin(phase) / i;
+      }
+
+      const syncWave = this.audioContext.createPeriodicWave(real, imag);
+      voice.oscillator.setPeriodicWave(syncWave);
+      voice.isSyncWave = true;
     } else {
       voice.oscillator.type = this.params.oscillatorType;
       voice.isPulseWave = false;
@@ -337,10 +353,49 @@ class SandboxSynth {
       voice.oscillator2.frequency.value = frequency * Math.pow(2, this.params.osc2Pitch / 12);
       voice.oscillator2.detune.value = this.params.osc2Detune;
 
-      const osc2Gain = this.audioContext.createGain();
-      osc2Gain.gain.value = this.params.oscMix / 100;
-      voice.oscillator2.connect(osc2Gain);
-      osc2Gain.connect(voice.oscMixer);
+      // FM Synthesis - Oscillator 2 modulates Oscillator 1's frequency
+      if (this.params.fmAmount > 0) {
+        const fmGain = this.audioContext.createGain();
+        // FM modulation index (how much frequency modulation)
+        fmGain.gain.value = frequency * (this.params.fmAmount / 100) * 10; // Scale for audible effect
+        voice.oscillator2.connect(fmGain);
+        fmGain.connect(voice.oscillator.frequency);
+        voice.fmGain = fmGain;
+      }
+
+      // Ring Modulation - multiply signals together
+      if (this.params.ringModAmount > 0) {
+        const ringModGain = this.audioContext.createGain();
+        ringModGain.gain.value = 0; // Will be modulated by osc2
+
+        // Connect osc1 to ring mod gain
+        const osc1ToRing = this.audioContext.createGain();
+        osc1ToRing.gain.value = this.params.ringModAmount / 100;
+        voice.oscillator.connect(osc1ToRing);
+        osc1ToRing.connect(ringModGain);
+
+        // Modulate the gain with osc2
+        const ringModScale = this.audioContext.createGain();
+        ringModScale.gain.value = 1;
+        voice.oscillator2.connect(ringModScale);
+        ringModScale.connect(ringModGain.gain);
+
+        // Add ring mod output to mixer
+        ringModGain.connect(voice.oscMixer);
+        voice.ringModGain = ringModGain;
+        voice.osc1ToRing = osc1ToRing;
+      }
+
+      // Normal mixing (if not doing only cross-mod)
+      if (this.params.fmAmount < 100 || this.params.ringModAmount < 100) {
+        const osc2Gain = this.audioContext.createGain();
+        const osc2MixLevel = this.params.oscMix / 100;
+        // Reduce osc2 direct level when using it for modulation
+        const modReduction = Math.max(this.params.fmAmount, this.params.ringModAmount) / 100;
+        osc2Gain.gain.value = osc2MixLevel * (1 - modReduction * 0.5);
+        voice.oscillator2.connect(osc2Gain);
+        osc2Gain.connect(voice.oscMixer);
+      }
     }
 
     // Sub-Oscillator (if enabled)
@@ -632,6 +687,19 @@ class SandboxSynth {
       voice.filter.disconnect();
       voice.envelope.disconnect();
       voice.noteGain.disconnect();
+
+      // Disconnect FM modulation
+      if (voice.fmGain) {
+        voice.fmGain.disconnect();
+      }
+
+      // Disconnect Ring modulation
+      if (voice.ringModGain) {
+        voice.ringModGain.disconnect();
+      }
+      if (voice.osc1ToRing) {
+        voice.osc1ToRing.disconnect();
+      }
 
       // Disconnect LFO2 modulation if exists
       if (voice.lfo2PitchMod) {

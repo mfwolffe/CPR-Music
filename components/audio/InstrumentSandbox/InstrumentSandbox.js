@@ -73,7 +73,12 @@ const InstrumentSandbox = () => {
     // LFO 2
     lfo2Target: 'off',
     lfo2Rate: 2,
-    lfo2Amount: 0
+    lfo2Amount: 0,
+
+    // Cross Modulation
+    fmAmount: 0,
+    ringModAmount: 0,
+    oscSync: false
   });
 
   // Refs

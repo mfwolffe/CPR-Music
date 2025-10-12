@@ -99,6 +99,17 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
                   <div className="mt-2">
                     {createSlider('osc2Pitch', 'OSC 2 Pitch', -24, 24, 1, ' st')}
                   </div>
+
+                  {/* Cross Modulation */}
+                  <div className="mt-3 pt-3 border-top border-secondary">
+                    <h6 className="text-info small mb-2">Cross Modulation</h6>
+                    {createSlider('fmAmount', 'FM Amount', 0, 100, 1, '%')}
+                    {createSlider('ringModAmount', 'Ring Mod', 0, 100, 1, '%')}
+                    {createToggle('oscSync', 'OSC Sync', [
+                      { value: false, label: 'Off' },
+                      { value: true, label: 'On' }
+                    ])}
+                  </div>
                 </>
               )}
 

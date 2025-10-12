@@ -50,6 +50,9 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfo2Target: 'off',
         lfo2Rate: 2,
         lfo2Amount: 0,
+        fmAmount: 0,
+        ringModAmount: 0,
+        oscSync: false,
         noiseType: 'white',
         filterEnvAmount: 0,
         filterAttack: 0.01,
@@ -61,7 +64,10 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         pwmRate: 4,
         lfo2Target: 'off',
         lfo2Rate: 2,
-        lfo2Amount: 0
+        lfo2Amount: 0,
+        fmAmount: 0,
+        ringModAmount: 0,
+        oscSync: false
       },
       factory: true
     },
@@ -98,6 +104,9 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfo2Target: 'off',
         lfo2Rate: 2,
         lfo2Amount: 0,
+        fmAmount: 0,
+        ringModAmount: 0,
+        oscSync: false,
         filterEnvAmount: 0,
         filterAttack: 0.01,
         filterDecay: 0.2,
@@ -108,7 +117,10 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         pwmRate: 4,
         lfo2Target: 'off',
         lfo2Rate: 2,
-        lfo2Amount: 0
+        lfo2Amount: 0,
+        fmAmount: 0,
+        ringModAmount: 0,
+        oscSync: false
       },
       factory: true
     },
@@ -146,7 +158,10 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         pwmRate: 4,
         lfo2Target: 'off',
         lfo2Rate: 2,
-        lfo2Amount: 0
+        lfo2Amount: 0,
+        fmAmount: 0,
+        ringModAmount: 0,
+        oscSync: false
       },
       factory: true
     },
@@ -185,7 +200,10 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         pwmRate: 4,
         lfo2Target: 'off',
         lfo2Rate: 2,
-        lfo2Amount: 0
+        lfo2Amount: 0,
+        fmAmount: 0,
+        ringModAmount: 0,
+        oscSync: false
       },
       factory: true
     },
@@ -221,7 +239,10 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         pwmRate: 4,
         lfo2Target: 'off',
         lfo2Rate: 2,
-        lfo2Amount: 0
+        lfo2Amount: 0,
+        fmAmount: 0,
+        ringModAmount: 0,
+        oscSync: false
       },
       factory: true
     },
@@ -256,7 +277,10 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         pwmRate: 4,
         lfo2Target: 'off',
         lfo2Rate: 2,
-        lfo2Amount: 0
+        lfo2Amount: 0,
+        fmAmount: 0,
+        ringModAmount: 0,
+        oscSync: false
       },
       factory: true
     },
@@ -294,7 +318,10 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         pwmRate: 4,
         lfo2Target: 'off',
         lfo2Rate: 2,
-        lfo2Amount: 0
+        lfo2Amount: 0,
+        fmAmount: 0,
+        ringModAmount: 0,
+        oscSync: false
       },
       factory: true
     },
@@ -332,7 +359,10 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         pwmRate: 4,
         lfo2Target: 'off',
         lfo2Rate: 2,
-        lfo2Amount: 0
+        lfo2Amount: 0,
+        fmAmount: 0,
+        ringModAmount: 0,
+        oscSync: false
       },
       factory: true
     },
@@ -371,6 +401,9 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfo2Target: 'off',
         lfo2Rate: 2,
         lfo2Amount: 0,
+        fmAmount: 0,
+        ringModAmount: 0,
+        oscSync: false,
         // Filter envelope
         filterEnvAmount: 80,
         filterAttack: 0.02,
@@ -384,7 +417,10 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         // LFO2 modulating filter
         lfo2Target: 'filter',
         lfo2Rate: 0.5,
-        lfo2Amount: 30
+        lfo2Amount: 30,
+        fmAmount: 0,
+        ringModAmount: 0,
+        oscSync: false
       },
       factory: true
     },
@@ -419,6 +455,9 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfo2Target: 'off',
         lfo2Rate: 2,
         lfo2Amount: 0,
+        fmAmount: 0,
+        ringModAmount: 0,
+        oscSync: false,
         // Filter envelope
         filterEnvAmount: -50,
         filterAttack: 1.0,
@@ -432,7 +471,10 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         // No LFO2
         lfo2Target: 'off',
         lfo2Rate: 2,
-        lfo2Amount: 0
+        lfo2Amount: 0,
+        fmAmount: 0,
+        ringModAmount: 0,
+        oscSync: false
       },
       factory: true
     },
@@ -471,6 +513,9 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfo2Target: 'off',
         lfo2Rate: 2,
         lfo2Amount: 0,
+        fmAmount: 0,
+        ringModAmount: 0,
+        oscSync: false,
         // Filter envelope
         filterEnvAmount: 40,
         filterAttack: 0.001,
@@ -484,7 +529,174 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         // LFO2 modulating amplitude
         lfo2Target: 'amp',
         lfo2Rate: 6,
-        lfo2Amount: 40
+        lfo2Amount: 40,
+        fmAmount: 0,
+        ringModAmount: 0,
+        oscSync: false
+      },
+      factory: true
+    },
+    {
+      name: 'FM Bell',
+      params: {
+        oscillatorType: 'sine',
+        filterCutoff: 10000,
+        filterResonance: 1,
+        filterType: 'lowpass',
+        attack: 0.001,
+        decay: 0.5,
+        sustain: 0.2,
+        release: 2.0,
+        detune: 0,
+        lfoRate: 4,
+        lfoAmount: 0,
+        reverb: 45,
+        delay: 30,
+        distortion: 0,
+        osc2Enabled: true,
+        osc2Type: 'sine',
+        osc2Detune: 0,
+        osc2Pitch: 7,  // Perfect fifth for bell-like tone
+        oscMix: 20,
+        subOscEnabled: false,
+        noiseLevel: 0,
+        filterEnvAmount: -30,
+        filterAttack: 0.001,
+        filterDecay: 0.3,
+        filterSustain: 0.2,
+        filterRelease: 1.0,
+        pulseWidth: 50,
+        pwmAmount: 0,
+        pwmRate: 4,
+        lfo2Target: 'off',
+        lfo2Rate: 2,
+        lfo2Amount: 0,
+        fmAmount: 65,  // FM creates the bell harmonics
+        ringModAmount: 0,
+        oscSync: false
+      },
+      factory: true
+    },
+    {
+      name: 'Ring Mod Robot',
+      params: {
+        oscillatorType: 'square',
+        filterCutoff: 3000,
+        filterResonance: 8,
+        filterType: 'lowpass',
+        attack: 0.001,
+        decay: 0.1,
+        sustain: 0.8,
+        release: 0.1,
+        detune: 0,
+        lfoRate: 3,
+        lfoAmount: 5,
+        reverb: 20,
+        delay: 15,
+        distortion: 10,
+        osc2Enabled: true,
+        osc2Type: 'square',
+        osc2Detune: 3,
+        osc2Pitch: 19,  // Non-harmonic interval for metallic sound
+        oscMix: 50,
+        subOscEnabled: false,
+        noiseLevel: 0,
+        filterEnvAmount: 50,
+        filterAttack: 0.001,
+        filterDecay: 0.05,
+        filterSustain: 0.7,
+        filterRelease: 0.1,
+        pulseWidth: 50,
+        pwmAmount: 0,
+        pwmRate: 4,
+        lfo2Target: 'filter',
+        lfo2Rate: 8,
+        lfo2Amount: 20,
+        fmAmount: 0,
+        ringModAmount: 80,  // Ring modulation for metallic/robotic sound
+        oscSync: false
+      },
+      factory: true
+    },
+    {
+      name: 'Sync Lead',
+      params: {
+        oscillatorType: 'sawtooth',
+        filterCutoff: 5000,
+        filterResonance: 10,
+        filterType: 'lowpass',
+        attack: 0.005,
+        decay: 0.1,
+        sustain: 0.7,
+        release: 0.3,
+        detune: 2,
+        lfoRate: 5,
+        lfoAmount: 3,
+        reverb: 25,
+        delay: 20,
+        distortion: 15,
+        osc2Enabled: true,
+        osc2Type: 'sawtooth',
+        osc2Detune: 5,
+        osc2Pitch: 7,  // Sync sweep range
+        oscMix: 40,
+        subOscEnabled: false,
+        noiseLevel: 0,
+        filterEnvAmount: 40,
+        filterAttack: 0.01,
+        filterDecay: 0.2,
+        filterSustain: 0.5,
+        filterRelease: 0.3,
+        pulseWidth: 50,
+        pwmAmount: 0,
+        pwmRate: 4,
+        lfo2Target: 'pitch',
+        lfo2Rate: 0.3,
+        lfo2Amount: 15,  // Slow pitch sweep for sync
+        fmAmount: 0,
+        ringModAmount: 0,
+        oscSync: true  // Oscillator sync for aggressive lead
+      },
+      factory: true
+    },
+    {
+      name: 'FM Piano',
+      params: {
+        oscillatorType: 'sine',
+        filterCutoff: 8000,
+        filterResonance: 2,
+        filterType: 'lowpass',
+        attack: 0.001,
+        decay: 0.3,
+        sustain: 0.4,
+        release: 0.5,
+        detune: 1,
+        lfoRate: 4.5,
+        lfoAmount: 2,
+        reverb: 30,
+        delay: 10,
+        distortion: 0,
+        osc2Enabled: true,
+        osc2Type: 'sine',
+        osc2Detune: 0,
+        osc2Pitch: 0,
+        oscMix: 30,
+        subOscEnabled: false,
+        noiseLevel: 0,
+        filterEnvAmount: -20,
+        filterAttack: 0.001,
+        filterDecay: 0.5,
+        filterSustain: 0.3,
+        filterRelease: 0.5,
+        pulseWidth: 50,
+        pwmAmount: 0,
+        pwmRate: 4,
+        lfo2Target: 'off',
+        lfo2Rate: 2,
+        lfo2Amount: 0,
+        fmAmount: 35,  // Moderate FM for electric piano tone
+        ringModAmount: 0,
+        oscSync: false
       },
       factory: true
     }
