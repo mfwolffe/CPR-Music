@@ -192,66 +192,72 @@ const InstrumentSandbox = () => {
 
   return (
     <Container fluid className="instrument-sandbox p-0">
-      {/* Header Controls */}
-      <Card className="mb-3 border-0 shadow-sm" style={{ backgroundColor: '#1a1a1a' }}>
-        <Card.Body className="py-2">
-          <Row className="align-items-center">
-            <Col xs="auto">
-              <div className="d-flex align-items-center gap-2">
-                <GiSoundWaves size={24} className="text-primary" />
-                <h5 className="mb-0 text-light">Virtual Instrument Designer</h5>
-              </div>
-            </Col>
-            <Col xs="auto" className="ms-auto">
-              <ButtonGroup size="sm">
-                <Button
-                  variant={isPlaying ? 'danger' : 'success'}
-                  onClick={() => setIsPlaying(!isPlaying)}
-                >
-                  {isPlaying ? <FaStop /> : <FaPlay />}
-                  {isPlaying ? ' Stop' : ' Test'}
-                </Button>
-                <Button
-                  variant="outline-primary"
-                  onClick={() => setShowPresetModal(true)}
-                >
-                  <FaFolder /> Presets
-                </Button>
-                <Button
-                  variant="outline-secondary"
-                  onClick={() => {
-                    const name = prompt('Enter preset name:');
-                    if (name) handlePresetSave(name);
-                  }}
-                >
-                  <FaSave /> Save
-                </Button>
-                <Button
-                  variant={showAdvanced ? 'warning' : 'outline-warning'}
-                  onClick={() => setShowAdvanced(!showAdvanced)}
-                >
-                  <FaCog /> {showAdvanced ? 'Basic' : 'Advanced'}
-                </Button>
-              </ButtonGroup>
-            </Col>
-            <Col xs="auto">
-              <div className="d-flex align-items-center gap-2">
-                <FaVolumeUp className="text-muted" />
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={masterVolume * 100}
-                  onChange={(e) => setMasterVolume(e.target.value / 100)}
-                  style={{ width: '100px' }}
-                  className="form-range"
-                />
-                <Badge bg="dark">{Math.round(masterVolume * 100)}%</Badge>
-              </div>
-            </Col>
-          </Row>
-        </Card.Body>
-      </Card>
+      {/* Main Studio Container */}
+      <Card className="border-0 shadow-lg" style={{ backgroundColor: '#0a0a0a' }}>
+        <Card.Body className="p-4">
+          {/* Header Controls */}
+          <Card className="mb-3 border-0 shadow-sm" style={{ backgroundColor: '#1a1a1a' }}>
+            <Card.Body className="py-2">
+              <Row className="align-items-center">
+                <Col xs="auto">
+                  <div className="d-flex align-items-center gap-2">
+                    <GiSoundWaves size={24} className="text-light" />
+                    <h5 className="mb-0 text-light">Virtual Instrument Designer</h5>
+                  </div>
+                </Col>
+                <Col xs="auto" className="ms-auto">
+                  <ButtonGroup size="sm">
+                    <Button
+                      variant={isPlaying ? 'danger' : 'success'}
+                      onClick={() => setIsPlaying(!isPlaying)}
+                    >
+                      {isPlaying ? <FaStop /> : <FaPlay />}
+                      {isPlaying ? ' Stop' : ' Test'}
+                    </Button>
+                    <Button
+                      variant="light"
+                      className="preset-btn"
+                      onClick={() => setShowPresetModal(true)}
+                    >
+                      <FaFolder /> Presets
+                    </Button>
+                    <Button
+                      variant="primary"
+                      className="save-btn"
+                      onClick={() => {
+                        const name = prompt('Enter preset name:');
+                        if (name) handlePresetSave(name);
+                      }}
+                    >
+                      <FaSave /> Save
+                    </Button>
+                    <Button
+                      variant={showAdvanced ? 'warning' : 'light'}
+                      className="advanced-btn"
+                      onClick={() => setShowAdvanced(!showAdvanced)}
+                    >
+                      <FaCog /> {showAdvanced ? 'Basic' : 'Advanced'}
+                    </Button>
+                  </ButtonGroup>
+                </Col>
+                <Col xs="auto">
+                  <div className="d-flex align-items-center gap-2">
+                    <FaVolumeUp className="text-light" />
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={masterVolume * 100}
+                      onChange={(e) => setMasterVolume(e.target.value / 100)}
+                      style={{ width: '100px' }}
+                      className="form-range"
+                    />
+                    <Badge bg="secondary" style={{ backgroundColor: '#6c757d', color: '#fff' }}>{Math.round(masterVolume * 100)}%</Badge>
+                  </div>
+                </Col>
+              </Row>
+            </Card.Body>
+          </Card>
 
       {/* Main Content */}
       <Row className="g-3">
@@ -333,10 +339,10 @@ const InstrumentSandbox = () => {
             captureComputerKeyboard={true}
           />
         </Card.Body>
-        <Card.Footer className="bg-dark text-muted small border-0">
+        <Card.Footer className="bg-dark border-0" style={{ color: '#adb5bd' }}>
           <div className="d-flex justify-content-between align-items-center">
             <div>
-              <strong>Keyboard Controls:</strong> Z-M (white keys), S/D/G/H/J (black keys) | Q-I (upper octave) | [ ] (shift octave)
+              <strong style={{ color: '#dee2e6' }}>Keyboard Controls:</strong> Z-M (white keys), S/D/G/H/J (black keys) | Q-I (upper octave) | [ ] (shift octave)
             </div>
             <div>
               Press and hold keys to sustain notes
@@ -355,6 +361,9 @@ const InstrumentSandbox = () => {
         />
       )}
 
+        </Card.Body>
+      </Card>
+
       {/* Inline styles for dark theme */}
       <style jsx>{`
         .instrument-sandbox {
@@ -363,6 +372,48 @@ const InstrumentSandbox = () => {
 
         .form-range {
           accent-color: #0d6efd;
+        }
+
+        /* Preset button - White/Light color */
+        .instrument-sandbox :global(.preset-btn) {
+          background-color: #fff !important;
+          color: #212529 !important;
+          border: 1px solid #dee2e6 !important;
+        }
+
+        .instrument-sandbox :global(.preset-btn:hover) {
+          background-color: #f8f9fa !important;
+          border-color: #dee2e6 !important;
+          color: #212529 !important;
+        }
+
+        /* Save button - Purple color */
+        .instrument-sandbox :global(.save-btn) {
+          background-color: #9b59b6 !important;
+          color: #fff !important;
+          border: 1px solid #9b59b6 !important;
+        }
+
+        .instrument-sandbox :global(.save-btn:hover) {
+          background-color: #8b49a6 !important;
+          border-color: #8b49a6 !important;
+          color: #fff !important;
+        }
+
+        /* Advanced button - light variant */
+        .instrument-sandbox :global(.advanced-btn.btn-light) {
+          background-color: #f8f9fa;
+          color: #212529;
+          border: 1px solid #dee2e6;
+        }
+
+        .instrument-sandbox :global(.advanced-btn.btn-light:hover) {
+          background-color: #e2e6ea;
+          border-color: #dae0e5;
+        }
+
+        .instrument-sandbox :global(.advanced-btn.btn-warning:hover) {
+          opacity: 0.9;
         }
       `}</style>
     </Container>

@@ -46,7 +46,7 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
             id={`${param}-${opt.value}`}
             value={opt.value}
             variant="outline-primary"
-            className="flex-fill"
+            className="flex-fill custom-toggle-btn"
           >
             {opt.label}
           </ToggleButton>
@@ -60,8 +60,8 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
       <Row className="g-3">
         {/* Oscillator Mixing Section */}
         <Col md={6}>
-          <Card className="h-100 bg-dark border-secondary">
-            <Card.Header className="bg-gradient text-light py-2 border-secondary">
+          <Card className="h-100 bg-dark border-0">
+            <Card.Header className="text-light py-2 border-0" style={{ backgroundColor: '#1a1a1a' }}>
               <div className="d-flex align-items-center gap-2">
                 <FaMixcloud />
                 <span className="fw-bold small">OSCILLATOR MIXING</span>
@@ -120,8 +120,8 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
 
         {/* Sub & Noise Section */}
         <Col md={6}>
-          <Card className="h-100 bg-dark border-secondary">
-            <Card.Header className="bg-gradient text-light py-2 border-secondary">
+          <Card className="h-100 bg-dark border-0">
+            <Card.Header className="text-light py-2 border-0" style={{ backgroundColor: '#1a1a1a' }}>
               <div className="d-flex align-items-center gap-2">
                 <GiSoundWaves />
                 <span className="fw-bold small">SUB & NOISE</span>
@@ -169,8 +169,8 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
 
         {/* Advanced Filter Section */}
         <Col md={6}>
-          <Card className="h-100 bg-dark border-secondary">
-            <Card.Header className="bg-gradient text-light py-2 border-secondary">
+          <Card className="h-100 bg-dark border-0">
+            <Card.Header className="text-light py-2 border-0" style={{ backgroundColor: '#1a1a1a' }}>
               <div className="d-flex align-items-center gap-2">
                 <IoMdOptions />
                 <span className="fw-bold small">ADVANCED FILTER</span>
@@ -204,8 +204,8 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
 
         {/* Modulation Section */}
         <Col md={6}>
-          <Card className="h-100 bg-dark border-secondary">
-            <Card.Header className="bg-gradient text-light py-2 border-secondary">
+          <Card className="h-100 bg-dark border-0">
+            <Card.Header className="text-light py-2 border-0" style={{ backgroundColor: '#1a1a1a' }}>
               <div className="d-flex align-items-center gap-2">
                 <FaWaveSquare />
                 <span className="fw-bold small">MODULATION</span>
@@ -248,8 +248,8 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
 
         {/* Experimental Effects Section */}
         <Col md={6}>
-          <Card className="h-100 bg-dark border-secondary">
-            <Card.Header className="bg-gradient text-light py-2 border-secondary">
+          <Card className="h-100 bg-dark border-0">
+            <Card.Header className="text-light py-2 border-0" style={{ backgroundColor: '#1a1a1a' }}>
               <div className="d-flex align-items-center gap-2">
                 <MdScience />
                 <span className="fw-bold small">EXPERIMENTAL</span>
@@ -298,8 +298,8 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
 
         {/* Granular & Glitch Section */}
         <Col md={6}>
-          <Card className="h-100 bg-dark border-secondary">
-            <Card.Header className="bg-gradient text-light py-2 border-secondary">
+          <Card className="h-100 bg-dark border-0">
+            <Card.Header className="text-light py-2 border-0" style={{ backgroundColor: '#1a1a1a' }}>
               <div className="d-flex align-items-center gap-2">
                 <IoMdOptions />
                 <span className="fw-bold small">GRANULAR & GLITCH</span>
@@ -389,18 +389,32 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
           box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
 
-        .bg-gradient {
-          background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+        :global(.custom-toggle-btn.btn-outline-primary:not(.active)) {
+          color: #dee2e6 !important;
+          background-color: #2a2a2a !important;
+          border-color: #6c757d !important;
         }
 
-        .btn-outline-primary:not(.active) {
-          color: #666;
-          border-color: #444;
+        :global(.custom-toggle-btn.btn-outline-primary:not(.active):hover) {
+          color: #fff !important;
+          background-color: #3a3a3a !important;
+          border-color: #8c959d !important;
         }
 
-        .btn-outline-primary.active {
-          background-color: #9b59b6;
-          border-color: #9b59b6;
+        :global(.custom-toggle-btn.btn-outline-primary.active),
+        :global(.custom-toggle-btn.btn-outline-primary[aria-pressed="true"]),
+        :global(.btn-check:checked + .custom-toggle-btn.btn-outline-primary) {
+          background-color: #dee2e6 !important;
+          border-color: #adb5bd !important;
+          color: #212529 !important;
+        }
+
+        :global(.custom-toggle-btn.btn-outline-primary.active:hover),
+        :global(.custom-toggle-btn.btn-outline-primary[aria-pressed="true"]:hover),
+        :global(.btn-check:checked + .custom-toggle-btn.btn-outline-primary:hover) {
+          background-color: #f8f9fa !important;
+          border-color: #ced4da !important;
+          color: #212529 !important;
         }
       `}</style>
     </div>

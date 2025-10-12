@@ -49,8 +49,8 @@ const SynthControls = ({ params, onParamChange }) => {
       <Row className="g-4">
         {/* Oscillator Section */}
         <Col md={6} lg={3}>
-          <Card className="h-100 bg-dark border-secondary">
-            <Card.Header className="bg-gradient text-light py-2 border-secondary">
+          <Card className="h-100 bg-dark border-0">
+            <Card.Header className="text-light py-2 border-0" style={{ backgroundColor: '#1a1a1a' }}>
               <div className="d-flex align-items-center gap-2">
                 <FaWaveSquare />
                 <span className="fw-bold small">OSCILLATOR</span>
@@ -72,8 +72,8 @@ const SynthControls = ({ params, onParamChange }) => {
 
         {/* Filter Section */}
         <Col md={6} lg={3}>
-          <Card className="h-100 bg-dark border-secondary">
-            <Card.Header className="bg-gradient text-light py-2 border-secondary">
+          <Card className="h-100 bg-dark border-0">
+            <Card.Header className="text-light py-2 border-0" style={{ backgroundColor: '#1a1a1a' }}>
               <div className="d-flex align-items-center gap-2">
                 <FaSlidersH />
                 <span className="fw-bold small">FILTER</span>
@@ -90,8 +90,8 @@ const SynthControls = ({ params, onParamChange }) => {
 
         {/* Envelope Section */}
         <Col md={6} lg={3}>
-          <Card className="h-100 bg-dark border-secondary">
-            <Card.Header className="bg-gradient text-light py-2 border-secondary">
+          <Card className="h-100 bg-dark border-0">
+            <Card.Header className="text-light py-2 border-0" style={{ backgroundColor: '#1a1a1a' }}>
               <div className="d-flex align-items-center gap-2">
                 <FaClock />
                 <span className="fw-bold small">ENVELOPE</span>
@@ -110,8 +110,8 @@ const SynthControls = ({ params, onParamChange }) => {
 
         {/* Effects Section */}
         <Col md={6} lg={3}>
-          <Card className="h-100 bg-dark border-secondary">
-            <Card.Header className="bg-gradient text-light py-2 border-secondary">
+          <Card className="h-100 bg-dark border-0">
+            <Card.Header className="text-light py-2 border-0" style={{ backgroundColor: '#1a1a1a' }}>
               <div className="d-flex align-items-center gap-2">
                 <FaWater />
                 <span className="fw-bold small">EFFECTS</span>
@@ -133,8 +133,8 @@ const SynthControls = ({ params, onParamChange }) => {
       {/* LFO Section */}
       <Row className="mt-4">
         <Col>
-          <Card className="bg-dark border-secondary">
-            <Card.Header className="bg-gradient text-light py-2 border-secondary">
+          <Card className="bg-dark border-0">
+            <Card.Header className="text-light py-2 border-0" style={{ backgroundColor: '#1a1a1a' }}>
               <span className="fw-bold small">LFO (Low Frequency Oscillator)</span>
             </Card.Header>
             <Card.Body className="p-3">
@@ -189,10 +189,6 @@ const SynthControls = ({ params, onParamChange }) => {
           border-radius: 50%;
           cursor: pointer;
           box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-
-        .bg-gradient {
-          background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
         }
 
         .envelope-controls > div {
