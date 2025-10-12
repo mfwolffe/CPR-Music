@@ -97,7 +97,7 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
           onChange={(val) => onParamChange(param, val)}
           label={label}
           displayValue={displayValue}
-          size={50}
+          size={45}
           color={color}
         />
       </div>
@@ -161,17 +161,17 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
 
   return (
     <div className="advanced-synth-controls">
-      <Row className="g-3">
+      <Row className="g-2">
         {/* Oscillator Mixing Section */}
-        <Col md={6}>
+        <Col lg={4}>
           <Card className="h-100 bg-dark border-0">
-            <Card.Header className="text-light py-2 border-0" style={{ backgroundColor: '#1a1a1a' }}>
+            <Card.Header className="text-light py-1 border-0" style={{ backgroundColor: '#1a1a1a' }}>
               <div className="d-flex align-items-center gap-2">
-                <FaMixcloud />
-                <span className="fw-bold small">OSCILLATOR MIXING</span>
+                <FaMixcloud size={14} />
+                <span className="fw-bold" style={{ fontSize: '0.8rem' }}>OSCILLATOR MIXING</span>
               </div>
             </Card.Header>
-            <Card.Body className="p-3">
+            <Card.Body className="p-2">
               {/* Oscillator 2 Enable */}
               {createToggle('osc2Enabled', 'Oscillator 2', [
                 { value: false, label: 'Off' },
@@ -181,7 +181,7 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
               {params.osc2Enabled && (
                 <>
                   {/* Oscillator 2 Type */}
-                  <div className="mt-3">
+                  <div className="mt-2">
                     {createToggle('osc2Type', 'OSC 2 Waveform', [
                       { value: 'sine', label: '∿' },
                       { value: 'square', label: '⊓' },
@@ -191,39 +191,37 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
                   </div>
 
                   {/* Oscillator Mix */}
-                  <Row className="g-2 mt-3">
-                    <Col xs={6}>
-                      {createKnob('oscMix', 'OSC Mix', 0, 100, 1, '%', '#92ce84', AdvancedTooltips.oscMix)}
+                  <Row className="g-2 mt-2">
+                    <Col xs={4}>
+                      {createKnob('oscMix', 'Mix', 0, 100, 1, '%', '#92ce84', AdvancedTooltips.oscMix)}
                     </Col>
-                    <Col xs={6}>
+                    <Col xs={4}>
                       {createKnob('osc2Detune', 'Detune', -100, 100, 1, ' cents', '#92ce84', AdvancedTooltips.osc2Detune)}
                     </Col>
-                  </Row>
-
-                  {/* Oscillator 2 Pitch */}
-                  <Row className="g-2 mt-2">
-                    <Col xs={12} className="d-flex justify-content-center">
-                      {createKnob('osc2Pitch', 'OSC 2 Pitch', -24, 24, 1, ' st', '#7bafd4', AdvancedTooltips.osc2Pitch)}
+                    <Col xs={4}>
+                      {createKnob('osc2Pitch', 'Pitch', -24, 24, 1, ' st', '#7bafd4', AdvancedTooltips.osc2Pitch)}
                     </Col>
                   </Row>
 
                   {/* Cross Modulation */}
-                  <div className="mt-3 pt-3 border-top border-secondary">
-                    <h6 className="text-info small mb-2">Cross Modulation</h6>
+                  <div className="mt-2 pt-2 border-top border-secondary">
+                    <div className="text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem' }}>Cross Modulation</div>
                     <Row className="g-2">
-                      <Col xs={6}>
+                      <Col xs={4}>
                         {createKnob('fmAmount', 'FM', 0, 100, 1, '%', '#e75b5c', AdvancedTooltips.fmAmount)}
                       </Col>
-                      <Col xs={6}>
-                        {createKnob('ringModAmount', 'Ring Mod', 0, 100, 1, '%', '#e75b5c', AdvancedTooltips.ringModAmount)}
+                      <Col xs={4}>
+                        {createKnob('ringModAmount', 'Ring', 0, 100, 1, '%', '#e75b5c', AdvancedTooltips.ringModAmount)}
+                      </Col>
+                      <Col xs={4}>
+                        <div style={{ paddingTop: '8px' }}>
+                          {createToggle('oscSync', 'Sync', [
+                            { value: false, label: 'Off' },
+                            { value: true, label: 'On' }
+                          ], AdvancedTooltips.oscSync)}
+                        </div>
                       </Col>
                     </Row>
-                    <div className="mt-2">
-                      {createToggle('oscSync', 'OSC Sync', [
-                        { value: false, label: 'Off' },
-                        { value: true, label: 'On' }
-                      ], AdvancedTooltips.oscSync)}
-                    </div>
                   </div>
                 </>
               )}
@@ -233,17 +231,17 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
         </Col>
 
         {/* Sub & Noise Section */}
-        <Col md={6}>
+        <Col lg={4}>
           <Card className="h-100 bg-dark border-0">
-            <Card.Header className="text-light py-2 border-0" style={{ backgroundColor: '#1a1a1a' }}>
+            <Card.Header className="text-light py-1 border-0" style={{ backgroundColor: '#1a1a1a' }}>
               <div className="d-flex align-items-center gap-2">
-                <GiSoundWaves />
-                <span className="fw-bold small">SUB & NOISE</span>
+                <GiSoundWaves size={14} />
+                <span className="fw-bold" style={{ fontSize: '0.8rem' }}>SUB & NOISE</span>
               </div>
             </Card.Header>
-            <Card.Body className="p-3">
+            <Card.Body className="p-2">
               {/* Sub Oscillator */}
-              <h6 className="text-info small mb-2">Sub Oscillator</h6>
+              <div className="text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem' }}>Sub Oscillator</div>
               {createToggle('subOscEnabled', 'Sub OSC', [
                 { value: false, label: 'Off' },
                 { value: true, label: 'On' }
@@ -264,12 +262,12 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
               )}
 
               {/* Noise Generator */}
-              <div className="mt-3 pt-3 border-top border-secondary">
-                <h6 className="text-info small mb-2">Noise Generator</h6>
-                {createKnob('noiseLevel', 'Noise Level', 0, 100, 1, '%', '#92ceaa', AdvancedTooltips.noiseLevel)}
+              <div className="mt-2 pt-2 border-top border-secondary">
+                <div className="text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem' }}>Noise Generator</div>
+                {createKnob('noiseLevel', 'Noise', 0, 100, 1, '%', '#92ceaa', AdvancedTooltips.noiseLevel)}
                 {params.noiseLevel > 0 && (
                   <div className="mt-2">
-                    {createToggle('noiseType', 'Noise Color', [
+                    {createToggle('noiseType', 'Color', [
                       { value: 'white', label: 'White' },
                       { value: 'pink', label: 'Pink' },
                       { value: 'brown', label: 'Brown' }
@@ -282,15 +280,15 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
         </Col>
 
         {/* Advanced Filter Section */}
-        <Col md={6}>
+        <Col lg={4}>
           <Card className="h-100 bg-dark border-0">
-            <Card.Header className="text-light py-2 border-0" style={{ backgroundColor: '#1a1a1a' }}>
+            <Card.Header className="text-light py-1 border-0" style={{ backgroundColor: '#1a1a1a' }}>
               <div className="d-flex align-items-center gap-2">
-                <IoMdOptions />
-                <span className="fw-bold small">ADVANCED FILTER</span>
+                <IoMdOptions size={14} />
+                <span className="fw-bold" style={{ fontSize: '0.8rem' }}>ADVANCED FILTER</span>
               </div>
             </Card.Header>
-            <Card.Body className="p-3">
+            <Card.Body className="p-2">
               {/* Filter Type */}
               {createToggle('filterType', 'Filter Type', [
                 { value: 'lowpass', label: 'LP' },
@@ -300,11 +298,11 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
               ], AdvancedTooltips.filterType)}
 
               {/* Filter Envelope */}
-              <div className="mt-3 pt-3 border-top border-secondary">
-                <h6 className="text-info small mb-2">Filter Envelope</h6>
-                {createKnob('filterEnvAmount', 'Env Amt', -100, 100, 1, '%', '#9b59b6', AdvancedTooltips.filterEnvAmount)}
+              <div className="mt-2 pt-2 border-top border-secondary">
+                <div className="text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem' }}>Filter Envelope</div>
+                {createKnob('filterEnvAmount', 'Amount', -100, 100, 1, '%', '#9b59b6', AdvancedTooltips.filterEnvAmount)}
                 {params.filterEnvAmount !== 0 && (
-                  <Row className="g-2 mt-2">
+                  <Row className="g-1 mt-1">
                     <Col xs={6}>
                       {createKnob('filterAttack', 'Attack', 0, 2, 0.001, 's', '#7bafd4', AdvancedTooltips.filterAttack)}
                     </Col>
@@ -325,32 +323,32 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
         </Col>
 
         {/* Modulation Section */}
-        <Col md={6}>
+        <Col lg={4}>
           <Card className="h-100 bg-dark border-0">
-            <Card.Header className="text-light py-2 border-0" style={{ backgroundColor: '#1a1a1a' }}>
+            <Card.Header className="text-light py-1 border-0" style={{ backgroundColor: '#1a1a1a' }}>
               <div className="d-flex align-items-center gap-2">
-                <FaWaveSquare />
-                <span className="fw-bold small">MODULATION</span>
+                <FaWaveSquare size={14} />
+                <span className="fw-bold" style={{ fontSize: '0.8rem' }}>MODULATION</span>
               </div>
             </Card.Header>
-            <Card.Body className="p-3">
+            <Card.Body className="p-2">
               {/* PWM for Square Wave */}
-              <h6 className="text-info small mb-2">Pulse Width (Square)</h6>
+              <div className="text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem' }}>Pulse Width (Square)</div>
               {createKnob('pulseWidth', 'Width', 5, 95, 1, '%', '#cbb677', AdvancedTooltips.pulseWidth)}
               {params.oscillatorType === 'square' && (
-                <Row className="g-2 mt-2">
+                <Row className="g-1 mt-1">
                   <Col xs={6}>
                     {createKnob('pwmAmount', 'PWM Amt', 0, 100, 1, '%', '#9b59b6', AdvancedTooltips.pwmAmount)}
                   </Col>
                   <Col xs={6}>
-                    {params.pwmAmount > 0 && createKnob('pwmRate', 'PWM Rate', 0.1, 20, 0.1, ' Hz', '#9b59b6', AdvancedTooltips.pwmRate)}
+                    {params.pwmAmount > 0 && createKnob('pwmRate', 'Rate', 0.1, 20, 0.1, ' Hz', '#9b59b6', AdvancedTooltips.pwmRate)}
                   </Col>
                 </Row>
               )}
 
               {/* Additional LFO */}
-              <div className="mt-3 pt-3 border-top border-secondary">
-                <h6 className="text-info small mb-2">LFO 2</h6>
+              <div className="mt-2 pt-2 border-top border-secondary">
+                <div className="text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem' }}>LFO 2</div>
                 {createToggle('lfo2Target', 'Target', [
                   { value: 'off', label: 'Off' },
                   { value: 'pitch', label: 'Pitch' },
@@ -358,7 +356,7 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
                   { value: 'amp', label: 'Amp' }
                 ], AdvancedTooltips.lfo2Target)}
                 {params.lfo2Target !== 'off' && (
-                  <Row className="g-2 mt-2">
+                  <Row className="g-1 mt-1">
                     <Col xs={6}>
                       {createKnob('lfo2Rate', 'Rate', 0.1, 20, 0.1, ' Hz', '#92ceaa', AdvancedTooltips.lfo2Rate)}
                     </Col>
@@ -373,44 +371,44 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
         </Col>
 
         {/* Experimental Effects Section */}
-        <Col md={6}>
+        <Col lg={4}>
           <Card className="h-100 bg-dark border-0">
-            <Card.Header className="text-light py-2 border-0" style={{ backgroundColor: '#1a1a1a' }}>
+            <Card.Header className="text-light py-1 border-0" style={{ backgroundColor: '#1a1a1a' }}>
               <div className="d-flex align-items-center gap-2">
-                <MdScience />
-                <span className="fw-bold small">EXPERIMENTAL</span>
+                <MdScience size={14} />
+                <span className="fw-bold" style={{ fontSize: '0.8rem' }}>EXPERIMENTAL</span>
               </div>
             </Card.Header>
-            <Card.Body className="p-3">
+            <Card.Body className="p-2">
               {/* Bit Crusher */}
-              <h6 className="text-info small mb-2">Bit Crusher</h6>
-              <Row className="g-2">
+              <div className="text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem' }}>Bit Crusher</div>
+              <Row className="g-1">
                 <Col xs={6}>
-                  {createKnob('bitCrushBits', 'Bit Depth', 1, 16, 1, ' bits', '#e75b5c', AdvancedTooltips.bitCrushBits)}
+                  {createKnob('bitCrushBits', 'Bits', 1, 16, 1, ' bits', '#e75b5c', AdvancedTooltips.bitCrushBits)}
                 </Col>
                 <Col xs={6}>
-                  {createKnob('bitCrushRate', 'Sample Rate', 1000, 44100, 1000, ' Hz', '#e75b5c', AdvancedTooltips.bitCrushRate)}
+                  {createKnob('bitCrushRate', 'Rate', 1000, 44100, 1000, ' Hz', '#e75b5c', AdvancedTooltips.bitCrushRate)}
                 </Col>
               </Row>
 
               {/* Wave Folder */}
-              <div className="mt-3">
-                <h6 className="text-info small mb-2">Wave Folder</h6>
-                {createKnob('waveFoldAmount', 'Fold Amount', 0, 100, 1, '%', '#cbb677', AdvancedTooltips.waveFoldAmount)}
+              <div className="mt-2 pt-2 border-top border-secondary">
+                <div className="text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem' }}>Wave Folder</div>
+                {createKnob('waveFoldAmount', 'Fold', 0, 100, 1, '%', '#cbb677', AdvancedTooltips.waveFoldAmount)}
               </div>
 
               {/* Feedback */}
-              <div className="mt-3">
-                <h6 className="text-info small mb-2">Chaos Control</h6>
+              <div className="mt-2 pt-2 border-top border-secondary">
+                <div className="text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem' }}>Chaos</div>
                 {createKnob('feedbackAmount', 'Feedback', 0, 90, 1, '%', '#e75b5c', AdvancedTooltips.feedbackAmount)}
               </div>
 
               {/* Formant Filter */}
-              <div className="mt-3">
-                <h6 className="text-info small mb-2">Vowel Formant</h6>
-                {createKnob('formantShift', 'Vowel Morph', 0, 100, 1, '', '#9b59b6', AdvancedTooltips.formantShift)}
+              <div className="mt-2 pt-2 border-top border-secondary">
+                <div className="text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem' }}>Vowel Formant</div>
+                {createKnob('formantShift', 'Morph', 0, 100, 1, '', '#9b59b6', AdvancedTooltips.formantShift)}
                 {params.formantShift > 0 && (
-                  <div className="mt-2 text-muted small">
+                  <div className="mt-1 text-muted" style={{ fontSize: '0.65rem', textAlign: 'center' }}>
                     {params.formantShift < 10 ? 'Neutral' :
                      params.formantShift < 20 ? 'EE (beat)' :
                      params.formantShift < 30 ? 'IH (bit)' :
@@ -429,58 +427,58 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
         </Col>
 
         {/* Granular & Glitch Section */}
-        <Col md={6}>
+        <Col lg={4}>
           <Card className="h-100 bg-dark border-0">
-            <Card.Header className="text-light py-2 border-0" style={{ backgroundColor: '#1a1a1a' }}>
+            <Card.Header className="text-light py-1 border-0" style={{ backgroundColor: '#1a1a1a' }}>
               <div className="d-flex align-items-center gap-2">
-                <IoMdOptions />
-                <span className="fw-bold small">GRANULAR & GLITCH</span>
+                <IoMdOptions size={14} />
+                <span className="fw-bold" style={{ fontSize: '0.8rem' }}>GRANULAR & GLITCH</span>
               </div>
             </Card.Header>
-            <Card.Body className="p-3">
+            <Card.Body className="p-2">
               {/* Granular Buffer */}
-              <h6 className="text-info small mb-2">Grain Buffer</h6>
-              <Row className="g-2">
+              <div className="text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem' }}>Grain Buffer</div>
+              <Row className="g-1">
                 <Col xs={6}>
-                  {createKnob('grainSize', 'Grain Size', 10, 500, 10, ' ms', '#7bafd4', AdvancedTooltips.grainSize)}
+                  {createKnob('grainSize', 'Size', 10, 500, 10, ' ms', '#7bafd4', AdvancedTooltips.grainSize)}
                 </Col>
                 <Col xs={6}>
                   {createKnob('grainSpeed', 'Speed', 0.1, 2.0, 0.1, 'x', '#7bafd4', AdvancedTooltips.grainSpeed)}
                 </Col>
               </Row>
-              <div className="mt-2">
+              <div className="mt-1">
                 {createToggle('grainReverse', 'Direction', [
-                  { value: false, label: 'Forward' },
-                  { value: true, label: 'Reverse' }
+                  { value: false, label: 'Fwd' },
+                  { value: true, label: 'Rev' }
                 ], AdvancedTooltips.grainReverse)}
               </div>
-              <div className="mt-2">
+              <div className="mt-1">
                 {createToggle('grainFreeze', 'Freeze', [
                   { value: false, label: 'Off' },
-                  { value: true, label: 'Frozen' }
+                  { value: true, label: 'On' }
                 ], AdvancedTooltips.grainFreeze)}
               </div>
 
               {/* Comb Filter */}
-              <div className="mt-3 pt-3 border-top border-secondary">
-                <h6 className="text-info small mb-2">Metallic Resonator</h6>
-                <Row className="g-2">
-                  <Col xs={6}>
-                    {createKnob('combFreq', 'Frequency', 50, 2000, 10, ' Hz', '#cbb677', AdvancedTooltips.combFreq)}
+              <div className="mt-2 pt-2 border-top border-secondary">
+                <div className="text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem' }}>Metallic Resonator</div>
+                <Row className="g-1">
+                  <Col xs={4}>
+                    {createKnob('combFreq', 'Freq', 50, 2000, 10, ' Hz', '#cbb677', AdvancedTooltips.combFreq)}
                   </Col>
-                  <Col xs={6}>
-                    {createKnob('combFeedback', 'Resonance', 0, 95, 1, '%', '#cbb677', AdvancedTooltips.combFeedback)}
+                  <Col xs={4}>
+                    {createKnob('combFeedback', 'Res', 0, 95, 1, '%', '#cbb677', AdvancedTooltips.combFeedback)}
+                  </Col>
+                  <Col xs={4}>
+                    {createKnob('combMix', 'Mix', 0, 100, 1, '%', '#92ceaa', AdvancedTooltips.combMix)}
                   </Col>
                 </Row>
-                <div className="mt-2">
-                  {createKnob('combMix', 'Mix', 0, 100, 1, '%', '#92ceaa', AdvancedTooltips.combMix)}
-                </div>
               </div>
 
               {/* Sample & Hold */}
-              <div className="mt-3 pt-3 border-top border-secondary">
-                <h6 className="text-info small mb-2">Sample & Hold</h6>
-                <Row className="g-2">
+              <div className="mt-2 pt-2 border-top border-secondary">
+                <div className="text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem' }}>Sample & Hold</div>
+                <Row className="g-1">
                   <Col xs={6}>
                     {createKnob('sampleHoldRate', 'Rate', 0.5, 50, 0.5, ' Hz', '#9b59b6', AdvancedTooltips.sampleHoldRate)}
                   </Col>
@@ -489,7 +487,7 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
                   </Col>
                 </Row>
                 {params.sampleHoldAmount > 0 && (
-                  <div className="mt-2">
+                  <div className="mt-1">
                     {createToggle('sampleHoldTarget', 'Target', [
                       { value: 'pitch', label: 'Pitch' },
                       { value: 'filter', label: 'Filter' },
@@ -507,6 +505,20 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
       <style jsx>{`
         .advanced-synth-controls {
           color: #fff;
+        }
+
+        .advanced-synth-controls :global(.card-body) {
+          min-height: 200px;
+        }
+
+        .advanced-synth-controls :global(.form-label) {
+          font-size: 0.75rem;
+          margin-bottom: 0.25rem;
+        }
+
+        :global(.custom-toggle-btn.btn-outline-primary) {
+          font-size: 0.7rem;
+          padding: 0.25rem 0.4rem;
         }
 
         :global(.custom-toggle-btn.btn-outline-primary:not(.active)) {
