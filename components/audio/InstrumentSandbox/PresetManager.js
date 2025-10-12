@@ -53,6 +53,11 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         fmAmount: 0,
         ringModAmount: 0,
         oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0,
         noiseType: 'white',
         filterEnvAmount: 0,
         filterAttack: 0.01,
@@ -67,7 +72,12 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfo2Amount: 0,
         fmAmount: 0,
         ringModAmount: 0,
-        oscSync: false
+        oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0
       },
       factory: true
     },
@@ -107,6 +117,11 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         fmAmount: 0,
         ringModAmount: 0,
         oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0,
         filterEnvAmount: 0,
         filterAttack: 0.01,
         filterDecay: 0.2,
@@ -120,7 +135,12 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfo2Amount: 0,
         fmAmount: 0,
         ringModAmount: 0,
-        oscSync: false
+        oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0
       },
       factory: true
     },
@@ -161,7 +181,12 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfo2Amount: 0,
         fmAmount: 0,
         ringModAmount: 0,
-        oscSync: false
+        oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0
       },
       factory: true
     },
@@ -203,7 +228,12 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfo2Amount: 0,
         fmAmount: 0,
         ringModAmount: 0,
-        oscSync: false
+        oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0
       },
       factory: true
     },
@@ -242,7 +272,12 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfo2Amount: 0,
         fmAmount: 0,
         ringModAmount: 0,
-        oscSync: false
+        oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0
       },
       factory: true
     },
@@ -280,7 +315,12 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfo2Amount: 0,
         fmAmount: 0,
         ringModAmount: 0,
-        oscSync: false
+        oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0
       },
       factory: true
     },
@@ -321,7 +361,12 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfo2Amount: 0,
         fmAmount: 0,
         ringModAmount: 0,
-        oscSync: false
+        oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0
       },
       factory: true
     },
@@ -362,7 +407,12 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfo2Amount: 0,
         fmAmount: 0,
         ringModAmount: 0,
-        oscSync: false
+        oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0
       },
       factory: true
     },
@@ -404,6 +454,11 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         fmAmount: 0,
         ringModAmount: 0,
         oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0,
         // Filter envelope
         filterEnvAmount: 80,
         filterAttack: 0.02,
@@ -420,7 +475,12 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfo2Amount: 30,
         fmAmount: 0,
         ringModAmount: 0,
-        oscSync: false
+        oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0
       },
       factory: true
     },
@@ -458,6 +518,11 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         fmAmount: 0,
         ringModAmount: 0,
         oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0,
         // Filter envelope
         filterEnvAmount: -50,
         filterAttack: 1.0,
@@ -474,7 +539,12 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfo2Amount: 0,
         fmAmount: 0,
         ringModAmount: 0,
-        oscSync: false
+        oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0
       },
       factory: true
     },
@@ -516,6 +586,11 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         fmAmount: 0,
         ringModAmount: 0,
         oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0,
         // Filter envelope
         filterEnvAmount: 40,
         filterAttack: 0.001,
@@ -532,7 +607,12 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfo2Amount: 40,
         fmAmount: 0,
         ringModAmount: 0,
-        oscSync: false
+        oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0
       },
       factory: true
     },
@@ -573,7 +653,12 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfo2Amount: 0,
         fmAmount: 65,  // FM creates the bell harmonics
         ringModAmount: 0,
-        oscSync: false
+        oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0
       },
       factory: true
     },
@@ -614,7 +699,12 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfo2Amount: 20,
         fmAmount: 0,
         ringModAmount: 80,  // Ring modulation for metallic/robotic sound
-        oscSync: false
+        oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0
       },
       factory: true
     },
@@ -655,7 +745,12 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfo2Amount: 15,  // Slow pitch sweep for sync
         fmAmount: 0,
         ringModAmount: 0,
-        oscSync: true  // Oscillator sync for aggressive lead
+        oscSync: true,  // Oscillator sync for aggressive lead
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0
       },
       factory: true
     },
@@ -696,7 +791,198 @@ const PresetManager = ({ show, onHide, onSelect, currentPreset }) => {
         lfo2Amount: 0,
         fmAmount: 35,  // Moderate FM for electric piano tone
         ringModAmount: 0,
-        oscSync: false
+        oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 0
+      },
+      factory: true
+    },
+    {
+      name: 'Bit Crushed Chaos',
+      params: {
+        oscillatorType: 'square',
+        filterCutoff: 2000,
+        filterResonance: 15,
+        filterType: 'lowpass',
+        attack: 0.001,
+        decay: 0.1,
+        sustain: 0.9,
+        release: 0.1,
+        detune: 10,
+        lfoRate: 8,
+        lfoAmount: 20,
+        reverb: 25,
+        delay: 35,
+        distortion: 30,
+        osc2Enabled: true,
+        osc2Type: 'sawtooth',
+        osc2Detune: -7,
+        osc2Pitch: 0,
+        oscMix: 60,
+        subOscEnabled: false,
+        noiseLevel: 10,
+        noiseType: 'white',
+        filterEnvAmount: 60,
+        filterAttack: 0.001,
+        filterDecay: 0.05,
+        filterSustain: 0.3,
+        filterRelease: 0.1,
+        pulseWidth: 50,
+        pwmAmount: 0,
+        pwmRate: 4,
+        lfo2Target: 'filter',
+        lfo2Rate: 15,
+        lfo2Amount: 40,
+        fmAmount: 30,
+        ringModAmount: 20,
+        oscSync: false,
+        bitCrushBits: 4,  // Lo-fi 4-bit sound
+        bitCrushRate: 8000,  // Reduced sample rate
+        waveFoldAmount: 50,  // Wave folding distortion
+        feedbackAmount: 35,  // Some feedback chaos
+        formantShift: 0
+      },
+      factory: true
+    },
+    {
+      name: 'Vowel Morph',
+      params: {
+        oscillatorType: 'sawtooth',
+        filterCutoff: 1000,
+        filterResonance: 5,
+        filterType: 'lowpass',
+        attack: 0.05,
+        decay: 0.2,
+        sustain: 0.7,
+        release: 0.3,
+        detune: 5,
+        lfoRate: 0.5,
+        lfoAmount: 5,
+        reverb: 40,
+        delay: 20,
+        distortion: 10,
+        osc2Enabled: true,
+        osc2Type: 'square',
+        osc2Detune: 2,
+        osc2Pitch: 12,
+        oscMix: 40,
+        subOscEnabled: false,
+        noiseLevel: 5,
+        noiseType: 'pink',
+        filterEnvAmount: 30,
+        filterAttack: 0.1,
+        filterDecay: 0.3,
+        filterSustain: 0.5,
+        filterRelease: 0.5,
+        pulseWidth: 50,
+        pwmAmount: 0,
+        pwmRate: 4,
+        lfo2Target: 'off',
+        lfo2Rate: 2,
+        lfo2Amount: 0,
+        fmAmount: 0,
+        ringModAmount: 0,
+        oscSync: false,
+        bitCrushBits: 16,
+        bitCrushRate: 44100,
+        waveFoldAmount: 0,
+        feedbackAmount: 0,
+        formantShift: 50  // Morphing through vowel sounds
+      },
+      factory: true
+    },
+    {
+      name: 'Glitch Machine',
+      params: {
+        oscillatorType: 'triangle',
+        filterCutoff: 5000,
+        filterResonance: 20,
+        filterType: 'bandpass',
+        attack: 0.001,
+        decay: 0.01,
+        sustain: 0.5,
+        release: 0.05,
+        detune: -20,
+        lfoRate: 20,
+        lfoAmount: 50,
+        reverb: 10,
+        delay: 40,
+        distortion: 20,
+        osc2Enabled: true,
+        osc2Type: 'square',
+        osc2Detune: 100,
+        osc2Pitch: -12,
+        oscMix: 70,
+        subOscEnabled: false,
+        noiseLevel: 30,
+        noiseType: 'white',
+        filterEnvAmount: 80,
+        filterAttack: 0.001,
+        filterDecay: 0.02,
+        filterSustain: 0.1,
+        filterRelease: 0.05,
+        pulseWidth: 25,
+        pwmAmount: 60,
+        pwmRate: 13,
+        lfo2Target: 'amp',
+        lfo2Rate: 11,
+        lfo2Amount: 70,
+        fmAmount: 40,
+        ringModAmount: 60,
+        oscSync: false,
+        bitCrushBits: 6,
+        bitCrushRate: 11000,
+        waveFoldAmount: 70,
+        feedbackAmount: 60,
+        formantShift: 30
+      },
+      factory: true
+    },
+    {
+      name: 'Feedback Loop',
+      params: {
+        oscillatorType: 'sine',
+        filterCutoff: 1500,
+        filterResonance: 25,
+        filterType: 'lowpass',
+        attack: 0.5,
+        decay: 0.5,
+        sustain: 0.6,
+        release: 1.0,
+        detune: 0,
+        lfoRate: 0.2,
+        lfoAmount: 10,
+        reverb: 60,
+        delay: 50,
+        distortion: 15,
+        osc2Enabled: false,
+        subOscEnabled: true,
+        subOscType: 'sine',
+        subOscLevel: 80,
+        noiseLevel: 20,
+        noiseType: 'pink',
+        filterEnvAmount: -40,
+        filterAttack: 0.3,
+        filterDecay: 0.5,
+        filterSustain: 0.4,
+        filterRelease: 1.0,
+        pulseWidth: 50,
+        pwmAmount: 0,
+        pwmRate: 4,
+        lfo2Target: 'filter',
+        lfo2Rate: 0.1,
+        lfo2Amount: 60,
+        fmAmount: 0,
+        ringModAmount: 0,
+        oscSync: false,
+        bitCrushBits: 12,
+        bitCrushRate: 22000,
+        waveFoldAmount: 30,
+        feedbackAmount: 85,  // Maximum safe feedback
+        formantShift: 0
       },
       factory: true
     }

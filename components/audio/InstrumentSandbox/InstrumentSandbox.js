@@ -78,7 +78,14 @@ const InstrumentSandbox = () => {
     // Cross Modulation
     fmAmount: 0,
     ringModAmount: 0,
-    oscSync: false
+    oscSync: false,
+
+    // Experimental/Digital Effects
+    bitCrushBits: 16,    // 1-16 bits
+    bitCrushRate: 44100, // Sample rate reduction
+    waveFoldAmount: 0,    // Wave folding distortion
+    feedbackAmount: 0,    // Internal feedback loop
+    formantShift: 0      // Vowel-like formant filtering
   });
 
   // Refs

@@ -21,10 +21,7 @@ class SandboxSynth {
     this.analyser.fftSize = 2048;
     this.analyser.smoothingTimeConstant = 0.8;
 
-    // Effects chain
-    this.setupEffectsChain();
-
-    // Default parameters
+    // Default parameters (must be before setup methods)
     this.params = {
       // Basic
       oscillatorType: 'sawtooth',
@@ -67,8 +64,20 @@ class SandboxSynth {
       pwmRate: 4,
       lfo2Target: 'off',
       lfo2Rate: 2,
-      lfo2Amount: 0
+      lfo2Amount: 0,
+      // Experimental effects
+      bitCrushBits: 16,
+      bitCrushRate: 44100,
+      waveFoldAmount: 0,
+      feedbackAmount: 0,
+      formantShift: 0
     };
+
+    // Experimental effects setup (must be after params, before effects chain)
+    this.setupExperimentalEffects();
+
+    // Effects chain
+    this.setupEffectsChain();
 
     // LFO setup
     this.lfo = audioContext.createOscillator();
@@ -115,6 +124,121 @@ class SandboxSynth {
     if (this.activeVoices.size > 0) {
       console.log(`[SandboxSynth] Active voices: ${this.activeVoices.size}`);
     }
+  }
+
+  setupExperimentalEffects() {
+    // Bit Crusher - reduces bit depth and sample rate
+    this.bitCrusher = this.audioContext.createScriptProcessor(4096, 1, 1);
+    this.bitCrusher.onaudioprocess = (e) => {
+      const input = e.inputBuffer.getChannelData(0);
+      const output = e.outputBuffer.getChannelData(0);
+
+      const bits = this.params.bitCrushBits || 16;
+      const normFreq = (this.params.bitCrushRate || 44100) / this.audioContext.sampleRate;
+      const step = Math.pow(0.5, bits - 1);
+      let phaser = 0;
+      let last = 0;
+
+      for (let i = 0; i < input.length; i++) {
+        phaser += normFreq;
+        if (phaser >= 1.0) {
+          phaser -= 1.0;
+          last = step * Math.floor(input[i] / step + 0.5);
+        }
+        output[i] = last;
+      }
+    };
+    this.bitCrusherGain = this.audioContext.createGain();
+    this.bitCrusherGain.gain.value = 0;
+
+    // Wave Folder - folds waveform back on itself
+    this.waveFolder = this.audioContext.createWaveShaper();
+    this.updateWaveFolderCurve();
+    this.waveFolder.oversample = '2x';
+    this.waveFolderGain = this.audioContext.createGain();
+    this.waveFolderGain.gain.value = 0;
+
+    // Feedback loop
+    this.feedbackGain = this.audioContext.createGain();
+    this.feedbackGain.gain.value = 0;
+    this.feedbackDelay = this.audioContext.createDelay(0.1);
+    this.feedbackDelay.delayTime.value = 0.01;
+    this.feedbackFilter = this.audioContext.createBiquadFilter();
+    this.feedbackFilter.type = 'highpass';
+    this.feedbackFilter.frequency.value = 100;
+
+    // Formant filter (vowel sounds)
+    this.formantFilters = [];
+    for (let i = 0; i < 3; i++) {
+      const filter = this.audioContext.createBiquadFilter();
+      filter.type = 'bandpass';
+      this.formantFilters.push(filter);
+    }
+    this.formantGain = this.audioContext.createGain();
+    this.formantGain.gain.value = 0;
+    this.updateFormantFilters();
+
+    // Experimental effects mixer
+    this.experimentalMixer = this.audioContext.createGain();
+    this.experimentalMixer.gain.value = 1;
+  }
+
+  updateWaveFolderCurve() {
+    if (!this.params) return;
+    const amount = this.params.waveFoldAmount || 0;
+    if (amount === 0) {
+      this.waveFolder.curve = null;
+      return;
+    }
+
+    const samples = 2048;
+    const curve = new Float32Array(samples);
+    const threshold = 1 - (amount / 100);
+
+    for (let i = 0; i < samples; i++) {
+      const x = (i * 2) / samples - 1;
+      if (Math.abs(x) < threshold) {
+        curve[i] = x;
+      } else {
+        // Fold the signal back
+        const folded = Math.abs(x) - threshold;
+        const numFolds = Math.floor(folded / (threshold * 2)) + 1;
+        const remainder = folded % (threshold * 2);
+
+        if (numFolds % 2 === 0) {
+          curve[i] = x > 0 ? threshold - remainder : -threshold + remainder;
+        } else {
+          curve[i] = x > 0 ? threshold + remainder : -threshold - remainder;
+        }
+      }
+    }
+
+    this.waveFolder.curve = curve;
+  }
+
+  updateFormantFilters() {
+    if (!this.params) return;
+    // Vowel formant frequencies
+    const vowels = {
+      0: [700, 1220, 2600],    // Neutral
+      1: [270, 2290, 3010],    // EE
+      2: [390, 1990, 2550],    // IH
+      3: [530, 1840, 2480],    // EH
+      4: [660, 1720, 2410],    // AE
+      5: [730, 1090, 2440],    // AH
+      6: [570, 840, 2410],     // AW
+      7: [440, 1020, 2240],    // UH
+      8: [300, 870, 2240],     // UW
+      9: [640, 1190, 2390]     // ER
+    };
+
+    const shift = Math.round(Math.abs(this.params.formantShift || 0) / 10);
+    const formants = vowels[shift % 10] || vowels[0];
+
+    this.formantFilters.forEach((filter, i) => {
+      filter.frequency.value = formants[i];
+      filter.Q.value = 10;
+    });
   }
 
   setupEffectsChain() {
@@ -168,18 +292,52 @@ class SandboxSynth {
     // Connect effects chain
     this.effectsInput = this.audioContext.createGain();
 
+    // Experimental effects routing (pre-normal effects)
+    this.preEffectsGain = this.audioContext.createGain();
+    this.effectsInput.connect(this.preEffectsGain);
+
+    // Bit crusher path
+    this.preEffectsGain.connect(this.bitCrusher);
+    this.bitCrusher.connect(this.bitCrusherGain);
+
+    // Wave folder path
+    this.preEffectsGain.connect(this.waveFolder);
+    this.waveFolder.connect(this.waveFolderGain);
+
+    // Formant filter path
+    this.preEffectsGain.connect(this.formantFilters[0]);
+    this.formantFilters[0].connect(this.formantFilters[1]);
+    this.formantFilters[1].connect(this.formantFilters[2]);
+    this.formantFilters[2].connect(this.formantGain);
+
+    // Mix experimental effects
+    this.preEffectsGain.connect(this.experimentalMixer);
+    this.bitCrusherGain.connect(this.experimentalMixer);
+    this.waveFolderGain.connect(this.experimentalMixer);
+    this.formantGain.connect(this.experimentalMixer);
+
+    // Feedback loop (from experimental mixer back to itself)
+    this.experimentalMixer.connect(this.feedbackDelay);
+    this.feedbackDelay.connect(this.feedbackFilter);
+    this.feedbackFilter.connect(this.feedbackGain);
+    this.feedbackGain.connect(this.experimentalMixer);
+
+    // Then to normal effects
+    this.postExperimentalGain = this.audioContext.createGain();
+    this.experimentalMixer.connect(this.postExperimentalGain);
+
     // Dry path
-    this.effectsInput.connect(this.dryGain);
+    this.postExperimentalGain.connect(this.dryGain);
 
     // Distortion path
-    this.effectsInput.connect(this.distortion);
+    this.postExperimentalGain.connect(this.distortion);
     this.distortion.connect(this.distortionGain);
 
     // Delay path
-    this.effectsInput.connect(this.delay);
+    this.postExperimentalGain.connect(this.delay);
 
     // Reverb path
-    this.effectsInput.connect(this.reverbDelays[0].delay);
+    this.postExperimentalGain.connect(this.reverbDelays[0].delay);
 
     // All paths connect to master
     this.dryGain.connect(this.masterGain);
@@ -237,6 +395,29 @@ class SandboxSynth {
     // Update PWM LFO
     this.pwmLfo.frequency.value = this.params.pwmRate || 4;
     this.pwmLfoGain.gain.value = (this.params.pwmAmount || 0) / 100;
+
+    // Update experimental effects
+    // Bit crusher mix
+    const bitCrushAmount = this.params.bitCrushBits < 16 || this.params.bitCrushRate < 44100 ? 1 : 0;
+    this.bitCrusherGain.gain.value = bitCrushAmount;
+
+    // Wave folder
+    this.updateWaveFolderCurve();
+    this.waveFolderGain.gain.value = this.params.waveFoldAmount > 0 ? 1 : 0;
+
+    // Feedback
+    this.feedbackGain.gain.value = Math.min(0.95, this.params.feedbackAmount / 100); // Cap at 0.95 to prevent runaway
+
+    // Formant filter
+    this.updateFormantFilters();
+    this.formantGain.gain.value = this.params.formantShift > 0 ? 1 : 0;
+
+    // Adjust pre-effects gain to compensate for experimental effects
+    const experimentalActive = bitCrushAmount +
+                              (this.params.waveFoldAmount > 0 ? 1 : 0) +
+                              (this.params.formantShift > 0 ? 1 : 0);
+    this.preEffectsGain.gain.value = experimentalActive > 0 ? 0.5 : 1;
+    this.experimentalMixer.gain.value = experimentalActive > 0 ? 0.8 : 1;
 
     // Update effects levels
     this.distortionGain.gain.value = this.params.distortion / 100;
@@ -762,6 +943,25 @@ class SandboxSynth {
     this.pwmLfoGain.disconnect();
 
     this.masterGain.disconnect();
+
+    // Clean up experimental effects
+    if (this.bitCrusher) {
+      this.bitCrusher.disconnect();
+      this.bitCrusher.onaudioprocess = null;
+    }
+    if (this.bitCrusherGain) this.bitCrusherGain.disconnect();
+    if (this.waveFolder) this.waveFolder.disconnect();
+    if (this.waveFolderGain) this.waveFolderGain.disconnect();
+    if (this.feedbackGain) this.feedbackGain.disconnect();
+    if (this.feedbackDelay) this.feedbackDelay.disconnect();
+    if (this.feedbackFilter) this.feedbackFilter.disconnect();
+    if (this.formantFilters) {
+      this.formantFilters.forEach(filter => filter.disconnect());
+    }
+    if (this.formantGain) this.formantGain.disconnect();
+    if (this.experimentalMixer) this.experimentalMixer.disconnect();
+    if (this.preEffectsGain) this.preEffectsGain.disconnect();
+    if (this.postExperimentalGain) this.postExperimentalGain.disconnect();
 
     // Clean up effects
     this.distortion.disconnect();

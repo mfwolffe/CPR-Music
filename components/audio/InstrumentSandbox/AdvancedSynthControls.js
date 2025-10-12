@@ -5,6 +5,7 @@ import { Row, Col, Form, Card, Badge, ToggleButtonGroup, ToggleButton } from 're
 import { GiSoundWaves } from 'react-icons/gi';
 import { FaMixcloud, FaWaveSquare } from 'react-icons/fa';
 import { IoMdOptions } from 'react-icons/io';
+import { MdScience } from 'react-icons/md';
 
 const AdvancedSynthControls = ({ params, onParamChange }) => {
   // Helper to create a slider control
@@ -239,6 +240,56 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
                       {createSlider('lfo2Amount', 'Amount', 0, 100, 1, '%')}
                     </div>
                   </>
+                )}
+              </div>
+            </Card.Body>
+          </Card>
+        </Col>
+
+        {/* Experimental Effects Section */}
+        <Col md={6}>
+          <Card className="h-100 bg-dark border-secondary">
+            <Card.Header className="bg-gradient text-light py-2 border-secondary">
+              <div className="d-flex align-items-center gap-2">
+                <MdScience />
+                <span className="fw-bold small">EXPERIMENTAL</span>
+              </div>
+            </Card.Header>
+            <Card.Body className="p-3">
+              {/* Bit Crusher */}
+              <h6 className="text-info small mb-2">Bit Crusher</h6>
+              {createSlider('bitCrushBits', 'Bit Depth', 1, 16, 1, ' bits')}
+              {createSlider('bitCrushRate', 'Sample Rate', 1000, 44100, 1000, ' Hz')}
+
+              {/* Wave Folder */}
+              <div className="mt-3">
+                <h6 className="text-info small mb-2">Wave Folder</h6>
+                {createSlider('waveFoldAmount', 'Fold Amount', 0, 100, 1, '%')}
+              </div>
+
+              {/* Feedback */}
+              <div className="mt-3">
+                <h6 className="text-info small mb-2">Chaos Control</h6>
+                {createSlider('feedbackAmount', 'Feedback', 0, 90, 1, '%')}
+              </div>
+
+              {/* Formant Filter */}
+              <div className="mt-3">
+                <h6 className="text-info small mb-2">Vowel Formant</h6>
+                {createSlider('formantShift', 'Vowel Morph', 0, 100, 1)}
+                {params.formantShift > 0 && (
+                  <div className="mt-2 text-muted small">
+                    {params.formantShift < 10 ? 'Neutral' :
+                     params.formantShift < 20 ? 'EE (beat)' :
+                     params.formantShift < 30 ? 'IH (bit)' :
+                     params.formantShift < 40 ? 'EH (bet)' :
+                     params.formantShift < 50 ? 'AE (bat)' :
+                     params.formantShift < 60 ? 'AH (but)' :
+                     params.formantShift < 70 ? 'AW (bought)' :
+                     params.formantShift < 80 ? 'UH (foot)' :
+                     params.formantShift < 90 ? 'UW (boot)' :
+                     'ER (bird)'}
+                  </div>
                 )}
               </div>
             </Card.Body>
