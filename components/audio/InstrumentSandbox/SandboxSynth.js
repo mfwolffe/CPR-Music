@@ -502,9 +502,6 @@ class SandboxSynth {
     // Connect through analyser for visualization
     this.masterGain.connect(this.analyser);
     this.analyser.connect(destination);
-
-    // Also connect directly for unaffected audio
-    this.masterGain.connect(destination);
   }
 
   getAnalyser() {
