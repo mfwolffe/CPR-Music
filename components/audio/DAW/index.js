@@ -144,8 +144,17 @@ export default function DAW({
                       let activityLogData = null;
                       try {
                         if (activityLogger && activityLogger.isActive) {
+                          // End the session before generating the log
+                          activityLogger.endSession();
+                          console.log('📊 Activity session ended');
+
+                          // Generate the final log
                           activityLogData = activityLogger.toCompressedString();
                           console.log('📊 Activity log generated for multitrack submission');
+
+                          // Reset the logger for next session to prevent data contamination
+                          activityLogger.reset();
+                          console.log('📊 Activity logger reset for next session');
                         }
                       } catch (error) {
                         console.error('📊 Error generating activity log:', error);
@@ -246,8 +255,17 @@ export default function DAW({
                   let activityLogData = null;
                   try {
                     if (activityLogger && activityLogger.isActive) {
+                      // End the session before generating the log
+                      activityLogger.endSession();
+                      console.log('📊 Activity session ended');
+
+                      // Generate the final log
                       activityLogData = activityLogger.toCompressedString();
                       console.log('📊 Activity log generated for submission');
+
+                      // Reset the logger for next session to prevent data contamination
+                      activityLogger.reset();
+                      console.log('📊 Activity logger reset for next session');
                     }
                   } catch (error) {
                     console.error('📊 Error generating activity log:', error);

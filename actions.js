@@ -533,10 +533,18 @@ export function postRecording({
     } = getState();
 
     dispatch(beginUpload(submissionId));
-    // let body = ''
+
+    // Try to get activity log from window global if composition not provided
+    let activityLogContent = composition;
+    if (!activityLogContent && typeof window !== 'undefined' && window.__PENDING_ACTIVITY_LOG__) {
+      activityLogContent = window.__PENDING_ACTIVITY_LOG__;
+      console.log('📊 Using activity log from window global for submission content');
+    }
+
     let bodyObj = { content: 'N/A for Perform submissions' };
-    if (composition) {
-      bodyObj = { content: composition };
+    if (activityLogContent) {
+      bodyObj = { content: activityLogContent };
+      console.log('📊 Setting submission content with activity log');
     }
 
     bodyObj.index = index;
@@ -579,13 +587,10 @@ export function postRecording({
           size: audio.size
         });
 
-        // Check if activity log data is available
+        // Note: Activity log is now sent in the submission content field above,
+        // not as a separate attachment field. Clear the window global.
         if (typeof window !== 'undefined' && window.__PENDING_ACTIVITY_LOG__) {
-          // Try to include activity log as a separate field
-          formData.append('activity_log', window.__PENDING_ACTIVITY_LOG__);
-          console.log('📊 Including activity log in upload');
-
-          // Clear after using
+          console.log('📊 Activity log was already included in submission content');
           window.__PENDING_ACTIVITY_LOG__ = null;
           window.__PENDING_ACTIVITY_LOG_TIMESTAMP__ = null;
         }
