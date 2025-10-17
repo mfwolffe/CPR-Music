@@ -13,11 +13,11 @@ import { useUI } from '../../../../contexts/DAWProvider';
  * CustomWaveform - Complete replacement for WaveSurfer
  * Provides all waveform visualization and interaction functionality
  */
-export default function CustomWaveform() {
+export default function CustomWaveform({ logOperation = null }) {
   const { mapPresent } = useUI();
 
   return (
-    <WaveformProvider>
+    <WaveformProvider logOperation={logOperation}>
       <div className="custom-waveform-container" style={{ width: '100%' }}>
         {/* Toolbar with effects and region tools */}
         <CustomTimeline />

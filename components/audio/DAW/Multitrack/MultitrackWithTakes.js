@@ -8,7 +8,7 @@ import MultitrackEditor from './MultitrackEditor';
  * Wrapper component that connects the RecordingContext takes
  * to the MultitrackEditor
  */
-export default function MultitrackWithTakes() {
+export default function MultitrackWithTakes({ logOperation = null }) {
   const { blobInfo } = useRecording();
 
   console.log('🎵 MultitrackWithTakes: Raw blobInfo:', blobInfo);
@@ -28,5 +28,5 @@ export default function MultitrackWithTakes() {
 
   console.log('🎵 MultitrackWithTakes: Transformed takes:', transformedTakes);
 
-  return <MultitrackEditor availableTakes={transformedTakes} />;
+  return <MultitrackEditor availableTakes={transformedTakes} logOperation={logOperation} />;
 }

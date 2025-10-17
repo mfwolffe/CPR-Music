@@ -20,10 +20,11 @@ import {
   ACTIVITY_REQUIREMENTS,
 } from '../lib/activity/activityConstants';
 
-export function useActivityProgress({ slug, assignmentId, initialStep = 1 }) {
+export function useActivityProgress({ slug, assignmentId, initialStep = 1, email = null }) {
   // Progress state
   const [currentStep, setCurrentStep] = useState(initialStep);
   const [stepCompletions, setStepCompletions] = useState({});
+  const [activityLogs, setActivityLogs] = useState([]);
   const [questionResponses, setQuestionResponses] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -31,8 +32,19 @@ export function useActivityProgress({ slug, assignmentId, initialStep = 1 }) {
   // Track if we've loaded initial progress
   const hasLoadedProgress = useRef(false);
 
+  // Store email in ref to avoid re-renders
+  const emailRef = useRef(email);
+
   // Get logger instance
   const logger = getDAWActivityLogger();
+
+  // Sync currentStep when initialStep changes (fixes NaN issue on first render)
+  useEffect(() => {
+    if (!isNaN(initialStep) && initialStep !== currentStep) {
+      console.log('🔄 Syncing currentStep with initialStep:', initialStep);
+      setCurrentStep(initialStep);
+    }
+  }, [initialStep, currentStep]);
 
   // Load progress from backend on mount
   useEffect(() => {
@@ -45,6 +57,7 @@ export function useActivityProgress({ slug, assignmentId, initialStep = 1 }) {
         if (progress) {
           setCurrentStep(progress.current_step);
           setStepCompletions(progress.step_completions);
+          setActivityLogs(progress.activity_logs || []);
           setQuestionResponses(progress.question_responses);
         }
 
@@ -61,16 +74,25 @@ export function useActivityProgress({ slug, assignmentId, initialStep = 1 }) {
 
   // Log operation and update local state
   const logOperation = useCallback(async (operation, data = {}) => {
-    if (!slug || !assignmentId) return;
+    console.log('📝 useActivityProgress.logOperation called:', { operation, data, slug, assignmentId, currentStep });
+
+    if (!slug || !assignmentId) {
+      console.warn('⚠️ Cannot log operation - missing slug or assignmentId:', { slug, assignmentId });
+      return;
+    }
 
     try {
       // Log to backend
+      console.log('📡 Sending operation to backend:', operation);
       const logEvent = mutateLogActivityEvent({ slug, assignmentId });
       const updatedProgress = await logEvent({
         operation,
         step: currentStep,
         data,
+        email: emailRef.current, // Include email from Qualtrics
       });
+
+      console.log('✅ Backend responded with updated progress:', updatedProgress?.step_completions);
 
       // Also log to DAW logger for local analytics
       logger.logEvent(operation, data);
@@ -78,11 +100,12 @@ export function useActivityProgress({ slug, assignmentId, initialStep = 1 }) {
       // Update local state with server response
       if (updatedProgress) {
         setStepCompletions(updatedProgress.step_completions);
+        setActivityLogs(updatedProgress.activity_logs || []);
       }
 
       return updatedProgress;
     } catch (error) {
-      console.error('Failed to log operation:', error);
+      console.error('❌ Failed to log operation:', error);
       throw error;
     }
   }, [slug, assignmentId, currentStep, logger]);
@@ -126,6 +149,7 @@ export function useActivityProgress({ slug, assignmentId, initialStep = 1 }) {
       // Update local state
       setCurrentStep(updatedProgress.current_step);
       setStepCompletions(updatedProgress.step_completions);
+      setActivityLogs(updatedProgress.activity_logs || []);
       setQuestionResponses(updatedProgress.question_responses);
 
       setIsSubmitting(false);
@@ -139,18 +163,18 @@ export function useActivityProgress({ slug, assignmentId, initialStep = 1 }) {
 
   // Check if current step can be submitted
   const canSubmit = useCallback(() => {
-    return isStepComplete(currentStep, stepCompletions);
-  }, [currentStep, stepCompletions]);
+    return isStepComplete(currentStep, stepCompletions, activityLogs);
+  }, [currentStep, stepCompletions, activityLogs]);
 
   // Get progress percentage for current step
   const progress = useCallback(() => {
-    return getStepProgress(currentStep, stepCompletions);
-  }, [currentStep, stepCompletions]);
+    return getStepProgress(currentStep, stepCompletions, activityLogs);
+  }, [currentStep, stepCompletions, activityLogs]);
 
   // Get missing operations for current step
   const missingOperations = useCallback(() => {
-    return getMissingOperations(currentStep, stepCompletions);
-  }, [currentStep, stepCompletions]);
+    return getMissingOperations(currentStep, stepCompletions, activityLogs);
+  }, [currentStep, stepCompletions, activityLogs]);
 
   // Get step requirements
   const requirements = ACTIVITY_REQUIREMENTS[currentStep] || { required: [] };

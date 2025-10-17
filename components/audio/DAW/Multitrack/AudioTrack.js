@@ -22,7 +22,7 @@ import waveformCache from './WaveformCache';
 import { getAudioProcessor } from './AudioProcessor';
 import { getDAWActivityLogger } from '../../../../lib/activity/DAWActivityLogger';
 
-function AudioTrack({ track, index, zoomLevel = 100 }) {
+function AudioTrack({ track, index, zoomLevel = 100, logOperation = null }) {
   const {
     updateTrack,
     removeTrack,
@@ -254,6 +254,11 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
             const activityLogger = getDAWActivityLogger();
             if (activityLogger?.isActive) {
               activityLogger.logRecordingCompleted(track.id, data.duration, true);
+            }
+
+            // Log for study protocol (Activity 3)
+            if (logOperation) {
+              logOperation('recording_completed', { trackId: track.id, duration: data.duration });
             }
           } catch (error) {
             console.error('📊 Error logging recording completion:', error);
@@ -731,6 +736,11 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
                   if (activityLogger?.isActive) {
                     activityLogger.logMixingOperation('solo', track.id, newSoloState);
                   }
+
+                  // Log for study protocol (Activity 3)
+                  if (logOperation) {
+                    logOperation('mixing_solo', { trackId: track.id, soloState: newSoloState });
+                  }
                 } catch (error) {
                   console.error('📊 Error logging solo toggle:', error);
                 }
@@ -823,6 +833,7 @@ function AudioTrack({ track, index, zoomLevel = 100 }) {
               trackId={track.id}
               updateTrack={updateTrack}
               height={200}
+              logOperation={logOperation}
             />
           )}
         </div>

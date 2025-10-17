@@ -159,7 +159,13 @@ export const AudioProvider = ({ children }) => {
     if (!commandManagerRef.current) return null;
     return commandManagerRef.current.getCurrentCommand();
   }, []);
-  
+
+  // Check if audio has been restored to original state (index 0 in history)
+  const isRestoredToOriginal = useCallback(() => {
+    if (!commandManagerRef.current) return false;
+    return commandManagerRef.current.currentIndex === 0;
+  }, []);
+
   // Clear history (useful when switching between parts)
   const clearHistory = useCallback(() => {
     if (!commandManagerRef.current) return;
@@ -225,6 +231,7 @@ export const AudioProvider = ({ children }) => {
     undo,
     redo,
     getCurrentCommand,
+    isRestoredToOriginal,
     clearHistory,
 
     // Methods

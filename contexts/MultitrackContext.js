@@ -24,12 +24,12 @@ export const useMultitrack = () => {
   return context;
 };
 
-export const MultitrackProvider = ({ children }) => {
+export const MultitrackProvider = ({ children, initialTracks = [] }) => {
   // Get activity logger instance
   const activityLogger = getDAWActivityLogger();
 
-  // Track state
-  const [tracks, setTracks] = useState([]);
+  // Track state - Initialize with provided tracks or empty array
+  const [tracks, setTracks] = useState(initialTracks);
   const [selectedTrackId, setSelectedTrackId] = useState(null);
   const [soloTrackId, setSoloTrackId] = useState(null);
 

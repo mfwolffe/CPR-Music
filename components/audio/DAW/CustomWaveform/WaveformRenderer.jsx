@@ -169,8 +169,10 @@ export default function WaveformRenderer({ height = 180 }) {
 
   // Convert pixel position to time with zoom
   const pixelToTime = useCallback((x) => {
-    return scrollPosition + (x / zoomLevel);
-  }, [scrollPosition, zoomLevel]);
+    const time = scrollPosition + (x / zoomLevel);
+    // Clamp to valid time range [0, duration]
+    return Math.max(0, Math.min(duration || 0, time));
+  }, [scrollPosition, zoomLevel, duration]);
 
   // Check if click is on region handle
   const getRegionHandle = useCallback((x, y) => {

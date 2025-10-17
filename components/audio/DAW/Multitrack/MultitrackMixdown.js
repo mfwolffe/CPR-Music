@@ -1562,7 +1562,7 @@ function audioBufferToWav(buffer) {
   return new Blob([arrayBuffer], { type: 'audio/wav' });
 }
 
-export default function MultitrackMixdown() {
+export default function MultitrackMixdown({ logOperation = null }) {
   const { tracks, addTrack, soloTrackId, bpm: contextBpm } = useMultitrack();
   const bpm = Number(contextBpm) || 120;
   const [showModal, setShowModal] = useState(false);
@@ -1642,6 +1642,15 @@ export default function MultitrackMixdown() {
           audioURL,
           clips: [newClip],
         });
+
+        // Log for study protocol (Activity 3)
+        if (logOperation) {
+          logOperation('mixdown_created', {
+            name: mixdownName,
+            trackCount: includedTracks.length,
+            duration: rendered.duration
+          });
+        }
       } else {
         const a = document.createElement('a');
         a.href = audioURL;

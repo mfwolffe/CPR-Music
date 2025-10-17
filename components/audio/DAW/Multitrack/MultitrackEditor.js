@@ -55,7 +55,7 @@ import {
 const midiInputManager = new MIDIInputManager();
 if (typeof window !== 'undefined') window.__midiInputManager = midiInputManager;
 
-export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
+export default function MultitrackEditor({ availableTakes: propTakes = [], logOperation = null }) {
   const tracksScrollRef = useRef(null);
   const tracksInnerRef = useRef(null);
   const timelineScrollRef = useRef(null);
@@ -179,10 +179,15 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
           });
         }
       }
+
+      // Log for study protocol (Activity 3)
+      if (logOperation) {
+        logOperation('clip_copy', { clipCount: selectedClips.length });
+      }
     } catch (error) {
       console.error('📊 Error logging copy operation:', error);
     }
-  }, [selectedTrack, selectedClips, tracks]);
+  }, [selectedTrack, selectedClips, tracks, logOperation]);
 
   // Handle cut - supports batch cutting of multiple selected clips
   const handleCut = useCallback(() => {
@@ -282,11 +287,16 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
             targetTrackId: selectedTrack.id
           });
         }
+
+        // Log for study protocol (Activity 3)
+        if (logOperation) {
+          logOperation('clip_paste', { clipCount: newClips.length, pastePosition });
+        }
       } catch (error) {
         console.error('📊 Error logging paste operation:', error);
       }
     }
-  }, [selectedTrack, currentTime, updateTrack, setSelectedClipId]);
+  }, [selectedTrack, currentTime, updateTrack, setSelectedClipId, logOperation]);
 
   // Handle delete - supports batch deletion of multiple selected clips
   const handleDelete = useCallback(() => {
@@ -579,6 +589,11 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
 
   const handleAddAudioTrack = () => {
     addTrack({ type: 'audio' });
+
+    // Log for study protocol (Activity 3)
+    if (logOperation) {
+      logOperation('track_added', { trackType: 'audio' });
+    }
   };
 
   const handleAddMIDITrack = () => {
@@ -587,6 +602,11 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
       midiData: { notes: [], tempo: 120 },
       clips: [], // Initialize empty clips array for MIDI tracks
     });
+
+    // Log for study protocol (Activity 3)
+    if (logOperation) {
+      logOperation('track_added', { trackType: 'midi' });
+    }
   };
 
 
@@ -606,6 +626,11 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
         },
       ],
     });
+
+    // Log for study protocol (Activity 3)
+    if (logOperation) {
+      logOperation('takes_imported', { takeName: take.name });
+    }
   };
 
   const canPaste = clipClipboard.hasContent();
@@ -901,6 +926,11 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                 onClick={() => {
                   if (selectedClipId) {
                     setShowClipEffectsModal(true);
+
+                    // Log for study protocol (Activity 3)
+                    if (logOperation) {
+                      logOperation('effects_rack_toggled', { clipId: selectedClipId });
+                    }
                   } else {
                     alert('Please select a clip first to add effects.');
                   }
@@ -911,7 +941,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                 Effects
               </Button>
 
-              <MultitrackMixdown tracks={tracks} />
+              <MultitrackMixdown tracks={tracks} logOperation={logOperation} />
             </div>
           </div>
         </Col>
@@ -1077,6 +1107,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
                       track={track}
                       index={index}
                       zoomLevel={zoomLevel}
+                      logOperation={logOperation}
                     />
                   );
                 }
@@ -1186,6 +1217,7 @@ export default function MultitrackEditor({ availableTakes: propTakes = [] }) {
         show={showClipEffectsModal}
         onHide={() => setShowClipEffectsModal(false)}
         selectedClipId={selectedClipId}
+        logOperation={logOperation}
       />
 
       {/* Piano Section - Bottom of Editor */}

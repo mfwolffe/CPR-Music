@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMultitrack } from './MultitrackContext';
 import waveformCache from '../components/audio/DAW/Multitrack/WaveformCache';
 
-export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }) {
+export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100, logOperation = null }) {
   const {
     currentTime,
     duration,
@@ -596,6 +596,7 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
       if (!dragRef.current.op || dragRef.current.clipIndex < 0) { draw(); return; }
       const idx = dragRef.current.clipIndex;
       const p = dragRef.current.preview;
+      const op = dragRef.current.op;
       dragRef.current.op = null;
       dragRef.current.clipIndex = -1;
       dragRef.current.preview = null;
@@ -605,6 +606,12 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
         const nextClips = t.clips.map((c, i) => i === idx ? { ...c, start: p.start, duration: p.duration, offset: p.offset } : c);
         return { ...t, clips: nextClips };
       }));
+
+      // Log for study protocol (Activity 3) - only for move operations
+      if (op === 'move' && logOperation) {
+        logOperation('clip_move', { trackId: track.id, clipIndex: idx, newStart: p.start });
+      }
+
       draw();
     }
 
@@ -626,7 +633,7 @@ export default function TrackClipCanvas({ track, zoomLevel = 100, height = 100 }
     };
   }, [clipRects, currentTime, duration, zoomLevel, interactive, selectedClipId, selectedClipIds,
       selectedTrackId, snapEnabled, gridSizeSec, setSelectedTrackId, setSelectedClipId,
-      setSelectedClipIds, setTracks, track?.id, peaksCache, clips, editorTool]);
+      setSelectedClipIds, setTracks, track?.id, peaksCache, clips, editorTool, logOperation]);
 
   return (
     <canvas

@@ -80,7 +80,7 @@ const createSilentAudio = () => {
 
 const scratchURL = createSilentAudio();
 
-export default function RecorderRefactored({ submit, accompaniment }) {
+export default function RecorderRefactored({ submit, accompaniment, logOperation = null }) {
   const dispatch = useDispatch();
   const router = useRouter();
   const { slug, piece, actCategory, partType } = router.query;
@@ -702,11 +702,20 @@ export default function RecorderRefactored({ submit, accompaniment }) {
               ))}
             </ListGroup>
           )}
-          {showDAW && (
+          {showDAW && audioURL && audioURL !== scratchURL && (
             <DAW
               onSubmit={submitEditedRecording}
               showSubmitButton={true}
+              logOperation={logOperation}
             />
+          )}
+          {showDAW && (!audioURL || audioURL === scratchURL) && (
+            <div className="text-center py-3">
+              <div className="spinner-border" role="status">
+                <span className="visually-hidden">Loading audio...</span>
+              </div>
+              <p className="mt-2">Loading take...</p>
+            </div>
           )}
           <StatusIndicator
             slug={slug}

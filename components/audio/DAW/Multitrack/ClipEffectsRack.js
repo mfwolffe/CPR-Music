@@ -272,7 +272,7 @@ function EffectChainItem({ effect, onRemove, onToggle, onMoveUp, onMoveDown, onE
 /**
  * Main Clip Effects Rack Component (Modal)
  */
-export default function ClipEffectsRack({ show, onHide, selectedClipId }) {
+export default function ClipEffectsRack({ show, onHide, selectedClipId, logOperation = null }) {
   const { tracks, updateTrack, selectedClipIds } = useMultitrack();
   const [showEffectsBrowser, setShowEffectsBrowser] = useState(false);
   const [showEffectParameters, setShowEffectParameters] = useState(false);
@@ -305,7 +305,15 @@ export default function ClipEffectsRack({ show, onHide, selectedClipId }) {
     updateTrack(selectedClip.trackId, {
       clips: selectedTrack.clips.map(c => c.id === selectedClipId ? updatedClip : c)
     });
-  }, [selectedClip, selectedClipId, selectedTrack, updateTrack]);
+
+    // Log for study protocol (Activity 3)
+    if (logOperation) {
+      logOperation('effect_applied', {
+        clipId: selectedClipId,
+        effectType: effectType
+      });
+    }
+  }, [selectedClip, selectedClipId, selectedTrack, updateTrack, logOperation]);
 
   const handleRemoveEffect = useCallback((effectId) => {
     const updatedClip = removeEffectFromClip(selectedClip, effectId);
@@ -347,7 +355,15 @@ export default function ClipEffectsRack({ show, onHide, selectedClipId }) {
     updateTrack(selectedClip.trackId, {
       clips: selectedTrack.clips.map(c => c.id === selectedClipId ? updatedClip : c)
     });
-  }, [selectedClip, selectedClipId, selectedTrack, updateTrack]);
+
+    // Log for study protocol (Activity 3)
+    if (logOperation) {
+      logOperation('eq_preset_applied', {
+        clipId: selectedClipId,
+        presetName: presetName
+      });
+    }
+  }, [selectedClip, selectedClipId, selectedTrack, updateTrack, logOperation]);
 
   // Open effect parameters modal
   const handleEditEffect = useCallback((effect) => {

@@ -15,7 +15,8 @@ export default function CustomTimeline() {
     clearRegions,
     audioBuffer,
     applyProcessedAudio,
-    audioContext
+    audioContext,
+    logOperation
   } = useWaveform();
 
   const {
@@ -25,7 +26,8 @@ export default function CustomTimeline() {
     undo,
     redo,
     canUndo,
-    canRedo
+    canRedo,
+    isRestoredToOriginal
   } = useAudio();
 
   const {
@@ -75,13 +77,19 @@ export default function CustomTimeline() {
       // Apply the spliced audio
       await applyProcessedAudio(splicedBuffer);
 
+      // Log for study protocol (retain/scissor operation)
+      if (logOperation) {
+        logOperation('clip_cut', { start: activeRegion.start, end: activeRegion.end });
+        logOperation('region_retained', { start: activeRegion.start, end: activeRegion.end });
+      }
+
     } catch (error) {
       console.error('Error splicing region:', error);
       alert('Failed to splice region');
     } finally {
       setIsProcessing(false);
     }
-  }, [activeRegion, audioBuffer, applyProcessedAudio, audioContext, isProcessing]);
+  }, [activeRegion, audioBuffer, applyProcessedAudio, audioContext, isProcessing, logOperation]);
 
   // Handle cut (delete) region - remove the selected region
   const handleCut = useCallback(async () => {
@@ -94,6 +102,11 @@ export default function CustomTimeline() {
     setIsProcessing(true);
 
     try {
+      // Check if deletion is at beginning or end (silence trimming)
+      const duration = audioBuffer.duration;
+      const isStartTrim = activeRegion.start < 0.5; // Within 0.5s of start
+      const isEndTrim = activeRegion.end > (duration - 0.5); // Within 0.5s of end
+
       // Remove the selected region
       const cutBuffer = cutRegionFromBuffer(
         audioBuffer,
@@ -105,13 +118,31 @@ export default function CustomTimeline() {
       // Apply the cut audio
       await applyProcessedAudio(cutBuffer);
 
+      // Log for study protocol (delete operation)
+      if (logOperation) {
+        console.log('🎯 Logging clip_delete operation:', { start: activeRegion.start, end: activeRegion.end });
+        logOperation('clip_delete', { start: activeRegion.start, end: activeRegion.end });
+
+        // Also log silence trimming if applicable
+        if (isStartTrim) {
+          console.log('🎯 Logging silence_trimmed_start operation');
+          logOperation('silence_trimmed_start', { region: activeRegion });
+        }
+        if (isEndTrim) {
+          console.log('🎯 Logging silence_trimmed_end operation');
+          logOperation('silence_trimmed_end', { region: activeRegion });
+        }
+      } else {
+        console.warn('⚠️ logOperation is not available for clip_delete');
+      }
+
     } catch (error) {
       console.error('Error cutting region:', error);
       alert('Failed to cut region');
     } finally {
       setIsProcessing(false);
     }
-  }, [activeRegion, audioBuffer, applyProcessedAudio, audioContext, isProcessing]);
+  }, [activeRegion, audioBuffer, applyProcessedAudio, audioContext, isProcessing, logOperation]);
 
   return (
     <div className="d-flex w-100 ml-auto mr-auto pl-2 toolbar align-items-center flex-row flex-between gap-0375">
@@ -164,7 +195,20 @@ export default function CustomTimeline() {
       <div className="d-flex align-items-center">
         <Button
           className="prog-button pr-2"
-          onClick={undo}
+          onClick={() => {
+            undo();
+            // Log for study protocol
+            if (logOperation) {
+              logOperation('undo_action', {});
+
+              // Check if we've restored to original state (Activity 2 requirement)
+              if (isRestoredToOriginal && isRestoredToOriginal()) {
+                logOperation('audio_restored', {
+                  message: 'Audio restored to original state via undo'
+                });
+              }
+            }
+          }}
           disabled={!canUndo}
           title="Undo (Ctrl+Z)"
         >
@@ -172,7 +216,13 @@ export default function CustomTimeline() {
         </Button>
         <Button
           className="prog-button pr-2"
-          onClick={redo}
+          onClick={() => {
+            redo();
+            // Log for study protocol
+            if (logOperation) {
+              logOperation('redo_action', {});
+            }
+          }}
           disabled={!canRedo}
           title="Redo (Ctrl+Shift+Z)"
         >

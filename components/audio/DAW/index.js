@@ -36,6 +36,8 @@ export default function DAW({
   onSubmit,
   showSubmitButton = false,
   silenceWarning = false,
+  logOperation = null, // For study protocol tracking
+  initialTracks = [], // Pre-populated tracks for specific activities
 }) {
   const { audioURL, dawMode, setDawMode, activityLogger } = useAudio();
   const { loadFFmpeg, loaded: ffmpegLoaded } = useFFmpeg();
@@ -124,7 +126,7 @@ export default function DAW({
           </CardHeader>
 
           <CardBody style={{ backgroundColor: '#2d2c29' }}>
-            <MultitrackWithTakes />
+            <MultitrackWithTakes logOperation={logOperation} />
           </CardBody>
 
           {showSubmitButton && (
@@ -241,7 +243,7 @@ export default function DAW({
         <CardBody style={{ background: 'lightsteelblue' }}>
           {/* Main waveform area - full width */}
           <div id="waveform-container" style={{ width: '100%' }}>
-            <CustomWaveform />
+            <CustomWaveform logOperation={logOperation} />
           </div>
         </CardBody>
 

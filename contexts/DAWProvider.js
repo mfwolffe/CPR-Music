@@ -15,14 +15,14 @@ import { WaveformProvider } from './WaveformContext';
  * Now includes MultitrackProvider for multitrack functionality
  * and WaveformProvider for custom waveform implementation
  */
-export const DAWProvider = ({ children }) => {
+export const DAWProvider = ({ children, initialTracks = [] }) => {
   return (
     <FFmpegProvider>
       <AudioProvider>
         <RecordingProvider>
           <EffectsProvider>
             <UIProvider>
-              <MultitrackProvider>
+              <MultitrackProvider initialTracks={initialTracks}>
                 <WaveformProvider>
                   {children}
                 </WaveformProvider>

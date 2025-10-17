@@ -15,7 +15,7 @@ export const useWaveform = () => {
   return context;
 };
 
-export const WaveformProvider = ({ children }) => {
+export const WaveformProvider = ({ children, logOperation = null }) => {
   // Get global audio state
   const { audioURL, addToEditHistory, wavesurferRef, activityLogger } = useAudio();
   const { setCutRegion } = useEffects();
@@ -368,7 +368,7 @@ export const WaveformProvider = ({ children }) => {
       setCutRegion(region);
     }
 
-    // Log region creation
+    // Log region creation (general analytics)
     try {
       if (activityLogger?.isActive) {
         activityLogger.logRegionCreated(region.start, region.end);
@@ -377,8 +377,16 @@ export const WaveformProvider = ({ children }) => {
       console.error('📊 Error logging region creation:', error);
     }
 
+    // Log for study protocol tracking
+    if (logOperation) {
+      console.log('🎯 Logging region_created operation:', { start: region.start, end: region.end });
+      logOperation('region_created', { start: region.start, end: region.end });
+    } else {
+      console.warn('⚠️ logOperation is not available for region_created');
+    }
+
     return region;
-  }, [setCutRegion, activityLogger]);
+  }, [setCutRegion, activityLogger, logOperation]);
 
   const updateRegion = useCallback((id, updates) => {
     setRegions(regions =>
@@ -408,12 +416,22 @@ export const WaveformProvider = ({ children }) => {
   }, [activeRegion, setCutRegion]);
 
   const clearRegions = useCallback(() => {
+    const hadRegion = regions.length > 0;
+
     setRegions([]);
     setActiveRegion(null);
     if (setCutRegion) {
       setCutRegion(null);
     }
-  }, [setCutRegion]);
+
+    // Log for study protocol tracking (region deselected)
+    if (hadRegion && logOperation) {
+      console.log('🎯 Logging region_deselected operation');
+      logOperation('region_deselected', {});
+    } else if (hadRegion) {
+      console.warn('⚠️ logOperation is not available for region_deselected');
+    }
+  }, [setCutRegion, logOperation, regions]);
 
   // Export audio buffer for effects processing
   const getAudioForProcessing = useCallback(() => {
@@ -569,7 +587,10 @@ export const WaveformProvider = ({ children }) => {
     peakGenerator: peakGeneratorRef.current,
 
     // Expose AudioContext for buffer operations
-    audioContext: audioEngineRef.current?.audioContext
+    audioContext: audioEngineRef.current?.audioContext,
+
+    // Study protocol tracking
+    logOperation
   };
 
   return (
