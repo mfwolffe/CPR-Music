@@ -15,7 +15,7 @@ export const useAudio = () => {
   return context;
 };
 
-export const AudioProvider = ({ children }) => {
+export const AudioProvider = ({ children, persistenceConfig = { enabled: false } }) => {
   // Core audio state
   const [audioURL, setAudioURL] = useState('');
   const [isPlaying, setIsPlaying] = useState(false);
@@ -36,6 +36,7 @@ export const AudioProvider = ({ children }) => {
   const commandManagerRef = useRef(null);
   const hasInitialAudioRef = useRef(false); // Track if initial audio has been set
   const activityLoggerRef = useRef(null);
+  const audioStateRestoredRef = useRef(false); // Track if we've loaded saved state
 
   // Initialize command manager and activity logger
   useEffect(() => {
@@ -202,7 +203,97 @@ export const AudioProvider = ({ children }) => {
     // Always update the actual mode
     setDawModeState(newMode);
   }, []);
-  
+
+  // ========== Audio State Persistence (Activity Study Only) ==========
+
+  // Load initial audio state from persistence if available
+  useEffect(() => {
+    if (!persistenceConfig.enabled || audioStateRestoredRef.current) return;
+    if (!persistenceConfig.initialAudioState) return;
+
+    const { current_audio_url, audio_edit_history, audio_metadata } = persistenceConfig.initialAudioState;
+
+    // Restore audio URL and edit history if they exist
+    if (current_audio_url && audio_edit_history && audio_edit_history.length > 0) {
+      console.log('🔄 Restoring saved audio state:', {
+        url: current_audio_url.substring(0, 50) + '...',
+        historyLength: audio_edit_history.length
+      });
+
+      // Restore edit history to command manager
+      if (commandManagerRef.current) {
+        // Clear existing history first
+        commandManagerRef.current.clear();
+
+        // Restore each command from history
+        audio_edit_history.forEach((historyItem) => {
+          const command = createAudioCommand(
+            historyItem.effectName || 'Restored Edit',
+            historyItem.url,
+            historyItem.metadata || {}
+          );
+          commandManagerRef.current.addCommand(command);
+        });
+
+        console.log(`✅ Restored ${audio_edit_history.length} items to edit history`);
+      }
+
+      // Set the current audio URL
+      setAudioURL(current_audio_url);
+      hasInitialAudioRef.current = true;
+      audioStateRestoredRef.current = true;
+    }
+  }, [persistenceConfig]);
+
+  // Auto-save audio state when it changes (with debouncing)
+  useEffect(() => {
+    if (!persistenceConfig.enabled) return;
+    if (!audioURL || !hasInitialAudioRef.current) return;
+
+    const { slug, assignmentId } = persistenceConfig;
+    if (!slug || !assignmentId) {
+      console.warn('⚠️ Persistence enabled but missing slug or assignmentId');
+      return;
+    }
+
+    // Debounce saves to avoid excessive API calls
+    const debounceTimer = setTimeout(async () => {
+      try {
+        // Get current edit history from command manager
+        const editHistory = [];
+        if (commandManagerRef.current) {
+          const commands = commandManagerRef.current.getAllCommands();
+          commands.forEach(cmd => {
+            editHistory.push({
+              url: cmd.audioData,
+              effectName: cmd.name,
+              metadata: cmd.metadata || {}
+            });
+          });
+        }
+
+        // Dynamic import to avoid circular dependency
+        const { mutateSaveAudioState } = await import('../api');
+        const saveAudioStateFn = mutateSaveAudioState({ slug, assignmentId });
+
+        await saveAudioStateFn({
+          audioUrl: audioURL,
+          editHistory,
+          metadata: {
+            duration,
+            // Add more metadata as needed
+          }
+        });
+
+        console.log('💾 Auto-saved audio state');
+      } catch (error) {
+        console.error('❌ Failed to auto-save audio state:', error);
+      }
+    }, 2000); // 2 second debounce
+
+    return () => clearTimeout(debounceTimer);
+  }, [audioURL, duration, persistenceConfig]);
+
   const value = {
     // State
     audioURL,

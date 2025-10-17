@@ -14,11 +14,23 @@ import { WaveformProvider } from './WaveformContext';
  * DAWProvider combines all the context providers needed for the DAW
  * Now includes MultitrackProvider for multitrack functionality
  * and WaveformProvider for custom waveform implementation
+ *
+ * @param {Object} props
+ * @param {Array} props.initialTracks - Initial tracks for multitrack mode
+ * @param {Object} props.persistenceConfig - Optional config for audio state persistence
+ * @param {boolean} props.persistenceConfig.enabled - Enable audio persistence (default: false)
+ * @param {string} props.persistenceConfig.slug - Course slug for API calls
+ * @param {number} props.persistenceConfig.assignmentId - Assignment ID for API calls
+ * @param {Object} props.persistenceConfig.initialAudioState - Initial audio state to restore
  */
-export const DAWProvider = ({ children, initialTracks = [] }) => {
+export const DAWProvider = ({
+  children,
+  initialTracks = [],
+  persistenceConfig = { enabled: false }
+}) => {
   return (
     <FFmpegProvider>
-      <AudioProvider>
+      <AudioProvider persistenceConfig={persistenceConfig}>
         <RecordingProvider>
           <EffectsProvider>
             <UIProvider>

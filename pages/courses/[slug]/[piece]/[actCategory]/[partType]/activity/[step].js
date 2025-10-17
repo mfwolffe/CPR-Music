@@ -75,6 +75,11 @@ export default function ActivityPage() {
     email: email || null, // Pass email from Qualtrics
   });
 
+  // Audio persistence configuration for DAW (Activity Study only)
+  const [audioPersistenceConfig, setAudioPersistenceConfig] = useState({
+    enabled: false
+  });
+
   // Fetch activities and assignment
   useEffect(() => {
     if (slug && userInfo.token) {
@@ -134,6 +139,44 @@ export default function ActivityPage() {
       setPreferredSample(assignment?.part?.sample_audio);
     }
   }, [assignment, userInfo.instrument]);
+
+  // Load audio state for persistence (Activities 2-4)
+  useEffect(() => {
+    const loadAudioState = async () => {
+      if (!slug || !assignment?.id || isLoading) return;
+
+      try {
+        // Import dynamically to avoid circular dependency
+        const { getActivityProgress } = await import('../../../../../../../api');
+        const progressData = await getActivityProgress({
+          slug,
+          assignmentId: assignment.id
+        });
+
+        if (progressData) {
+          // Configure audio persistence with loaded state
+          setAudioPersistenceConfig({
+            enabled: true,
+            slug,
+            assignmentId: assignment.id,
+            initialAudioState: progressData
+          });
+
+          console.log('✅ Audio persistence configured for activity', stepNumber);
+        }
+      } catch (error) {
+        console.error('Failed to load audio state:', error);
+        // Still enable persistence, just without initial state
+        setAudioPersistenceConfig({
+          enabled: true,
+          slug,
+          assignmentId: assignment.id
+        });
+      }
+    };
+
+    loadAudioState();
+  }, [slug, assignment?.id, isLoading, stepNumber]);
 
   // Show consent modal on first load of Activity 1
   useEffect(() => {
@@ -252,7 +295,10 @@ export default function ActivityPage() {
 
   return (
     <StudentAssignment assignment={assignment}>
-      <DAWProvider initialTracks={initialTracks}>
+      <DAWProvider
+        initialTracks={initialTracks}
+        persistenceConfig={audioPersistenceConfig}
+      >
         {/* Consent Modal */}
         <ConsentReminderModal
           show={showConsentModal}

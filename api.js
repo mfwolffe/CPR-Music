@@ -217,3 +217,16 @@ export function mutateSaveQuestionResponse({ slug, assignmentId }) {
     return json;
   };
 }
+
+export function mutateSaveAudioState({ slug, assignmentId }) {
+  return async ({ audioUrl, editHistory, metadata }) => {
+    const endpoint = `courses/${slug}/assignments/${assignmentId}/activity-progress/save_audio_state/`;
+    const body = {
+      audio_url: audioUrl,
+      edit_history: editHistory,
+      metadata,
+    };
+    const json = await makeRequest(endpoint, 'POST', body);
+    return json;
+  };
+}
