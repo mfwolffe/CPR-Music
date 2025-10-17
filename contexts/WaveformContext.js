@@ -162,12 +162,24 @@ export const WaveformProvider = ({ children, logOperation = null }) => {
   }, [audioURL, containerWidth]);
 
   // Set initial zoom level to fit waveform to container
+  // Also recalculate when duration changes (after deletions/cuts)
   useEffect(() => {
-    if (!initialZoomSet && duration > 0 && containerWidth > 0) {
+    if (duration > 0 && containerWidth > 0) {
       const fitZoom = containerWidth / duration;
-      setZoomLevel(fitZoom);
-      setInitialZoomSet(true);
-      console.log(`Setting initial zoom to fit: ${fitZoom} pixels/second for ${duration}s duration in ${containerWidth}px container`);
+
+      // Always recalculate zoom to fit when duration changes
+      // This ensures the waveform fills the canvas after deletions/cuts
+      if (!initialZoomSet) {
+        setZoomLevel(fitZoom);
+        setInitialZoomSet(true);
+        console.log(`Setting initial zoom to fit: ${fitZoom} pixels/second for ${duration}s duration in ${containerWidth}px container`);
+      } else {
+        // Duration changed (likely from deletion) - recalculate zoom to fit
+        const currentFitZoom = containerWidth / duration;
+        setZoomLevel(currentFitZoom);
+        setScrollPosition(0); // Reset scroll to start
+        console.log(`Recalculating zoom after duration change: ${currentFitZoom} pixels/second for ${duration}s duration`);
+      }
     }
   }, [duration, containerWidth, initialZoomSet]);
 
