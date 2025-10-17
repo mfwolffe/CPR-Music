@@ -51,6 +51,12 @@ const AdvancedTooltips = {
   waveFoldAmount: "Folds waveform back on itself creating new harmonics. 20-40% adds brightness, 60%+ creates aggressive distortion.",
   feedbackAmount: "Routes output back to input for chaos and distortion. Use carefully: 20-40% adds thickness, 60%+ creates instability.",
   formantShift: "Vowel-like filtering from vocal tract simulation. Creates talking/singing synth effects. Sweep through values for vowel morphing.",
+  unisonVoices: "Number of layered voices. 1 is normal, 2-4 creates thickness, 5-8 creates massive super-saw sounds. Uses more CPU.",
+  unisonDetune: "Spread of detuning across unison voices in cents. 5-10 is subtle chorus, 15-25 is thick, 30+ is detuned chaos.",
+  portamentoTime: "Glide time between notes. 0 is instant, 50-200ms is smooth, 500ms+ creates dramatic swoops. Great for leads.",
+  stereoSpread: "Stereo width of oscillators. 0% is mono, 50% is natural stereo, 100% is wide stereo for huge sounds.",
+  hardClip: "Aggressive hard-clipping distortion. Unlike wave folder, creates harsh squared-off distortion. 20-40% adds grit, 60%+ is brutal.",
+  freqShift: "Shifts all frequencies by fixed Hz amount (not pitch shift). Creates metallic, inharmonic, bell-like tones. ±50-200 Hz for weirdness.",
 
   // Granular & Glitch
   grainSize: "Size of audio chunks in milliseconds. Small grains (10-50ms) for textures, large grains (100-300ms) for rhythmic stuttering.",
@@ -248,33 +254,36 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
               ], AdvancedTooltips.subOscEnabled)}
 
               {params.subOscEnabled && (
-                <>
-                  <div className="mt-2">
-                    {createToggle('subOscType', 'Sub Wave', [
-                      { value: 'square', label: 'Square' },
-                      { value: 'sine', label: 'Sine' }
-                    ], AdvancedTooltips.subOscType)}
-                  </div>
-                  <div className="mt-2">
-                    {createKnob('subOscLevel', 'Sub Level', 0, 100, 1, '%', '#cbb677', AdvancedTooltips.subOscLevel)}
-                  </div>
-                </>
+                <div className="mt-2">
+                  {createToggle('subOscType', 'Sub Wave', [
+                    { value: 'square', label: 'Square' },
+                    { value: 'sine', label: 'Sine' }
+                  ], AdvancedTooltips.subOscType)}
+                </div>
               )}
 
               {/* Noise Generator */}
-              <div className="mt-2 pt-2 border-top border-secondary">
-                <div className="text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem' }}>Noise Generator</div>
-                {createKnob('noiseLevel', 'Noise', 0, 100, 1, '%', '#92ceaa', AdvancedTooltips.noiseLevel)}
-                {params.noiseLevel > 0 && (
-                  <div className="mt-2">
-                    {createToggle('noiseType', 'Color', [
-                      { value: 'white', label: 'White' },
-                      { value: 'pink', label: 'Pink' },
-                      { value: 'brown', label: 'Brown' }
-                    ], AdvancedTooltips.noiseType)}
-                  </div>
-                )}
-              </div>
+              <div className="mt-2 text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem' }}>Noise Generator</div>
+
+              {/* Knobs Row */}
+              <Row className="g-2">
+                <Col xs={6}>
+                  {params.subOscEnabled && createKnob('subOscLevel', 'Sub Level', 0, 100, 1, '%', '#cbb677', AdvancedTooltips.subOscLevel)}
+                </Col>
+                <Col xs={6}>
+                  {createKnob('noiseLevel', 'Noise', 0, 100, 1, '%', '#92ceaa', AdvancedTooltips.noiseLevel)}
+                </Col>
+              </Row>
+
+              {params.noiseLevel > 0 && (
+                <div className="mt-2">
+                  {createToggle('noiseType', 'Color', [
+                    { value: 'white', label: 'White' },
+                    { value: 'pink', label: 'Pink' },
+                    { value: 'brown', label: 'Brown' }
+                  ], AdvancedTooltips.noiseType)}
+                </div>
+              )}
             </Card.Body>
           </Card>
         </Col>
@@ -391,36 +400,69 @@ const AdvancedSynthControls = ({ params, onParamChange }) => {
                 </Col>
               </Row>
 
-              {/* Wave Folder */}
+              {/* Wave Folder & Formant */}
               <div className="mt-2 pt-2 border-top border-secondary">
-                <div className="text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem' }}>Wave Folder</div>
-                {createKnob('waveFoldAmount', 'Fold', 0, 100, 1, '%', '#cbb677', AdvancedTooltips.waveFoldAmount)}
+                <Row className="g-1">
+                  <Col xs={6}>
+                    <div className="text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem' }}>Wave Folder</div>
+                    {createKnob('waveFoldAmount', 'Fold', 0, 100, 1, '%', '#cbb677', AdvancedTooltips.waveFoldAmount)}
+                  </Col>
+                  <Col xs={6} className="border-start border-secondary">
+                    <div className="text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem', paddingLeft: '0.5rem' }}>Vowel Formant</div>
+                    <div style={{ paddingLeft: '0.5rem' }}>
+                      {createKnob('formantShift', 'Morph', 0, 100, 1, '', '#9b59b6', AdvancedTooltips.formantShift)}
+                      {params.formantShift > 0 && (
+                        <div className="mt-1 text-muted" style={{ fontSize: '0.65rem', textAlign: 'center' }}>
+                          {params.formantShift < 10 ? 'Neutral' :
+                           params.formantShift < 20 ? 'EE (beat)' :
+                           params.formantShift < 30 ? 'IH (bit)' :
+                           params.formantShift < 40 ? 'EH (bet)' :
+                           params.formantShift < 50 ? 'AE (bat)' :
+                           params.formantShift < 60 ? 'AH (but)' :
+                           params.formantShift < 70 ? 'AW (bought)' :
+                           params.formantShift < 80 ? 'UH (foot)' :
+                           params.formantShift < 90 ? 'UW (boot)' :
+                           'ER (bird)'}
+                        </div>
+                      )}
+                    </div>
+                  </Col>
+                </Row>
               </div>
 
-              {/* Feedback */}
+              {/* Unison & Portamento */}
+              <div className="mt-2 pt-2 border-top border-secondary">
+                <div className="text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem' }}>Unison & Glide</div>
+                <Row className="g-1">
+                  <Col xs={4}>
+                    {createKnob('unisonVoices', 'Voices', 1, 8, 1, '', '#7bafd4', AdvancedTooltips.unisonVoices)}
+                  </Col>
+                  <Col xs={4}>
+                    {createKnob('unisonDetune', 'Spread', 0, 50, 1, ' cents', '#7bafd4', AdvancedTooltips.unisonDetune)}
+                  </Col>
+                  <Col xs={4}>
+                    {createKnob('portamentoTime', 'Glide', 0, 1000, 10, ' ms', '#92ceaa', AdvancedTooltips.portamentoTime)}
+                  </Col>
+                </Row>
+              </div>
+
+              {/* Chaos */}
               <div className="mt-2 pt-2 border-top border-secondary">
                 <div className="text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem' }}>Chaos</div>
-                {createKnob('feedbackAmount', 'Feedback', 0, 90, 1, '%', '#e75b5c', AdvancedTooltips.feedbackAmount)}
-              </div>
-
-              {/* Formant Filter */}
-              <div className="mt-2 pt-2 border-top border-secondary">
-                <div className="text-info" style={{ fontSize: '0.7rem', marginBottom: '0.25rem' }}>Vowel Formant</div>
-                {createKnob('formantShift', 'Morph', 0, 100, 1, '', '#9b59b6', AdvancedTooltips.formantShift)}
-                {params.formantShift > 0 && (
-                  <div className="mt-1 text-muted" style={{ fontSize: '0.65rem', textAlign: 'center' }}>
-                    {params.formantShift < 10 ? 'Neutral' :
-                     params.formantShift < 20 ? 'EE (beat)' :
-                     params.formantShift < 30 ? 'IH (bit)' :
-                     params.formantShift < 40 ? 'EH (bet)' :
-                     params.formantShift < 50 ? 'AE (bat)' :
-                     params.formantShift < 60 ? 'AH (but)' :
-                     params.formantShift < 70 ? 'AW (bought)' :
-                     params.formantShift < 80 ? 'UH (foot)' :
-                     params.formantShift < 90 ? 'UW (boot)' :
-                     'ER (bird)'}
-                  </div>
-                )}
+                <Row className="g-1">
+                  <Col xs={3}>
+                    {createKnob('feedbackAmount', 'Feedback', 0, 90, 1, '%', '#e75b5c', AdvancedTooltips.feedbackAmount)}
+                  </Col>
+                  <Col xs={3}>
+                    {createKnob('hardClip', 'Clip', 0, 100, 1, '%', '#e75b5c', AdvancedTooltips.hardClip)}
+                  </Col>
+                  <Col xs={3}>
+                    {createKnob('stereoSpread', 'Stereo', 0, 100, 1, '%', '#92ceaa', AdvancedTooltips.stereoSpread)}
+                  </Col>
+                  <Col xs={3}>
+                    {createKnob('freqShift', 'Shift', -500, 500, 10, ' Hz', '#cbb677', AdvancedTooltips.freqShift)}
+                  </Col>
+                </Row>
               </div>
             </Card.Body>
           </Card>

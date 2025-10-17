@@ -71,6 +71,12 @@ class SandboxSynth {
       waveFoldAmount: 0,
       feedbackAmount: 0,
       formantShift: 0,
+      unisonVoices: 1,
+      unisonDetune: 10,
+      portamentoTime: 0,
+      stereoSpread: 0,
+      hardClip: 0,
+      freqShift: 0,
       // Granular
       grainSize: 100,
       grainSpeed: 1.0,
@@ -285,6 +291,48 @@ class SandboxSynth {
     this.sampleHoldGain = this.audioContext.createGain();
     this.sampleHoldGain.gain.value = 0;
 
+    // Hard Clipper - aggressive clipping distortion
+    this.hardClipper = this.audioContext.createWaveShaper();
+    this.updateHardClipCurve();
+    this.hardClipper.oversample = '2x';
+    this.hardClipGain = this.audioContext.createGain();
+    this.hardClipGain.gain.value = 0;
+
+    // Frequency Shifter - uses single-sideband modulation for inharmonic shifting
+    this.freqShifter = this.audioContext.createScriptProcessor(4096, 1, 1);
+    this.freqShiftAmount = 0;
+    this.freqShiftPhase = 0;
+
+    this.freqShifter.onaudioprocess = (e) => {
+      const input = e.inputBuffer.getChannelData(0);
+      const output = e.outputBuffer.getChannelData(0);
+      const shiftHz = this.freqShiftAmount;
+
+      if (Math.abs(shiftHz) < 1) {
+        // Bypass if no shift
+        output.set(input);
+        return;
+      }
+
+      const sampleRate = this.audioContext.sampleRate;
+      const phaseIncrement = (2 * Math.PI * shiftHz) / sampleRate;
+
+      for (let i = 0; i < input.length; i++) {
+        // Simple ring modulation for frequency shifting
+        const carrier = Math.sin(this.freqShiftPhase);
+        output[i] = input[i] * carrier;
+        this.freqShiftPhase += phaseIncrement;
+        if (this.freqShiftPhase > 2 * Math.PI) {
+          this.freqShiftPhase -= 2 * Math.PI;
+        }
+      }
+    };
+    this.freqShiftGain = this.audioContext.createGain();
+    this.freqShiftGain.gain.value = 0;
+
+    // Portamento tracking
+    this.lastNoteFrequency = null;
+
     // Experimental effects mixer
     this.experimentalMixer = this.audioContext.createGain();
     this.experimentalMixer.gain.value = 1;
@@ -321,6 +369,33 @@ class SandboxSynth {
     }
 
     this.waveFolder.curve = curve;
+  }
+
+  updateHardClipCurve() {
+    if (!this.params) return;
+    const amount = this.params.hardClip || 0;
+    if (amount === 0) {
+      this.hardClipper.curve = null;
+      return;
+    }
+
+    const samples = 2048;
+    const curve = new Float32Array(samples);
+    const threshold = 1 - (amount / 100) * 0.9; // Clip threshold based on amount
+
+    for (let i = 0; i < samples; i++) {
+      const x = (i * 2) / samples - 1;
+      // Hard clipping - just cut off anything above threshold
+      if (x > threshold) {
+        curve[i] = threshold;
+      } else if (x < -threshold) {
+        curve[i] = -threshold;
+      } else {
+        curve[i] = x;
+      }
+    }
+
+    this.hardClipper.curve = curve;
   }
 
   updateFormantFilters() {
@@ -447,6 +522,14 @@ class SandboxSynth {
     this.combFeedback.connect(this.combInput); // Feedback loop back to input
     this.combDelay.connect(this.combGain); // Output
 
+    // Hard clipper path
+    this.preEffectsGain.connect(this.hardClipper);
+    this.hardClipper.connect(this.hardClipGain);
+
+    // Frequency shifter path
+    this.preEffectsGain.connect(this.freqShifter);
+    this.freqShifter.connect(this.freqShiftGain);
+
     // Mix experimental effects
     this.preEffectsGain.connect(this.experimentalMixer);
     this.bitCrusherGain.connect(this.experimentalMixer);
@@ -454,6 +537,8 @@ class SandboxSynth {
     this.formantGain.connect(this.experimentalMixer);
     this.granularGain.connect(this.experimentalMixer);
     this.combGain.connect(this.experimentalMixer);
+    this.hardClipGain.connect(this.experimentalMixer);
+    this.freqShiftGain.connect(this.experimentalMixer);
 
     // Feedback loop (from experimental mixer back to itself)
     this.experimentalMixer.connect(this.feedbackDelay);
@@ -584,13 +669,23 @@ class SandboxSynth {
       });
     }
 
+    // Hard Clipper
+    this.updateHardClipCurve();
+    this.hardClipGain.gain.value = this.params.hardClip > 0 ? 1 : 0;
+
+    // Frequency Shifter
+    this.freqShiftAmount = this.params.freqShift || 0;
+    this.freqShiftGain.gain.value = Math.abs(this.params.freqShift) > 0 ? 1 : 0;
+
     // Adjust pre-effects gain to compensate for experimental effects
     const experimentalActive = bitCrushAmount +
                               (this.params.waveFoldAmount > 0 ? 1 : 0) +
                               (this.params.formantShift > 0 ? 1 : 0) +
                               (granularActive ? 1 : 0) +
                               (this.params.combMix > 0 ? 1 : 0) +
-                              (sampleHoldActive ? 1 : 0);
+                              (sampleHoldActive ? 1 : 0) +
+                              (this.params.hardClip > 0 ? 1 : 0) +
+                              (Math.abs(this.params.freqShift) > 0 ? 1 : 0);
     // Less aggressive gain compensation - let the effects be more audible
     this.preEffectsGain.gain.value = experimentalActive > 0 ? 0.6 : 1;
     this.experimentalMixer.gain.value = experimentalActive > 0 ? 0.9 : 1;
@@ -631,23 +726,61 @@ class SandboxSynth {
 
     const frequency = this.midiToFrequency(midiNote);
     const velocityGain = velocity / 127;
-    const voiceId = ++this.voiceIdCounter;
 
-    // Create voice
-    const voice = {
-      id: voiceId,
-      note: midiNote,
-      oscillator: null,
-      oscillator2: null,
-      subOscillator: null,
-      noiseSource: null,
-      oscMixer: null,
-      filter: null,
-      envelope: null,
-      noteGain: null,
-      startTime: time,
-      cleanup: null // Track cleanup timeout
-    };
+    // Portamento - glide from last note to this note
+    const targetFrequency = frequency;
+    let startFrequency = frequency;
+    const portamentoTime = (this.params.portamentoTime || 0) / 1000; // Convert ms to seconds
+
+    if (portamentoTime > 0 && this.lastNoteFrequency) {
+      startFrequency = this.lastNoteFrequency;
+    }
+    this.lastNoteFrequency = targetFrequency;
+
+    // Unison - create multiple voices with detuning
+    const numVoices = Math.max(1, Math.min(8, this.params.unisonVoices || 1));
+    const unisonDetune = this.params.unisonDetune || 10;
+    const stereoSpread = (this.params.stereoSpread || 0) / 100;
+
+    // Create multiple voices for unison
+    const voices = [];
+    for (let i = 0; i < numVoices; i++) {
+      const voiceId = ++this.voiceIdCounter;
+
+      // Calculate detune for this voice
+      let voiceDetune = 0;
+      let voicePan = 0;
+      if (numVoices > 1) {
+        // Spread voices across detune range
+        const spreadFactor = (i / (numVoices - 1)) - 0.5; // -0.5 to 0.5
+        voiceDetune = spreadFactor * unisonDetune * 2; // Spread across range
+        voicePan = spreadFactor * stereoSpread * 2; // -1 to 1 for stereo
+      }
+
+      // Create voice
+      const voice = {
+        id: voiceId,
+        note: midiNote,
+        oscillator: null,
+        oscillator2: null,
+        subOscillator: null,
+        noiseSource: null,
+        oscMixer: null,
+        panner: null,
+        filter: null,
+        envelope: null,
+        noteGain: null,
+        startTime: time,
+        cleanup: null,
+        unisonDetune: voiceDetune,
+        unisonPan: voicePan
+      };
+      voices.push(voice);
+    }
+
+    // Process each unison voice
+    voices.forEach(voice => {
+      const voiceId = voice.id;
 
     // Create oscillator mixer
     voice.oscMixer = this.audioContext.createGain();
@@ -694,8 +827,14 @@ class SandboxSynth {
       voice.isPulseWave = false;
     }
 
-    voice.oscillator.frequency.value = frequency;
-    voice.oscillator.detune.value = this.params.detune;
+    // Set frequency with portamento and unison detuning
+    if (portamentoTime > 0 && startFrequency !== targetFrequency) {
+      voice.oscillator.frequency.setValueAtTime(startFrequency, time);
+      voice.oscillator.frequency.exponentialRampToValueAtTime(targetFrequency, time + portamentoTime);
+    } else {
+      voice.oscillator.frequency.value = targetFrequency;
+    }
+    voice.oscillator.detune.value = this.params.detune + voice.unisonDetune;
 
     // Oscillator 1 gain (controlled by mix)
     const osc1Gain = this.audioContext.createGain();
@@ -879,11 +1018,16 @@ class SandboxSynth {
 
     voice.noteGain.gain.value = velocityGain * gainCompensation;
 
-    // Connect voice chain (oscMixer -> filter -> envelope -> noteGain -> effects)
+    // Create stereo panner for unison spread
+    voice.panner = this.audioContext.createStereoPanner();
+    voice.panner.pan.value = Math.max(-1, Math.min(1, voice.unisonPan));
+
+    // Connect voice chain (oscMixer -> filter -> envelope -> noteGain -> panner -> effects)
     voice.oscMixer.connect(voice.filter);
     voice.filter.connect(voice.envelope);
     voice.envelope.connect(voice.noteGain);
-    voice.noteGain.connect(this.effectsInput);
+    voice.noteGain.connect(voice.panner);
+    voice.panner.connect(this.effectsInput);
 
     // Apply ADSR envelope
     const now = time;
@@ -975,18 +1119,20 @@ class SandboxSynth {
       voice.noiseSource.start(time);
     }
 
-    // Store voice with unique ID
-    this.activeVoices.set(voiceId, voice);
+      // Store voice with unique ID
+      this.activeVoices.set(voiceId, voice);
 
-    // Track voice ID by note
-    if (!this.noteToVoices.has(midiNote)) {
-      this.noteToVoices.set(midiNote, new Set());
-    }
-    this.noteToVoices.get(midiNote).add(voiceId);
+      // Track voice ID by note
+      if (!this.noteToVoices.has(midiNote)) {
+        this.noteToVoices.set(midiNote, new Set());
+      }
+      this.noteToVoices.get(midiNote).add(voiceId);
 
-    console.log(`[SandboxSynth] Started voice ${voiceId} for note ${midiNote}`);
+      console.log(`[SandboxSynth] Started voice ${voiceId} (${i + 1}/${numVoices}) for note ${midiNote}`);
+    }); // End of unison voices forEach
 
-    return voice;
+    // Return first voice for compatibility
+    return voices[0];
   }
 
   stopNote(midiNote, time = this.audioContext.currentTime) {
@@ -1082,6 +1228,7 @@ class SandboxSynth {
       voice.filter.disconnect();
       voice.envelope.disconnect();
       voice.noteGain.disconnect();
+      if (voice.panner) voice.panner.disconnect();
 
       // Disconnect FM modulation
       if (voice.fmGain) {
@@ -1173,6 +1320,13 @@ class SandboxSynth {
       this.formantFilters.forEach(filter => filter.disconnect());
     }
     if (this.formantGain) this.formantGain.disconnect();
+    if (this.hardClipper) this.hardClipper.disconnect();
+    if (this.hardClipGain) this.hardClipGain.disconnect();
+    if (this.freqShifter) {
+      this.freqShifter.disconnect();
+      this.freqShifter.onaudioprocess = null;
+    }
+    if (this.freqShiftGain) this.freqShiftGain.disconnect();
     if (this.experimentalMixer) this.experimentalMixer.disconnect();
     if (this.preEffectsGain) this.preEffectsGain.disconnect();
     if (this.postExperimentalGain) this.postExperimentalGain.disconnect();

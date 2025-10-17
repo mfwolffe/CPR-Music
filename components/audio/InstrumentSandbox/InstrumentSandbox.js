@@ -86,6 +86,12 @@ const InstrumentSandbox = () => {
     waveFoldAmount: 0,    // Wave folding distortion
     feedbackAmount: 0,    // Internal feedback loop
     formantShift: 0,      // Vowel-like formant filtering
+    unisonVoices: 1,      // Number of unison voices (1-8)
+    unisonDetune: 10,     // Detune spread for unison (cents)
+    portamentoTime: 0,    // Glide time in seconds
+    stereoSpread: 0,      // Stereo width (0-100%)
+    hardClip: 0,          // Hard clipping amount (0-100%)
+    freqShift: 0,         // Frequency shift in Hz (-500 to 500)
 
     // Granular/Buffer Effects
     grainSize: 100,       // Grain size in ms
