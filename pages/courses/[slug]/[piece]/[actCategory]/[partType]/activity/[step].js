@@ -168,13 +168,26 @@ export default function ActivityPage() {
 
   // Handle continuing to next activity
   const handleContinue = () => {
+    console.log('🚀 handleContinue called:', {
+      currentStep,
+      stepNumber,
+      slug,
+      piece,
+      actCategory,
+      partType,
+      email
+    });
+
     setShowSubmitModal(false);
+
     if (currentStep <= 4) {
       // Navigate to next activity, preserving email parameter
       const nextUrl = `/courses/${slug}/${piece}/${actCategory}/${partType}/activity/${currentStep}`;
+      console.log('📍 Navigating to:', nextUrl);
       router.push(email ? `${nextUrl}?email=${encodeURIComponent(email)}` : nextUrl);
     } else {
       // All activities complete - redirect to Qualtrics Survey 2
+      console.log('✅ All activities complete, redirecting to survey');
       if (email) {
         // Redirect to Qualtrics with email parameter
         window.location.href = `${SURVEY_2_URL}?email=${encodeURIComponent(email)}`;
@@ -194,6 +207,16 @@ export default function ActivityPage() {
   const activityConfig = getActivityConfig(stepNumber);
   const stepKey = String(stepNumber);
   const completedOps = stepCompletions[stepKey] || [];
+
+  // Debug: Log what operations are actually completed
+  console.log('🔍 Activity Page Debug:', {
+    stepNumber,
+    stepKey,
+    stepCompletions,
+    completedOps,
+    completedOpsLength: completedOps.length,
+    completedOpsArray: [...completedOps] // Expand the array to see actual values
+  });
 
   // Pre-populate bassline for Activity 3
   const initialTracks = stepNumber === 3 ? [{
