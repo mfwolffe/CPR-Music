@@ -174,3 +174,46 @@ export function getAssignedPieces(assignments) {
     return pieces;
   };
 }
+
+// ========== Activity Progress API ==========
+
+export async function getActivityProgress({ slug, assignmentId }) {
+  const endpoint = `courses/${slug}/assignments/${assignmentId}/activity-progress/`;
+  try {
+    const json = await makeRequest(endpoint);
+    return json;
+  } catch (error) {
+    // Return null if not found (first time accessing)
+    if (error.message.includes('404')) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export function mutateLogActivityEvent({ slug, assignmentId }) {
+  return async ({ operation, step, data = {} }) => {
+    const endpoint = `courses/${slug}/assignments/${assignmentId}/activity-progress/log_event/`;
+    const body = { operation, step, data };
+    const json = await makeRequest(endpoint, 'POST', body);
+    return json;
+  };
+}
+
+export function mutateSubmitActivityStep({ slug, assignmentId }) {
+  return async ({ questionResponses = {} }) => {
+    const endpoint = `courses/${slug}/assignments/${assignmentId}/activity-progress/submit_step/`;
+    const body = { question_responses: questionResponses };
+    const json = await makeRequest(endpoint, 'POST', body);
+    return json;
+  };
+}
+
+export function mutateSaveQuestionResponse({ slug, assignmentId }) {
+  return async ({ questionId, response }) => {
+    const endpoint = `courses/${slug}/assignments/${assignmentId}/activity-progress/save_response/`;
+    const body = { question_id: questionId, response };
+    const json = await makeRequest(endpoint, 'POST', body);
+    return json;
+  };
+}
