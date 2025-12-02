@@ -54,13 +54,22 @@ export function useActivityProgress({ slug, assignmentId, initialStep = 1, email
 
     const loadProgress = async () => {
       try {
+        console.log('📥 Loading progress for assignment:', assignmentId);
         const progress = await getActivityProgress({ slug, assignmentId });
+        console.log('📥 Loaded progress from backend:', progress);
 
         if (progress) {
+          console.log('📥 Setting state from progress:', {
+            current_step: progress.current_step,
+            step_completions: progress.step_completions,
+            activity_logs_count: progress.activity_logs?.length || 0,
+          });
           setCurrentStep(progress.current_step);
-          setStepCompletions(progress.step_completions);
+          setStepCompletions(progress.step_completions || {});
           setActivityLogs(progress.activity_logs || []);
-          setQuestionResponses(progress.question_responses);
+          setQuestionResponses(progress.question_responses || {});
+        } else {
+          console.log('📥 No progress found, starting fresh');
         }
 
         hasLoadedProgress.current = true;
