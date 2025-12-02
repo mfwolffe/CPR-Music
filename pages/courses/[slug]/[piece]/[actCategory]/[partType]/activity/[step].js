@@ -201,7 +201,9 @@ export default function ActivityPage() {
   // Handle step submission
   const handleSubmit = async () => {
     try {
-      await submitStep(questionResponses);
+      // Pass the stepNumber from URL as the step being submitted
+      // This ensures we submit the correct step even if backend has stale data
+      await submitStep(questionResponses, stepNumber);
       setShowSubmitModal(true);
     } catch (error) {
       console.error('Failed to submit step:', error);
@@ -321,7 +323,7 @@ export default function ActivityPage() {
           questions={activityConfig.questions}
           questionResponses={questionResponses}
           completedOperations={completedOps}
-          canSubmit={canSubmit}
+          canSubmit={canSubmit && !!assignment?.id}
           progress={progress}
           isSubmitting={isSubmitting}
           onResponseChange={saveResponse}

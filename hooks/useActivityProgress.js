@@ -38,13 +38,15 @@ export function useActivityProgress({ slug, assignmentId, initialStep = 1, email
   // Get logger instance
   const logger = getDAWActivityLogger();
 
-  // Sync currentStep when initialStep changes (fixes NaN issue on first render)
+  // Sync currentStep with initialStep ONLY on initial mount (before progress loads)
+  // This fixes NaN issue on first render without overwriting updates from submitStep
   useEffect(() => {
-    if (!isNaN(initialStep) && initialStep !== currentStep) {
-      console.log('🔄 Syncing currentStep with initialStep:', initialStep);
+    if (!hasLoadedProgress.current && !isNaN(initialStep)) {
+      console.log('🔄 Initial sync of currentStep with initialStep:', initialStep);
       setCurrentStep(initialStep);
     }
-  }, [initialStep, currentStep]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialStep]); // Only depend on initialStep, not currentStep
 
   // Load progress from backend on mount
   useEffect(() => {
@@ -132,8 +134,15 @@ export function useActivityProgress({ slug, assignmentId, initialStep = 1, email
   }, [slug, assignmentId]);
 
   // Submit current step and advance
-  const submitStep = useCallback(async (responses = {}) => {
-    if (!slug || !assignmentId) return;
+  const submitStep = useCallback(async (responses = {}, stepToSubmit = null) => {
+    if (!slug || !assignmentId) {
+      console.error('Cannot submit: missing slug or assignmentId', { slug, assignmentId });
+      throw new Error('Assignment not loaded yet. Please wait and try again.');
+    }
+
+    // Use provided step or fall back to currentStep from state
+    const step = stepToSubmit ?? currentStep;
+    console.log('📤 Submitting step:', step);
 
     setIsSubmitting(true);
 
@@ -144,7 +153,10 @@ export function useActivityProgress({ slug, assignmentId, initialStep = 1, email
           ...questionResponses,
           ...responses,
         },
+        step,
       });
+
+      console.log('📥 Backend returned current_step:', updatedProgress.current_step);
 
       // Update local state
       setCurrentStep(updatedProgress.current_step);
@@ -159,7 +171,7 @@ export function useActivityProgress({ slug, assignmentId, initialStep = 1, email
       setIsSubmitting(false);
       throw error;
     }
-  }, [slug, assignmentId, questionResponses]);
+  }, [slug, assignmentId, questionResponses, currentStep]);
 
   // Check if current step can be submitted
   const canSubmit = useCallback(() => {

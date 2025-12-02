@@ -201,9 +201,12 @@ export function mutateLogActivityEvent({ slug, assignmentId }) {
 }
 
 export function mutateSubmitActivityStep({ slug, assignmentId }) {
-  return async ({ questionResponses = {} }) => {
+  return async ({ questionResponses = {}, step = null }) => {
     const endpoint = `courses/${slug}/assignments/${assignmentId}/activity-progress/submit_step/`;
     const body = { question_responses: questionResponses };
+    if (step !== null) {
+      body.step = step;
+    }
     const json = await makeRequest(endpoint, 'POST', body);
     return json;
   };
