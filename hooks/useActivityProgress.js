@@ -182,23 +182,24 @@ export function useActivityProgress({ slug, assignmentId, initialStep = 1, email
     }
   }, [slug, assignmentId, questionResponses, currentStep]);
 
-  // Check if current step can be submitted
+  // Check if the VIEWED step (initialStep from URL) can be submitted
+  // Use initialStep, not currentStep, because currentStep is backend state which may be stale
   const canSubmit = useCallback(() => {
-    return isStepComplete(currentStep, stepCompletions, activityLogs);
-  }, [currentStep, stepCompletions, activityLogs]);
+    return isStepComplete(initialStep, stepCompletions, activityLogs);
+  }, [initialStep, stepCompletions, activityLogs]);
 
-  // Get progress percentage for current step
+  // Get progress percentage for the VIEWED step
   const progress = useCallback(() => {
-    return getStepProgress(currentStep, stepCompletions, activityLogs);
-  }, [currentStep, stepCompletions, activityLogs]);
+    return getStepProgress(initialStep, stepCompletions, activityLogs);
+  }, [initialStep, stepCompletions, activityLogs]);
 
-  // Get missing operations for current step
+  // Get missing operations for the VIEWED step
   const missingOperations = useCallback(() => {
-    return getMissingOperations(currentStep, stepCompletions, activityLogs);
-  }, [currentStep, stepCompletions, activityLogs]);
+    return getMissingOperations(initialStep, stepCompletions, activityLogs);
+  }, [initialStep, stepCompletions, activityLogs]);
 
-  // Get step requirements
-  const requirements = ACTIVITY_REQUIREMENTS[currentStep] || { required: [] };
+  // Get step requirements for the VIEWED step
+  const requirements = ACTIVITY_REQUIREMENTS[initialStep] || { required: [] };
 
   return {
     // State
