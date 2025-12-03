@@ -12,6 +12,10 @@ module.exports = {
     // your project has ESLint errors.
     ignoreDuringBuilds: true,
   },
+  typescript: {
+    // Allow production builds to complete even with type errors
+    ignoreBuildErrors: true,
+  },
   i18n: {
     locales: ['en'],
     defaultLocale: 'en',

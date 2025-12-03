@@ -1,6 +1,5 @@
 'use client';
 
-import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
@@ -24,8 +23,19 @@ import { AudioDropModal } from '../../components/audio/silenceDetect';
 const URL = '/sample_audio/uncso-bruckner4-1.mp3';
 
 export default function DroppedAudioSandBox() {
-  const ffmpegRef = useRef(new FFmpeg());
+  const ffmpegRef = useRef(null);
   const [loaded, setLoaded] = useState(false);
+  const [ffmpegReady, setFfmpegReady] = useState(false);
+
+  // Initialize FFmpeg only on client side
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !ffmpegRef.current) {
+      import('@ffmpeg/ffmpeg').then(({ FFmpeg }) => {
+        ffmpegRef.current = new FFmpeg();
+        setFfmpegReady(true);
+      });
+    }
+  }, []);
   const [isLoading, setIsLoading] = useState(false);
   const [fileFlagged, setFileFlagged] = useState(false);
   const [noiseTolerance, setNoiseTolerance] = useState(0);
@@ -33,7 +43,12 @@ export default function DroppedAudioSandBox() {
   const [fileSilenceData, setFileSilenceData] = useState(null);
   const [multichannelScan, setMultichannelScan] = useState(false);
 
-  if (!loaded) loadFfmpeg(ffmpegRef, setLoaded, setIsLoading);
+  // Load FFmpeg only after it's initialized
+  useEffect(() => {
+    if (ffmpegReady && !loaded) {
+      loadFfmpeg(ffmpegRef, setLoaded, setIsLoading);
+    }
+  }, [ffmpegReady, loaded]);
 
   useEffect(() => {
     console.log(
